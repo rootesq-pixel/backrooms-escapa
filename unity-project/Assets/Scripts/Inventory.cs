@@ -72,6 +72,7 @@ public class Inventory : MonoBehaviour
         if (gm == null || gm.State != GameManager.GameState.Playing) return;
         UIManager ui = UIManager.Instance;
         if (ui != null && ui.Current != UIManager.Screen.None && ui.Current != UIManager.Screen.Inventory) return;
+        if (MultiplayerUI.ChatTyping) return;
 
         // Barra rápida: teclas 1-5 (también con el teclado numérico)
         for (int i = 0; i < HotbarSize; i++)
@@ -132,6 +133,15 @@ public class Inventory : MonoBehaviour
         if (added > 0 && count) Collected += added;
         if (added > 0) Notify();
         return added;
+    }
+
+    // ¿Cabe (aunque sea en parte)? Lo usa el multijugador antes de pedir un objeto al anfitrión
+    public bool CanAdd(ItemType t, int n)
+    {
+        if (t == ItemType.None || t == ItemType.Flashlight || n <= 0) return false;
+        ItemDefs.Def def = ItemDefs.Get(t);
+        for (int i = 0; i < slots.Length; i++) if (slots[i].type == t && slots[i].count < def.maxStack) return true;
+        return FindEmptySlot(t) >= 0;
     }
 
     public void AddBattery(int n) { Add(ItemType.Battery, n); }
@@ -229,7 +239,12 @@ public class Inventory : MonoBehaviour
         Vector3 p = transform.position + fwd * 0.9f;
         Vector3 floor = FloorPoint(p);
         Remove(i, 1);
-        if (t == ItemType.Glowstick) Glowstick.Spawn(floor + Vector3.up * 0.06f, Vector3.zero, null);
+        if (t == ItemType.Glowstick)
+        {
+            Glowstick.Spawn(floor + Vector3.up * 0.06f, Vector3.zero, null);
+            if (NetSession.Active) NetSession.Instance.NotifyGlow(floor + Vector3.up * 0.06f, Vector3.zero);
+        }
+        else if (NetSession.Active) NetSession.Instance.DropItem(t, 1, floor + Vector3.up * 0.02f);
         else ItemPickup.Spawn(t, floor + Vector3.up * 0.02f, -1, transform.parent, 2.5f);
         string msg = ItemDefs.Get(t).name + (t == ItemType.Glowstick ? " colocada en el suelo" : " soltada");
         LastMessage = msg;
@@ -251,6 +266,7 @@ public class Inventory : MonoBehaviour
         Vector3 vel = c.forward * 7.5f + Vector3.up * 2.0f;
         Collider own = GetComponent<Collider>();
         Glowstick.Spawn(start, throwIt ? vel : Vector3.zero, own);
+        if (NetSession.Active) NetSession.Instance.NotifyGlow(start, throwIt ? vel : Vector3.zero);
         return true;
     }
 

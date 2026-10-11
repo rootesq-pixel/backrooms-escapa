@@ -62,7 +62,7 @@ public class HotbarHud : MonoBehaviour
             Image bor = UiStyle.Rect(root, "HotSlot" + (i + 1), x, baseY + 52f, sw, sw, new Color(UiStyle.Border.r, UiStyle.Border.g, UiStyle.Border.b, 0.9f));
             Image inner = UiStyle.Rect(bor.transform, "Bg", 0f, 0f, sw - 4f, sw - 4f, new Color(0.05f, 0.045f, 0.02f, 0.78f));
             Image ic = UiStyle.Rect(inner.transform, "Icon", 0f, 2f, sw - 14f, sw - 14f, Color.white);
-            ic.preserveAspect = true;
+            ic.preserveAspect = true; ic.enabled = false;
             icon[i] = ic; border[i] = bor;
             UiStyle.Label(inner.transform, (i + 1).ToString(), 18, TextAnchor.UpperLeft, -sw * 0.5f + 17f, sw * 0.5f - 17f, 30f, 24f, UiStyle.Gold);
             count[i] = UiStyle.Label(inner.transform, "", 22, TextAnchor.LowerRight, 0f, -sw * 0.5f + 22f, sw - 12f, 28f, UiStyle.Text, FontStyle.Bold);

@@ -8,6 +8,8 @@ public class BatteryPickup : MonoBehaviour
     public float amount = 35f;
     public float pickupRadius = 1.3f;
     public AudioClip pickupClip;
+    public int netId = -1;            // multijugador
+    private float reqTimer;
 
     private Vector3 basePos;
     private float phase;
@@ -30,8 +32,46 @@ public class BatteryPickup : MonoBehaviour
         d.y = 0f;
         if (d.sqrMagnitude <= pickupRadius * pickupRadius)
         {
-            Collect();
+            if (NetSession.Active && netId >= 0) NetTryRequest();
+            else Collect();
         }
+    }
+
+    private void NetTryRequest()
+    {
+        reqTimer -= Time.deltaTime;
+        if (reqTimer > 0f) return;
+        NetSession ns = NetSession.Instance;
+        Inventory inv = target != null ? target.GetComponent<Inventory>() : Inventory.Instance;
+        if (ns == null || ns.LocalDowned) return;
+        if (inv != null && !inv.CanAdd(ItemType.Battery, 1))
+        {
+            reqTimer = 1.5f;
+            if (GameManager.Instance != null) GameManager.Instance.ShowToast("Inventario lleno");
+            return;
+        }
+        reqTimer = 0.7f;
+        ns.RequestPickup(netId);
+    }
+
+    // Multijugador: el anfitrión ha concedido esta pila (mine = es para mí; si no, desaparece para todos)
+    public void NetApply(bool mine, string byName)
+    {
+        if (mine)
+        {
+            Inventory inv = target != null ? target.GetComponent<Inventory>() : Inventory.Instance;
+            if (inv != null)
+            {
+                if (inv.Add(ItemType.Battery, 1) <= 0)
+                {
+                    if (NetSession.Instance != null) NetSession.Instance.DropItem(ItemType.Battery, 1, basePos);
+                }
+                else CollectedThisLevel++;
+            }
+            if (GameManager.Instance != null) GameManager.Instance.ShowToast("+ Pila   (I: inventario · 2 / B: usar pila)");
+        }
+        if (pickupClip != null) AudioSource.PlayClipAtPoint(pickupClip, basePos + Vector3.up * 1f, 0.8f);
+        Destroy(gameObject);
     }
 
     public void Collect()

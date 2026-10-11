@@ -120,7 +120,7 @@ public class GameManager : MonoBehaviour
                 if (stateTimer >= levelFadeSeconds + 0.4f) GoToNextLevel();
                 break;
             case GameState.Lost:
-                if (stateTimer >= lostRestartSeconds) Restart();
+                if (stateTimer >= lostRestartSeconds && !(NetSession.Active && !NetSession.IsHost)) Restart();
                 break;
         }
 
@@ -182,6 +182,12 @@ public class GameManager : MonoBehaviour
 
         Vector3 d = player.transform.position - exit.position;
         d.y = 0f;
+        if (NetSession.Active)
+        {
+            // multijugador: el anfitrión da el nivel por superado cuando todos los jugadores en pie están en la salida
+            NetSession.LocalAtExit = d.magnitude <= exitRadius && !NetSession.Instance.LocalDowned;
+            return;
+        }
         if (d.magnitude <= exitRadius)
         {
             Win();
@@ -208,7 +214,7 @@ public class GameManager : MonoBehaviour
             if (messageText != null)
             {
                 messageText.text = "¡HAS ESCAPADO!\nHas superado los " + LevelConfig.Count + " niveles\nTiempo total: " + FormatTime(total)
-                    + "   Intentos fallidos: " + deaths + "\n\nPulsa R para volver a empezar desde el Nivel 0 o elige una opción";
+                    + "   Intentos fallidos: " + deaths + (NetSession.Active ? "\n\nEl anfitrión puede pulsar R para volver a empezar o elige una opción" : "\n\nPulsa R para volver a empezar desde el Nivel 0 o elige una opción");
             }
         }
         else
@@ -270,11 +276,21 @@ public class GameManager : MonoBehaviour
     }
 
     // Reinicia el nivel actual (nuevo laberinto si la semilla es aleatoria)
+    private float lastMpToast = -99f;
+    private bool MpHostOnly(string what)
+    {
+        if (!NetSession.Active || NetSession.IsHost) return false;
+        if (Time.unscaledTime - lastMpToast > 3f) { lastMpToast = Time.unscaledTime; ShowToast(what == null ? "Esperando a que el anfitrión reinicie el nivel..." : "Solo el anfitrión puede " + what); }
+        return true;
+    }
+
     public void Restart()
     {
         if (restarting) return;
+        if (MpHostOnly(State == GameState.Lost ? null : "reiniciar el nivel")) return;
         restarting = true;
         if (Inventory.Instance != null) Inventory.Instance.RevertToLevelStart();
+        if (NetSession.Active) { NetSession.Instance.HostRestartLevel(); return; }
 
         if (bootstrap != null)
         {
@@ -290,7 +306,9 @@ public class GameManager : MonoBehaviour
     public void RestartRun()
     {
         if (restarting) return;
+        if (MpHostOnly("volver a empezar la partida")) return;
         restarting = true;
+        if (NetSession.Active) { NetSession.Instance.HostLoadLevel(0, true, false); return; }
         if (bootstrap != null) bootstrap.RestartRun();
         else SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex);
     }
@@ -298,7 +316,9 @@ public class GameManager : MonoBehaviour
     private void GoToNextLevel()
     {
         if (restarting) return;
+        if (NetSession.Active && !NetSession.IsHost) return;      // el anfitrión envía el nivel siguiente
         restarting = true;
+        if (NetSession.Active) { NetSession.Instance.HostLoadLevel(levelIndex + 1, false, false); return; }
         if (bootstrap != null) bootstrap.LoadLevel(levelIndex + 1);
     }
 

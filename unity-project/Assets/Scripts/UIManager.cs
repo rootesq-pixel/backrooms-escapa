@@ -10,12 +10,12 @@ using UnityEngine.UI;
 // Gestiona el cursor, Time.timeScale y la pausa del audio. Persiste durante toda la sesión (hijo de GameBootstrap).
 public class UIManager : MonoBehaviour
 {
-    public enum Screen { None, Main, Levels, Options, Credits, Pause, Inventory, End }
+    public enum Screen { None, Main, Levels, Options, Credits, Pause, Inventory, End, Multi, Lobby }
 
     public static UIManager Instance { get; private set; }
 
     // true cuando hay un menú abierto y el jugador no debe moverse/mirar
-    public static bool InputBlocked { get { return Instance != null && Instance.current != Screen.None; } }
+    public static bool InputBlocked { get { return Instance != null && (Instance.current != Screen.None || MultiplayerUI.ChatTyping); } }
 
     public Screen Current { get { return current; } }
     public bool GameplayActive { get { return Instance != null && bootstrap != null && !bootstrap.InMenu && bootstrap.IsLoaded && GameManager.Instance != null; } }
@@ -24,7 +24,10 @@ public class UIManager : MonoBehaviour
     private Screen current = Screen.None;
     private Screen optionsReturn = Screen.Main;
     private Canvas canvas;
-    private GameObject pMain, pLevels, pOptions, pCredits, pPause, pInventory, pEnd;
+    private GameObject pMain, pLevels, pOptions, pCredits, pPause, pInventory, pEnd, pMulti, pLobby;
+    private MultiplayerUI mpUi;
+    private Text pauseTitle;
+    public MultiplayerUI Multiplayer { get { return mpUi; } }
     private InventoryUI invUi;
     private Font font;
     private AudioSource clickSrc;
@@ -102,12 +105,16 @@ public class UIManager : MonoBehaviour
             SetScreen(Screen.None);
         }
 
-        if (Input.GetKeyDown(KeyCode.Escape)) OnEscape(inGame, gm);
+        if (Input.GetKeyDown(KeyCode.Escape))
+        {
+            if (MultiplayerUI.ChatTyping && mpUi != null) mpUi.CloseChat();
+            else OnEscape(inGame, gm);
+        }
 
         if (inGame && gm.State == GameManager.GameState.Playing)
         {
-            if (Input.GetKeyDown(KeyCode.I)) ToggleInventory();
-            if (current == Screen.None && Input.GetKeyDown(KeyCode.B)) UseBattery();
+            if (!MultiplayerUI.ChatTyping && Input.GetKeyDown(KeyCode.I)) ToggleInventory();
+            if (!MultiplayerUI.ChatTyping && current == Screen.None && Input.GetKeyDown(KeyCode.B)) UseBattery();
         }
 
         if (current == Screen.Pause && !inGame) SetScreen(Screen.None);
@@ -140,6 +147,15 @@ public class UIManager : MonoBehaviour
             case Screen.Options: SetScreen(optionsReturn); break;
             case Screen.Credits:
             case Screen.Levels: SetScreen(Screen.Main); break;
+            case Screen.Multi:
+                if (mpUi != null && mpUi.CurrentPage != MultiplayerUI.Page.Menu)
+                {
+                    if (NetSession.Instance != null && NetSession.Instance.Connecting) NetSession.Instance.Leave(null);
+                    mpUi.ShowPage(MultiplayerUI.Page.Menu);
+                }
+                else SetScreen(Screen.Main);
+                break;
+            case Screen.Lobby: if (mpUi != null) mpUi.OnLeaveLobby(); break;
         }
     }
 
@@ -157,6 +173,9 @@ public class UIManager : MonoBehaviour
             pOptions.SetActive(s == Screen.Options);
             pCredits.SetActive(s == Screen.Credits);
             pPause.SetActive(s == Screen.Pause);
+            if (pMulti != null) pMulti.SetActive(s == Screen.Multi);
+            if (pLobby != null) pLobby.SetActive(s == Screen.Lobby);
+            if (s == Screen.Pause && pauseTitle != null) pauseTitle.text = NetSession.Active ? "PAUSA\n<size=34>(la partida sigue)</size>" : "PAUSA";
             if (s == Screen.Inventory) { if (invUi != null) invUi.Open(); }
             else if (invUi != null)
             {
@@ -166,8 +185,8 @@ public class UIManager : MonoBehaviour
             pEnd.SetActive(s == Screen.End);
         }
 
-        bool freezeTime = s == Screen.Pause || s == Screen.Inventory ||
-            ((s == Screen.Options) && optionsReturn == Screen.Pause);
+        bool freezeTime = (s == Screen.Pause || s == Screen.Inventory ||
+            ((s == Screen.Options) && optionsReturn == Screen.Pause)) && !NetSession.Active;   // en multijugador el mundo no se detiene
         Time.timeScale = freezeTime ? 0f : 1f;
         AudioListener.pause = freezeTime;
 
@@ -237,6 +256,7 @@ public class UIManager : MonoBehaviour
     public void OnMainMenu()
     {
         Click();
+        if (NetSession.Active) NetSession.Instance.Leave(null);
         SetScreen(Screen.None);
         Time.timeScale = 1f;
         AudioListener.pause = false;
@@ -293,10 +313,14 @@ public class UIManager : MonoBehaviour
         pPause = BuildPause(cg.transform);
         pInventory = BuildInventory(cg.transform);
         pEnd = BuildEnd(cg.transform);
+        mpUi = gameObject.AddComponent<MultiplayerUI>();
+        mpUi.Build(this, cg.transform);
+        pMulti = mpUi.MultiRoot;
+        pLobby = mpUi.LobbyRoot;
     }
 
     // --- helpers ---
-    private RectTransform Panel(Transform parent, string name, Color color, bool fullscreen)
+    public RectTransform Panel(Transform parent, string name, Color color, bool fullscreen)
     {
         GameObject go = new GameObject(name, typeof(RectTransform));
         go.transform.SetParent(parent, false);
@@ -315,7 +339,7 @@ public class UIManager : MonoBehaviour
         return rt;
     }
 
-    private Text Label(Transform parent, string content, int size, TextAnchor anchor, float x, float y, float w, float h, Color? color = null)
+    public Text Label(Transform parent, string content, int size, TextAnchor anchor, float x, float y, float w, float h, Color? color = null)
     {
         GameObject go = new GameObject("Text", typeof(RectTransform));
         go.transform.SetParent(parent, false);
@@ -332,7 +356,7 @@ public class UIManager : MonoBehaviour
         return t;
     }
 
-    private Button MakeButton(Transform parent, string label, float x, float y, float w, float h, UnityEngine.Events.UnityAction onClick, int fontSize = 34)
+    public Button MakeButton(Transform parent, string label, float x, float y, float w, float h, UnityEngine.Events.UnityAction onClick, int fontSize = 34)
     {
         GameObject go = new GameObject("Btn_" + label, typeof(RectTransform));
         go.transform.SetParent(parent, false);
@@ -438,14 +462,15 @@ public class UIManager : MonoBehaviour
         Text title = Label(root.transform, "BACKROOMS: ESCAPA", 118, TextAnchor.MiddleCenter, 0f, 330f, 1700f, 180f, new Color(0.96f, 0.9f, 0.55f));
         title.fontStyle = FontStyle.Bold;
         Shadow sh = title.gameObject.AddComponent<Shadow>(); sh.effectColor = new Color(0f, 0f, 0f, 0.9f); sh.effectDistance = new Vector2(4f, -4f);
-        Label(root.transform, "Cinco niveles. Una salida. Algo te está buscando.", 32, TextAnchor.MiddleCenter, 0f, 235f, 1400f, 50f, Dim);
+        Label(root.transform, "Seis niveles. Una salida. Algo te está buscando.", 32, TextAnchor.MiddleCenter, 0f, 235f, 1400f, 50f, Dim);
 
-        float y = 120f;
-        MakeButton(root.transform, "Jugar", 0f, y, 520f, 70f, OnPlay); y -= 88f;
-        MakeButton(root.transform, "Seleccionar nivel", 0f, y, 520f, 70f, () => { Click(); SetScreen(Screen.Levels); }); y -= 88f;
-        MakeButton(root.transform, "Opciones", 0f, y, 520f, 70f, () => OpenOptions(Screen.Main)); y -= 88f;
-        MakeButton(root.transform, "Créditos", 0f, y, 520f, 70f, () => { Click(); SetScreen(Screen.Credits); }); y -= 88f;
-        MakeButton(root.transform, "Salir", 0f, y, 520f, 70f, OnQuit);
+        float y = 150f;
+        MakeButton(root.transform, "Jugar", 0f, y, 520f, 68f, OnPlay); y -= 78f;
+        MakeButton(root.transform, "Seleccionar nivel", 0f, y, 520f, 68f, () => { Click(); SetScreen(Screen.Levels); }); y -= 78f;
+        MakeButton(root.transform, "Multijugador", 0f, y, 520f, 68f, () => { Click(); SetScreen(Screen.Multi); if (mpUi != null) mpUi.ShowPage(MultiplayerUI.Page.Menu); }); y -= 78f;
+        MakeButton(root.transform, "Opciones", 0f, y, 520f, 68f, () => OpenOptions(Screen.Main)); y -= 78f;
+        MakeButton(root.transform, "Créditos", 0f, y, 520f, 68f, () => { Click(); SetScreen(Screen.Credits); }); y -= 78f;
+        MakeButton(root.transform, "Salir", 0f, y, 520f, 68f, OnQuit);
 
         Text credit = Label(root.transform, CreditsLine(), 22, TextAnchor.LowerCenter, 0f, -490f, 1800f, 80f, Dim);
         credit.name = "CreditsLine";
@@ -591,7 +616,8 @@ public class UIManager : MonoBehaviour
     private GameObject BuildPause(Transform parent)
     {
         GameObject root = NewPanelRoot(parent, "PauseMenu", new Color(0f, 0f, 0f, 0.7f));
-        Label(root.transform, "PAUSA", 96, TextAnchor.MiddleCenter, 0f, 330f, 1200f, 140f, new Color(0.96f, 0.9f, 0.55f));
+        pauseTitle = Label(root.transform, "PAUSA", 96, TextAnchor.MiddleCenter, 0f, 330f, 1200f, 170f, new Color(0.96f, 0.9f, 0.55f));
+        pauseTitle.supportRichText = true;
         float y = 190f;
         MakeButton(root.transform, "Continuar", 0f, y, 520f, 68f, OnResume); y -= 84f;
         MakeButton(root.transform, "Reiniciar nivel", 0f, y, 520f, 68f, OnRestartLevel); y -= 84f;

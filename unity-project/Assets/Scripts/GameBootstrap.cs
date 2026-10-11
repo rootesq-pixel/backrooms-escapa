@@ -40,6 +40,8 @@ public class GameBootstrap : MonoBehaviour
 
     private GameObject worldRoot;
     private bool loading;
+    private NetStart netStart;
+    public bool CanLoadNow { get { return !loading; } }
     private readonly List<Object> worldAssets = new List<Object>();
 
     // Pantalla de carga persistente
@@ -59,6 +61,7 @@ public class GameBootstrap : MonoBehaviour
         startLevel = Mathf.Clamp(startLevel, 0, LevelConfig.Count - 1);
         GameSettings.ApplyAll();
         BuildLoadingScreen();
+        NetSession.Create(this);
         BuildPersistentUi();
     }
 
@@ -126,6 +129,37 @@ public class GameBootstrap : MonoBehaviour
         StartCoroutine(LoadRoutine(Mathf.Clamp(index, 0, LevelConfig.Count - 1)));
     }
 
+    // Multijugador: carga el nivel indicado por el anfitrión (semilla, monstruos extra, huecos de aparición)
+    public void LoadLevelNet(NetStart ns)
+    {
+        if (loading || ns == null) return;
+        if (ns.restart && Inventory.Instance != null) Inventory.Instance.RevertToLevelStart();
+        if (ns.newRun)
+        {
+            RunElapsed = 0f; Deaths = 0;
+            Inventory.ResetAll();
+        }
+        if (UI != null) UI.HideAll();
+        netStart = ns;
+        StartCoroutine(LoadRoutine(Mathf.Clamp(ns.level, 0, LevelConfig.Count - 1)));
+    }
+
+    // Tras perder la conexión / salir de la sala: vuelve al menú principal (esperando a que termine una carga en curso)
+    public void ReturnToMenuAfterNet()
+    {
+        StartCoroutine(MenuAfterNetRoutine());
+    }
+
+    private IEnumerator MenuAfterNetRoutine()
+    {
+        while (loading) yield return null;
+        netStart = null;
+        Time.timeScale = 1f;
+        AudioListener.pause = false;
+        if (UI != null) UI.HideAll();
+        yield return LoadMenuRoutine();
+    }
+
     // Compatibilidad: reconstruye el nivel actual
     public void Rebuild()
     {
@@ -156,7 +190,9 @@ public class GameBootstrap : MonoBehaviour
         InMenu = false;
         MenuGenerator = null;
         CurrentLevel = index;
-        Build(index);
+        NetStart ns = netStart;
+        netStart = null;
+        Build(index, ns);
         LoadCount++;
         HideLoading();
         IsLoaded = true;
@@ -173,14 +209,16 @@ public class GameBootstrap : MonoBehaviour
         }
         worldAssets.Clear();
         BatteryPickup.CollectedThisLevel = 0;
+        if (NetSession.Instance != null) NetSession.Instance.OnWorldTeardown();
     }
 
     // ------------------------------------------------------------------
     // Construcción
     // ------------------------------------------------------------------
 
-    private void Build(int levelIndex)
+    private void Build(int levelIndex, NetStart ns)
     {
+        bool netClient = ns != null && NetSession.IsClient;
         LevelConfig cfg = LevelConfig.Get(levelIndex);
 
         // Si la escena trae su propia cámara principal, se desactiva para no duplicar AudioListener
@@ -201,36 +239,38 @@ public class GameBootstrap : MonoBehaviour
         genGo.transform.SetParent(worldRoot.transform, false);
         BackroomsGenerator generator = genGo.AddComponent<BackroomsGenerator>();
         generator.config = cfg;
-        generator.useRandomSeed = useRandomSeed;
-        generator.seed = seed + levelIndex * 101;
+        generator.useRandomSeed = ns == null && useRandomSeed;
+        generator.seed = ns != null ? ns.seed : seed + levelIndex * 101;
+        generator.extraMonsters = ns != null ? ns.extraMonsters : 0;
         generator.Generate();
         Generator = generator;
 
         // 2) NavMesh (antes de crear jugador y monstruos para que no entren en el horneado)
         bool navBuilt = false;
-        if (spawnMonster && buildNavMesh)
+        if (spawnMonster && buildNavMesh && !netClient)
         {
             navBuilt = MonsterAI.TryBuildRuntimeNavMesh(generator.Root.gameObject);
         }
         Debug.Log("[GameBootstrap] Nivel " + levelIndex + " (" + cfg.name + ") semilla: " + generator.UsedSeed + " | NavMesh en runtime: " + navBuilt);
 
         // 3) Jugador
-        GameObject player = BuildPlayer(generator, cfg, out FirstPersonController fpc, out Flashlight flashlight, out Camera cam);
+        GameObject player = BuildPlayer(generator, cfg, ns != null ? ns.SlotOf(NetSession.Instance.LocalId) : 0, out FirstPersonController fpc, out Flashlight flashlight, out Camera cam);
         if (generator.Culler != null) generator.Culler.viewer = cam.transform;
 
         // 4) Monstruos
         List<MonsterAI> monsters = new List<MonsterAI>();
         if (spawnMonster)
         {
-            for (int i = 0; i < generator.MonsterSpawns.Count && i < Mathf.Max(1, cfg.monsterCount); i++)
+            int mcount = Mathf.Max(1, cfg.monsterCount) + (ns != null ? ns.extraMonsters : 0);
+            for (int i = 0; i < generator.MonsterSpawns.Count && i < mcount; i++)
             {
-                monsters.Add(BuildMonster(generator, cfg, player.transform, generator.MonsterSpawns[i], i));
+                monsters.Add(BuildMonster(generator, cfg, player.transform, generator.MonsterSpawns[i], i, netClient));
             }
         }
 
         // 5) Pilas
-        BuildBatteries(generator, cfg, player.transform, flashlight);
-        BuildExtraPickups(generator, cfg);
+        BuildBatteries(generator, cfg, player.transform, flashlight, ns != null);
+        BuildExtraPickups(generator, cfg, ns != null);
 
         // 6) UI + GameManager
         GameObject gmGo = new GameObject("GameManager");
@@ -248,6 +288,7 @@ public class GameBootstrap : MonoBehaviour
         gm.config = cfg;
         BuildHud(gmGo.transform, gm);
         Manager = gm;
+        if (ns != null && NetSession.Instance != null) NetSession.Instance.OnWorldBuilt(gm, generator, player, fpc, monsters.ToArray(), cfg);
     }
 
     // Fondo del menú principal: nivel 0 con semilla fija, cámara recorriendo los pasillos (con efecto VHS y ambiente)
@@ -309,12 +350,14 @@ public class GameBootstrap : MonoBehaviour
     // Jugador
     // ------------------------------------------------------------------
 
-    private GameObject BuildPlayer(BackroomsGenerator generator, LevelConfig cfg, out FirstPersonController fpc,
+    private GameObject BuildPlayer(BackroomsGenerator generator, LevelConfig cfg, int slot, out FirstPersonController fpc,
         out Flashlight flashlight, out Camera cam)
     {
         GameObject player = new GameObject("Player");
         player.transform.SetParent(worldRoot.transform, false);
-        player.transform.position = generator.PlayerStart;
+        // multijugador: cada jugador aparece en un hueco distinto alrededor del punto de inicio (hueco 0 = el punto exacto)
+        Vector3 spawnOff = slot <= 0 ? Vector3.zero : Quaternion.Euler(0f, generator.PlayerStartYaw, 0f) * new Vector3(slot == 2 ? -0.8f : 0.8f, 0f, slot == 3 ? -0.8f : 0f);
+        player.transform.position = generator.PlayerStart + spawnOff;
         player.transform.rotation = Quaternion.Euler(0f, generator.PlayerStartYaw, 0f);
 
         CharacterController cc = player.AddComponent<CharacterController>();
@@ -382,7 +425,7 @@ public class GameBootstrap : MonoBehaviour
     // Pilas recogibles
     // ------------------------------------------------------------------
 
-    private void BuildBatteries(BackroomsGenerator generator, LevelConfig cfg, Transform player, Flashlight flashlight)
+    private void BuildBatteries(BackroomsGenerator generator, LevelConfig cfg, Transform player, Flashlight flashlight, bool net)
     {
         if (generator.BatterySpots == null) return;
         Material body = ProceduralAssets.CreateMaterial(new Color(0.08f, 0.08f, 0.09f), null, Vector2.one, 0.5f);
@@ -409,6 +452,7 @@ public class GameBootstrap : MonoBehaviour
             pk.flashlight = flashlight;
             pk.amount = cfg.batteryAmount;
             pk.pickupClip = clip;
+            if (net) { pk.netId = i; NetSession.RegisterPickup(i, pk); }
         }
     }
 
@@ -421,7 +465,7 @@ public class GameBootstrap : MonoBehaviour
         ItemType.VhsTape,
     };
 
-    private void BuildExtraPickups(BackroomsGenerator generator, LevelConfig cfg)
+    private void BuildExtraPickups(BackroomsGenerator generator, LevelConfig cfg, bool net)
     {
         if (generator.ExtraSpots == null) return;
         Transform root = new GameObject("ExtraPickups").transform;
@@ -437,9 +481,14 @@ public class GameBootstrap : MonoBehaviour
             {
                 // las notas que ya tengo no se vuelven a colocar
                 int id = LoreNotes.IdFor(cfg.index, noteK++);
-                ItemPickup.Spawn(ItemType.None, p, id, root, 0f);
+                ItemPickup np = ItemPickup.Spawn(ItemType.None, p, id, root, 0f);
+                if (net) { np.netId = 1000 + i; NetSession.RegisterPickup(np.netId, np); }
             }
-            else ItemPickup.Spawn(t, p, -1, root, 0f);
+            else
+            {
+                ItemPickup ip = ItemPickup.Spawn(t, p, -1, root, 0f);
+                if (net) { ip.netId = 1000 + i; NetSession.RegisterPickup(ip.netId, ip); }
+            }
         }
     }
 
@@ -447,7 +496,7 @@ public class GameBootstrap : MonoBehaviour
     // Monstruo: modelo 3D del nivel (Resources/Monsters/<id>) + IA; si el modelo falla, figura procedural
     // ------------------------------------------------------------------
 
-    private MonsterAI BuildMonster(BackroomsGenerator generator, LevelConfig cfg, Transform playerTransform, Vector3 spawn, int index)
+    private MonsterAI BuildMonster(BackroomsGenerator generator, LevelConfig cfg, Transform playerTransform, Vector3 spawn, int index, bool proxy)
     {
         GameObject m = new GameObject("Monster" + (index > 0 ? "_" + index : string.Empty));
         m.transform.SetParent(worldRoot.transform, false);
@@ -456,6 +505,7 @@ public class GameBootstrap : MonoBehaviour
         MonsterProfile profile = MonsterProfile.ById(cfg.monsterModel) ?? MonsterProfile.ForLevel(cfg.index);
 
         MonsterAI ai = m.AddComponent<MonsterAI>();
+        ai.netProxy = proxy;
         ai.patrolSpeed = cfg.patrolSpeed;
         ai.chaseSpeed = cfg.chaseSpeed;
         ai.sightRange = cfg.sightRange;

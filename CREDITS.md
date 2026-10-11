@@ -49,3 +49,8 @@ Las licencias CC0 no exigen atribución; se incluye por cortesía y trazabilidad
 ## Inventario, objetos y linterna (v5)
 
 Los iconos del inventario, los modelos de los objetos recogibles (pila, agua de almendras, barra luminosa, cinta VHS, nota), la linterna de mano, las 18 notas de lore y todo el audio se generan por código; no usan activos de terceros.
+
+## Multijugador (v6)
+
+La capa de red (`Assets/Scripts/Net/`) está escrita sobre `System.Net.Sockets` (TCP), incluido en .NET/Mono: **no se ha añadido ningún paquete ni activo de terceros**
+(no se usa Netcode for GameObjects ni Unity Transport). El avatar remoto reutiliza el cuerpo hazmat de Quaternius (CC0) citado arriba.

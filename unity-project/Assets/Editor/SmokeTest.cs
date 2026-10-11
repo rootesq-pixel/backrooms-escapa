@@ -1,4 +1,5 @@
 using System;
+using System.Net.Sockets;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
@@ -46,6 +47,7 @@ public static class SmokeTest
             TestInventoryData(r);
             TestSettings(r);
             TestV4Assets(r);
+            TestNetwork(r);
         }
         catch (Exception e)
         {
@@ -129,6 +131,137 @@ public static class SmokeTest
     // ------------------------------------------------------------------
     // Inventario: definiciones, iconos, notas, apilado y persistencia (sin entrar en Play)
     // ------------------------------------------------------------------
+    // ------------------------------------------------------------------
+    // Multijugador: serialización, transporte TCP, determinismo del mundo
+    // ------------------------------------------------------------------
+    private static ulong HashOf(int lv, int seed, int extra)
+    {
+        EditorSceneManager.NewScene(NewSceneSetup.EmptyScene);
+        GameObject go = new GameObject("NetGen");
+        BackroomsGenerator g = go.AddComponent<BackroomsGenerator>();
+        g.config = LevelConfig.Get(lv);
+        g.useRandomSeed = false; g.seed = seed; g.extraMonsters = extra;
+        g.Generate();
+        ulong h = g.WorldHash();
+        int monsters = g.MonsterSpawns.Count;
+        UnityEngine.Object.DestroyImmediate(go);
+        lastMonsterCount = monsters;
+        return h;
+    }
+    private static int lastMonsterCount;
+
+    private static void TestNetwork(Report r)
+    {
+        // Serialización
+        NetWriter w = new NetWriter(42).Byte(7).Int(-123456).Float(3.5f).Bool(true).Str("¡Hola, ñandú!").Vec3(new Vector3(1, 2, 3)).Long(1L << 40);
+        NetReader rd = new NetReader(w.ToArray());
+        bool ser = rd.Type == 42 && rd.Byte() == 7 && rd.Int() == -123456 && Mathf.Approximately(rd.Float(), 3.5f) && rd.Bool()
+            && rd.Str() == "¡Hola, ñandú!" && rd.Vec3() == new Vector3(1, 2, 3) && rd.Long() == (1L << 40) && rd.End;
+        r.Check(ser, "[Red] NetWriter/NetReader: ida y vuelta de todos los tipos");
+        r.Check(NetUtil.Fnv(NetUtil.FnvBasis, 5) == NetUtil.Fnv(NetUtil.FnvBasis, 5) && NetUtil.Fnv(NetUtil.FnvBasis, 5) != NetUtil.Fnv(NetUtil.FnvBasis, 6), "[Red] hash FNV determinista");
+        r.Check(NetUtil.LocalAddresses() != null, "[Red] lista de IP locales (" + string.Join(", ", NetUtil.LocalAddresses().ToArray()) + ")");
+        r.Check(!string.IsNullOrEmpty(NetSession.Protocol), "[Red] versión de protocolo: " + NetSession.Protocol);
+
+        // Escalado por nº de jugadores
+        bool scaleOk = true;
+        for (int lv = 0; lv < LevelConfig.Count; lv++)
+        {
+            if (NetSession.ExtraMonstersFor(1, lv) != 0 || NetSession.ExtraMonstersFor(2, lv) != 0) scaleOk = false;
+            int e4 = NetSession.ExtraMonstersFor(4, lv);
+            if (e4 < 0 || e4 > 1) scaleOk = false;
+        }
+        r.Check(scaleOk, "[Red] 1-2 jugadores: monstruos sin cambios; 3-4: como mucho +1");
+
+        // Determinismo del mundo por nivel
+        for (int lv = 0; lv < LevelConfig.Count; lv++)
+        {
+            ulong a = HashOf(lv, 4242, 0);
+            ulong b = HashOf(lv, 4242, 0);
+            ulong c = HashOf(lv, 4243, 0);
+            r.Check(a == b, "[Red] nivel " + lv + ": misma semilla => mismo hash de mundo (" + a.ToString("x16") + ")");
+            r.Check(a != c, "[Red] nivel " + lv + ": otra semilla => otro hash");
+            int baseMon = lastMonsterCount;
+            ulong d = HashOf(lv, 4242, 1);
+            r.Check(lastMonsterCount == baseMon + 1 && d != a, "[Red] nivel " + lv + ": +1 monstruo extra aparece y cambia el hash (" + baseMon + " -> " + lastMonsterCount + ")");
+        }
+        // no depende del estado global de UnityEngine.Random
+        UnityEngine.Random.InitState(1);
+        ulong h1 = HashOf(2, 99, 0);
+        UnityEngine.Random.InitState(987654);
+        for (int i = 0; i < 17; i++) UnityEngine.Random.value.ToString();
+        ulong h2 = HashOf(2, 99, 0);
+        r.Check(h1 == h2, "[Red] el hash no depende de UnityEngine.Random global");
+
+        // Transporte TCP en bucle local
+        NetListener lis = new NetListener();
+        string err;
+        int port = 47791;
+        bool started = lis.Start(port, out err);
+        r.Check(started, "[Red] el servidor abre el puerto " + port + (err != null ? " (" + err + ")" : ""));
+        if (started)
+        {
+            NetListener dup = new NetListener(); string err2;
+            bool dupOk = dup.Start(port, out err2);
+            bool onWin = Application.platform == RuntimePlatform.WindowsEditor;
+            // En Windows el puerto es exclusivo; en Linux/macOS se usa SO_REUSEADDR (reabrir rápido) y no se exige el fallo.
+            if (onWin) r.Check(!dupOk && !string.IsNullOrEmpty(err2) && err2.Contains("ya está en uso"), "[Red] puerto ocupado => mensaje claro en español (" + err2 + ")");
+            else r.Info("[Red] (no Windows) segundo servidor en el mismo puerto: " + dupOk);
+            if (dupOk) dup.Stop();
+
+            NetConnector cn = new NetConnector("127.0.0.1", port, 3000);
+            double t0 = EditorApplication.timeSinceStartup;
+            Socket srv = null;
+            while ((srv == null || !cn.Done) && EditorApplication.timeSinceStartup - t0 < 5) { if (srv == null) srv = lis.Accept(); System.Threading.Thread.Sleep(5); }
+            r.Check(srv != null && cn.Done && cn.Result != null, "[Red] el cliente conecta al servidor local");
+            if (srv != null && cn.Result != null)
+            {
+                NetConn sc = new NetConn(srv, 0f), cc = new NetConn(cn.Result, 0f);
+                // mensajes pequeños en ráfaga + uno grande, comprobando orden e integridad
+                for (int i = 0; i < 200; i++) cc.Send(new NetWriter(9).Int(i).ToArray());
+                byte[] big = new byte[150000]; for (int i = 0; i < big.Length; i++) big[i] = (byte)(i * 31);
+                cc.Send(big);
+                sc.Send(new NetWriter(77).Str("ping").ToArray());
+                int got = 0; bool order = true, bigOk = false, back = false;
+                t0 = EditorApplication.timeSinceStartup;
+                while (EditorApplication.timeSinceStartup - t0 < 5 && !(bigOk && back))
+                {
+                    cc.Pump(0f); sc.Pump(0f); cc.Flush(); sc.Flush();
+                    while (sc.Incoming.Count > 0)
+                    {
+                        byte[] m = sc.Incoming.Dequeue();
+                        if (m.Length == 5 && m[0] == 9) { NetReader q = new NetReader(m); if (q.Int() != got) order = false; got++; }
+                        else if (m.Length == big.Length) { bigOk = true; for (int i = 0; i < m.Length; i += 997) if (m[i] != big[i]) bigOk = false; }
+                    }
+                    while (cc.Incoming.Count > 0) { NetReader q = new NetReader(cc.Incoming.Dequeue()); if (q.Type == 77 && q.Str() == "ping") back = true; }
+                    System.Threading.Thread.Sleep(2);
+                }
+                r.Check(got == 200 && order, "[Red] 200 mensajes llegan completos y en orden (" + got + ")");
+                r.Check(bigOk, "[Red] mensaje de 150 KB reensamblado correctamente");
+                r.Check(back, "[Red] el servidor responde al cliente");
+                // corte de conexión detectado
+                cc.Kill("prueba");
+                t0 = EditorApplication.timeSinceStartup;
+                while (!sc.Dead && EditorApplication.timeSinceStartup - t0 < 5) { sc.Pump(0f); System.Threading.Thread.Sleep(5); }
+                r.Check(sc.Dead, "[Red] el servidor detecta que el cliente cerró la conexión");
+                sc.Kill("fin");
+            }
+            lis.Stop();
+        }
+        // Errores de conexión
+        string[] cases = { "127.0.0.1", "no.existe.invalid" };
+        int[] ports = { 47792, 47792 };
+        string[] expect = { "refused", "badaddr" };
+        for (int i = 0; i < cases.Length; i++)
+        {
+            NetConnector c2 = new NetConnector(cases[i], ports[i], 3000);
+            double t1 = EditorApplication.timeSinceStartup;
+            while (!c2.Done && EditorApplication.timeSinceStartup - t1 < 8) System.Threading.Thread.Sleep(10);
+            // (en este entorno sin DNS un nombre inexistente puede acabar en "timeout": solo exigimos un error)
+            bool okErr = c2.Done && (i == 0 ? c2.Error == expect[i] : !string.IsNullOrEmpty(c2.Error));
+            r.Check(okErr, "[Red] conectar a " + cases[i] + " => error '" + c2.Error + "' (esperado '" + expect[i] + "')");
+        }
+    }
+
     private static void TestInventoryData(Report r)
     {
         foreach (ItemType t in ItemDefs.All)
@@ -670,7 +803,7 @@ public static class SmokePlayRunner
         var labels = new HashSet<string>();
         foreach (Text t in UnityEngine.Object.FindObjectsOfType<Text>(false)) { if (t.text == "BACKROOMS: ESCAPA") hasTitle = true; labels.Add(t.text); }
         r.Check(hasTitle, "título 'BACKROOMS: ESCAPA'");
-        foreach (string b in new[] { "Jugar", "Seleccionar nivel", "Opciones", "Créditos", "Salir" })
+        foreach (string b in new[] { "Jugar", "Seleccionar nivel", "Multijugador", "Opciones", "Créditos", "Salir" })
             r.Check(labels.Contains(b), "botón del menú principal: " + b);
         r.Check(gb.MenuGenerator != null && gb.MenuGenerator.HasLevel, "fondo animado del menú (pasillo generado)");
         Camera menuCam = Camera.main;
@@ -714,6 +847,80 @@ public static class SmokePlayRunner
         r.Check(allCredited, "pantalla de créditos nombra todos los modelos");
         ui.PressEscape();
         r.Check(ui.Current == UIManager.Screen.Main, "Esc en Créditos vuelve al menú");
+
+        // Multijugador: menús + protocolo (clientes TCP "crudos" por bucle local)
+        r.Check(ui.ClickButton("Multijugador") && ui.Current == UIManager.Screen.Multi, "Multijugador se abre desde el menú principal");
+        yield return 0.2f;
+        MultiplayerUI mui = ui.Multiplayer;
+        r.Check(mui != null && mui.NameField != null && mui.CurrentPage == MultiplayerUI.Page.Menu, "menú multijugador: página principal con campo de nombre");
+        var mlabels = new HashSet<string>();
+        foreach (Text t in UnityEngine.Object.FindObjectsOfType<Text>(false)) mlabels.Add(t.text);
+        r.Check(mlabels.Contains("MULTIJUGADOR") && mlabels.Contains("Alojar partida") && mlabels.Contains("Unirse") && mlabels.Contains("Volver"), "menú multijugador: título y botones Alojar partida / Unirse / Volver");
+        mui.NameField.text = "Tester"; mui.NameField.onEndEdit.Invoke("Tester");
+        r.Check(MultiplayerUI.SavedName == "Tester", "el nombre del jugador se guarda en PlayerPrefs");
+        r.Check(ui.ClickButton("Unirse") && mui.CurrentPage == MultiplayerUI.Page.Join && mui.JoinIpField != null && mui.JoinPortField != null, "página «Unirse»: campos IP y puerto");
+        mui.JoinIpField.text = "127.0.0.1"; mui.JoinPortField.text = "47795";
+        ui.ClickButton("Conectar");     // nadie escucha: debe dar un error claro
+        float tj = 0f;
+        while (tj < 10f && NetSession.Instance.Connecting) { tj += 0.1f; yield return 0.1f; }
+        string joinErr = NetSession.Instance.LastError + " | " + mui.StatusText;
+        r.Check(!NetSession.Instance.Connecting && !string.IsNullOrEmpty(NetSession.Instance.LastError) && NetSession.Instance.LastError.ToLowerInvariant().Contains("anfitri"), "conectar sin anfitrión: error claro en español (" + NetSession.Instance.LastError + ")");
+        ui.PressEscape();
+        r.Check(mui.CurrentPage == MultiplayerUI.Page.Menu, "Esc en «Unirse» vuelve a la página principal");
+        r.Check(ui.ClickButton("Alojar partida") && mui.CurrentPage == MultiplayerUI.Page.Host && mui.HostPortField != null, "página «Alojar partida»");
+        r.Check(PlayerPrefs.GetInt(MultiplayerUI.KPort, NetSession.DefaultPort) > 0 && NetSession.DefaultPort == 7777, "puerto por defecto 7777");
+        mui.HostPortField.text = "47793";
+        r.Check(ui.ClickButton("Crear sala") && ui.Current == UIManager.Screen.Lobby && NetSession.IsHost, "«Crear sala» abre la sala de espera como anfitrión");
+        yield return 0.4f;
+        r.Check(mui.LobbyText.Contains("Tester"), "la sala lista al anfitrión por su nombre");
+        r.Check(mui.StartButton != null && mui.StartButton.gameObject.activeInHierarchy, "el anfitrión ve el botón «Empezar»");
+        {
+            var raws = new List<NetConn>();
+            string[] replies = new string[6];
+            string[] names = { "Marta", "Luis", "Eva", "Extra", "Viejo" };
+            // 1) versión incompatible
+            NetConn bad = null; { float t0 = 0; while (bad == null && t0 < 3f) { NetConnector cn = new NetConnector("127.0.0.1", 47793, 2000); while (!cn.Done) { yield return 0.05f; } if (cn.Result != null) bad = new NetConn(cn.Result, 0f); t0 += 1f; } }
+            string badReply = null;
+            if (bad != null)
+            {
+                bad.Send(new NetWriter(NetMsg.Hello).Str("version-vieja").Str("Viejo").ToArray()); bad.Flush();
+                float tw = 0; while (badReply == null && tw < 5f) { bad.Pump(0f); bad.Flush(); if (bad.Incoming.Count > 0) { NetReader q = new NetReader(bad.Incoming.Dequeue()); if (q.Type == NetMsg.Reject) badReply = q.Str(); } tw += 0.05f; yield return 0.05f; }
+                bad.Kill("fin");
+            }
+            r.Check(badReply != null && badReply.Contains("Versión incompatible"), "versión incompatible => rechazo claro (" + badReply + ")");
+            // 2) tres jugadores válidos y un cuarto rechazado por sala llena
+            int welcomed = 0; string fullReply = null;
+            for (int i = 0; i < 4; i++)
+            {
+                NetConnector cn = new NetConnector("127.0.0.1", 47793, 2000);
+                while (!cn.Done) yield return 0.05f;
+                if (cn.Result == null) continue;
+                NetConn nc = new NetConn(cn.Result, 0f);
+                nc.Send(new NetWriter(NetMsg.Hello).Str(NetSession.Protocol).Str(names[i]).ToArray()); nc.Flush();
+                bool welcome = false; string rej = null; float tw = 0;
+                while (!welcome && rej == null && tw < 5f) { nc.Pump(0f); nc.Flush(); while (nc.Incoming.Count > 0) { NetReader q = new NetReader(nc.Incoming.Dequeue()); if (q.Type == NetMsg.Welcome) welcome = true; else if (q.Type == NetMsg.Reject) rej = q.Str(); } tw += 0.05f; yield return 0.05f; }
+                if (welcome) { welcomed++; raws.Add(nc); } else { fullReply = rej; nc.Kill("fin"); }
+            }
+            r.Check(welcomed == 3, "se admiten 3 clientes (máximo 4 jugadores con el anfitrión): " + welcomed);
+            r.Check(fullReply != null && fullReply.Contains("llena"), "el 5.º jugador recibe «sala llena» (" + fullReply + ")");
+            yield return 0.5f;
+            r.Check(NetSession.Instance.Players.Count == 4 && mui.LobbyText.Contains("Marta") && mui.LobbyText.Contains("Luis") && mui.LobbyText.Contains("Eva"), "la sala muestra a los 4 jugadores: " + mui.LobbyText.Replace("\n", " / "));
+            // Lobby: selector de nivel solo anfitrión
+            int lv0 = mui.LobbyLevel;
+            r.Check(ui.ClickButton("►") && mui.LobbyLevel == (lv0 + 1) % LevelConfig.Count, "el anfitrión cambia de nivel en la sala (" + mui.LobbyLevel + ")");
+            ui.ClickButton("◄");
+            // un cliente se va => desaparece de la sala
+            raws[1].Send(new NetWriter(NetMsg.Bye).ToArray()); raws[1].Flush(); raws[1].Pump(0f);
+            raws[1].Kill("adiós");
+            yield return 1.2f;
+            r.Check(NetSession.Instance.Players.Count == 3 && !mui.LobbyText.Contains("Luis"), "un cliente que se va desaparece de la sala");
+            foreach (NetConn nc in raws) nc.Kill("fin");
+        }
+        ui.PressEscape();       // Esc en la sala: vuelve y cierra la sesión
+        yield return 0.3f;
+        r.Check(!NetSession.Active && ui.Current == UIManager.Screen.Multi, "Esc en la sala cierra la sesión y vuelve al menú multijugador");
+        ui.PressEscape();
+        r.Check(ui.Current == UIManager.Screen.Main, "Esc en multijugador vuelve al menú principal");
 
         // Selección de nivel
         r.Check(ui.ClickButton("Seleccionar nivel") && ui.Current == UIManager.Screen.Levels, "Seleccionar nivel se abre");

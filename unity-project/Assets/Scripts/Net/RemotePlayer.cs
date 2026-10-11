@@ -1,0 +1,362 @@
+using UnityEngine;
+using UnityEngine.UI;
+
+// Avatar de otro jugador (multijugador): el traje hazmat amarillo con animaciones Idle/Walk/Run/Duck, linterna con luz que se enciende/apaga,
+// etiqueta con el nombre, posición/rotación interpolada (retardo de ~0,1 s entre muestras de red), pasos y chapoteos espaciales 3D.
+// Sin colliders: no estorba al jugador ni a la visión del monstruo (que lo trata como objetivo por posición).
+public class RemotePlayer : MonoBehaviour
+{
+    public const int FlagCrouch = 1, FlagSprint = 2, FlagFlash = 4, FlagExit = 8, FlagSwim = 16, FlagDowned = 32;
+
+    public int playerId;
+    public string playerName = "Jugador";
+    public bool Downed { get; private set; }
+    public float Revive01 { get; private set; }
+    public bool FlashOn { get; private set; }
+    public bool AtExit { get; private set; }
+    public float FlatSpeed { get; private set; }
+    public bool Crouching { get; private set; }
+    public bool Sprinting { get; private set; }
+    public string CurrentState { get; private set; }
+    public Animator animator;
+    public Light lampLight;
+    public bool ModelLoaded { get; private set; }
+    public int SampleCount { get { return count; } }
+    public Vector3 LatestPos { get { return count > 0 ? buf[(head + count - 1) % N].pos : transform.position; } }
+    public int StepsPlayed { get; private set; }
+    public const float InterpDelay = 0.1f;
+
+    // Ruido que oye el monstruo (como el FirstPersonController local)
+    public float NoiseRadius
+    {
+        get
+        {
+            if (Downed || FlatSpeed < 0.15f) return 0f;
+            float r = Sprinting ? 14f : 6f;
+            if (Crouching) r *= 0.4f;
+            return r;
+        }
+    }
+
+    private struct Sample { public float t; public Vector3 pos; public float yaw, pitch, speed; public int flags; }
+    private const int N = 12;
+    private readonly Sample[] buf = new Sample[N];
+    private int head, count;
+
+    private Transform model, lamp;
+    private Text tagText;
+    private Transform tagRoot;
+    private float walkLen = 0.8f, runLen = 0.6f;
+    private readonly int hIdle = Animator.StringToHash("Idle"), hWalk = Animator.StringToHash("Walk"), hRun = Animator.StringToHash("Run"), hDuck = Animator.StringToHash("Duck");
+    private float stepAcc, lampPitch, downK;
+    private Vector3 lastPos;
+    private bool posInit;
+    private AudioSource stepSrc;
+    private AudioClip stepClip, splashClip;
+    private Material lensMat;
+    private readonly System.Collections.Generic.List<Object> owned = new System.Collections.Generic.List<Object>();
+    private StepKind stepKind = StepKind.Carpet;
+
+    private static readonly Color[] TagColors = {
+        new Color(1f, 0.92f, 0.45f), new Color(0.55f, 0.9f, 1f), new Color(0.6f, 1f, 0.6f), new Color(1f, 0.65f, 0.55f) };
+
+    public static RemotePlayer Create(Transform parent, int id, string name, StepKind step)
+    {
+        GameObject go = new GameObject("Remote_" + name);
+        if (parent != null) go.transform.SetParent(parent, false);
+        RemotePlayer rp = go.AddComponent<RemotePlayer>();
+        rp.playerId = id; rp.playerName = name; rp.stepKind = step;
+        rp.Build();
+        return rp;
+    }
+
+    private void Build()
+    {
+        GameObject prefab = Resources.Load<GameObject>(PlayerBody.PrefabResource);
+        if (prefab != null)
+        {
+            GameObject inst = Instantiate(prefab);
+            inst.name = "Model";
+            model = inst.transform;
+            model.SetParent(transform, false);
+            foreach (Collider c in inst.GetComponentsInChildren<Collider>(true)) Destroy(c);
+            animator = inst.GetComponentInChildren<Animator>();
+            if (animator != null)
+            {
+                animator.applyRootMotion = false;
+                animator.cullingMode = AnimatorCullingMode.AlwaysAnimate;
+                animator.Rebind();
+                animator.Play(hIdle, 0, 0f);
+                animator.Update(0f);
+                CurrentState = "Idle";
+                foreach (AnimationClip c in animator.runtimeAnimatorController.animationClips)
+                {
+                    if (c.name.StartsWith("Walk")) walkLen = c.length;
+                    else if (c.name.StartsWith("Run")) runLen = c.length;
+                }
+            }
+            Transform headT = Find(model, "Head");
+            if (headT != null)
+            {
+                float h = transform.InverseTransformPoint(headT.position).y;
+                if (h > 0.2f) { model.localScale = Vector3.one * (1.6f / h); if (animator != null) animator.Update(0f); }
+            }
+            foreach (SkinnedMeshRenderer r in inst.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+            {
+                r.updateWhenOffscreen = true;
+                r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+                r.receiveShadows = true;
+            }
+            ModelLoaded = true;
+        }
+        else
+        {
+            // plan B: cápsula amarilla
+            GameObject cap = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            Destroy(cap.GetComponent<Collider>());
+            cap.transform.SetParent(transform, false);
+            cap.transform.localPosition = Vector3.up * 0.9f; cap.transform.localScale = new Vector3(0.6f, 0.9f, 0.6f);
+            Material m = ProceduralAssets.CreateMaterial(new Color(0.95f, 0.8f, 0.1f), null, Vector2.one, 0.3f);
+            cap.GetComponent<Renderer>().sharedMaterial = m; owned.Add(m);
+            model = cap.transform;
+        }
+
+        BuildLamp();
+        BuildTag();
+        stepSrc = gameObject.AddComponent<AudioSource>();
+        stepSrc.spatialBlend = 1f; stepSrc.minDistance = 1.5f; stepSrc.maxDistance = 20f; stepSrc.rolloffMode = AudioRolloffMode.Linear;
+        stepSrc.playOnAwake = false; stepSrc.dopplerLevel = 0f;
+        stepClip = ProceduralAudio.CreateFootstep(stepKind);
+        splashClip = ProceduralAudio.CreateSplash();
+        owned.Add(stepClip); owned.Add(splashClip);
+    }
+
+    private static Transform Find(Transform root, string name)
+    {
+        if (root.name == name) return root;
+        for (int i = 0; i < root.childCount; i++) { Transform r = Find(root.GetChild(i), name); if (r != null) return r; }
+        return null;
+    }
+
+    // Linterna en la mano derecha (aprox.): tubo oscuro con lente emisiva + foco de luz
+    private void BuildLamp()
+    {
+        GameObject l = new GameObject("Lamp");
+        l.transform.SetParent(transform, false);
+        l.transform.localPosition = new Vector3(0.24f, 1.22f, 0.32f);
+        lamp = l.transform;
+        Material body = ProceduralAssets.CreateMaterial(new Color(0.07f, 0.07f, 0.08f), null, Vector2.one, 0.5f);
+        lensMat = ProceduralAssets.CreateMaterial(new Color(0.9f, 0.9f, 0.7f), null, Vector2.one, 0.9f);
+        owned.Add(body); owned.Add(lensMat);
+        GameObject tube = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        Destroy(tube.GetComponent<Collider>());
+        tube.transform.SetParent(l.transform, false);
+        tube.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+        tube.transform.localScale = new Vector3(0.07f, 0.1f, 0.07f);
+        tube.GetComponent<Renderer>().sharedMaterial = body;
+        GameObject lens = GameObject.CreatePrimitive(PrimitiveType.Cylinder);
+        Destroy(lens.GetComponent<Collider>());
+        lens.transform.SetParent(l.transform, false);
+        lens.transform.localPosition = new Vector3(0f, 0f, 0.105f);
+        lens.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+        lens.transform.localScale = new Vector3(0.06f, 0.006f, 0.06f);
+        lens.GetComponent<Renderer>().sharedMaterial = lensMat;
+        GameObject lg = new GameObject("Spot");
+        lg.transform.SetParent(l.transform, false);
+        lg.transform.localPosition = new Vector3(0f, 0f, 0.12f);
+        lampLight = lg.AddComponent<Light>();
+        lampLight.type = LightType.Spot; lampLight.range = 18f; lampLight.spotAngle = 58f; lampLight.intensity = 2.0f;
+        lampLight.color = new Color(1f, 0.96f, 0.82f); lampLight.shadows = LightShadows.None;
+        lampLight.enabled = false;
+        SetLens(false);
+    }
+
+    private void SetLens(bool on)
+    {
+        if (lensMat == null) return;
+        if (on) { lensMat.EnableKeyword("_EMISSION"); lensMat.SetColor("_EmissionColor", new Color(1f, 0.95f, 0.7f) * 2.2f); }
+        else { lensMat.SetColor("_EmissionColor", Color.black); }
+    }
+
+    private void BuildTag()
+    {
+        GameObject root = new GameObject("NameTag", typeof(RectTransform));
+        root.transform.SetParent(transform, false);
+        root.transform.localPosition = new Vector3(0f, 2.4f, 0f);
+        Canvas c = root.AddComponent<Canvas>();
+        c.renderMode = RenderMode.WorldSpace;
+        RectTransform rt = (RectTransform)root.transform;
+        rt.sizeDelta = new Vector2(500f, 90f);
+        root.transform.localScale = Vector3.one * 0.0045f;
+        GameObject tg = new GameObject("Text", typeof(RectTransform));
+        tg.transform.SetParent(root.transform, false);
+        tagText = tg.AddComponent<Text>();
+        tagText.font = UiStyle.Mono();
+        tagText.fontSize = 44; tagText.fontStyle = FontStyle.Bold;
+        tagText.alignment = TextAnchor.MiddleCenter;
+        tagText.color = TagColors[Mathf.Abs(playerId) % TagColors.Length];
+        tagText.raycastTarget = false;
+        tagText.horizontalOverflow = HorizontalWrapMode.Overflow; tagText.verticalOverflow = VerticalWrapMode.Overflow;
+        tagText.text = playerName;
+        Shadow sh = tg.AddComponent<Shadow>(); sh.effectColor = new Color(0f, 0f, 0f, 0.95f); sh.effectDistance = new Vector2(3f, -3f);
+        RectTransform tr = tagText.rectTransform;
+        tr.anchorMin = Vector2.zero; tr.anchorMax = Vector2.one; tr.offsetMin = tr.offsetMax = Vector2.zero;
+        tagRoot = root.transform;
+    }
+
+    // ------------------------------------------------------------------
+    // Red
+    // ------------------------------------------------------------------
+    public void Push(Vector3 pos, float yaw, float pitch, float speed, int flags)
+    {
+        Sample s = new Sample { t = Time.unscaledTime, pos = pos, yaw = yaw, pitch = pitch, speed = speed, flags = flags };
+        if (count < N) { buf[(head + count) % N] = s; count++; }
+        else { buf[head] = s; head = (head + 1) % N; }
+        if (!posInit)
+        {
+            posInit = true;
+            transform.position = pos; transform.rotation = Quaternion.Euler(0f, yaw, 0f); lastPos = pos;
+        }
+    }
+
+    public void SetDowned(bool d) { Downed = d; if (!d) Revive01 = 0f; }
+    public void SetRevive(float v) { Revive01 = Mathf.Clamp01(v); }
+    public void SetName(string n) { playerName = n; if (tagText != null) tagText.text = n; name = "Remote_" + n; }
+
+    private Sample Interp(float rt)
+    {
+        if (count == 0) return new Sample { pos = transform.position, yaw = transform.eulerAngles.y };
+        if (count == 1) return buf[head];
+        Sample a = buf[head];
+        for (int i = 1; i < count; i++)
+        {
+            Sample b = buf[(head + i) % N];
+            if (b.t >= rt)
+            {
+                float span = Mathf.Max(0.0001f, b.t - a.t);
+                float k = Mathf.Clamp01((rt - a.t) / span);
+                Sample r = b;
+                r.pos = Vector3.Lerp(a.pos, b.pos, k);
+                r.yaw = Mathf.LerpAngle(a.yaw, b.yaw, k);
+                r.pitch = Mathf.Lerp(a.pitch, b.pitch, k);
+                r.speed = Mathf.Lerp(a.speed, b.speed, k);
+                return r;
+            }
+            a = b;
+        }
+        return a;
+    }
+
+    private void Update()
+    {
+        float dt = Time.deltaTime;
+        if (count == 0) return;
+        Sample s = Interp(Time.unscaledTime - InterpDelay);
+        // teletransporte (cambio de nivel/reaparición): salto directo
+        if ((s.pos - transform.position).sqrMagnitude > 25f) { transform.position = s.pos; lastPos = s.pos; }
+        transform.position = s.pos;
+        transform.rotation = Quaternion.Euler(0f, s.yaw, 0f);
+        int f = buf[(head + count - 1) % N].flags;
+        Crouching = (f & FlagCrouch) != 0; Sprinting = (f & FlagSprint) != 0;
+        FlashOn = (f & FlagFlash) != 0; AtExit = (f & FlagExit) != 0;
+        FlatSpeed = Mathf.Lerp(FlatSpeed, s.speed, 1f - Mathf.Exp(-12f * dt));
+        bool swim = (f & FlagSwim) != 0;
+
+        DriveAnimator(swim);
+        UpdatePose(dt);
+        UpdateLamp(s.pitch, dt);
+        Footsteps(dt);
+        UpdateTag();
+    }
+
+    private void DriveAnimator(bool swim)
+    {
+        if (animator == null) return;
+        float v = FlatSpeed;
+        string want;
+        if (Downed) want = "Duck";
+        else if (Crouching) want = "Duck";
+        else if (v < 0.2f) want = "Idle";
+        else if (Sprinting && v > 4.2f) want = "Run";
+        else want = "Walk";
+        if (want != CurrentState)
+        {
+            CurrentState = want;
+            int h = want == "Duck" ? hDuck : want == "Idle" ? hIdle : want == "Run" ? hRun : hWalk;
+            animator.CrossFadeInFixedTime(h, 0.18f);
+        }
+        float speed = 1f;
+        if (CurrentState == "Walk") speed = Mathf.Clamp(v / (2f * 1.7f) * walkLen, 0.3f, 2.5f);
+        else if (CurrentState == "Run") speed = Mathf.Clamp(v / (2f * 2.2f) * runLen, 0.4f, 2.5f);
+        else if (CurrentState == "Duck") speed = Downed ? 0f : 0.6f + Mathf.Clamp01(v / 1.7f) * 0.5f;
+        animator.speed = speed * (swim ? 0.5f : 1f);
+    }
+
+    // Derribado: el cuerpo se tumba en el suelo
+    private void UpdatePose(float dt)
+    {
+        downK = Mathf.MoveTowards(downK, Downed ? 1f : 0f, dt * 2.5f);
+        if (model != null)
+        {
+            model.localRotation = Quaternion.Euler(Mathf.Lerp(0f, -82f, downK), 0f, 0f);
+            model.localPosition = new Vector3(0f, Mathf.Lerp(0f, 0.16f, downK), Mathf.Lerp(0f, -0.35f, downK));
+        }
+    }
+
+    private void UpdateLamp(float pitch, float dt)
+    {
+        if (lamp == null) return;
+        lampPitch = Mathf.LerpAngle(lampPitch, pitch, 1f - Mathf.Exp(-14f * dt));
+        bool on = FlashOn && !Downed;
+        lamp.localRotation = Quaternion.Euler(lampPitch, 0f, 0f);
+        float yAdj = Downed ? 0.35f : (Crouching ? 0.85f : 1.22f);
+        lamp.localPosition = Vector3.Lerp(lamp.localPosition, new Vector3(0.24f, yAdj, 0.32f), 1f - Mathf.Exp(-10f * dt));
+        if (lampLight != null && lampLight.enabled != on) { lampLight.enabled = on; SetLens(on); }
+    }
+
+    private void Footsteps(float dt)
+    {
+        Vector3 d = transform.position - lastPos; d.y = 0f;
+        lastPos = transform.position;
+        if (Downed || FlatSpeed < 0.3f) return;
+        stepAcc += d.magnitude;
+        float stepLen = Sprinting ? 2.2f : (Crouching ? 1.2f : 1.7f);
+        if (stepAcc < stepLen) return;
+        stepAcc = 0f;
+        StepsPlayed++;
+        WaterVolume wv = WaterVolume.Active;
+        float depth = wv != null ? wv.DepthAt(transform.position) : 0f;
+        bool inWater = wv != null && depth > 0.03f;
+        float vol = (Sprinting ? 0.6f : (Crouching ? 0.22f : 0.42f));
+        stepSrc.pitch = Random.Range(0.88f, 1.1f) * (Crouching ? 1.1f : 1f);
+        if (stepClip != null) stepSrc.PlayOneShot(stepClip, vol * (inWater ? 0.5f : 1f));
+        if (inWater && splashClip != null)
+        {
+            stepSrc.pitch = Random.Range(0.9f, 1.25f);
+            stepSrc.PlayOneShot(splashClip, Mathf.Lerp(0.5f, 1f, Mathf.Clamp01(depth / 0.5f)) * vol * 1.4f);
+            wv.Splash(transform.position + transform.forward * 0.25f, Mathf.Clamp01(0.25f + depth * 0.5f), false);
+        }
+    }
+
+    private void UpdateTag()
+    {
+        if (tagRoot == null) return;
+        Camera cam = Camera.main;
+        if (cam != null)
+        {
+            Vector3 toCam = cam.transform.position - tagRoot.position;
+            float dist = toCam.magnitude;
+            tagRoot.rotation = Quaternion.LookRotation(-toCam.normalized, Vector3.up);
+            tagRoot.localScale = Vector3.one * (0.0045f * Mathf.Clamp(0.55f + dist * 0.12f, 0.8f, 2.2f));
+            tagRoot.gameObject.SetActive(dist < 40f);
+        }
+        string t = playerName;
+        if (Downed) t += "\n<color=#ff6a5a>DERRIBADO" + (Revive01 > 0.01f ? " · reanimando " + Mathf.RoundToInt(Revive01 * 100f) + "%" : "") + "</color>";
+        if (tagText.text != t) { tagText.supportRichText = true; tagText.text = t; }
+    }
+
+    private void OnDestroy()
+    {
+        for (int i = 0; i < owned.Count; i++) if (owned[i] != null) Destroy(owned[i]);
+    }
+}

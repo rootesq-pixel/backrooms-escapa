@@ -13,6 +13,8 @@ public class BackroomsGenerator : MonoBehaviour
 {
     [Header("Semilla")]
     public bool useRandomSeed = true;
+    [Tooltip("Multijugador: monstruos extra (por nº de jugadores). Se envía igual a todos los equipos para que el mundo sea idéntico.")]
+    public int extraMonsters = 0;
     public int seed = 12345;
 
     [Header("Nivel")]
@@ -218,6 +220,33 @@ public class BackroomsGenerator : MonoBehaviour
             }
         }
         return 0f;
+    }
+
+    // Huella del mundo generado (multijugador): posiciones clave + resumen de la geometría. Debe ser idéntica en todos los equipos
+    // para la misma semilla/nivel (el generador solo usa System.Random con la semilla, nunca Random global ni el tiempo).
+    public ulong WorldHash()
+    {
+        ulong h = NetUtil.FnvBasis;
+        h = NetUtil.Fnv(h, UsedSeed);
+        h = NetUtil.FnvVec(h, PlayerStart);
+        h = NetUtil.FnvVec(h, ExitPosition);
+        h = NetUtil.Fnv(h, ExitCell.x * 1000 + ExitCell.y);
+        if (MonsterSpawns != null) foreach (Vector3 v in MonsterSpawns) h = NetUtil.FnvVec(h, v);
+        if (BatterySpots != null) foreach (Vector3 v in BatterySpots) h = NetUtil.FnvVec(h, v);
+        if (ExtraSpots != null) foreach (Vector3 v in ExtraSpots) h = NetUtil.FnvVec(h, v);
+        if (levelRoot != null)
+        {
+            int verts = 0, tris = 0, meshes = 0;
+            Vector3 bsum = Vector3.zero;
+            foreach (MeshFilter mf in levelRoot.GetComponentsInChildren<MeshFilter>(true))
+            {
+                if (mf.sharedMesh == null) continue;
+                meshes++; verts += mf.sharedMesh.vertexCount; tris += (int)mf.sharedMesh.GetIndexCount(0);
+                bsum += mf.sharedMesh.bounds.center + mf.sharedMesh.bounds.extents;
+            }
+            h = NetUtil.Fnv(h, meshes); h = NetUtil.Fnv(h, verts); h = NetUtil.Fnv(h, tris); h = NetUtil.FnvVec(h, bsum);
+        }
+        return h;
     }
 
     // Un punto aleatorio (centro de celda) para patrullas
@@ -756,7 +785,7 @@ public class BackroomsGenerator : MonoBehaviour
         PlayerStartYaw = ComputeStartYaw();
 
         MonsterSpawns = new List<Vector3>();
-        List<Vector2Int> mc = PickMonsterCells(rng, Mathf.Max(1, cfg.monsterCount));
+        List<Vector2Int> mc = PickMonsterCells(rng, Mathf.Max(1, cfg.monsterCount) + Mathf.Max(0, extraMonsters));
         for (int i = 0; i < mc.Count; i++) MonsterSpawns.Add(levelRoot.TransformPoint(CellCenterLocal(mc[i].x, mc[i].y)));
         MonsterSpawn = MonsterSpawns[0];
 

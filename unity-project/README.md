@@ -66,11 +66,13 @@ se reinicia solo a los pocos segundos (o al instante con **R**). Cada nivel empi
 | Usar una pila (recarga la linterna) | `B` (o botón «Recargar linterna» en el inventario) |
 | Modo cámara VHS on/off | `V` |
 | Nadar / bucear en agua profunda (Poolrooms): avanzar + `Ctrl`/`C` para sumergirte | `W` + `Ctrl` |
-| Menú de pausa (Continuar / Reiniciar nivel / Opciones / Menú principal / Salir) | `Esc` |
+| Menú de pausa (Continuar / Reiniciar nivel / Opciones / Menú principal / Salir). En multijugador la partida **no** se detiene | `Esc` |
+| Chat de texto (solo multijugador; `Enter` envía, `Esc` cancela) | `Enter` |
+| Reanimar a un compañero derribado (multijugador): quédate a su lado ~4 s | (automático) |
 | Reiniciar el nivel actual (en la pantalla final: volver al Nivel 0) | `R` |
 
 Menús (todo en español, construido por código con `UnityEngine.UI`): **menú principal** «BACKROOMS: ESCAPA» (Jugar, Seleccionar nivel,
-Opciones, Créditos, Salir) con un pasillo vivo de fondo; **pausa** con `Esc` (congela tiempo y audio, libera el cursor; `Esc` otra vez
+Multijugador, Opciones, Créditos, Salir) con un pasillo vivo de fondo; **pausa** con `Esc` (congela tiempo y audio, libera el cursor; `Esc` otra vez
 continúa); **inventario** con `I`. `Esc` cierra primero los submenús (Opciones/Créditos/Niveles) y no interfiere con las pantallas de
 derrota o victoria.
 
@@ -198,6 +200,83 @@ invertir eje Y, balanceo de cabeza (head-bob) on/off, suavizado del ratón (apag
   `PlayerBody` (solo proyecta/recibe luz propia).
 - Previsualizaciones: `/workspace/monster-previews/flashlight_hand*.png`, `inventory_preview*.png`, `hud_hotbar.png` (render real con
   `InventoryPreview` / `FlashlightPreview` bajo xvfb + `-force-glcore`).
+
+## Cambios de la v6: multijugador cooperativo (2-4 jugadores)
+
+El modo de un jugador **no cambia** (la red solo se activa desde «Multijugador»).
+
+### Cómo jugar con amigos (paso a paso)
+
+1. **Todos** tenéis que usar la misma versión (la v6; el juego comprueba el protocolo `BackroomsEscape-MP-1` y rechaza versiones distintas).
+2. **Anfitrión:** menú principal → **Multijugador** → escribe tu nombre (se guarda) → **Alojar partida** → deja el puerto **7777** (o cambia
+   el número) → **Crear sala**. La pantalla enseña tus IP locales (LAN / VPN). Windows pedirá permitir el juego en el **Firewall**: acepta.
+3. Pasa a tus amigos tu IP y el puerto:
+   - **Misma red local (LAN / mismo wifi):** la IP de tu red local (suele empezar por `192.168.` o `10.`).
+   - **Por Internet:** en tu router, redirige el puerto **TCP 7777** hacia tu PC (reenvío de puertos / port forwarding) y pasa tu IP pública
+     (búscala en «cuál es mi ip»), o…
+   - **Más fácil (sin tocar el router): una VPN** como **Radmin VPN**, **ZeroTier** o **Hamachi**: todos entráis en la misma red virtual y el
+     anfitrión pasa la IP que le da la VPN.
+4. **Cliente:** Multijugador → nombre → **Unirse** → IP y puerto del anfitrión → **Conectar**. Entrarás en la sala de espera.
+5. El anfitrión elige el nivel con ◄ ► y pulsa **Empezar** (los demás esperan). No se puede entrar a una partida ya empezada (se avisa).
+6. Dentro: `Enter` abre el chat; `Esc` abre la pausa pero **el juego sigue** (pone «Pausa (la partida sigue)»); el inventario tampoco pausa.
+
+### Qué se sincroniza
+
+- **Mundo determinista:** el anfitrión elige nivel + semilla (+ monstruos extra) y cada cliente **genera el mismo mundo localmente** (nada de geometría
+  por red). Cada cliente envía una huella (`BackroomsGenerator.WorldHash()`: posiciones de salida/inicio/monstruos/pilas/objetos + geometría) y el
+  anfitrión avisa si no coincide. El generador usa solo `System.Random` con semilla, no `UnityEngine.Random`.
+- **Jugadores remotos:** cuerpo hazmat amarillo con animaciones (idle/andar/correr/agacharse), linterna con luz, etiqueta con el nombre, estado
+  derribado; posición interpolada (20 Hz, con ~0,1 s de retardo de interpolación). Pasos y chapoteos con sonido 3D.
+- **Monstruos:** la IA solo corre en el **anfitrión**; los clientes ven «proxies» interpolados (posición, rotación, estado y velocidad para animar).
+  El monstruo persigue al jugador más cercano / visible (con histéresis para no cambiar a cada rato) y oye/ve a los remotos (linterna, ruido).
+- **Derribado y reanimación:** si te atrapan, caes («derribado», cámara en el suelo, no puedes moverte); un compañero que se quede a menos de
+  ~2 m durante ~4 s te levanta (barra de reanimación). Si caen **todos**, screamer para todos y se reinicia el nivel.
+- **Salida:** el nivel termina cuando **todos los jugadores vivos** están en la puerta («Jugadores en la salida: X/Y»); entonces carga el
+  siguiente nivel para todos.
+- **Objetos:** el primero en llegar se lleva la pila / objeto (se retira para todos); las notas se comparten; cada jugador tiene su inventario.
+  Lo que sueltas aparece para todos. Las barras luminosas lanzadas se ven en todos los clientes.
+- **Escalado:** 1-2 jugadores = igual que en solitario; con 3-4 jugadores **+1 monstruo** desde el nivel 3 (`NetSession.ExtraMonstersFor`).
+- **Local (no se sincroniza):** cordura, efecto VHS, linterna de mano propia, opciones, el inventario.
+- **Desconexiones:** si el anfitrión se va, los clientes vuelven al menú principal con un aviso; si un cliente se va, desaparece su avatar.
+  Mensajes de error en español: IP no válida, conexión rechazada, tiempo de espera agotado, red inaccesible, versión incompatible, sala llena,
+  partida ya empezada, anfitrión desconectado, puerto ocupado.
+
+### Por qué una capa propia sobre TCP (y no Netcode for GameObjects)
+
+El juego **construye todo por código en tiempo de ejecución** (sin prefabs ni escenas con `NetworkObject`), que es el caso más incómodo para
+Netcode for GameObjects (registro de prefabs, spawn de `NetworkObject`, `NetworkManager` en escena…) y añade dependencias de paquetes en un
+proyecto que, hasta ahora, solo necesitaba `com.unity.ai.navigation`. Como el mundo es determinista por semilla, solo hay que mandar estados
+pequeños (jugadores, monstruos, eventos). Por eso se implementó una capa mínima y fiable sobre `System.Net.Sockets` (`Assets/Scripts/Net/`):
+**TCP** con mensajes con prefijo de longitud, sockets no bloqueantes y conexión en un hilo aparte (la ventana no se congela). TCP garantiza
+entrega y orden (eventos críticos como recoger objetos o derribar jugadores no se pierden) y es lo más sencillo de abrir en un router.
+Contras: más latencia que UDP si hay pérdida de paquetes (con 20 Hz de estados y interpolación es aceptable para 2-4 jugadores). No requiere
+ningún paquete extra, así que **la build de Windows (Mono) incluye el modo multijugador sin cambios** en `Packages/manifest.json`.
+
+Arquitectura: `NetSession` (sesión anfitrión/cliente, sala, bucle, snapshot a 20 Hz, reglas autoritativas), `NetTransport` (`NetConn`,
+`NetListener`, `NetConnector`, serialización), `RemotePlayer` (avatar remoto), `NetDownedFx` (efecto local de derribado), `MultiplayerUI`
+(menú, sala, chat, HUD de equipo). Ver los comentarios del código para el protocolo (`NetMsg`).
+
+### Pruebas multijugador
+
+- `SmokeTest.RunEditMode`: serialización, transporte TCP real por bucle local (ráfagas, mensajes de 150 KB, corte de conexión, puerto ocupado,
+  errores de conexión), y **determinismo del hash del mundo por nivel** (misma semilla = mismo hash, otra semilla = otro, +1 monstruo extra, independiente de `UnityEngine.Random`).
+- `SmokeTest.RunPlayMode`: menús multijugador, sala con 4 jugadores (clientes TCP crudos), «versión incompatible», «sala llena», salida de la sala.
+- **Prueba automática de dos procesos** (`/workspace/mp-test.sh` + `Assets/Editor/MpTest.cs`): lanza dos Unity en batchmode (anfitrión + cliente,
+  una copia del proyecto para el cliente) por localhost y comprueba: errores de conexión, sala, misma semilla y huella del mundo, avatares remotos,
+  replicación de posición, monstruos coincidentes, retirada sincronizada de pilas, chat, barra luminosa, objeto soltado, pausa/inventario sin
+  congelar, derribado/reanimación, todos derribados → screamer + reinicio, salida → siguiente nivel, desconexión de un cliente, rechazo a mitad
+  de partida, y que el anfitrión pueda volver a abrir sala.
+- Previsualizaciones: `/workspace/monster-previews/lobby_preview.png`, `mp_*.png` (con `LobbyPreview`).
+
+### Limitaciones conocidas (multijugador)
+
+- **No se ha probado por Internet real** (solo bucle local), ni con latencia/pérdida reales, ni con 3-4 jugadores reales (la prueba usa 2 procesos; 3-4 se
+  simulan con clientes crudos en la sala).
+- El `.exe` de Windows no se puede ejecutar en este entorno: se comprobó que se compila con Mono e incluye `Assembly-CSharp.dll` con la capa de red.
+- Sin reconexión a mitad de partida, sin voz, sin migración de anfitrión (si el anfitrión cae, se acaba la partida).
+- El anfitrión es autoritativo para monstruos, pilas, derribados y salida; los clientes son de confianza en su propia posición (no hay anti-trampas).
+- Los clientes ven a los monstruos con ~0,1 s de retraso; el anfitrión los ve «en directo».
+- Solo el anfitrión puede reiniciar nivel / pasar de nivel / volver a la sala; el menú «Reiniciar nivel» de un cliente avisa de ello.
 
 ## Pruebas y herramientas de editor
 

@@ -12,6 +12,8 @@ public class ItemPickup : MonoBehaviour
     public int noteId = -1;           // >= 0: es una nota de ambiente
     public float pickupRadius = 1.2f;
     public float cooldown;            // segundos antes de poder recogerse (objetos soltados)
+    public int netId = -1;            // multijugador: identificador común a todos los equipos (>= 0)
+    private float reqTimer;
 
     private Vector3 basePos;
     private float phase;
@@ -39,7 +41,54 @@ public class ItemPickup : MonoBehaviour
         if (inv == null || collected || cooldown > 0f) return;
         Vector3 d = inv.transform.position - basePos;
         d.y = 0f;
-        if (d.sqrMagnitude <= pickupRadius * pickupRadius && Mathf.Abs(inv.transform.position.y - basePos.y) < 2.2f) Collect();
+        if (d.sqrMagnitude <= pickupRadius * pickupRadius && Mathf.Abs(inv.transform.position.y - basePos.y) < 2.2f)
+        {
+            if (NetSession.Active && netId >= 0) NetTryRequest(inv);
+            else Collect();
+        }
+    }
+
+    // Multijugador: el anfitrión decide quién se lo queda (el primero que lo pide)
+    private void NetTryRequest(Inventory inv)
+    {
+        reqTimer -= Time.deltaTime;
+        if (reqTimer > 0f) return;
+        NetSession ns = NetSession.Instance;
+        if (ns == null || ns.LocalDowned) return;
+        if (noteId < 0 && !inv.CanAdd(type, amount))
+        {
+            reqTimer = 1.5f;
+            if (GameManager.Instance != null) GameManager.Instance.ShowToast("Inventario lleno");
+            return;
+        }
+        reqTimer = 0.7f;
+        ns.RequestPickup(netId);
+    }
+
+    // Multijugador: el anfitrión ha concedido el objeto. mine = me lo quedo yo; silent = reaparición de sincronización
+    public void NetApply(bool mine, bool silent, string byName)
+    {
+        if (collected) return;
+        Inventory inv = Inventory.Instance;
+        GameManager gm = GameManager.Instance;
+        if (noteId >= 0)
+        {
+            // las notas son de todo el equipo: cada uno la recibe en su inventario
+            if (inv != null) inv.AddNote(noteId);
+            if (gm != null && !silent) gm.ShowToast(mine ? "Nota encontrada: " + LoreNotes.Get(noteId).title + "   (I: inventario → Notas)" : byName + " ha encontrado una nota (te la copia en Notas)");
+        }
+        else if (mine && inv != null)
+        {
+            int added = inv.Add(type, amount);
+            if (added <= 0)
+            {
+                if (NetSession.Instance != null) NetSession.Instance.DropItem(type, amount, basePos);   // se llenó entretanto: vuelve al suelo
+                if (gm != null) gm.ShowToast("Inventario lleno");
+            }
+            else if (gm != null) gm.ShowToast("+ " + ItemDefs.Get(type).name + (added > 1 ? " x" + added : "") + "   (I: inventario)");
+        }
+        if (silent) { collected = true; Destroy(gameObject); return; }
+        Finish();
     }
 
     public bool Collect()

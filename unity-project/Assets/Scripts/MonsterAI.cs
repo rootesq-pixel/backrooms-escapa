@@ -54,6 +54,11 @@ public class MonsterAI : MonoBehaviour
     // Lista de monstruos vivos (la usa el efecto VHS para el "glitch" por cercanía)
     public static readonly List<MonsterAI> Instances = new List<MonsterAI>();
 
+    [Header("Multijugador")]
+    [Tooltip("Cliente: este monstruo solo se muestra; su posición y estado llegan del anfitrión.")]
+    public bool netProxy;
+    public float VisSpeed { get { return visSpeed; } }
+
     public State CurrentState { get; private set; }
     public bool UsesNavMesh { get { return useNav; } }
 
@@ -67,6 +72,9 @@ public class MonsterAI : MonoBehaviour
     private bool stopped;
     private float currentSpeed;
 
+    private RemotePlayer remoteTarget;
+    private float retargetTimer;
+    private float netKillTimer;
     private FirstPersonController playerController;
     private Flashlight playerFlashlight;
 
@@ -141,10 +149,13 @@ public class MonsterAI : MonoBehaviour
 
     private void Start()
     {
-        if (target != null)
+        SetTargetRefs();
+        if (netProxy)
         {
-            playerController = target.GetComponent<FirstPersonController>();
-            playerFlashlight = target.GetComponentInChildren<Flashlight>();
+            CurrentState = State.Patrol;
+            lastPos = transform.position;
+            if (visual == null) visual = GetComponent<MonsterVisual>();
+            return;
         }
 
         InitNavigation();
@@ -206,8 +217,92 @@ public class MonsterAI : MonoBehaviour
         }
     }
 
+    private void SetTargetRefs()
+    {
+        playerController = null; playerFlashlight = null; remoteTarget = null;
+        if (target == null) return;
+        playerController = target.GetComponent<FirstPersonController>();
+        playerFlashlight = target.GetComponentInChildren<Flashlight>();
+        remoteTarget = target.GetComponent<RemotePlayer>();
+    }
+
+    // Anfitrión (multijugador): persigue al jugador vivo más cercano
+    private void NetRetarget(float dt)
+    {
+        retargetTimer -= dt;
+        if (retargetTimer > 0f) return;
+        retargetTimer = 0.3f;
+        Transform t = NetSession.Instance.PickTarget(transform.position, target);
+        if (t != null && t != target)
+        {
+            target = t;
+            SetTargetRefs();
+            if (CurrentState == State.Chase) { lastKnownPosition = target.position; repathTimer = 0f; }
+        }
+    }
+
+    // Anfitrión: tras alcanzar a un jugador (sin que sea el último) el monstruo se recupera y vuelve a buscar
+    private void ResumeAfterKill()
+    {
+        netKillTimer = 0f;
+        if (useNav && agent != null)
+        {
+            agent.enabled = true;
+            NavMeshHit hit;
+            if (NavMesh.SamplePosition(transform.position, out hit, 3f, NavMesh.AllAreas)) agent.Warp(hit.position);
+            if (agent.isOnNavMesh) agent.isStopped = false;
+        }
+        EnterPatrol();
+    }
+
+    public void Resume() { stopped = false; }
+
+    // ---- cliente: estado recibido del anfitrión, interpolado ----
+    private struct NetSample { public float t; public Vector3 pos; public float yaw, speed; public int state; }
+    private readonly NetSample[] nbuf = new NetSample[10];
+    private int nhead, ncount;
+    public int NetSamples { get { return ncount; } }
+    public const float NetDelay = 0.1f;
+
+    public void NetPush(Vector3 pos, float yaw, int state, float speed)
+    {
+        NetSample s = new NetSample { t = Time.unscaledTime, pos = pos, yaw = yaw, speed = speed, state = state };
+        if (ncount < nbuf.Length) { nbuf[(nhead + ncount) % nbuf.Length] = s; ncount++; }
+        else { nbuf[nhead] = s; nhead = (nhead + 1) % nbuf.Length; }
+    }
+
+    private void ProxyUpdate(float dt)
+    {
+        if (ncount == 0) return;
+        float rt = Time.unscaledTime - NetDelay;
+        NetSample a = nbuf[nhead], res = a;
+        for (int i = 1; i < ncount; i++)
+        {
+            NetSample b = nbuf[(nhead + i) % nbuf.Length];
+            if (b.t >= rt)
+            {
+                float k = Mathf.Clamp01((rt - a.t) / Mathf.Max(0.0001f, b.t - a.t));
+                res = b; res.pos = Vector3.Lerp(a.pos, b.pos, k); res.yaw = Mathf.LerpAngle(a.yaw, b.yaw, k); res.speed = Mathf.Lerp(a.speed, b.speed, k);
+                break;
+            }
+            a = b; res = b;
+        }
+        NetSample last = nbuf[(nhead + ncount - 1) % nbuf.Length];
+        transform.position = res.pos;
+        transform.rotation = Quaternion.Euler(0f, res.yaw, 0f);
+        State st = (State)Mathf.Clamp(last.state, 0, 3);
+        if (st == State.Chase && CurrentState != State.Chase && visual != null) visual.OnChaseStart();
+        if (st == State.Kill && CurrentState != State.Kill && visual != null) { visual.OnKill(); }
+        CurrentState = st;
+        visSpeed = Mathf.Lerp(visSpeed, res.speed, 1f - Mathf.Exp(-12f * Mathf.Max(dt, 0.0001f)));
+        lastPos = transform.position;
+        if (visual != null) visual.SetLocomotion(CurrentState, CurrentState == State.Kill ? 0f : visSpeed);
+    }
+
     private void Update()
     {
+        if (netProxy) { ProxyUpdate(Time.deltaTime); return; }
+        if (NetSession.IsHost && !stopped && CurrentState != State.Kill) NetRetarget(Time.deltaTime);
         if (target == null)
         {
             return;
@@ -233,7 +328,7 @@ public class MonsterAI : MonoBehaviour
         bool hears = CanHear(distance, lineOfSight);
 
         // Matar: muy cerca y con línea de visión directa
-        if (CurrentState != State.Kill && flatDistance < killDistance && Mathf.Abs(toTarget.y) < 2f && lineOfSight)
+        if (CurrentState != State.Kill && flatDistance < killDistance && Mathf.Abs(toTarget.y) < 2f && lineOfSight && (!NetSession.IsHost || NetSession.Instance.CanCatch(target)))
         {
             EnterKill();
             return;
@@ -263,6 +358,11 @@ public class MonsterAI : MonoBehaviour
     private void UpdateKill(float dt)
     {
         killTimer += dt;
+        if (NetSession.IsHost && netKillTimer >= 0f)
+        {
+            netKillTimer += dt;
+            if (netKillTimer > 2.2f && !GameManagerLost()) { ResumeAfterKill(); return; }
+        }
         Vector3 toPlayer = target.position - transform.position;
         toPlayer.y = 0f;
         float d = toPlayer.magnitude;
@@ -279,6 +379,8 @@ public class MonsterAI : MonoBehaviour
         }
         UpdateVisual(dt);
     }
+
+    private static bool GameManagerLost() { return GameManager.Instance != null && GameManager.Instance.State != GameManager.GameState.Playing; }
 
     // ------------------------------------------------------------------
     // Estados
@@ -422,6 +524,14 @@ public class MonsterAI : MonoBehaviour
             transform.rotation = Quaternion.LookRotation(look);
         }
 
+        if (NetSession.IsHost)
+        {
+            // multijugador: derriba a ese jugador; si es el último, el anfitrión lanza el screamer para todos
+            netKillTimer = 0f;
+            NetSession.Instance.HostMonsterCaught(this, target);
+            return;
+        }
+        netKillTimer = -1f;
         if (GameManager.Instance != null)
         {
             GameManager.Instance.PlayerCaught(this);
@@ -490,6 +600,10 @@ public class MonsterAI : MonoBehaviour
         {
             range *= darkSightFactor; // en la oscuridad ve menos
         }
+        else if (remoteTarget != null && !remoteTarget.FlashOn)
+        {
+            range *= darkSightFactor;
+        }
         if (distance > range)
         {
             return false;
@@ -507,11 +621,11 @@ public class MonsterAI : MonoBehaviour
     // Oído: el jugador hace ruido según camine o corra (FirstPersonController.CurrentNoiseRadius)
     private bool CanHear(float distance, bool lineOfSight)
     {
-        if (playerController == null)
-        {
-            return false;
-        }
-        float radius = playerController.CurrentNoiseRadius * hearingScale;
+        float noise;
+        if (playerController != null) noise = playerController.CurrentNoiseRadius;
+        else if (remoteTarget != null) noise = remoteTarget.NoiseRadius;
+        else return false;
+        float radius = noise * hearingScale;
         if (!lineOfSight)
         {
             radius *= hearingThroughWallsFactor;
