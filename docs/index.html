@@ -7,7 +7,7 @@
        Las etiquetas <title>/meta de abajo son la copia estática para buscadores y redes sociales:
        si cambias el título, actualízalas también. -->
   <title>BACKROOMS: ESCAPA — Juego de terror en primera persona para Windows PC</title>
-  <meta name="description" content="BACKROOMS: ESCAPA es un juego indie de terror en primera persona para Windows PC hecho en Unity. Atraviesa 6 niveles de las Backrooms, encuentra la salida oculta y sobrevive a criaturas distintas en cada nivel.">
+  <meta name="description" content="BACKROOMS: ESCAPA es un juego indie de terror en primera persona para Windows PC hecho en Unity. Atraviesa 6 niveles de las Backrooms, encuentra la salida oculta y sobrevive a criaturas distintas en cada nivel, solo o en cooperativo de 2 a 4 jugadores (multijugador en prueba temprana).">
   <meta name="keywords" content="Backrooms, juego de terror, horror, primera persona, Unity, indie, Windows, PC, Poolrooms, found footage, VHS">
   <meta name="author" content="Equipo de BACKROOMS: ESCAPA">
   <meta name="robots" content="index, follow">
@@ -43,6 +43,7 @@
     "description": "Juego indie de terror en primera persona: escapa de las Backrooms a través de 6 niveles.",
     "genre": ["Terror", "Survival horror"],
     "gamePlatform": "PC (Windows)",
+    "numberOfPlayers": {"@type": "QuantitativeValue", "minValue": 1, "maxValue": 4},
     "operatingSystem": "Windows",
     "applicationCategory": "Game",
     "inLanguage": "es",
@@ -75,6 +76,7 @@
           <li><a href="#niveles">Niveles</a></li>
           <li><a href="#monstruos">Monstruos</a></li>
           <li><a href="#caracteristicas">Características</a></li>
+          <li><a href="#multijugador">Multijugador</a></li>
           <li><a href="#controles">Controles</a></li>
           <li><a href="#capturas">Capturas</a></li>
           <li><a href="#creditos">Créditos</a></li>
@@ -99,17 +101,18 @@
         <h1 class="glitch" id="hero-title" data-title data-text="BACKROOMS: ESCAPA">BACKROOMS: ESCAPA</h1>
         <p class="hero-tagline">Has atravesado la pared equivocada. Zumbido de fluorescentes, moqueta húmeda y kilómetros de pasillos amarillos. Algo te sigue. <strong>Encuentra la salida.</strong></p>
         <div class="hero-actions">
-          <a class="btn btn-primary" href="https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v5.0.0/BackroomsEscape_v5_Windows.zip" download>
+          <a class="btn btn-primary" href="https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v6.0.0/BackroomsEscape_v6_Windows.zip" download>
             <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 5.5 10.5 4.4v7.1H3V5.5Zm0 13 7.5 1.1v-7H3v5.9Zm8.4 1.2L21 21v-8.4h-9.6v7.1Zm0-15.4v7.2H21V3l-9.6 1.3Z"/></svg>
             Descargar para Windows
           </a>
           <a class="btn btn-ghost" href="#trailer">Ver gameplay</a>
         </div>
-        <p class="hero-note">Build temprana v5.0.0 · Windows 64 bits · ≈ 46 MB (zip). <a href="https://github.com/rootesq-pixel/backrooms-escapa/releases" target="_blank" rel="noopener">Código y versiones<span class="sr-only"> (se abre en una pestaña nueva)</span></a></p>
+        <p class="hero-note">Build temprana v6.0.0 (con multijugador) · Windows 64 bits · ≈ 46 MB (zip). <a href="https://github.com/rootesq-pixel/backrooms-escapa/releases" target="_blank" rel="noopener">Código y versiones<span class="sr-only"> (se abre en una pestaña nueva)</span></a></p>
         <ul class="hero-facts" aria-label="Datos rápidos">
           <li><strong>6</strong> niveles</li>
           <li><strong>6</strong> criaturas</li>
           <li><strong>1</strong> salida oculta por nivel</li>
+          <li><strong>2-4</strong> jugadores en cooperativo <span class="tbd">(prueba temprana)</span></li>
           <li>Hecho con <strong>Unity</strong></li>
         </ul>
       </div>
@@ -309,6 +312,11 @@
             <p>Pilas para la linterna, agua de almendras para recuperar resistencia y cordura, barras luminosas para marcar el camino y notas por descubrir.</p>
           </li>
           <li class="feature">
+            <span class="feature-icon" aria-hidden="true">☍</span>
+            <h3>Multijugador cooperativo <span class="badge">Prueba temprana</span></h3>
+            <p>De 2 a 4 jugadores: uno aloja la partida y los demás se unen por IP y puerto TCP 7777. Sala de espera, reanimación de compañeros, monstruos y objetos sincronizados y chat con <kbd>Enter</kbd>. <a href="#multijugador">Cómo jugar →</a></p>
+          </li>
+          <li class="feature">
             <span class="feature-icon" aria-hidden="true">☰</span>
             <h3>Menú de inicio y pausa</h3>
             <p>Menú principal con selección de nivel, opciones y créditos; pausa con <kbd>Esc</kbd>. Volumen, sensibilidad, calidad, head-bob, intensidad del VHS y más.</p>
@@ -340,11 +348,63 @@
       </div>
     </section>
 
+    <!-- MULTIJUGADOR -->
+    <section class="section reveal" id="multijugador" aria-labelledby="multijugador-title">
+      <div class="container">
+        <header class="section-head">
+          <p class="section-tag">// 05</p>
+          <h2 id="multijugador-title">Multijugador cooperativo <span class="badge">Prueba temprana</span></h2>
+          <p class="section-lead">Escapad juntos de las Backrooms: de 2 a 4 jugadores. El modo de un jugador no cambia.</p>
+        </header>
+        <p class="req-warning mp-warning"><strong>Aviso:</strong> el multijugador solo se ha probado en local (por localhost, con dos instancias del juego). No se ha probado por Internet real ni con 3-4 personas reales: puede haber fallos de conexión o de sincronización.</p>
+        <div class="mp-grid">
+          <div class="mp-steps">
+            <h3>Cómo jugar con amigos</h3>
+            <ol class="steps">
+              <li><strong>Misma versión.</strong> Todos necesitáis la v6; el juego rechaza versiones distintas.</li>
+              <li><strong>Anfitrión:</strong> menú principal → <em>Multijugador</em> → escribe tu nombre → <em>Alojar partida</em> → deja el puerto <code>7777</code> → <em>Crear sala</em>. La pantalla muestra tus IP locales.</li>
+              <li><strong>Pasa a tus amigos tu IP y el puerto.</strong> En la misma red local, la IP de tu red (suele empezar por <code>192.168.</code> o <code>10.</code>).</li>
+              <li><strong>Clientes:</strong> <em>Multijugador</em> → nombre → <em>Unirse</em> → IP y puerto del anfitrión → <em>Conectar</em>. Entraréis en la sala de espera.</li>
+              <li>El anfitrión elige el nivel con ◄ ► y pulsa <em>Empezar</em>. No se puede entrar en una partida ya empezada.</li>
+            </ol>
+            <p class="mp-tip"><strong>Consejo (VPN):</strong> si no quieres tocar el router, usad una VPN como <strong>Radmin VPN</strong>, <strong>ZeroTier</strong> o <strong>Hamachi</strong>: todos entráis en la misma red virtual y el anfitrión comparte la IP que le da la VPN.</p>
+            <p class="mp-tip"><strong>Por Internet sin VPN:</strong> redirige el puerto <strong>TCP 7777</strong> de tu router hacia tu PC (reenvío de puertos) y comparte tu IP pública.</p>
+            <p class="mp-tip"><strong>Cortafuegos:</strong> la primera vez que alojes, Windows pedirá permitir el juego en el Firewall; acepta para que tus amigos puedan conectarse.</p>
+          </div>
+          <div class="mp-side">
+            <h3>Qué incluye</h3>
+            <ul class="mp-list">
+              <li>Sala de espera con la lista de jugadores y selección de nivel por el anfitrión.</li>
+              <li>Avatares con el traje hazmat, linterna y nombre sobre la cabeza.</li>
+              <li>Monstruos y objetos sincronizados: el primero en llegar se lleva la pila.</li>
+              <li><strong>Reanimación:</strong> si te derriban, un compañero que se quede a tu lado unos 4 s te levanta.</li>
+              <li>Chat de texto con <kbd>Enter</kbd> (<kbd>Esc</kbd> cancela). En multijugador la pausa no detiene la partida.</li>
+              <li>El nivel termina cuando todos los jugadores vivos llegan a la salida. Con 3-4 jugadores aparece un monstruo extra a partir del nivel 3.</li>
+            </ul>
+          </div>
+        </div>
+        <ul class="gallery mp-gallery">
+          <li class="gallery-item">
+            <button type="button" class="gallery-btn" data-full="assets/img/mp-sala.jpg" data-caption="Sala de espera del anfitrión (vista previa de desarrollo con nombres de ejemplo).">
+              <img src="assets/img/mp-sala.jpg" alt="Sala de espera del multijugador: lista de jugadores Carlos (anfitrión), Marta y Luis, selector de nivel y botones Empezar y Volver." width="960" height="540" loading="lazy">
+            </button>
+            <p class="gallery-caption">Sala de espera · vista previa de desarrollo</p>
+          </li>
+          <li class="gallery-item">
+            <button type="button" class="gallery-btn" data-full="assets/img/mp-ingame.jpg" data-caption="Partida cooperativa: dos compañeros con traje hazmat y su nombre (vista previa de desarrollo; los amigos son simulados).">
+              <img src="assets/img/mp-ingame.jpg" alt="Primera persona en las Oficinas amarillas con dos compañeros con traje hazmat amarillo y sus nombres, Marta y Luis, sobre la cabeza." width="960" height="540" loading="lazy">
+            </button>
+            <p class="gallery-caption">En partida · vista previa de desarrollo (compañeros simulados)</p>
+          </li>
+        </ul>
+      </div>
+    </section>
+
     <!-- CONTROLES -->
     <section class="section section-dark reveal" id="controles" aria-labelledby="controles-title">
       <div class="container">
         <header class="section-head">
-          <p class="section-tag">// 05</p>
+          <p class="section-tag">// 06</p>
           <h2 id="controles-title">Controles</h2>
           <p class="section-lead">Teclado y ratón.</p>
         </header>
@@ -357,6 +417,7 @@
           <div class="control"><dt><span class="keys"><kbd>I</kbd></span></dt><dd>Inventario</dd></div>
           <div class="control"><dt><span class="keys"><kbd>V</kbd></span></dt><dd>Modo cámara VHS</dd></div>
           <div class="control"><dt><span class="keys"><kbd class="key-wide">Esc</kbd></span></dt><dd>Pausa</dd></div>
+          <div class="control"><dt><span class="keys"><kbd class="key-wide">Enter</kbd></span></dt><dd>Chat <span class="tbd">(solo multijugador)</span></dd></div>
           <div class="control"><dt><span class="keys"><kbd>R</kbd></span></dt><dd>Reiniciar nivel</dd></div>
         </dl>
       </div>
@@ -366,7 +427,7 @@
     <section class="section reveal" id="capturas" aria-labelledby="capturas-title">
       <div class="container">
         <header class="section-head">
-          <p class="section-tag">// 06</p>
+          <p class="section-tag">// 07</p>
           <h2 id="capturas-title">Capturas</h2>
           <p class="section-lead">Renders de previsualización del desarrollo (modelos, traje del jugador, Poolrooms y texturas). No son el aspecto final con niebla e iluminación del juego.</p>
         </header>
@@ -421,7 +482,7 @@
     <section class="section section-dark reveal" id="creditos" aria-labelledby="creditos-title">
       <div class="container">
         <header class="section-head">
-          <p class="section-tag">// 07</p>
+          <p class="section-tag">// 08</p>
           <h2 id="creditos-title">Créditos</h2>
           <p class="section-lead">Mallas del nivel, texturas, audio, shader VHS e interfaz son procedurales / código del proyecto (sin assets externos). Los modelos de monstruos y el traje del jugador son CC0 (dominio público); se acreditan por cortesía y trazabilidad.</p>
         </header>
@@ -485,17 +546,17 @@
     <section class="section reveal" id="descarga" aria-labelledby="descarga-title">
       <div class="container">
         <header class="section-head">
-          <p class="section-tag">// 08</p>
+          <p class="section-tag">// 09</p>
           <h2 id="descarga-title">Descarga</h2>
         </header>
         <div class="download-box">
           <div class="download-main">
             <p class="download-platform">Windows PC · 64 bits</p>
-            <a class="btn btn-primary" href="https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v5.0.0/BackroomsEscape_v5_Windows.zip" download>
+            <a class="btn btn-primary" href="https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v6.0.0/BackroomsEscape_v6_Windows.zip" download>
               <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 5.5 10.5 4.4v7.1H3V5.5Zm0 13 7.5 1.1v-7H3v5.9Zm8.4 1.2L21 21v-8.4h-9.6v7.1Zm0-15.4v7.2H21V3l-9.6 1.3Z"/></svg>
               Descargar para Windows
             </a>
-            <p class="download-note"><strong>v5.0.0</strong> · ZIP de ≈ 46 MB <span class="tbd">(aprox.)</span>. Descomprime y ejecuta <code>BackroomsEscape.exe</code>.</p>
+            <p class="download-note"><strong>v6.0.0 · Multijugador</strong> · ZIP de ≈ 46 MB <span class="tbd">(aprox.)</span>. Descomprime y ejecuta <code>BackroomsEscape.exe</code>.</p>
             <p class="download-note download-smartscreen"><strong>Aviso de Windows SmartScreen:</strong> el ejecutable no está firmado digitalmente, por lo que Windows puede mostrar «Windows protegió su PC». Pulsa <em>Más información</em> → <em>Ejecutar de todas formas</em> si confías en la descarga. Es una build temprana.</p>
             <p class="download-note"><a href="https://github.com/rootesq-pixel/backrooms-escapa/releases" target="_blank" rel="noopener">Código y versiones<span class="sr-only"> (se abre en una pestaña nueva)</span></a> · <a href="https://github.com/rootesq-pixel/backrooms-escapa" target="_blank" rel="noopener">Repositorio en GitHub<span class="sr-only"> (se abre en una pestaña nueva)</span></a></p>
           </div>
@@ -510,7 +571,7 @@
                 <tr><th scope="row">Procesador</th><td class="tbd">Por determinar</td><td class="tbd">Por determinar</td></tr>
                 <tr><th scope="row">Memoria</th><td class="tbd">Por determinar</td><td class="tbd">Por determinar</td></tr>
                 <tr><th scope="row">Gráficos</th><td class="tbd">Por determinar</td><td class="tbd">Por determinar</td></tr>
-                <tr><th scope="row">Almacenamiento</th><td colspan="2">≈ 46 MB comprimido / ≈ 103 MB descomprimido <span class="tbd">(aproximado; puede cambiar)</span></td></tr>
+                <tr><th scope="row">Almacenamiento</th><td colspan="2">≈ 46 MB comprimido / ≈ 107 MB descomprimido <span class="tbd">(aproximado; puede cambiar)</span></td></tr>
               </tbody>
             </table>
           </div>
