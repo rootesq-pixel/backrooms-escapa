@@ -176,15 +176,96 @@ public sealed class NetConn
     }
 }
 
-// Conexión saliente con tiempo máximo (hilo aparte para no congelar el juego)
-public sealed class NetConnector
+// Conexión TCP saliente bloqueante (para hilos de fondo). Devuelve null y un código de error si falla:
+// "timeout", "refused", "badaddr", "unreachable", "other:..."
+public static class NetSock
 {
-    public volatile bool Done;
-    public volatile string Error;       // código interno: "timeout", "refused", "badaddr", "unreachable", "other:..."
-    public Socket Result;
+    public static Socket Connect(string host, int port, int timeoutMs, out string error)
+    {
+        error = null;
+        Socket s = null;
+        try
+        {
+            IPAddress ip;
+            string h = (host ?? "").Trim();
+            if (!IPAddress.TryParse(h, out ip))
+            {
+                IPAddress[] list = Dns.GetHostAddresses(h);
+                ip = null;
+                foreach (IPAddress a in list) if (a.AddressFamily == AddressFamily.InterNetwork) { ip = a; break; }
+                if (ip == null) { error = "badaddr"; return null; }
+            }
+            if (ip.AddressFamily != AddressFamily.InterNetwork) { error = "badaddr"; return null; }
+            s = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
+            IAsyncResult ar = s.BeginConnect(new IPEndPoint(ip, port), null, null);
+            if (!ar.AsyncWaitHandle.WaitOne(timeoutMs))
+            {
+                try { s.Close(); } catch (Exception) { }
+                error = "timeout"; return null;
+            }
+            try { s.EndConnect(ar); return s; }
+            catch (SocketException e)
+            {
+                try { s.Close(); } catch (Exception) { }
+                switch (e.SocketErrorCode)
+                {
+                    case SocketError.ConnectionRefused: error = "refused"; break;
+                    case SocketError.HostUnreachable: case SocketError.NetworkUnreachable: error = "unreachable"; break;
+                    case SocketError.TimedOut: error = "timeout"; break;
+                    default: error = "other:" + e.SocketErrorCode; break;
+                }
+                return null;
+            }
+        }
+        catch (SocketException e)
+        {
+            if (s != null) { try { s.Close(); } catch (Exception) { } }
+            error = e.SocketErrorCode == SocketError.HostNotFound || e.SocketErrorCode == SocketError.TryAgain ? "badaddr" : "other:" + e.SocketErrorCode;
+            return null;
+        }
+        catch (Exception e) { error = "other:" + e.GetType().Name; return null; }
+    }
+
+    // Lee una línea de texto (hasta \n) byte a byte, sin pasarse (lo que venga después pertenece al flujo de datos)
+    public static string ReadLine(Socket s, int timeoutMs, Func<bool> cancelled = null)
+    {
+        System.Text.StringBuilder sb = new System.Text.StringBuilder();
+        byte[] one = new byte[1];
+        System.Diagnostics.Stopwatch sw = System.Diagnostics.Stopwatch.StartNew();
+        while (true)
+        {
+            if (cancelled != null && cancelled()) throw new OperationCanceledException();
+            long left = timeoutMs - sw.ElapsedMilliseconds;
+            if (left <= 0) throw new TimeoutException();
+            if (!s.Poll((int)Math.Min(left, 300) * 1000, SelectMode.SelectRead)) continue;
+            int n = s.Receive(one);
+            if (n == 0) throw new System.IO.IOException("cerrada");
+            if (one[0] == 10) return sb.ToString().TrimEnd('\r');
+            if (sb.Length > 256) throw new System.IO.IOException("línea demasiado larga");
+            sb.Append((char)one[0]);
+        }
+    }
+
+    public static void WriteLine(Socket s, string line)
+    {
+        byte[] b = System.Text.Encoding.UTF8.GetBytes(line + "\n");
+        int off = 0;
+        while (off < b.Length) off += s.Send(b, off, b.Length - off, SocketFlags.None);
+    }
+}
+
+// Conexión saliente con tiempo máximo (hilo aparte para no congelar el juego) — transporte directo TCP
+public sealed class NetConnector : INetConnector
+{
+    private volatile bool done;
+    private volatile string error;
+    private Socket result;
     private readonly string host;
     private readonly int port;
     private readonly int timeoutMs;
+    public bool Done { get { return done; } }
+    public string Error { get { return error; } }     // código interno: "timeout", "refused", "badaddr", "unreachable", "other:..."
+    public Socket Result { get { return result; } }
 
     public NetConnector(string host, int port, int timeoutMs)
     {
@@ -195,51 +276,21 @@ public sealed class NetConnector
 
     private void Run()
     {
-        try
-        {
-            IPAddress ip;
-            if (!IPAddress.TryParse(host.Trim(), out ip))
-            {
-                IPAddress[] list = Dns.GetHostAddresses(host.Trim());
-                ip = null;
-                foreach (IPAddress a in list) if (a.AddressFamily == AddressFamily.InterNetwork) { ip = a; break; }
-                if (ip == null) { Error = "badaddr"; Done = true; return; }
-            }
-            if (ip.AddressFamily != AddressFamily.InterNetwork) { Error = "badaddr"; Done = true; return; }
-            Socket s = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
-            IAsyncResult ar = s.BeginConnect(new IPEndPoint(ip, port), null, null);
-            if (!ar.AsyncWaitHandle.WaitOne(timeoutMs))
-            {
-                try { s.Close(); } catch (Exception) { }
-                Error = "timeout"; Done = true; return;
-            }
-            try { s.EndConnect(ar); Result = s; }
-            catch (SocketException e)
-            {
-                try { s.Close(); } catch (Exception) { }
-                switch (e.SocketErrorCode)
-                {
-                    case SocketError.ConnectionRefused: Error = "refused"; break;
-                    case SocketError.HostUnreachable: case SocketError.NetworkUnreachable: Error = "unreachable"; break;
-                    case SocketError.TimedOut: Error = "timeout"; break;
-                    default: Error = "other:" + e.SocketErrorCode; break;
-                }
-            }
-        }
-        catch (SocketException e)
-        {
-            Error = e.SocketErrorCode == SocketError.HostNotFound || e.SocketErrorCode == SocketError.TryAgain ? "badaddr" : "other:" + e.SocketErrorCode;
-        }
-        catch (Exception e) { Error = "other:" + e.GetType().Name; }
-        Done = true;
+        string e;
+        Socket s = NetSock.Connect(host, port, timeoutMs, out e);
+        result = s; error = e;
+        done = true;
     }
 }
 
-// Servidor TCP: acepta conexiones sin bloquear
-public sealed class NetListener
+// Servidor TCP: acepta conexiones sin bloquear — transporte directo TCP
+public sealed class NetListener : INetListener
 {
     private TcpListener listener;
     public int Port { get; private set; }
+    public string RoomCode { get { return ""; } }
+    public string Status { get { return ""; } }
+    public string Error { get { return null; } }
 
     public bool Start(int port, out string error)
     {

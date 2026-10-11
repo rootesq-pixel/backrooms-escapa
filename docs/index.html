@@ -101,13 +101,13 @@
         <h1 class="glitch" id="hero-title" data-title data-text="BACKROOMS: ESCAPA">BACKROOMS: ESCAPA</h1>
         <p class="hero-tagline">Has atravesado la pared equivocada. Zumbido de fluorescentes, moqueta húmeda y kilómetros de pasillos amarillos. Algo te sigue. <strong>Encuentra la salida.</strong></p>
         <div class="hero-actions">
-          <a class="btn btn-primary" href="https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v6.0.0/BackroomsEscape_v6_Windows.zip" download>
+          <a class="btn btn-primary" href="https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v6.2.0/BackroomsEscape_v6_2_Windows.zip" download>
             <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 5.5 10.5 4.4v7.1H3V5.5Zm0 13 7.5 1.1v-7H3v5.9Zm8.4 1.2L21 21v-8.4h-9.6v7.1Zm0-15.4v7.2H21V3l-9.6 1.3Z"/></svg>
             Descargar para Windows
           </a>
           <a class="btn btn-ghost" href="#trailer">Ver gameplay</a>
         </div>
-        <p class="hero-note">Build temprana v6.0.0 (con multijugador) · Windows 64 bits · ≈ 46 MB (zip). <a href="https://github.com/rootesq-pixel/backrooms-escapa/releases" target="_blank" rel="noopener">Código y versiones<span class="sr-only"> (se abre en una pestaña nueva)</span></a></p>
+        <p class="hero-note">Build temprana v6.2.0 (multijugador por Internet) · Windows 64 bits · ≈ 46 MB (zip). <a href="https://github.com/rootesq-pixel/backrooms-escapa/releases" target="_blank" rel="noopener">Código y versiones<span class="sr-only"> (se abre en una pestaña nueva)</span></a></p>
         <ul class="hero-facts" aria-label="Datos rápidos">
           <li><strong>6</strong> niveles</li>
           <li><strong>6</strong> criaturas</li>
@@ -314,7 +314,7 @@
           <li class="feature">
             <span class="feature-icon" aria-hidden="true">☍</span>
             <h3>Multijugador cooperativo <span class="badge">Prueba temprana</span></h3>
-            <p>De 2 a 4 jugadores: uno aloja la partida y los demás se unen por IP y puerto TCP 7777. Sala de espera, reanimación de compañeros, monstruos y objetos sincronizados y chat con <kbd>Enter</kbd>. <a href="#multijugador">Cómo jugar →</a></p>
+            <p>De 2 a 4 jugadores. Aloja con un <strong>código de sala</strong> y tus amigos se unen con él: sin abrir puertos, con el servidor oficial incluido. También por IP y puerto TCP 7777 (con UPnP automático) o por VPN. Reanimación, monstruos y objetos sincronizados y chat con <kbd>Enter</kbd>. <a href="#multijugador">Cómo jugar →</a></p>
           </li>
           <li class="feature">
             <span class="feature-icon" aria-hidden="true">☰</span>
@@ -356,25 +356,31 @@
           <h2 id="multijugador-title">Multijugador cooperativo <span class="badge">Prueba temprana</span></h2>
           <p class="section-lead">Escapad juntos de las Backrooms: de 2 a 4 jugadores. El modo de un jugador no cambia.</p>
         </header>
-        <p class="req-warning mp-warning"><strong>Aviso:</strong> el multijugador solo se ha probado en local (por localhost, con dos instancias del juego). No se ha probado por Internet real ni con 3-4 personas reales: puede haber fallos de conexión o de sincronización.</p>
+        <p class="req-warning mp-warning"><strong>Aviso:</strong> probado en local y con un servidor intermedio real; <strong>las pruebas con amigos por Internet están pendientes</strong>. Es una prueba temprana: puede haber fallos de conexión o de sincronización, y la apertura automática de puertos (UPnP) solo se ha probado con routers simulados.</p>
         <div class="mp-grid">
           <div class="mp-steps">
             <h3>Cómo jugar con amigos</h3>
+            <p class="mp-opt"><strong>Opción A · Con código</strong> (recomendada: sin abrir puertos, funciona incluso con CGNAT)</p>
             <ol class="steps">
-              <li><strong>Misma versión.</strong> Todos necesitáis la v6; el juego rechaza versiones distintas.</li>
-              <li><strong>Anfitrión:</strong> menú principal → <em>Multijugador</em> → escribe tu nombre → <em>Alojar partida</em> → deja el puerto <code>7777</code> → <em>Crear sala</em>. La pantalla muestra tus IP locales.</li>
-              <li><strong>Pasa a tus amigos tu IP y el puerto.</strong> En la misma red local, la IP de tu red (suele empezar por <code>192.168.</code> o <code>10.</code>).</li>
-              <li><strong>Clientes:</strong> <em>Multijugador</em> → nombre → <em>Unirse</em> → IP y puerto del anfitrión → <em>Conectar</em>. Entraréis en la sala de espera.</li>
+              <li><strong>Misma versión.</strong> Todos necesitáis la v6.2; el juego rechaza versiones distintas.</li>
+              <li><strong>Anfitrión:</strong> menú principal → <em>Multijugador</em> → escribe tu nombre → <em>Alojar con código</em>. La sala muestra un código de 6 caracteres: pásaselo a tus amigos.</li>
+              <li><strong>Clientes:</strong> <em>Multijugador</em> → nombre → <em>Unirse con código</em> → escribe el código. Entraréis en la sala de espera.</li>
               <li>El anfitrión elige el nivel con ◄ ► y pulsa <em>Empezar</em>. No se puede entrar en una partida ya empezada.</li>
             </ol>
-            <p class="mp-tip"><strong>Consejo (VPN):</strong> si no quieres tocar el router, usad una VPN como <strong>Radmin VPN</strong>, <strong>ZeroTier</strong> o <strong>Hamachi</strong>: todos entráis en la misma red virtual y el anfitrión comparte la IP que le da la VPN.</p>
-            <p class="mp-tip"><strong>Por Internet sin VPN:</strong> redirige el puerto <strong>TCP 7777</strong> de tu router hacia tu PC (reenvío de puertos) y comparte tu IP pública.</p>
-            <p class="mp-tip"><strong>Cortafuegos:</strong> la primera vez que alojes, Windows pedirá permitir el juego en el Firewall; acepta para que tus amigos puedan conectarse.</p>
+            <p class="mp-tip">El juego incluye el <strong>servidor oficial</strong> (servidor intermedio que empareja a los jugadores por el código y reenvía los datos), así que no hay que configurar nada. Su dirección va ofuscada dentro del juego. Puede dejar de estar disponible o cambiar en futuras versiones. Si prefieres el tuyo, el <a href="https://github.com/rootesq-pixel/backrooms-escapa/tree/main/relay-server" target="_blank" rel="noopener">código del servidor<span class="sr-only"> (se abre en una pestaña nueva)</span></a> está en el repositorio.</p>
+            <p class="mp-opt"><strong>Opción B · IP y puerto</strong> (TCP 7777)</p>
+            <ol class="steps">
+              <li><strong>Anfitrión:</strong> <em>Alojar partida</em> → puerto <code>7777</code> → <em>Crear sala</em>. El juego intenta <strong>abrir el puerto automáticamente (UPnP)</strong> y muestra tu IP local y tu IP pública, con un botón para copiar la dirección.</li>
+              <li>Si el puerto no se abre solo, redirige el puerto <strong>TCP 7777</strong> en tu router hacia tu PC. La primera vez, Windows pedirá permitir el juego en el <strong>Firewall</strong>: acepta.</li>
+              <li><strong>Clientes:</strong> <em>Unirse</em> → IP y puerto del anfitrión (admite <code>ip:puerto</code> pegado) → <em>Conectar</em>.</li>
+            </ol>
+            <p class="mp-tip"><strong>Alternativa (VPN):</strong> usad una VPN como <strong>Radmin VPN</strong>, <strong>ZeroTier</strong> o <strong>Hamachi</strong>: todos entráis en la misma red virtual y el anfitrión comparte la IP que le da la VPN.</p>
           </div>
           <div class="mp-side">
             <h3>Qué incluye</h3>
             <ul class="mp-list">
               <li>Sala de espera con la lista de jugadores y selección de nivel por el anfitrión.</li>
+              <li>Juego por Internet con código de sala (servidor intermedio oficial integrado) o por IP y puerto con UPnP.</li>
               <li>Avatares con el traje hazmat, linterna y nombre sobre la cabeza.</li>
               <li>Monstruos y objetos sincronizados: el primero en llegar se lleva la pila.</li>
               <li><strong>Reanimación:</strong> si te derriban, un compañero que se quede a tu lado unos 4 s te levanta.</li>
@@ -552,11 +558,11 @@
         <div class="download-box">
           <div class="download-main">
             <p class="download-platform">Windows PC · 64 bits</p>
-            <a class="btn btn-primary" href="https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v6.0.0/BackroomsEscape_v6_Windows.zip" download>
+            <a class="btn btn-primary" href="https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v6.2.0/BackroomsEscape_v6_2_Windows.zip" download>
               <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 5.5 10.5 4.4v7.1H3V5.5Zm0 13 7.5 1.1v-7H3v5.9Zm8.4 1.2L21 21v-8.4h-9.6v7.1Zm0-15.4v7.2H21V3l-9.6 1.3Z"/></svg>
               Descargar para Windows
             </a>
-            <p class="download-note"><strong>v6.0.0 · Multijugador</strong> · ZIP de ≈ 46 MB <span class="tbd">(aprox.)</span>. Descomprime y ejecuta <code>BackroomsEscape.exe</code>.</p>
+            <p class="download-note"><strong>v6.2.0 · Multijugador por Internet</strong> · ZIP de ≈ 46 MB <span class="tbd">(aprox.)</span>. Descomprime y ejecuta <code>BackroomsEscape.exe</code>.</p>
             <p class="download-note download-smartscreen"><strong>Aviso de Windows SmartScreen:</strong> el ejecutable no está firmado digitalmente, por lo que Windows puede mostrar «Windows protegió su PC». Pulsa <em>Más información</em> → <em>Ejecutar de todas formas</em> si confías en la descarga. Es una build temprana.</p>
             <p class="download-note"><a href="https://github.com/rootesq-pixel/backrooms-escapa/releases" target="_blank" rel="noopener">Código y versiones<span class="sr-only"> (se abre en una pestaña nueva)</span></a> · <a href="https://github.com/rootesq-pixel/backrooms-escapa" target="_blank" rel="noopener">Repositorio en GitHub<span class="sr-only"> (se abre en una pestaña nueva)</span></a></p>
           </div>

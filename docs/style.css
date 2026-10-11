@@ -451,3 +451,5 @@ tbody th { color: #f1e9c9; font-weight: 600; }
 @media (max-width: 900px) { .mp-grid { grid-template-columns: 1fr; } }
 @media (max-width: 600px) { .mp-gallery { grid-template-columns: 1fr; } }
 .mp-list kbd, .steps kbd { height: 1.6em; min-width: 1.6em; font-size: .8em; box-shadow: 0 2px 0 #6d6236; }
+.mp-opt { margin: 1rem 0 .4rem; color: #fff1b5; font-family: var(--mono); font-size: .9rem; letter-spacing: .03em; }
+.mp-steps .mp-opt:first-of-type { margin-top: 0; }

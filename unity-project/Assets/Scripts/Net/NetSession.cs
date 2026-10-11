@@ -66,6 +66,12 @@ public class NetSession : MonoBehaviour
     public string LastNotice = "";                       // mensaje para el menú principal (errores, desconexión)
     public string LastError = "";                        // último error de conexión (para la pantalla de unirse)
     public int Port { get; private set; }
+    public static bool AutoUpnp = true;                  // abrir el puerto del router automáticamente al alojar (UPnP / NAT-PMP)
+    public UpnpMapper Upnp { get; private set; }         // estado de la apertura automática de puerto (null si no se usa)
+    public bool ViaRelay { get; private set; }           // la sala usa el relay (código de sala) en vez de TCP directo
+    public string RoomCode { get { return listener != null ? listener.RoomCode : ""; } }
+    public string TransportStatus { get { return listener != null ? listener.Status : ""; } }
+    public string TransportError { get { return listener != null ? listener.Error : null; } }
     public int Epoch { get; private set; }               // nº de nivel en curso (lo decide el anfitrión)
     public int WorldEpoch { get; private set; }          // época del mundo construido (0 = ninguno)
     public ulong LocalWorldHash { get; private set; }
@@ -88,10 +94,13 @@ public class NetSession : MonoBehaviour
     public event Action<string> SystemMessage;
 
     private GameBootstrap bootstrap;
-    private NetListener listener;
+    private INetListener listener;
+    private ITransport transport;
+    private static readonly ITransport DirectTransport = new DirectTcpTransport(), RelayTrans = new RelayTransport();
     private readonly List<NetConn> pending = new List<NetConn>();
     private NetConn serverConn;
-    private NetConnector connector;
+    private INetConnector connector;
+    private float connectTimeout = 6f;
     private float connectStart, helloSent;
     private string connectName;
     private NetStart pendingStart;
@@ -131,7 +140,7 @@ public class NetSession : MonoBehaviour
         if (Instance == this) Instance = null;
         Teardown();
     }
-    private void OnApplicationQuit() { if (Active) Leave(null, false); }
+    private void OnApplicationQuit() { UpnpMapper up = Upnp; if (Active) Leave(null, false); if (up != null) up.Stop(true); }   // espera a borrar el puerto del router
 
     public NetPlayer PlayerById(int id) { foreach (NetPlayer p in Players) if (p.id == id) return p; return null; }
     public NetPlayer LocalPlayerInfo { get { return PlayerById(LocalId); } }
@@ -139,13 +148,16 @@ public class NetSession : MonoBehaviour
     // ------------------------------------------------------------------
     // Alojar / Unirse / Salir
     // ------------------------------------------------------------------
-    public bool StartHost(int port, string name, out string error)
+    public bool StartHost(int port, string name, out string error, bool relay = false)
     {
         error = null;
         if (Role != NetRole.None) Leave(null, false);
-        listener = new NetListener();
+        transport = relay ? RelayTrans : DirectTransport;
+        if (!transport.Available) { error = relay ? "No hay servidor relay configurado. Escribe su dirección en el menú Multijugador o en relay.txt." : "Transporte no disponible."; return false; }
+        listener = transport.CreateListener(CleanName(name));
         if (!listener.Start(port, out error)) { listener = null; return false; }
-        Port = listener.Port;
+        ViaRelay = relay;
+        Port = relay ? 0 : listener.Port;
         Role = NetRole.Host;
         InGame = false;
         LocalName = CleanName(name);
@@ -155,22 +167,43 @@ public class NetSession : MonoBehaviour
         nextPlayerId = 1; Epoch = 0; WorldEpoch = 0;
         taken.Clear(); takenBy.Clear(); drops.Clear();
         LastNotice = ""; LastError = "";
+        if (!relay && AutoUpnp)
+        {
+            Upnp = new UpnpMapper();
+            Upnp.Start(Port);
+        }
+        PublicIpService.Refresh(false);
         if (LobbyChanged != null) LobbyChanged();
-        Debug.Log("[NetSession] Anfitrión escuchando en el puerto TCP " + Port);
+        Debug.Log(relay ? "[NetSession] Anfitrión por relay (" + RelayConfig.DisplayAddress + ")" : "[NetSession] Anfitrión escuchando en el puerto TCP " + Port);
         return true;
     }
 
-    public void StartClient(string host, int port, string name)
+    public void StartClient(string host, int port, string name, bool relay = false)
     {
         if (Role != NetRole.None) Leave(null, false);
         LastError = ""; LastNotice = "";
-        if (string.IsNullOrEmpty(host) || host.Trim().Length == 0) { LastError = "Escribe la dirección IP del anfitrión."; return; }
-        if (port < 1 || port > 65535) { LastError = "Puerto no válido (1-65535)."; return; }
-        connectName = CleanName(name);
-        connector = new NetConnector(host, port, 6000);
+        ViaRelay = relay;
+        transport = relay ? RelayTrans : DirectTransport;
+        if (relay)
+        {
+            if (!RelayConfig.Enabled) { LastError = "No hay servidor relay configurado. Escribe su dirección en el menú Multijugador o en relay.txt."; return; }
+            if (!RoomCodes.IsValid(host)) { LastError = "El código de sala debe tener 6 caracteres (letras y números, sin I, O, 0 ni 1)."; return; }
+            connectName = CleanName(name);
+            connectTimeout = 16f;
+            connector = transport.Connect(host, 0, 16000);
+            ConnectStatus = "Conectando con la sala " + RoomCodes.Normalize(host) + " a través del relay ...";
+        }
+        else
+        {
+            if (string.IsNullOrEmpty(host) || host.Trim().Length == 0) { LastError = "Escribe la dirección IP del anfitrión."; return; }
+            if (port < 1 || port > 65535) { LastError = "Puerto no válido (1-65535)."; return; }
+            connectName = CleanName(name);
+            connectTimeout = 6f;
+            connector = transport.Connect(host, port, 6000);
+            ConnectStatus = "Conectando con " + host.Trim() + ":" + port + " ...";
+        }
         connectStart = Time.unscaledTime;
         Connecting = true;
-        ConnectStatus = "Conectando con " + host.Trim() + ":" + port + " ...";
         Role = NetRole.Client;       // provisional: Update gestiona la fase de conexión
         InGame = false;
         Players.Clear();
@@ -210,6 +243,8 @@ public class NetSession : MonoBehaviour
         serverConn = null;
         if (listener != null) listener.Stop();
         listener = null;
+        if (Upnp != null) { Upnp.Stop(false); Upnp = null; }
+        ViaRelay = false;
         connector = null;
         Connecting = false; ConnectStatus = "";
         Role = NetRole.None; InGame = false;
@@ -270,6 +305,13 @@ public class NetSession : MonoBehaviour
     // ------------------------------------------------------------------
     private void HostUpdate(float now)
     {
+        if (ViaRelay && listener != null && listener.Error != null && listener.RoomCode.Length == 0)
+        {
+            // el relay no ha dejado abrir la sala (inalcanzable, lleno, versión distinta): volvemos al menú con un mensaje
+            string msg = ConnectErrorText(listener.Error);
+            Leave(msg, false);
+            return;
+        }
         Socket_AcceptAll(now);
 
         // conexiones aún sin saludo
@@ -562,7 +604,7 @@ public class NetSession : MonoBehaviour
     {
         if (connector != null)
         {
-            if (!connector.Done) { ConnectStatus = "Conectando ... (" + Mathf.CeilToInt(Mathf.Max(0f, 6f - (now - connectStart))) + " s)"; return; }
+            if (!connector.Done) { ConnectStatus = (ViaRelay ? "Conectando a través del relay ... (" : "Conectando ... (") + Mathf.CeilToInt(Mathf.Max(0f, connectTimeout - (now - connectStart))) + " s)"; return; }
             if (connector.Result == null)
             {
                 string e = connector.Error ?? "other";
@@ -607,6 +649,14 @@ public class NetSession : MonoBehaviour
         if (code == "timeout") return "No se pudo conectar: tiempo de espera agotado. Comprueba la IP, que el anfitrión haya abierto la sala y que el puerto TCP esté abierto (router / cortafuegos / VPN).";
         if (code == "refused") return "Conexión rechazada: no hay ninguna sala abierta en esa IP y puerto (¿el anfitrión ya ha pulsado «Alojar partida»?).";
         if (code == "badaddr") return "Dirección IP no válida o no encontrada.";
+        if (code == "relay_unreachable") return "No se pudo contactar con el servidor relay (" + RelayConfig.DisplayAddress + "). Comprueba su dirección y tu conexión a Internet.";
+        if (code == "relay:noroom") return "No existe ninguna sala con ese código (¿está bien escrito? ¿el anfitrión sigue con la sala abierta?).";
+        if (code == "relay:badcode") return "El código de sala no es válido (6 caracteres, sin I, O, 0 ni 1).";
+        if (code == "relay:full") return "La sala del relay está llena.";
+        if (code == "relay:timeout") return "El anfitrión no respondió a través del relay (¿se ha cerrado la sala?).";
+        if (code == "relay:auth") return "El servidor relay ha rechazado el acceso (token incorrecto o versión antigua del juego). Actualiza el juego o usa otro relay.";
+        if (code == "relay:busy") return "El servidor relay está lleno ahora mismo. Inténtalo más tarde.";
+        if (code == "relay:proto") return "El servidor relay usa otra versión del protocolo. Actualiza el juego o usa otro relay.";
         if (code == "unreachable") return "No se puede llegar a esa dirección (red inaccesible). Comprueba tu conexión o la VPN.";
         return "No se pudo conectar (" + code.Replace("other:", "") + ").";
     }

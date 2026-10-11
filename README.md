@@ -3,15 +3,15 @@
 Juego de terror en primera persona para PC (Windows 64 bits) hecho con **Unity**: escapa de las Backrooms a través de **6 niveles** encadenados. Cada nivel es un laberinto (o aparcamiento abierto) procedural con su propia estética, luces, dificultad y criaturas que patrullan y te persiguen. La salida es una puerta discreta que **solo se descubre explorando**: sin cartel, sin flecha, sin indicador de distancia.
 
 - 🌐 **Web:** https://rootesq-pixel.github.io/backrooms-escapa/
-- ⬇️ **Descarga directa v6 (Windows, ZIP ≈ 46 MB):** [BackroomsEscape_v6_Windows.zip](https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v6.0.0/BackroomsEscape_v6_Windows.zip)
-- 📦 **Release v6.0.0 — Multijugador:** https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.0.0
-- 🕓 Versión anterior: [v5.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v5.0.0) (solo un jugador)
+- ⬇️ **Descarga directa v6.2 (Windows, ZIP ≈ 46 MB):** [BackroomsEscape_v6_2_Windows.zip](https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v6.2.0/BackroomsEscape_v6_2_Windows.zip)
+- 📦 **Release v6.2.0 — Multijugador por Internet:** https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.2.0
+- 🕓 Versiones anteriores: [v6.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.0.0) (multijugador por IP y puerto) · [v5.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v5.0.0) (un jugador)
 
-> ⚠️ **Build temprana.** Puede haber errores. El **multijugador solo se ha probado en local (localhost)**: no se ha probado por Internet real ni con 3-4 personas reales. El ejecutable **no está firmado**, así que Windows SmartScreen puede avisar al abrirlo (*Más información → Ejecutar de todas formas*).
+> ⚠️ **Build temprana.** Puede haber errores. El **multijugador** se ha probado en local y con un servidor intermedio real; **las pruebas con amigos por Internet están pendientes**. El ejecutable **no está firmado**, así que Windows SmartScreen puede avisar al abrirlo (*Más información → Ejecutar de todas formas*).
 
 ## Cómo jugar
 
-1. Descarga `BackroomsEscape_v6_Windows.zip` desde la [release v6.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.0.0).
+1. Descarga `BackroomsEscape_v6_2_Windows.zip` desde la [release v6.2.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.2.0).
 2. Descomprime el ZIP (≈ 107 MB descomprimido).
 3. Ejecuta `BackroomsEscape.exe`.
 
@@ -28,23 +28,37 @@ Juego de terror en primera persona para PC (Windows 64 bits) hecho con **Unity**
 
 Al llegar a la puerta de salida se carga el siguiente nivel; tras el nivel 5 aparece la pantalla de victoria (tiempo total e intentos fallidos). Si te atrapan, el nivel se reinicia.
 
-## Multijugador (v6, prueba temprana)
+## Multijugador (v6.2, prueba temprana)
 
 Modo **cooperativo de 2 a 4 jugadores**. El modo de un jugador no cambia: la red solo se activa desde el menú **Multijugador**.
 
-> ⚠️ Solo se ha probado **en local (localhost)**, con dos instancias del juego; los jugadores 3 y 4 se probaron con clientes simulados en la sala. **No se ha probado por Internet real, con latencia/pérdida reales ni con 3-4 personas reales.**
+> ⚠️ **Prueba temprana.** Se ha probado en local y con un servidor intermedio real (el servidor oficial integrado, ver abajo). **Las pruebas con amigos por Internet están pendientes.** Los jugadores 3 y 4 se probaron con clientes simulados, y UPnP/NAT-PMP solo contra routers simulados (no hay pruebas con routers reales).
+
+### Novedades de la v6.2 (juego por Internet)
+
+- **Alojar con código / Unirse con código:** el anfitrión pulsa **Alojar con código**, la sala muestra un **código de 6 caracteres** y los amigos entran con **Unirse con código**. **No hace falta abrir puertos**, ni UPnP, ni VPN, y funciona incluso detrás de CGNAT. Usa un servidor intermedio (relay) que empareja a los jugadores por el código y reenvía los bytes.
+- **Servidor oficial integrado:** la v6.2 lleva incorporado el servidor oficial, así que esos botones funcionan sin configurar nada. Su dirección va **cifrada y ofuscada dentro del juego**; no aparece en la interfaz, en los logs ni en este repositorio. Ojo: es **ofuscación, no un secreto real** (un cliente necesita conocer la dirección para conectarse); la protección real es un token en el servidor. El servidor oficial puede no estar disponible o cambiar en futuras versiones.
+- **Apertura automática de puerto (UPnP / NAT-PMP):** al **Crear sala** (modo IP y puerto) el juego intenta abrir el puerto TCP elegido en tu router y lo cierra al salir. Muestra el estado en español.
+- **IP pública visible:** la pantalla del anfitrión muestra tus IP locales, tu **IP pública** (consultada a servicios como `api.ipify.org`) y un botón **Copiar dirección**. El campo de IP del cliente acepta `ip:puerto` pegado.
+- **Servidor propio:** la carpeta [`relay-server/`](relay-server/) contiene el relay (Node.js, sin dependencias, con Dockerfile y `fly.toml`) para alojar el tuyo. Puedes indicarlo en el campo «Servidor relay» del menú, en un `relay.txt` junto a `BackroomsEscape.exe` (`mi-servidor.ejemplo.com:7780`, puerto por defecto **7780**) o con la variable de entorno `BACKROOMS_RELAY`. Si compilas el proyecto desde este repositorio, **no incluye el servidor oficial** (su carga cifrada no se publica): usará solo el que configures.
 
 ### Cómo jugar con amigos
 
-1. **Todos** necesitáis la **misma versión** (la v6): el juego comprueba el protocolo y rechaza versiones distintas.
-2. **Anfitrión:** menú principal → **Multijugador** → escribe tu nombre → **Alojar partida** → deja el puerto **TCP 7777** (o cambia el número) → **Crear sala**. La pantalla muestra tus IP locales (LAN / VPN).
-3. **Cortafuegos:** la primera vez, el **Firewall de Windows** pedirá permitir el juego: acepta (o abre el puerto TCP 7777 de entrada).
-4. Pasa a tus amigos tu **IP y el puerto**:
-   - **Misma red local (mismo wifi):** la IP de tu red local (suele empezar por `192.168.` o `10.`).
-   - **Por Internet:** redirige el puerto **TCP 7777** de tu router hacia tu PC (reenvío de puertos) y comparte tu IP pública.
-   - **Más fácil, sin tocar el router: una VPN** como **Radmin VPN**, **ZeroTier** o **Hamachi**. Todos entráis en la misma red virtual y el anfitrión comparte la IP que le da la VPN.
-5. **Clientes:** Multijugador → nombre → **Unirse** → IP y puerto del anfitrión → **Conectar**. Entraréis en la sala de espera.
-6. El anfitrión elige el nivel con ◄ ► y pulsa **Empezar**. No se puede entrar en una partida ya empezada.
+**Opción A: con código (recomendada, sin abrir puertos)**
+
+1. Todos necesitáis la **misma versión** (v6.2).
+2. **Anfitrión:** menú principal → **Multijugador** → tu nombre → **Alojar con código**. Pasa a tus amigos el código de la sala.
+3. **Clientes:** Multijugador → tu nombre → **Unirse con código** → escribe el código → entras en la sala de espera.
+4. El anfitrión elige el nivel con ◄ ► y pulsa **Empezar**. No se puede entrar en una partida ya empezada.
+
+**Opción B: IP y puerto (TCP 7777)**
+
+1. **Anfitrión:** Multijugador → **Alojar partida** → puerto **TCP 7777** (o el que quieras) → **Crear sala**. El juego intenta abrir el puerto con UPnP; si no lo consigue, abre TCP 7777 en tu router (reenvío de puertos).
+2. **Cortafuegos:** la primera vez, el Firewall de Windows pedirá permitir el juego: acepta.
+3. Pasa a tus amigos tu **IP y puerto**: en la misma red local, la IP local (suele empezar por `192.168.` o `10.`); por Internet, tu IP pública.
+4. **Clientes:** Multijugador → **Unirse** → IP y puerto → **Conectar**.
+
+**Alternativa: una VPN** como **Radmin VPN**, **ZeroTier** o **Hamachi**: todos entráis en la misma red virtual y el anfitrión comparte la IP que le da la VPN.
 
 ### Qué incluye
 
@@ -85,12 +99,13 @@ Sin reconexión a mitad de partida, sin voz, sin migración de anfitrión (si el
 - Cámara VHS opcional, inventario en rejilla, notas y pilas para la linterna.
 - Agua realista y buceo en los niveles 2 y 3.
 - Cuerpo en primera persona con animaciones, menús y opciones en español (incluido «Susto suave»).
-- **Multijugador cooperativo de 2-4 jugadores** (TCP, por IP y puerto; prueba temprana).
+- **Multijugador cooperativo de 2-4 jugadores** por código de sala (servidor oficial integrado) o por IP y puerto, con UPnP automático (prueba temprana).
 
 ## Estructura del repositorio
 
 - `docs/` – sitio web (GitHub Pages).
 - `unity-project/` – código fuente del proyecto Unity (Unity 2022.3 LTS, pipeline Built-in). Consulta la documentación técnica dentro del proyecto para abrirlo con Unity Hub.
+- `relay-server/` – servidor intermedio (relay) para el modo «con código», por si quieres alojar el tuyo.
 - `CREDITS.md` – créditos y licencias de los modelos y recursos externos (CC0).
 - Las builds están en [Releases](https://github.com/rootesq-pixel/backrooms-escapa/releases) (no se guardan en git).
 

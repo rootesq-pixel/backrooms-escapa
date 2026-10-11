@@ -8,7 +8,7 @@ using UnityEngine.UI;
 //   aviso de derribado/reanimación y chat de texto (Enter para escribir).
 public class MultiplayerUI : MonoBehaviour
 {
-    public enum Page { Menu, Host, Join }
+    public enum Page { Menu, Host, Join, JoinCode }
 
     public static bool ChatTyping;
     public const string KName = "mp_name", KPort = "mp_port", KIp = "mp_ip";
@@ -20,6 +20,14 @@ public class MultiplayerUI : MonoBehaviour
     public InputField HostPortField { get; private set; }
     public InputField JoinIpField { get; private set; }
     public InputField JoinPortField { get; private set; }
+    public InputField RelayField { get; private set; }
+    public InputField CodeField { get; private set; }
+    public Button RelayHostButton { get { return btnRelayHost; } }
+    public Button RelayJoinButton { get { return btnRelayJoin; } }
+    public string HostInfoText { get { return hostIps != null ? hostIps.text : ""; } }
+    public string LobbyAddrText { get { return lobbyAddr != null ? lobbyAddr.text : ""; } }
+    public string RelayHintText { get { return relayHint != null ? relayHint.text : ""; } }
+    public string CodeStatusText { get { return (codeStatus != null ? codeStatus.text : "") + " " + (codeError != null ? codeError.text : ""); } }
     public InputField ChatField { get; private set; }
     public int LobbyLevel { get; private set; }
     public int ChatLineCount { get { return chatLines.Count; } }
@@ -35,9 +43,15 @@ public class MultiplayerUI : MonoBehaviour
 
     private UIManager ui;
     private Transform menuParent;
-    private GameObject pgMenu, pgHost, pgJoin;
+    private GameObject pgMenu, pgHost, pgJoin, pgCode;
     private Text hostIps, hostError, joinError, joinStatus, lobbyTitle, lobbyInfo, lobbyPlayers, lobbyLevelText, lobbyWait, notice;
     private Button btnConnect, btnCancel, btnStart, btnPrev, btnNext;
+    private Button btnRelayHost, btnRelayJoin, btnCodeConnect, btnCodeCancel, btnCopyHost, btnCopyLobby, btnLobbyBack;
+    private Text relayHint, codeStatus, codeError, lobbyAddr, copyNoteHost, copyNoteLobby;
+    private float copyNoteUntil, infoTimer;
+    private List<string> localIps = new List<string>();
+    private string lastIpText = "";
+    private bool splitting;
     private bool lobbyDirty = true;
     private float noticeUntil;
 
@@ -113,10 +127,19 @@ public class MultiplayerUI : MonoBehaviour
         NameField = MakeInput(pgMenu.transform, SavedName, 90f, 200f, 520f, 54f, 30, 16, false);
         NameField.name = "NameField";
         NameField.onEndEdit.AddListener(v => SaveName());
-        ui.MakeButton(pgMenu.transform, "Alojar partida", 0f, 90f, 560f, 70f, () => { ui.PlayClick(); SaveName(); ShowPage(Page.Host); });
-        ui.MakeButton(pgMenu.transform, "Unirse", 0f, 4f, 560f, 70f, () => { ui.PlayClick(); SaveName(); ShowPage(Page.Join); });
-        ui.MakeButton(pgMenu.transform, "Volver", 0f, -110f, 560f, 70f, () => { ui.PlayClick(); ui.SetScreen(UIManager.Screen.Main); });
-        ui.Label(pgMenu.transform, "Sin servidores ni cuentas: conexión directa por IP + puerto TCP (por defecto 7777).\nSolo el anfitrión ve los niveles disponibles; los demás se unen a su sala.", 24, TextAnchor.UpperCenter, 0f, -250f, 1500f, 100f, Dim);
+        ui.MakeButton(pgMenu.transform, "Alojar partida", -290f, 110f, 560f, 70f, () => { ui.PlayClick(); SaveName(); ShowPage(Page.Host); });
+        ui.MakeButton(pgMenu.transform, "Unirse", 290f, 110f, 560f, 70f, () => { ui.PlayClick(); SaveName(); ShowPage(Page.Join); });
+        btnRelayHost = ui.MakeButton(pgMenu.transform, "Alojar con código", -290f, 30f, 560f, 70f, OnCreateRelayRoom);
+        btnRelayJoin = ui.MakeButton(pgMenu.transform, "Unirse con código", 290f, 30f, 560f, 70f, () => { ui.PlayClick(); SaveName(); ShowPage(Page.JoinCode); });
+        ui.Label(pgMenu.transform, "Servidor relay", 28, TextAnchor.MiddleRight, -470f, -55f, 300f, 44f);
+        RelayField = MakeInput(pgMenu.transform, RelayConfig.FieldText, 110f, -55f, 760f, 54f, 28, 100, false);
+        RelayField.name = "RelayField";
+        ((Text)RelayField.placeholder).text = RelayDefault.HasBuiltin ? RelayConfig.BuiltinLabel : "opcional: host:puerto";
+        RelayField.onValueChanged.AddListener(v => { RelayConfig.Save(v); RefreshRelayUi(); });
+        relayHint = ui.Label(pgMenu.transform, "", 22, TextAnchor.MiddleCenter, 0f, -115f, 1500f, 40f, Dim);
+        ui.MakeButton(pgMenu.transform, "Volver", 0f, -195f, 560f, 70f, () => { ui.PlayClick(); ui.SetScreen(UIManager.Screen.Main); });
+        ui.Label(pgMenu.transform, "Directo: IP + puerto TCP (7777 por defecto; el juego intenta abrir el puerto en tu router con UPnP).\nCon código: un servidor relay empareja a los jugadores sin abrir puertos (hay que configurar su dirección).", 22, TextAnchor.UpperCenter, 0f, -280f, 1600f, 100f, Dim);
+        RefreshRelayUi();
 
         // --- alojar ---
         pgHost = ui.Panel(r, "PageHost", new Color(0, 0, 0, 0), true).gameObject;
@@ -125,16 +148,16 @@ public class MultiplayerUI : MonoBehaviour
         ui.Label(pgHost.transform, "Puerto (TCP)", 30, TextAnchor.MiddleRight, -300f, 305f, 300f, 44f);
         HostPortField = MakeInput(pgHost.transform, PlayerPrefs.GetInt(KPort, NetSession.DefaultPort).ToString(), 100f, 305f, 220f, 54f, 30, 5, true);
         HostPortField.name = "HostPortField";
-        hostIps = ui.Label(pgHost.transform, "", 25, TextAnchor.UpperLeft, 0f, 130f, 1300f, 220f, UiStyle.Text);
+        hostIps = ui.Label(pgHost.transform, "", 26, TextAnchor.UpperLeft, 0f, 110f, 1200f, 330f, UiStyle.Text);
         ui.Label(pgHost.transform,
-            "Pasa a tus amigos una de estas IP y el puerto. Misma red local (LAN): usa la IP de tu red.\n" +
-            "Por Internet: abre/redirige el puerto TCP en tu router hacia este PC (reenvío de puertos) y da tu IP pública,\n" +
-            "o más fácil: usad una VPN (Radmin VPN, ZeroTier, Hamachi) y pasad la IP de la VPN.\n" +
-            "Windows pedirá permitir el juego en el Firewall: acepta (redes privadas/públicas según uses).",
-            22, TextAnchor.UpperLeft, 0f, -80f, 1500f, 150f, Dim);
-        hostError = ui.Label(pgHost.transform, "", 28, TextAnchor.MiddleCenter, 0f, -190f, 1500f, 80f, Err);
-        ui.MakeButton(pgHost.transform, "Crear sala", -250f, -310f, 440f, 70f, OnCreateRoom);
-        ui.MakeButton(pgHost.transform, "Volver", 250f, -310f, 440f, 70f, () => { ui.PlayClick(); ShowPage(Page.Menu); });
+            "Con UPnP el puerto se abre solo en la mayoría de routers. Si no, abre/redirige TCP en tu router hacia este PC, usa una VPN\n" +
+            "(Radmin VPN, ZeroTier, Hamachi) o el modo «Alojar con código». Windows pedirá permitir el juego en el Firewall: acepta.",
+            21, TextAnchor.UpperLeft, 0f, -125f, 1500f, 80f, Dim);
+        hostError = ui.Label(pgHost.transform, "", 28, TextAnchor.MiddleCenter, 0f, -210f, 1500f, 50f, Err);
+        ui.MakeButton(pgHost.transform, "Crear sala", -370f, -300f, 340f, 70f, OnCreateRoom);
+        btnCopyHost = ui.MakeButton(pgHost.transform, "Copiar dirección", 0f, -300f, 340f, 70f, () => CopyAddress(copyNoteHost));
+        ui.MakeButton(pgHost.transform, "Volver", 370f, -300f, 340f, 70f, () => { ui.PlayClick(); ShowPage(Page.Menu); });
+        copyNoteHost = ui.Label(pgHost.transform, "", 24, TextAnchor.MiddleCenter, 0f, -365f, 1500f, 40f, Gold);
 
         // --- unirse ---
         pgJoin = ui.Panel(r, "PageJoin", new Color(0, 0, 0, 0), true).gameObject;
@@ -143,7 +166,15 @@ public class MultiplayerUI : MonoBehaviour
         ui.Label(pgJoin.transform, "IP del anfitrión", 30, TextAnchor.MiddleRight, -330f, 270f, 360f, 44f);
         JoinIpField = MakeInput(pgJoin.transform, PlayerPrefs.GetString(KIp, ""), 130f, 270f, 460f, 54f, 30, 64, false);
         JoinIpField.name = "JoinIpField";
-        ((Text)JoinIpField.placeholder).text = "192.168.1.20";
+        ((Text)JoinIpField.placeholder).text = "192.168.1.20  o  ip:puerto";
+        JoinIpField.onValueChanged.AddListener(v =>
+        {
+            // pegado (o texto puesto de golpe): no es escribir/borrar un carácter => separamos «ip:puerto»
+            bool typed = (v.Length == lastIpText.Length + 1 && v.StartsWith(lastIpText)) || (v.Length == lastIpText.Length - 1 && lastIpText.StartsWith(v));
+            if (!splitting && !typed && v.IndexOf(':') >= 0) SplitIpPort();
+            lastIpText = JoinIpField.text;
+        });
+        JoinIpField.onEndEdit.AddListener(v => SplitIpPort());
         ui.Label(pgJoin.transform, "Puerto", 30, TextAnchor.MiddleRight, -330f, 195f, 360f, 44f);
         JoinPortField = MakeInput(pgJoin.transform, PlayerPrefs.GetInt(KPort, NetSession.DefaultPort).ToString(), 40f, 195f, 280f, 54f, 30, 5, true);
         JoinPortField.name = "JoinPortField";
@@ -152,7 +183,23 @@ public class MultiplayerUI : MonoBehaviour
         ui.MakeButton(pgJoin.transform, "Volver", 250f, 60f, 440f, 70f, () => { ui.PlayClick(); if (NetSession.Instance != null && NetSession.Instance.Connecting) NetSession.Instance.Leave(null); ShowPage(Page.Menu); });
         joinStatus = ui.Label(pgJoin.transform, "", 28, TextAnchor.MiddleCenter, 0f, -50f, 1500f, 60f, Gold);
         joinError = ui.Label(pgJoin.transform, "", 28, TextAnchor.UpperCenter, 0f, -150f, 1500f, 160f, Err);
-        ui.Label(pgJoin.transform, "Pide al anfitrión su IP (LAN, pública o de la VPN) y el puerto que ha abierto.", 24, TextAnchor.MiddleCenter, 0f, -330f, 1500f, 50f, Dim);
+        ui.Label(pgJoin.transform, "Pide al anfitrión su dirección (LAN, pública o de la VPN) y pégala aquí: vale «ip:puerto», por ejemplo 83.12.34.56:7777.", 24, TextAnchor.MiddleCenter, 0f, -330f, 1500f, 50f, Dim);
+
+        // --- unirse con código (relay) ---
+        pgCode = ui.Panel(r, "PageCode", new Color(0, 0, 0, 0), true).gameObject;
+        pgCode.GetComponent<Image>().raycastTarget = false;
+        ui.Label(pgCode.transform, "UNIRSE CON CÓDIGO", 76, TextAnchor.MiddleCenter, 0f, 400f, 1500f, 110f, Gold);
+        ui.Label(pgCode.transform, "Código de sala", 30, TextAnchor.MiddleRight, -330f, 270f, 360f, 44f);
+        CodeField = MakeInput(pgCode.transform, "", 130f, 270f, 360f, 54f, 34, 7, false);
+        CodeField.name = "CodeField";
+        ((Text)CodeField.placeholder).text = "ABC234";
+        CodeField.onValueChanged.AddListener(v => { string u = v.ToUpperInvariant(); if (u != v) CodeField.text = u; });
+        btnCodeConnect = ui.MakeButton(pgCode.transform, "Conectar con código", -250f, 120f, 440f, 70f, OnConnectCode);
+        btnCodeCancel = ui.MakeButton(pgCode.transform, "Cancelar", -250f, 120f, 440f, 70f, () => { ui.PlayClick(); if (NetSession.Instance != null) NetSession.Instance.Leave(null); RefreshJoin(); });
+        ui.MakeButton(pgCode.transform, "Volver", 250f, 120f, 440f, 70f, () => { ui.PlayClick(); if (NetSession.Instance != null && NetSession.Instance.Connecting) NetSession.Instance.Leave(null); ShowPage(Page.Menu); });
+        codeStatus = ui.Label(pgCode.transform, "", 28, TextAnchor.MiddleCenter, 0f, 10f, 1500f, 60f, Gold);
+        codeError = ui.Label(pgCode.transform, "", 28, TextAnchor.UpperCenter, 0f, -90f, 1500f, 160f, Err);
+        ui.Label(pgCode.transform, "El anfitrión ve el código de 6 caracteres en su sala (Multijugador → Alojar con código).", 24, TextAnchor.MiddleCenter, 0f, -300f, 1500f, 50f, Dim);
     }
 
     private void BuildLobby(Transform parent)
@@ -168,7 +215,10 @@ public class MultiplayerUI : MonoBehaviour
         btnNext = ui.MakeButton(r, "►", 470f, -70f, 80f, 56f, () => { ui.PlayClick(); LobbyLevel = (LobbyLevel + 1) % LevelConfig.Count; lobbyDirty = true; }, 30);
         btnStart = ui.MakeButton(r, "Empezar", 0f, -170f, 520f, 74f, OnStartGame);
         lobbyWait = ui.Label(r, "Esperando a que el anfitrión empiece la partida...", 30, TextAnchor.MiddleCenter, 0f, -170f, 1200f, 60f, Gold);
-        ui.MakeButton(r, "Volver", 0f, -280f, 520f, 64f, OnLeaveLobby);
+        btnLobbyBack = ui.MakeButton(r, "Volver", 0f, -280f, 520f, 64f, OnLeaveLobby);
+        btnCopyLobby = ui.MakeButton(r, "Copiar dirección", -250f, -280f, 440f, 64f, () => CopyAddress(copyNoteLobby));
+        lobbyAddr = ui.Label(r, "", 22, TextAnchor.UpperCenter, 0f, -405f, 1700f, 170f, Dim);
+        copyNoteLobby = ui.Label(r, "", 24, TextAnchor.MiddleCenter, 0f, -330f, 1500f, 36f, Gold);
     }
 
     private void BuildNotice(Transform parent)
@@ -295,12 +345,79 @@ public class MultiplayerUI : MonoBehaviour
         pgMenu.SetActive(p == Page.Menu);
         pgHost.SetActive(p == Page.Host);
         pgJoin.SetActive(p == Page.Join);
+        pgCode.SetActive(p == Page.JoinCode);
+        if (p == Page.Menu) RefreshRelayUi();
         if (p == Page.Host)
         {
-            hostError.text = "";
-            hostIps.text = "Tus direcciones (LAN / VPN):\n  " + string.Join("\n  ", NetUtil.LocalAddresses().ToArray());
+            hostError.text = ""; copyNoteHost.text = "";
+            localIps = NetUtil.LocalAddresses();
+            PublicIpService.Refresh(false);
+            RefreshHostInfo();
         }
         if (p == Page.Join) { joinError.text = ""; joinStatus.text = ""; RefreshJoin(); }
+        if (p == Page.JoinCode) { codeError.text = ""; codeStatus.text = ""; RefreshJoin(); }
+    }
+
+    // Botones «con código» solo activos si hay un relay configurado (campo del menú, relay.txt o variable de entorno)
+    public void RefreshRelayUi()
+    {
+        bool on = RelayConfig.Enabled;
+        if (btnRelayHost != null) btnRelayHost.interactable = on;
+        if (btnRelayJoin != null) btnRelayJoin.interactable = on;
+        if (relayHint != null)
+        {
+            string h; int p;
+            relayHint.text = RelayConfig.UsingBuiltin ? "Servidor oficial (integrado) activo. Para usar otro relay escribe su dirección arriba."
+                : on && RelayConfig.TryGet(out h, out p) ? "Relay configurado: " + (RelayConfig.UserAddress.Length > 0 ? h + ":" + p : RelayConfig.DisplayAddress)
+                : (string.IsNullOrEmpty(RelayConfig.Address) ? "Modo «con código» desactivado: no hay relay configurado (escribe su dirección aquí o ponla en relay.txt)." : "La dirección del relay no es válida (usa host:puerto).");
+        }
+    }
+
+    private int HostPortValue() { return ParsePort(HostPortField); }
+
+    private void RefreshHostInfo()
+    {
+        if (hostIps == null) return;
+        NetSession ns = NetSession.Instance;
+        bool hosting = NetSession.IsHost && ns != null && ns.Upnp != null;
+        int port = hosting ? ns.Port : HostPortValue();
+        string wan = hosting ? ns.Upnp.ExternalIp : "";
+        hostIps.text = HostAddressInfo.Describe(port, localIps, PublicIpService.Status, PublicIpService.Ip,
+            hosting ? ns.Upnp.Status : UpnpMapper.State.Idle, hosting ? ns.Upnp.StatusText : "", wan, hosting);
+    }
+
+    // Dirección para los amigos: relay -> código; directo -> IP pública (si se conoce) o IP local + puerto
+    public string CurrentShareText()
+    {
+        NetSession ns = NetSession.Instance;
+        if (NetSession.IsHost && ns.ViaRelay) return ns.RoomCode;
+        int port = NetSession.IsHost ? ns.Port : HostPortValue();
+        return HostAddressInfo.BestAddress(port, PublicIpService.Status == PublicIpService.State.Ok ? PublicIpService.Ip : "", HostAddressInfo.FirstLocalIp(localIps.Count > 0 ? localIps : NetUtil.LocalAddresses()));
+    }
+
+    public void CopyAddress(Text note)
+    {
+        ui.PlayClick();
+        string t = CurrentShareText();
+        if (string.IsNullOrEmpty(t)) { if (note != null) note.text = "Todavía no hay dirección que copiar."; copyNoteUntil = Time.unscaledTime + 3f; return; }
+        GUIUtility.systemCopyBuffer = t;
+        LastCopied = t;
+        if (note != null) note.text = "Copiado al portapapeles: " + t;
+        copyNoteUntil = Time.unscaledTime + 4f;
+    }
+    public string LastCopied { get; private set; }
+
+    // «83.12.34.56:7777» pegado en el campo de IP -> IP y puerto por separado
+    private void SplitIpPort()
+    {
+        if (JoinIpField == null || splitting) return;
+        string h; int p;
+        if (JoinIpField.text.IndexOf(':') >= 0 && NetAddress.TryParse(JoinIpField.text, NetSession.DefaultPort, out h, out p))
+        {
+            splitting = true;
+            JoinIpField.text = h; JoinPortField.text = p.ToString(); lastIpText = h;
+            splitting = false;
+        }
     }
 
     public void OnCreateRoom()
@@ -318,6 +435,32 @@ public class MultiplayerUI : MonoBehaviour
         ui.SetScreen(UIManager.Screen.Lobby);
     }
 
+    public void OnCreateRelayRoom()
+    {
+        ui.PlayClick();
+        SaveName();
+        NetSession ns = NetSession.Instance;
+        if (ns == null) return;
+        string err;
+        if (!ns.StartHost(0, NameField.text, out err, true)) { LastRelayError = err; ns.LastNotice = err; return; }
+        LobbyLevel = 0;
+        lobbyDirty = true;
+        ui.SetScreen(UIManager.Screen.Lobby);
+    }
+    public string LastRelayError { get; private set; }
+
+    public void OnConnectCode()
+    {
+        ui.PlayClick();
+        SaveName();
+        NetSession ns = NetSession.Instance;
+        if (ns == null) return;
+        codeError.text = "";
+        ns.StartClient(CodeField.text, 0, NameField.text, true);
+        if (!string.IsNullOrEmpty(ns.LastError) && !ns.Connecting) codeError.text = ns.LastError;
+        RefreshJoin();
+    }
+
     public void OnConnect()
     {
         ui.PlayClick();
@@ -325,6 +468,7 @@ public class MultiplayerUI : MonoBehaviour
         NetSession ns = NetSession.Instance;
         if (ns == null) return;
         joinError.text = "";
+        SplitIpPort();
         string ip = JoinIpField.text.Trim();
         int port = ParsePort(JoinPortField);
         PlayerPrefs.SetString(KIp, ip); PlayerPrefs.SetInt(KPort, port); PlayerPrefs.Save();
@@ -339,6 +483,8 @@ public class MultiplayerUI : MonoBehaviour
         bool busy = ns != null && ns.Connecting;
         if (btnConnect != null) btnConnect.gameObject.SetActive(!busy);
         if (btnCancel != null) btnCancel.gameObject.SetActive(busy);
+        if (btnCodeConnect != null) btnCodeConnect.gameObject.SetActive(!busy);
+        if (btnCodeCancel != null) btnCodeCancel.gameObject.SetActive(busy);
     }
 
     public void OnStartGame()
@@ -367,7 +513,9 @@ public class MultiplayerUI : MonoBehaviour
         if (ns == null) return;
         bool host = NetSession.IsHost;
         lobbyTitle.text = host ? "SALA (ANFITRIÓN)" : "SALA";
-        if (host)
+        if (host && ns.ViaRelay)
+            lobbyInfo.text = "Sala por relay (" + RelayConfig.DisplayAddress + ")\nElige el nivel y pulsa «Empezar» cuando estéis todos.";
+        else if (host)
             lobbyInfo.text = "Puerto TCP " + ns.Port + "  ·  IPs: " + string.Join("  |  ", NetUtil.LocalAddresses().ToArray()) + "\nElige el nivel y pulsa «Empezar» cuando estéis todos.";
         else
             lobbyInfo.text = "Conectado con el anfitrión. Tu nombre: " + ns.LocalName;
@@ -386,13 +534,54 @@ public class MultiplayerUI : MonoBehaviour
         lobbyLevelText.gameObject.SetActive(host);
         btnPrev.gameObject.SetActive(host); btnNext.gameObject.SetActive(host);
         btnStart.gameObject.SetActive(host);
+        btnStart.interactable = !(ns.ViaRelay && ns.RoomCode.Length == 0);
+        btnCopyLobby.gameObject.SetActive(host);
+        lobbyAddr.gameObject.SetActive(host);
+        RectTransform bb = (RectTransform)btnLobbyBack.transform;
+        bb.anchoredPosition = new Vector2(host ? 250f : 0f, bb.anchoredPosition.y);
+        bb.sizeDelta = new Vector2(host ? 440f : 520f, bb.sizeDelta.y);
+        if (host) RefreshLobbyAddr(ns);
         lobbyWait.gameObject.SetActive(!host);
         if (host) lobbyLevelText.text = "Nivel " + LobbyLevel + " — " + LevelConfig.Get(LobbyLevel).name;
         lobbyDirty = false;
     }
 
+    private void RefreshLobbyAddr(NetSession ns)
+    {
+        if (lobbyAddr == null) return;
+        if (ns.ViaRelay)
+        {
+            string code = ns.RoomCode;
+            string t = code.Length > 0
+                ? "CÓDIGO DE SALA:  " + code + "   (díselo a tus amigos: Multijugador → Unirse con código)"
+                : ns.TransportStatus;
+            if (ns.TransportError == "relay_lost") t += "\n" + ns.TransportStatus;
+            lobbyAddr.text = t;
+            return;
+        }
+        string pub = PublicIpService.Status == PublicIpService.State.Ok ? PublicIpService.Ip : "";
+        string best = HostAddressInfo.BestAddress(ns.Port, pub, HostAddressInfo.FirstLocalIp(localIps.Count > 0 ? localIps : NetUtil.LocalAddresses()));
+        string up = ns.Upnp != null ? ns.Upnp.StatusText : "";
+        string cg = ns.Upnp != null ? HostAddressInfo.CgnatWarning(ns.Upnp.ExternalIp, pub) : "";
+        string net = pub.Length > 0 ? "IP pública " + pub + ":" + ns.Port + " (Internet)  ·  " : (PublicIpService.Status == PublicIpService.State.Failed ? "IP pública no disponible (¿sin Internet?)  ·  " : "detectando IP pública...  ·  ");
+        lobbyAddr.text = net + "Dirección para copiar: " + best + "\n" + up + (cg.Length > 0 ? "\n" + cg : "");
+    }
+
     private void Update()
     {
+        if (copyNoteUntil > 0f && Time.unscaledTime > copyNoteUntil)
+        {
+            copyNoteUntil = 0f;
+            if (copyNoteHost != null) copyNoteHost.text = "";
+            if (copyNoteLobby != null) copyNoteLobby.text = "";
+        }
+        infoTimer += Time.unscaledDeltaTime;
+        if (infoTimer > 0.4f)
+        {
+            infoTimer = 0f;
+            if (ui != null && ui.Current == UIManager.Screen.Multi && CurrentPage == Page.Host) RefreshHostInfo();
+            if (ui != null && ui.Current == UIManager.Screen.Lobby && NetSession.IsHost) { lobbyDirty = true; }
+        }
         NetSession ns = NetSession.Instance;
         UIManager.Screen cur = ui != null ? ui.Current : UIManager.Screen.None;
 
@@ -407,10 +596,11 @@ public class MultiplayerUI : MonoBehaviour
         if (ns == null) return;
 
         // página «Unirse»: estado de la conexión
-        if (cur == UIManager.Screen.Multi && CurrentPage == Page.Join)
+        if (cur == UIManager.Screen.Multi && (CurrentPage == Page.Join || CurrentPage == Page.JoinCode))
         {
-            joinStatus.text = ns.Connecting ? ns.ConnectStatus : "";
-            if (!ns.Connecting && !string.IsNullOrEmpty(ns.LastError)) joinError.text = ns.LastError;
+            Text stT = CurrentPage == Page.Join ? joinStatus : codeStatus, erT = CurrentPage == Page.Join ? joinError : codeError;
+            stT.text = ns.Connecting ? ns.ConnectStatus : "";
+            if (!ns.Connecting && !string.IsNullOrEmpty(ns.LastError)) erT.text = ns.LastError;
             RefreshJoin();
             if (NetSession.IsClient && !ns.Connecting && ns.PlayerCount > 0 && !ns.InGame)
             {

@@ -10,3 +10,10 @@
 *.user
 .vs/
 .idea/
+
+# Relay oficial cifrado (generado en la compilación de release; NO subir)
+Assets/Scripts/Net/RelayDefault.Generated.cs
+Assets/Scripts/Net/RelayDefault.Generated.cs.meta
+*.Generated.cs
+*.Generated.cs.meta
+/.relay_secret*

@@ -108,6 +108,9 @@ public static class MpPlayRunner
         return gb.IsLoaded && !gb.InMenu && gb.CurrentLevel == level && ns.WorldEpoch != 0 && ns.WorldEpoch == ns.Epoch && GameManager.Instance != null;
     }
 
+    private static bool RelayMode { get { return Environment.GetEnvironmentVariable("MP_MODE") == "relay"; } }
+    private const string CodeFile = "relay_code.txt";
+
     private static void GoToMultiMenu(UIManager ui, SmokeTest.Report r)
     {
         r.Check(ui.ClickButton("Multijugador") && ui.Current == UIManager.Screen.Multi, "el menú principal abre «Multijugador»");
@@ -132,11 +135,23 @@ public static class MpPlayRunner
         GoToMultiMenu(ui, r);
         yield return 0.2f;
         ui.Multiplayer.NameField.text = "Anfitrion";
-        r.Check(ui.ClickButton("Alojar partida") && ui.Multiplayer.CurrentPage == MultiplayerUI.Page.Host, "«Alojar partida» abre la página del anfitrión");
-        r.Check(ui.Multiplayer.HostPortField.text == "7777" || PlayerPrefs.HasKey(MultiplayerUI.KPort), "puerto por defecto 7777");
-        ui.Multiplayer.HostPortField.text = MpTest.TestPort.ToString();
-        r.Check(ui.ClickButton("Crear sala") && ui.Current == UIManager.Screen.Lobby, "«Crear sala» abre la sala");
-        r.Check(NetSession.IsHost && ns.Port == MpTest.TestPort, "anfitrión escuchando en el puerto " + MpTest.TestPort);
+        if (RelayMode)
+        {
+            r.Check(ui.Multiplayer.RelayHostButton.interactable, "modo relay: «Alojar con código» activo (relay configurado por entorno: " + RelayConfig.Address + ")");
+            r.Check(ui.ClickButton("Alojar con código") && ui.Current == UIManager.Screen.Lobby, "«Alojar con código» abre la sala");
+            yield return Wait(() => ns.RoomCode.Length > 0 || ns.TransportError != null, 30, "código de sala del relay");
+            r.Check(NetSession.IsHost && ns.ViaRelay && RoomCodes.IsValid(ns.RoomCode), "anfitrión con código de sala del relay (" + ns.RoomCode + ")");
+            File.WriteAllText(MpTest.Dir + "/" + CodeFile, ns.RoomCode);
+        }
+        else
+        {
+            r.Check(ui.ClickButton("Alojar partida") && ui.Multiplayer.CurrentPage == MultiplayerUI.Page.Host, "«Alojar partida» abre la página del anfitrión");
+            r.Check(ui.Multiplayer.HostPortField.text == "7777" || PlayerPrefs.HasKey(MultiplayerUI.KPort), "puerto por defecto 7777");
+            ui.Multiplayer.HostPortField.text = MpTest.TestPort.ToString();
+            r.Check(ui.ClickButton("Crear sala") && ui.Current == UIManager.Screen.Lobby, "«Crear sala» abre la sala");
+            r.Check(NetSession.IsHost && ns.Port == MpTest.TestPort, "anfitrión escuchando en el puerto " + MpTest.TestPort);
+            r.Check(ns.Upnp != null, "se intenta la apertura automática de puerto (UPnP) al alojar (" + (ns.Upnp != null ? ns.Upnp.StatusText : "-") + ")");
+        }
         r.Check(PlayerPrefs.GetString(MultiplayerUI.KName, "") == "Anfitrion", "el nombre se guarda en PlayerPrefs");
         Mark("host_lobby");
 
@@ -303,9 +318,18 @@ public static class MpPlayRunner
         r.Check(!NetSession.Active, "salir al menú cierra la sesión de red");
         GoToMultiMenu(ui, r);
         ui.Multiplayer.NameField.text = "Anfitrion";
-        ui.ClickButton("Alojar partida");
-        ui.Multiplayer.HostPortField.text = MpTest.TestPort.ToString();
-        ui.ClickButton("Crear sala");
+        if (RelayMode)
+        {
+            ui.ClickButton("Alojar con código");
+            yield return Wait(() => ns.RoomCode.Length > 0 || ns.TransportError != null, 30, "código de sala nuevo");
+            File.WriteAllText(MpTest.Dir + "/" + CodeFile, ns.RoomCode);
+        }
+        else
+        {
+            ui.ClickButton("Alojar partida");
+            ui.Multiplayer.HostPortField.text = MpTest.TestPort.ToString();
+            ui.ClickButton("Crear sala");
+        }
         r.Check(NetSession.IsHost && ui.Current == UIManager.Screen.Lobby, "se puede alojar de nuevo tras salir");
         Mark("host_lobby2");
         yield return Wait(() => ns.PlayerCount >= 2, 120, "el cliente vuelve a unirse");
@@ -331,9 +355,20 @@ public static class MpPlayRunner
         UIManager ui = UIManager.Instance;
         NetSession ns = NetSession.Instance;
 
-        // ---- errores de conexión: puerto sin sala ----
         GoToMultiMenu(ui, r);
         ui.Multiplayer.NameField.text = "Cliente";
+        if (RelayMode)
+        {
+            // ---- errores del relay: código inexistente ----
+            r.Check(ui.ClickButton("Unirse con código") && ui.Multiplayer.CurrentPage == MultiplayerUI.Page.JoinCode, "«Unirse con código» abre su página");
+            ui.Multiplayer.CodeField.text = "ZZZZZZ";
+            ui.ClickButton("Conectar con código");
+            yield return Wait(() => !ns.Connecting && !string.IsNullOrEmpty(ns.LastError), 30, "error de código inexistente");
+            r.Check(ns.LastError.Contains("No existe ninguna sala"), "error claro con código inexistente: «" + ns.LastError + "»");
+        }
+        else
+        {
+        // ---- errores de conexión: puerto sin sala ----
         ui.ClickButton("Unirse");
         r.Check(ui.Multiplayer.CurrentPage == MultiplayerUI.Page.Join, "«Unirse» abre la página de unirse");
         ui.Multiplayer.JoinIpField.text = "127.0.0.1";
@@ -348,17 +383,27 @@ public static class MpPlayRunner
         yield return Wait(() => !ns.Connecting && !string.IsNullOrEmpty(ns.LastError), 30, "error de IP no válida");
         r.Check(ns.LastError.Contains("no válida") || ns.LastError.Contains("no encontrada"), "error claro con IP inválida: «" + ns.LastError + "»");
 
+        }
+
         // ---- unirse a la sala del anfitrión ----
         yield return WaitMark("host_lobby", 180);
-        ui.Multiplayer.JoinIpField.text = "127.0.0.1";
-        ui.Multiplayer.JoinPortField.text = MpTest.TestPort.ToString();
-        ui.ClickButton("Conectar");
+        if (RelayMode)
+        {
+            ui.Multiplayer.CodeField.text = File.ReadAllText(MpTest.Dir + "/" + CodeFile).Trim().ToLowerInvariant();
+            ui.ClickButton("Conectar con código");
+        }
+        else
+        {
+            ui.Multiplayer.JoinIpField.text = "127.0.0.1:" + MpTest.TestPort;     // «ip:puerto» pegado
+            r.Check(ui.Multiplayer.JoinIpField.text == "127.0.0.1" && ui.Multiplayer.JoinPortField.text == MpTest.TestPort.ToString(), "al pegar «ip:puerto» se separan los campos");
+            ui.ClickButton("Conectar");
+        }
         yield return Wait(() => ui.Current == UIManager.Screen.Lobby && ns.PlayerCount >= 2, 40, "entrar en la sala");
         r.Check(ui.Current == UIManager.Screen.Lobby && NetSession.IsClient, "el cliente entra en la sala del anfitrión");
         yield return 0.5f;
         r.Check(ui.Multiplayer.LobbyText.Contains("Anfitrion") && ui.Multiplayer.LobbyText.Contains("Cliente"), "el cliente ve la lista de jugadores");
         r.Check(!ui.Multiplayer.StartButton.gameObject.activeInHierarchy, "«Empezar» solo para el anfitrión");
-        r.Check(PlayerPrefs.GetString(MultiplayerUI.KIp, "") == "127.0.0.1", "la IP usada se recuerda en PlayerPrefs");
+        if (!RelayMode) r.Check(PlayerPrefs.GetString(MultiplayerUI.KIp, "") == "127.0.0.1", "la IP usada se recuerda en PlayerPrefs");
         Mark("client_in_lobby");
 
         // ---- partida ----
@@ -480,16 +525,33 @@ public static class MpPlayRunner
         Mark("client_left");
         yield return Wait(() => gb.InMenu && gb.IsLoaded && ui.Current == UIManager.Screen.Main, 60, "menú principal (cliente)");
         GoToMultiMenu(ui, r);
-        ui.ClickButton("Unirse");
-        ui.Multiplayer.JoinIpField.text = "127.0.0.1";
-        ui.Multiplayer.JoinPortField.text = MpTest.TestPort.ToString();
-        ui.ClickButton("Conectar");
+        if (RelayMode)
+        {
+            ui.ClickButton("Unirse con código");
+            ui.Multiplayer.CodeField.text = File.ReadAllText(MpTest.Dir + "/" + CodeFile).Trim();
+            ui.ClickButton("Conectar con código");
+        }
+        else
+        {
+            ui.ClickButton("Unirse");
+            ui.Multiplayer.JoinIpField.text = "127.0.0.1";
+            ui.Multiplayer.JoinPortField.text = MpTest.TestPort.ToString();
+            ui.ClickButton("Conectar");
+        }
         yield return Wait(() => !ns.Connecting && !string.IsNullOrEmpty(ns.LastError), 30, "rechazo con la partida empezada");
         r.Check(ns.LastError.Contains("ya ha empezado"), "mensaje claro si la partida ya empezó: «" + ns.LastError + "»");
         Mark("client_rejected");
         yield return WaitMark("host_lobby2", 120);
-        ui.Multiplayer.JoinIpField.text = "127.0.0.1";
-        ui.ClickButton("Conectar");
+        if (RelayMode)
+        {
+            ui.Multiplayer.CodeField.text = File.ReadAllText(MpTest.Dir + "/" + CodeFile).Trim();
+            ui.ClickButton("Conectar con código");
+        }
+        else
+        {
+            ui.Multiplayer.JoinIpField.text = "127.0.0.1";
+            ui.ClickButton("Conectar");
+        }
         yield return Wait(() => ui.Current == UIManager.Screen.Lobby && ns.PlayerCount >= 2, 40, "volver a entrar en la sala");
         r.Check(NetSession.IsClient && ui.Current == UIManager.Screen.Lobby, "el cliente vuelve a entrar en la sala");
         yield return Wait(() => !NetSession.Active && ui.Current == UIManager.Screen.Main && gb.InMenu && gb.IsLoaded, 60, "el anfitrión se va");

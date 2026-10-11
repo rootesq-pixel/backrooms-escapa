@@ -48,6 +48,7 @@ public static class SmokeTest
             TestSettings(r);
             TestV4Assets(r);
             TestNetwork(r);
+            TestNatAndRelay(r);
         }
         catch (Exception e)
         {
@@ -260,6 +261,413 @@ public static class SmokeTest
             bool okErr = c2.Done && (i == 0 ? c2.Error == expect[i] : !string.IsNullOrEmpty(c2.Error));
             r.Check(okErr, "[Red] conectar a " + cases[i] + " => error '" + c2.Error + "' (esperado '" + expect[i] + "')");
         }
+    }
+
+    // ------------------------------------------------------------------
+    // v6.1: UPnP / NAT-PMP (contra routers simulados), IP pública, direcciones, relay (contra el servidor Node real)
+    // ------------------------------------------------------------------
+    private static bool WaitUntil(Func<bool> f, int ms)
+    {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        while (sw.ElapsedMilliseconds < ms) { if (f()) return true; System.Threading.Thread.Sleep(10); }
+        return f();
+    }
+
+    private static UpnpMapper NewMapper(MockUpnpRouter rt)
+    {
+        UpnpMapper m = new UpnpMapper();
+        m.SsdpEndpoint = new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, rt.SsdpPort);
+        m.DiscoveryMs = 1500; m.HttpMs = 3000; m.EnableNatPmp = false;
+        return m;
+    }
+
+    private static void TestNatAndRelay(Report r)
+    {
+        bool hadBuiltin = RelayDefault.HasBuiltin;
+        if (hadBuiltin)
+        {
+            string bh; int bp;
+            r.Check(NetAddress.TryParse(RelayDefault.Address, RelayConfig.DefaultPort, out bh, out bp) && RelayConfig.UsingBuiltin && RelayConfig.DisplayAddress == RelayConfig.BuiltinLabel && !RelayConfig.DisplayAddress.Contains(bh), "[Cripto] relay integrado: se descifra, es una dirección válida y la interfaz solo muestra «" + RelayConfig.BuiltinLabel + "»");
+            r.Check(RelayConfig.FieldText == "" , "[Cripto] relay integrado: el campo del menú no lo contiene");
+        }
+        else r.Info("[Cripto] esta compilación no lleva relay integrado (repositorio público): se usa el del usuario / relay.txt");
+        RelayDefault.Suppress = true;
+        try { TestNatAndRelayInner(r); TestRelayToken(r); } finally { RelayDefault.Suppress = false; RelayDefault.TestInject(null, null); }
+    }
+
+    private static void TestNatAndRelayInner(Report r)
+    {
+        // ---- direcciones pegadas ip:puerto, códigos de sala ----
+        string[] okIn = { "1.2.3.4", "1.2.3.4:7777", " 83.12.34.56:8000 ", "tcp://10.0.0.5:1234/", "mi-relay.fly.dev:7780", "host" };
+        string[] okHost = { "1.2.3.4", "1.2.3.4", "83.12.34.56", "10.0.0.5", "mi-relay.fly.dev", "host" };
+        int[] okPort = { 7777, 7777, 8000, 1234, 7780, 7777 };
+        bool parseOk = true;
+        for (int i = 0; i < okIn.Length; i++) { string h; int p; if (!NetAddress.TryParse(okIn[i], 7777, out h, out p) || h != okHost[i] || p != (okIn[i].Contains("fly") ? 7780 : okPort[i])) { parseOk = false; r.Info("parse falla: " + okIn[i] + " -> " + h + ":" + p); } }
+        r.Check(parseOk, "[Red] «ip:puerto» pegado: se separa IP y puerto (con espacios, esquema tcp://, nombres)");
+        string[] bad = { "", "  ", "1.2.3.4:", "1.2.3.4:0", "1.2.3.4:70000", "1.2.3.4:abc", "::1", "a b", "1.2.3.4:5:6", ":7777", "ho$t" };
+        bool badOk = true;
+        foreach (string b in bad) { string h; int p; if (NetAddress.TryParse(b, 7777, out h, out p)) { badOk = false; r.Info("parse debería fallar: '" + b + "'"); } }
+        r.Check(badOk, "[Red] direcciones inválidas se rechazan (" + bad.Length + " casos)");
+        r.Check(RoomCodes.IsValid("abc234") && RoomCodes.Normalize(" ab-c 234 ") == "ABC234" && !RoomCodes.IsValid("ABC23") && !RoomCodes.IsValid("ABCO23") && !RoomCodes.IsValid("ABC231") && !RoomCodes.IsValid("ABC2345"), "[Red] códigos de sala: 6 caracteres sin I, O, 0, 1; se normalizan");
+
+        // ---- CGNAT / textos ----
+        r.Check(HostAddressInfo.IsPrivateOrCgnat("100.64.1.1") && HostAddressInfo.IsPrivateOrCgnat("192.168.1.5") && HostAddressInfo.IsPrivateOrCgnat("10.1.2.3") && HostAddressInfo.IsPrivateOrCgnat("172.20.0.1")
+            && !HostAddressInfo.IsPrivateOrCgnat("83.12.34.56") && !HostAddressInfo.IsPrivateOrCgnat("172.32.0.1") && !HostAddressInfo.IsPrivateOrCgnat("100.63.0.1"), "[Red] detección de rangos privados / CGNAT");
+        string cg1 = HostAddressInfo.CgnatWarning("100.64.12.3", "83.12.34.56");
+        string cg2 = HostAddressInfo.CgnatWarning("83.12.34.57", "83.12.34.56");
+        string cg3 = HostAddressInfo.CgnatWarning("83.12.34.56", "83.12.34.56");
+        string cg4 = HostAddressInfo.CgnatWarning("", "83.12.34.56");
+        r.Check(cg1.Contains("CGNAT") && cg2.Contains("CGNAT") && cg1.Contains("VPN") && cg1.Contains("servidor intermedio") && cg3 == "" && cg4 == "", "[Red] aviso CGNAT: IP del router privada o distinta de la pública (y ninguno si coinciden)");
+        r.Check(HostAddressInfo.BestAddress(7777, "83.1.2.3", "192.168.1.5") == "83.1.2.3:7777" && HostAddressInfo.BestAddress(7777, "", "192.168.1.5") == "192.168.1.5:7777" && HostAddressInfo.FirstLocalIp(new[] { "172.30.0.2  (eth0)" }) == "172.30.0.2", "[Red] «Copiar dirección»: ip:puerto (pública si se conoce, si no la local)");
+        string d1 = HostAddressInfo.Describe(7777, new[] { "192.168.1.5  (Wi-Fi)" }, PublicIpService.State.Ok, "83.12.34.56", UpnpMapper.State.Mapped, "Puerto abierto automáticamente (UPnP, TCP 7777)", "83.12.34.56", true);
+        r.Check(d1.Contains("192.168.1.5:7777  (Wi-Fi)") && d1.Contains("IP pública: 83.12.34.56:7777") && d1.Contains("Puerto abierto automáticamente") && !d1.Contains("CGNAT"), "[Red] pantalla del anfitrión: IP local, IP pública y estado UPnP");
+        string d2 = HostAddressInfo.Describe(7777, new[] { "192.168.1.5  (Wi-Fi)" }, PublicIpService.State.Failed, "", UpnpMapper.State.Failed, "No se pudo abrir el puerto automáticamente: abre TCP 7777 en tu router o usa una VPN", "", true);
+        r.Check(d2.Contains("no disponible") && d2.Contains("No se pudo abrir el puerto automáticamente: abre TCP 7777 en tu router o usa una VPN"), "[Red] pantalla del anfitrión sin Internet ni UPnP: textos de error");
+        string d3 = HostAddressInfo.Describe(7777, new[] { "192.168.1.5" }, PublicIpService.State.Ok, "83.12.34.56", UpnpMapper.State.Mapped, "Puerto abierto automáticamente (UPnP, TCP 7777)", "100.70.0.2", true);
+        r.Check(d3.Contains("CGNAT"), "[Red] pantalla del anfitrión: avisa de CGNAT");
+        string d4 = HostAddressInfo.Describe(7777, new[] { "192.168.1.5" }, PublicIpService.State.Working, "", UpnpMapper.State.Idle, "", "", false);
+        r.Check(d4.Contains("detectando") && d4.Contains("UPnP"), "[Red] pantalla del anfitrión antes de crear la sala: «detectando» y aviso de UPnP");
+
+        // ---- análisis de la descripción UPnP / mensajes SOAP ----
+        string ctl, svc;
+        string xml = "<?xml version=\"1.0\"?><root xmlns=\"urn:schemas-upnp-org:device-1-0\"><URLBase>http://192.168.1.1:5000/</URLBase><device><serviceList><service><serviceType>urn:schemas-upnp-org:service:WANPPPConnection:1</serviceType><controlURL>/ppp</controlURL></service><service><serviceType>urn:schemas-upnp-org:service:WANIPConnection:2</serviceType><controlURL>ctl/ip</controlURL></service></serviceList></device></root>";
+        bool pd = UpnpMapper.ParseDescription(xml, "http://192.168.1.1:49152/desc.xml", out ctl, out svc);
+        r.Check(pd && ctl == "http://192.168.1.1:5000/ctl/ip" && svc.Contains("WANIPConnection"), "[Red] descripción UPnP: elige WANIPConnection y resuelve controlURL con URLBase (" + ctl + ")");
+        r.Check(!UpnpMapper.ParseDescription("<root><device/></root>", "http://x/", out ctl, out svc), "[Red] descripción sin servicio WAN => no válida");
+        string env = UpnpMapper.BuildSoapEnvelope("urn:schemas-upnp-org:service:WANIPConnection:1", "AddPortMapping", UpnpMapper.BuildAddMappingArgs(7777, "192.168.1.5", "Backrooms & <Escape>", 0));
+        r.Check(env.Contains("<u:AddPortMapping xmlns:u=\"urn:schemas-upnp-org:service:WANIPConnection:1\">") && env.Contains("<NewExternalPort>7777</NewExternalPort>") && env.Contains("<NewProtocol>TCP</NewProtocol>")
+            && env.Contains("<NewInternalClient>192.168.1.5</NewInternalClient>") && env.Contains("Backrooms &amp; &lt;Escape&gt;") && env.Contains("<NewLeaseDuration>0</NewLeaseDuration>"), "[Red] sobre SOAP AddPortMapping bien construido (y escapado)");
+        System.Xml.XmlDocument chk = new System.Xml.XmlDocument(); bool wf = true; try { chk.LoadXml(env); } catch (Exception) { wf = false; }
+        r.Check(wf, "[Red] el sobre SOAP es XML bien formado");
+
+        // ---- router UPnP simulado ----
+        using (MockUpnpRouter rt = new MockUpnpRouter())
+        {
+            UpnpMapper m = NewMapper(rt);
+            m.Start(47900);
+            r.Check(WaitUntil(() => m.Status == UpnpMapper.State.Mapped, 8000), "[Red] UPnP: mapeo conseguido con el router simulado (" + m.Status + " " + m.Detail + ")");
+            string add = rt.FirstLog("AddPortMapping");
+            r.Check(add != null && add.Contains("port=47900") && add.Contains("proto=TCP") && add.Contains("internalPort=47900") && add.Contains("internal=127.0.0.1") && add.Contains("lease=0") && add.Contains("enabled=1") && add.Contains("WANIPConnection"), "[Red] UPnP: el router recibe AddPortMapping TCP 47900 (" + add + ")");
+            r.Check(rt.SsdpRequests >= 1 && m.Method == "UPnP" && m.ExternalIp == "203.0.113.7", "[Red] UPnP: descubrimiento SSDP y IP WAN del router (" + m.ExternalIp + ")");
+            r.Check(m.StatusText.StartsWith("Puerto abierto automáticamente"), "[Red] UPnP: texto de estado «" + m.StatusText + "»");
+            r.Check(rt.MappingCount == 1, "[Red] UPnP: el router tiene el mapeo activo");
+            m.Stop(true);
+            r.Check(rt.HasLog("DeletePortMapping port=47900 proto=TCP") && rt.MappingCount == 0 && m.Removed, "[Red] UPnP: al parar se elimina el mapeo (DeletePortMapping)");
+
+            // router que solo admite concesiones temporales
+            rt.RejectPermanentLease = true; rt.Log.Clear();
+            UpnpMapper m2 = NewMapper(rt); m2.Start(47901);
+            r.Check(WaitUntil(() => m2.Status == UpnpMapper.State.Mapped, 8000), "[Red] UPnP: tras el error 725 reintenta con concesión temporal");
+            r.Check(rt.CountLog("AddPortMapping") == 2 && rt.FirstLog("AddPortMapping").Contains("lease=0") && rt.Log.FindAll(l => l.Contains("lease=7200")).Count == 1, "[Red] UPnP: 1.º lease=0 rechazado, 2.º lease=7200");
+            m2.Stop(true);
+            r.Check(rt.MappingCount == 0, "[Red] UPnP: con lease temporal también se borra al parar");
+            rt.RejectPermanentLease = false; rt.Log.Clear();
+
+            // conflicto 718: borra y reintenta
+            rt.ConflictOnce = true;
+            UpnpMapper m3 = NewMapper(rt); m3.Start(47902);
+            r.Check(WaitUntil(() => m3.Status == UpnpMapper.State.Mapped, 8000) && rt.HasLog("DeletePortMapping port=47902"), "[Red] UPnP: ante el conflicto 718 borra el mapeo previo y reintenta");
+            m3.Stop(true);
+            rt.Log.Clear();
+
+            // servicio WANPPPConnection
+            rt.UsePppService = true;
+            UpnpMapper m4 = NewMapper(rt); m4.Start(47903);
+            r.Check(WaitUntil(() => m4.Status == UpnpMapper.State.Mapped, 8000) && rt.FirstLog("AddPortMapping").Contains("WANPPPConnection"), "[Red] UPnP: también funciona con WANPPPConnection");
+            m4.Stop(true);
+            rt.UsePppService = false;
+
+            // descripción rota => fallo limpio
+            rt.BreakDescription = true;
+            UpnpMapper m5 = NewMapper(rt); m5.Start(47904);
+            r.Check(WaitUntil(() => m5.Status == UpnpMapper.State.Failed, 10000), "[Red] UPnP: si la descripción falla, estado «Failed» sin excepciones (" + m5.Detail + ")");
+            m5.Stop(true);
+        }
+        // sin router: nadie responde
+        {
+            using (UdpClientDeaf deaf = new UdpClientDeaf())
+            {
+                UpnpMapper m = new UpnpMapper(); m.SsdpEndpoint = new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, deaf.Port);
+                m.DiscoveryMs = 700; m.EnableNatPmp = false;
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                m.Start(7777);
+                r.Check(m.Status == UpnpMapper.State.Working || m.Status == UpnpMapper.State.Failed, "[Red] UPnP: arranca en segundo plano sin bloquear");
+                r.Check(WaitUntil(() => m.Status == UpnpMapper.State.Failed, 8000), "[Red] UPnP: sin router => «Failed» en " + sw.ElapsedMilliseconds + " ms");
+                r.Check(m.StatusText == "No se pudo abrir el puerto automáticamente: abre TCP 7777 en tu router o usa una VPN", "[Red] UPnP: mensaje de fallo en español exacto");
+                m.Stop(true);
+            }
+        }
+        // NAT-PMP simulado
+        using (MockNatPmp pmp = new MockNatPmp())
+        {
+            UpnpMapper m = new UpnpMapper();
+            using (UdpClientDeaf deaf = new UdpClientDeaf())
+            {
+                m.SsdpEndpoint = new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, deaf.Port);
+                m.DiscoveryMs = 500; m.GatewayOverride = System.Net.IPAddress.Loopback; m.NatPmpPort = pmp.Port; m.NatPmpTryMs = 200;
+                m.Start(47905);
+                r.Check(WaitUntil(() => m.Status == UpnpMapper.State.Mapped, 8000), "[Red] NAT-PMP: mapeo conseguido cuando UPnP no responde (" + m.Detail + ")");
+                r.Check(m.Method == "NAT-PMP" && m.ExternalIp == "198.51.100.9" && pmp.Has("external-address") && pmp.Has("map tcp internal=47905 external=47905 lifetime=7200"), "[Red] NAT-PMP: IP externa y mapeo TCP 47905 (2 h)");
+                m.Stop(true);
+                r.Check(pmp.Has("map tcp internal=47905 external=0 lifetime=0"), "[Red] NAT-PMP: al parar se borra el mapeo (lifetime 0)");
+            }
+        }
+
+        // ---- IP pública (eco HTTP simulado) ----
+        string[] savedEp = PublicIpService.Endpoints; int savedTo = PublicIpService.TimeoutMs;
+        try
+        {
+            string reply = "203.0.113.55\n";
+            using (MockHttpServer echo = new MockHttpServer((string method, string path, Dictionary<string, string> h, string body, out int st, out string ct, out string resp) => { st = 200; ct = "text/plain"; resp = reply; }))
+            {
+                PublicIpService.TimeoutMs = 2000;
+                PublicIpService.Endpoints = new[] { "http://127.0.0.1:" + echo.Port + "/" };
+                PublicIpService.Reset(); PublicIpService.Refresh(true);
+                r.Check(WaitUntil(() => PublicIpService.Status == PublicIpService.State.Ok, 6000) && PublicIpService.Ip == "203.0.113.55", "[Red] IP pública: se obtiene del servicio de eco (" + PublicIpService.Ip + ")");
+                reply = "<html>error</html>";
+                PublicIpService.Reset(); PublicIpService.Refresh(true);
+                r.Check(WaitUntil(() => PublicIpService.Status == PublicIpService.State.Failed, 6000) && PublicIpService.Ip == "", "[Red] IP pública: respuesta basura => «Failed»");
+            }
+            PublicIpService.Endpoints = new[] { "http://127.0.0.1:1/", "http://127.0.0.1:2/" };
+            PublicIpService.Reset(); PublicIpService.Refresh(true);
+            r.Check(WaitUntil(() => PublicIpService.Status == PublicIpService.State.Failed, 8000), "[Red] IP pública: sin conexión => «Failed» sin excepciones");
+        }
+        finally { PublicIpService.Endpoints = savedEp; PublicIpService.TimeoutMs = savedTo; PublicIpService.Reset(); }
+
+        // ---- configuración del relay ----
+        string relayTxt = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, "../relay.txt"));
+        bool hadFile = System.IO.File.Exists(relayTxt);
+        string backup = hadFile ? System.IO.File.ReadAllText(relayTxt) : null;
+        string prefBackup = PlayerPrefs.GetString(RelayConfig.KRelay, "");
+        try
+        {
+            PlayerPrefs.DeleteKey(RelayConfig.KRelay);
+            RelayConfig.TestOverride = null;
+            System.IO.File.WriteAllText(relayTxt, "# relay de prueba\n\nrelay.ejemplo.com:7781\n");
+            string hh; int pp;
+            r.Check(RelayConfig.FileAddress() == "relay.ejemplo.com:7781" && RelayConfig.Address == "relay.ejemplo.com:7781" && RelayConfig.Enabled && RelayConfig.TryGet(out hh, out pp) && hh == "relay.ejemplo.com" && pp == 7781, "[Red] relay.txt junto al exe: se lee ignorando comentarios");
+            RelayConfig.Save("otro.relay.net");
+            r.Check(RelayConfig.Address == "otro.relay.net" && RelayConfig.TryGet(out hh, out pp) && pp == RelayConfig.DefaultPort, "[Red] el campo del menú (PlayerPrefs) tiene prioridad sobre relay.txt y el puerto por defecto es " + RelayConfig.DefaultPort);
+            RelayConfig.Save("");
+            System.IO.File.Delete(relayTxt);
+            r.Check(RelayConfig.Address == "" && !RelayConfig.Enabled, "[Red] sin configurar => relay desactivado (por defecto vacío)");
+            RelayConfig.Save("dirección rara!!");
+            r.Check(!RelayConfig.Enabled, "[Red] dirección de relay inválida => desactivado");
+            RelayTransport rtp = new RelayTransport();
+            r.Check(!rtp.Available && rtp.UnavailableReason.Length > 0 && new DirectTcpTransport().Available, "[Red] ITransport: directo siempre disponible, relay solo con dirección válida");
+        }
+        finally
+        {
+            RelayConfig.Save(prefBackup);
+            if (hadFile) System.IO.File.WriteAllText(relayTxt, backup); else if (System.IO.File.Exists(relayTxt)) System.IO.File.Delete(relayTxt);
+        }
+
+        // ---- cliente del relay contra el servidor Node real (bucle local) ----
+        TestRelayTransport(r);
+    }
+
+
+    // ---- cifrado del relay integrado y token compartido ----
+    private static void TestRelayToken(Report r)
+    {
+        // AES-256-CBC + HMAC: ida y vuelta, manipulación, clave incorrecta
+        byte[] keyC = new byte[32], iv = new byte[16];
+        using (var rng = System.Security.Cryptography.RandomNumberGenerator.Create()) { rng.GetBytes(keyC); rng.GetBytes(iv); }
+        string payload = "203.0.113.9:7780\u001ftoken-de-prueba";
+        byte[] blob = RelayDefault.Seal(payload, keyC, iv);
+        r.Check(RelayDefault.OpenForTest(blob, keyC) == payload, "[Cripto] ida y vuelta AES-CBC + HMAC");
+        string asText = System.Text.Encoding.ASCII.GetString(blob) + System.Text.Encoding.Unicode.GetString(blob);
+        r.Check(!asText.Contains("203.0.113") && !asText.Contains("7780") && !asText.Contains("token-de-prueba"), "[Cripto] el texto cifrado no contiene la dirección ni el token en claro (ASCII/UTF-16)");
+        byte[] bad = (byte[])blob.Clone(); bad[20] ^= 1;
+        byte[] badMac = (byte[])blob.Clone(); badMac[badMac.Length - 1] ^= 1;
+        byte[] key2 = (byte[])keyC.Clone(); key2[0] ^= 1;
+        r.Check(RelayDefault.OpenForTest(bad, keyC) == null && RelayDefault.OpenForTest(badMac, keyC) == null && RelayDefault.OpenForTest(blob, key2) == null && RelayDefault.OpenForTest(new byte[10], keyC) == null, "[Cripto] manipular el cifrado / la etiqueta / usar otra clave => se rechaza");
+        byte[] blob2 = RelayDefault.Seal(payload, keyC, new byte[16]);
+        r.Check(!System.Linq.Enumerable.SequenceEqual(blob, blob2), "[Cripto] otro IV => otro texto cifrado");
+
+        // precedencia y no mostrar el integrado
+        string prefBackup = PlayerPrefs.GetString(RelayConfig.KRelay, "");
+        string relayTxt = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, "../relay.txt"));
+        bool hadFile = System.IO.File.Exists(relayTxt); string fileBackup = hadFile ? System.IO.File.ReadAllText(relayTxt) : null;
+        try
+        {
+            RelayConfig.TestOverride = null; RelayConfig.Save("");
+            if (hadFile) System.IO.File.Delete(relayTxt);
+            RelayDefault.TestInject("127.0.0.1:47783", "SECRETO-INTEGRADO");
+            r.Check(RelayConfig.UsingBuiltin && RelayConfig.Address == "127.0.0.1:47783" && RelayConfig.DisplayAddress == RelayConfig.BuiltinLabel && RelayConfig.FieldText == "" && RelayConfig.Token == "SECRETO-INTEGRADO" && RelayConfig.Enabled, "[Cripto] sin configuración: se usa el relay integrado, la interfaz dice «" + RelayConfig.BuiltinLabel + "»");
+            System.IO.File.WriteAllText(relayTxt, "otro.relay.net:7781\n");
+            r.Check(!RelayConfig.UsingBuiltin && RelayConfig.Address == "otro.relay.net:7781" && RelayConfig.DisplayAddress == "otro.relay.net:7781" && RelayConfig.Token == "", "[Cripto] relay.txt tiene prioridad sobre el integrado y NO se le manda el token integrado");
+            RelayConfig.Save("mi.relay.com:7782");
+            r.Check(RelayConfig.Address == "mi.relay.com:7782" && RelayConfig.Token == "" && RelayConfig.FieldText == "mi.relay.com:7782", "[Cripto] el campo del menú tiene prioridad sobre relay.txt");
+            RelayConfig.TestOverride = "9.9.9.9:1";
+            r.Check(RelayConfig.Address == "9.9.9.9:1", "[Cripto] (override de pruebas / entorno) por encima de todo");
+            RelayConfig.TestOverride = null;
+        }
+        finally
+        {
+            RelayConfig.Save(prefBackup);
+            if (hadFile) System.IO.File.WriteAllText(relayTxt, fileBackup); else if (System.IO.File.Exists(relayTxt)) System.IO.File.Delete(relayTxt);
+        }
+
+        // relay Node real con RELAY_TOKEN
+        string dir = RelayDir();
+        if (dir == null) { r.Info("[Relay] sin server.js: prueba de token omitida"); return; }
+        const int rport = 47783; const string tok = "SECRETO-INTEGRADO";
+        System.Diagnostics.Process node = null;
+        var logs = new List<string>();
+        Application.LogCallback cb = (c, st, t) => logs.Add(c);
+        Application.logMessageReceived += cb;
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo("node", "server.js") { WorkingDirectory = dir, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
+            psi.EnvironmentVariables["PORT"] = rport.ToString(); psi.EnvironmentVariables["HOST"] = "127.0.0.1"; psi.EnvironmentVariables["RELAY_TOKEN"] = tok; psi.EnvironmentVariables["AUTH_DELAY_MS"] = "20";
+            node = System.Diagnostics.Process.Start(psi);
+            bool up = WaitUntil(() => { try { using (var t = new System.Net.Sockets.TcpClient()) { t.Connect("127.0.0.1", rport); return true; } } catch (Exception) { return false; } }, 6000);
+            r.Check(up, "[Token] servidor Node con RELAY_TOKEN escuchando");
+            if (up)
+            {
+                RelayTransport tr = new RelayTransport();
+                // 1) cliente CON el token integrado (relay integrado)
+                RelayDefault.TestInject("127.0.0.1:" + rport, tok);
+                INetListener lis = tr.CreateListener("Anfi"); string err; lis.Start(0, out err);
+                r.Check(WaitUntil(() => lis.RoomCode.Length > 0 || lis.Error != null, 6000) && RoomCodes.IsValid(lis.RoomCode), "[Token] el anfitrión con el token integrado abre sala (" + lis.RoomCode + ")");
+                INetConnector ok1 = tr.Connect(lis.RoomCode, 0, 8000);
+                r.Check(WaitUntil(() => ok1.Done, 8000) && ok1.Result != null, "[Token] un cliente con el token integrado se une");
+                var acc = new List<System.Net.Sockets.Socket>(); WaitUntil(() => { var q = lis.Accept(); if (q != null) acc.Add(q); return acc.Count == 1; }, 5000);
+                r.Check(acc.Count == 1, "[Token] el anfitrión acepta la conexión (ACCEPT con token)");
+                // 2) un relay propio (usuario) SIN token es rechazado por el servidor con token
+                RelayDefault.TestInject(null, null);
+                RelayConfig.TestOverride = "127.0.0.1:" + rport;
+                INetConnector noTok = new RelayTransport().Connect(lis.RoomCode, 0, 8000);
+                r.Check(WaitUntil(() => noTok.Done, 8000) && noTok.Result == null && noTok.Error == "relay:auth", "[Token] sin token: ERR auth => relay:auth (" + noTok.Error + ")");
+                INetListener lis2 = new RelayTransport().CreateListener("X"); lis2.Start(0, out err);
+                r.Check(WaitUntil(() => lis2.Error != null, 6000) && lis2.Error == "relay:auth" && lis2.RoomCode == "", "[Token] anfitrión sin token: relay:auth");
+                lis2.Stop();
+                // 3) token por variable de entorno (BACKROOMS_RELAY_TOKEN)
+                Environment.SetEnvironmentVariable("BACKROOMS_RELAY_TOKEN", tok);
+                INetConnector envTok = new RelayTransport().Connect(lis.RoomCode, 0, 8000);
+                r.Check(WaitUntil(() => envTok.Done, 8000) && envTok.Result != null, "[Token] BACKROOMS_RELAY_TOKEN también vale");
+                Environment.SetEnvironmentVariable("BACKROOMS_RELAY_TOKEN", null);
+                RelayConfig.TestOverride = null;
+                // textos de error
+                r.Check(NetSessionErrorText("relay:auth").Contains("rechazado el acceso"), "[Token] mensaje en español para relay:auth");
+                lis.Stop();
+                foreach (var q in acc) q.Close();
+                if (ok1.Result != null) ok1.Result.Close(); if (envTok.Result != null) envTok.Result.Close();
+            }
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("BACKROOMS_RELAY_TOKEN", null);
+            RelayConfig.TestOverride = null; RelayDefault.TestInject(null, null);
+            Application.logMessageReceived -= cb;
+            if (node != null && !node.HasExited) { try { node.Kill(); } catch (Exception) { } }
+        }
+        bool leak = false; foreach (string l in logs) if (l.Contains(":" + rport) || l.Contains(tok)) leak = true;
+        r.Check(!leak, "[Cripto] ningún log del juego contiene la dirección/puerto/token del relay (" + logs.Count + " líneas)");
+    }
+
+    private static string NetSessionErrorText(string code)
+    {
+        var m = typeof(NetSession).GetMethod("ConnectErrorText", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+        return (string)m.Invoke(null, new object[] { code });
+    }
+
+    private sealed class UdpClientDeaf : IDisposable
+    {
+        private readonly System.Net.Sockets.Socket s;
+        public int Port { get; private set; }
+        public UdpClientDeaf()
+        {
+            s = new System.Net.Sockets.Socket(System.Net.Sockets.AddressFamily.InterNetwork, System.Net.Sockets.SocketType.Dgram, System.Net.Sockets.ProtocolType.Udp);
+            s.Bind(new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, 0));
+            Port = ((System.Net.IPEndPoint)s.LocalEndPoint).Port;
+        }
+        public void Dispose() { s.Close(); }
+    }
+
+    private static string RelayDir()
+    {
+        string[] c = { "../backrooms-relay", "/workspace/backrooms-relay" };
+        foreach (string d in c) { string p = System.IO.Path.GetFullPath(System.IO.Path.Combine(Application.dataPath, "../" + d)); if (System.IO.File.Exists(System.IO.Path.Combine(p, "server.js"))) return p; if (System.IO.File.Exists(System.IO.Path.Combine(d, "server.js"))) return System.IO.Path.GetFullPath(d); }
+        return null;
+    }
+
+    private static void TestRelayTransport(Report r)
+    {
+        string dir = RelayDir();
+        if (dir == null) { r.Info("[Relay] no se encuentra backrooms-relay/server.js: prueba omitida"); return; }
+        const int rport = 47781;
+        System.Diagnostics.Process node = null;
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo("node", "server.js") { WorkingDirectory = dir, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
+            psi.EnvironmentVariables["PORT"] = rport.ToString(); psi.EnvironmentVariables["HOST"] = "127.0.0.1";
+            node = System.Diagnostics.Process.Start(psi);
+        }
+        catch (Exception e) { r.Info("[Relay] no se pudo lanzar node: " + e.Message); return; }
+        try
+        {
+            string saved = RelayConfig.TestOverride;
+            RelayConfig.TestOverride = "127.0.0.1:" + rport;
+            // esperar a que el relay escuche
+            bool up = WaitUntil(() => { try { using (var t = new System.Net.Sockets.TcpClient()) { t.Connect("127.0.0.1", rport); return true; } } catch (Exception) { return false; } }, 6000);
+            r.Check(up, "[Relay] el servidor Node escucha en el puerto " + rport);
+            if (up)
+            {
+                RelayTransport tr = new RelayTransport();
+                r.Check(tr.Available, "[Relay] RelayTransport disponible con relay configurado");
+                INetListener lis = tr.CreateListener("Anfitrion"); string err;
+                r.Check(lis.Start(0, out err), "[Relay] el anfitrión inicia el canal de control");
+                r.Check(WaitUntil(() => lis.RoomCode.Length > 0 || lis.Error != null, 6000) && RoomCodes.IsValid(lis.RoomCode), "[Relay] el anfitrión recibe un código de sala válido (" + lis.RoomCode + ")");
+                INetConnector c1 = tr.Connect(lis.RoomCode.ToLowerInvariant(), 0, 8000), c2 = tr.Connect(lis.RoomCode, 0, 8000);
+                r.Check(WaitUntil(() => c1.Done && c2.Done, 10000) && c1.Result != null && c2.Result != null, "[Relay] dos clientes se unen por código (" + c1.Error + "," + c2.Error + ")");
+                var accepted = new List<System.Net.Sockets.Socket>();
+                WaitUntil(() => { var s = lis.Accept(); if (s != null) accepted.Add(s); return accepted.Count == 2; }, 6000);
+                r.Check(accepted.Count == 2, "[Relay] el anfitrión acepta las 2 conexiones emparejadas");
+                if (accepted.Count == 2 && c1.Result != null && c2.Result != null)
+                {
+                    // protocolo del juego a través del relay: cliente -> anfitrión y de vuelta
+                    NetConn h1 = new NetConn(accepted[0], 0f), h2 = new NetConn(accepted[1], 0f), k1 = new NetConn(c1.Result, 0f), k2 = new NetConn(c2.Result, 0f);
+                    k1.Send(new NetWriter(NetMsg.Hello).Str(NetSession.Protocol).Str("Uno").ToArray());
+                    k2.Send(new NetWriter(NetMsg.Hello).Str(NetSession.Protocol).Str("Dos").ToArray());
+                    var names = new List<string>();
+                    NetConn[] hs = { h1, h2 };
+                    WaitUntil(() => { foreach (NetConn h in hs) { h.Pump(0f); h.Flush(); while (h.Incoming.Count > 0) { NetReader q = new NetReader(h.Incoming.Dequeue()); if (q.Type == NetMsg.Hello) { q.Str(); names.Add(q.Str()); } } } k1.Flush(); k2.Flush(); return names.Count == 2; }, 6000);
+                    r.Check(names.Contains("Uno") && names.Contains("Dos"), "[Relay] los mensajes del juego llegan al anfitrión a través del relay (" + string.Join(",", names.ToArray()) + ")");
+                    byte[] big = new byte[120000]; for (int i = 0; i < big.Length; i++) big[i] = (byte)(i * 7);
+                    h1.Send(big); h1.Flush();
+                    bool gotBig = false; NetConn[] ks = { k1, k2 };
+                    WaitUntil(() => { h1.Pump(0f); h1.Flush(); foreach (NetConn k in ks) { k.Pump(0f); while (k.Incoming.Count > 0) { byte[] m = k.Incoming.Dequeue(); if (m.Length == big.Length && m[777] == big[777]) gotBig = true; } } return gotBig; }, 6000);
+                    r.Check(gotBig, "[Relay] 120 KB del anfitrión llegan íntegros a un cliente");
+                    // un cliente se va: el anfitrión lo nota
+                    NetConn leaver = k1;
+                    leaver.Kill("prueba");
+                    bool noticed = WaitUntil(() => { h1.Pump(0f); h2.Pump(0f); return h1.Dead || h2.Dead; }, 6000);
+                    r.Check(noticed, "[Relay] el anfitrión detecta la salida de un cliente a través del relay");
+                    h1.Kill("fin"); h2.Kill("fin"); k1.Kill("fin"); k2.Kill("fin");
+                }
+                // errores del relay
+                INetConnector bad = tr.Connect("ZZZZZZ", 0, 8000);
+                r.Check(WaitUntil(() => bad.Done, 8000) && bad.Result == null && bad.Error == "relay:noroom", "[Relay] código inexistente => relay:noroom (" + bad.Error + ")");
+                INetConnector bad2 = tr.Connect("AB1", 0, 8000);
+                r.Check(WaitUntil(() => bad2.Done, 8000) && bad2.Error == "relay:badcode", "[Relay] código mal formado => relay:badcode (" + bad2.Error + ")");
+                lis.Stop();
+                System.Threading.Thread.Sleep(400);
+                INetConnector late = tr.Connect(lis.RoomCode, 0, 8000);
+                r.Check(WaitUntil(() => late.Done, 8000) && late.Error == "relay:noroom", "[Relay] al parar el anfitrión la sala desaparece (" + late.Error + ")");
+            }
+            // relay caído
+            if (node != null && !node.HasExited) { try { node.Kill(); } catch (Exception) { } node.WaitForExit(2000); }
+            RelayTransport tr2 = new RelayTransport();
+            INetConnector down = tr2.Connect("ABC234", 0, 4000);
+            r.Check(WaitUntil(() => down.Done, 8000) && down.Error == "relay_unreachable", "[Relay] relay caído => relay_unreachable (" + down.Error + ")");
+            INetListener l2 = tr2.CreateListener("X"); string e2; l2.Start(0, out e2);
+            r.Check(WaitUntil(() => l2.Error != null, 8000) && l2.Error == "relay_unreachable" && l2.RoomCode == "", "[Relay] anfitrión sin relay => relay_unreachable");
+            l2.Stop();
+            RelayConfig.TestOverride = saved;
+        }
+        finally { if (node != null && !node.HasExited) { try { node.Kill(); } catch (Exception) { } } }
     }
 
     private static void TestInventoryData(Report r)
@@ -867,12 +1275,106 @@ public static class SmokePlayRunner
         r.Check(!NetSession.Instance.Connecting && !string.IsNullOrEmpty(NetSession.Instance.LastError) && NetSession.Instance.LastError.ToLowerInvariant().Contains("anfitri"), "conectar sin anfitrión: error claro en español (" + NetSession.Instance.LastError + ")");
         ui.PressEscape();
         r.Check(mui.CurrentPage == MultiplayerUI.Page.Menu, "Esc en «Unirse» vuelve a la página principal");
+        // v6.1: relay desactivado por defecto, pegar ip:puerto, relay local (Node) con código de sala
+        RelayDefault.Suppress = true; RelayConfig.TestOverride = null; RelayConfig.Save(""); mui.RefreshRelayUi();
+        r.Check(!mui.RelayHostButton.interactable && !mui.RelayJoinButton.interactable && !ui.ClickButton("Alojar con código") && !ui.ClickButton("Unirse con código"), "sin relay configurado: «Alojar con código» y «Unirse con código» están desactivados");
+        r.Check(mui.RelayHintText.Contains("desactivado") && mui.RelayField != null, "sin relay configurado: el menú lo explica (" + mui.RelayHintText + ")");
+        ui.ClickButton("Unirse");
+        mui.JoinIpField.text = "83.12.34.56:7777";
+        r.Check(mui.JoinIpField.text == "83.12.34.56" && mui.JoinPortField.text == "7777", "pegar «ip:puerto» rellena IP y puerto por separado");
+        mui.JoinIpField.text = "tcp://10.0.0.7:9001";
+        r.Check(mui.JoinIpField.text == "10.0.0.7" && mui.JoinPortField.text == "9001", "pegar «tcp://ip:puerto» también");
+        mui.JoinIpField.text = ""; mui.JoinPortField.text = "7777";
+        ui.PressEscape();
+        {
+            string rdir = "/workspace/backrooms-relay";
+            System.Diagnostics.Process node = null;
+            try
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo("node", "server.js") { WorkingDirectory = rdir, UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true, CreateNoWindow = true };
+                psi.EnvironmentVariables["PORT"] = "47782"; psi.EnvironmentVariables["HOST"] = "127.0.0.1";
+                node = System.Diagnostics.Process.Start(psi);
+            }
+            catch (Exception e) { r.Info("sin node: " + e.Message); }
+            if (node != null)
+            {
+                yield return 1.0f;
+                // relay oficial integrado (cifrado): se usa sin enseñar su dirección
+                RelayDefault.TestInject("127.0.0.1:47782", null); mui.RefreshRelayUi();
+                r.Check(RelayConfig.UsingBuiltin && mui.RelayHostButton.interactable && mui.RelayJoinButton.interactable && mui.RelayField.text == "" && !PlayerPrefs.HasKey(RelayConfig.KRelay), "relay integrado: botones «con código» activos y el campo del menú queda vacío");
+                r.Check(mui.RelayHintText.Contains("Servidor oficial (integrado)") && !mui.RelayHintText.Contains("47782") && !mui.RelayHintText.Contains("127.0.0.1"), "relay integrado: la interfaz no muestra su dirección («" + mui.RelayHintText + "»)");
+                mui.NameField.text = "Anfi";
+                r.Check(ui.ClickButton("Alojar con código") && NetSession.IsHost && NetSession.Instance.ViaRelay, "relay integrado: «Alojar con código» abre la sala");
+                { float tb = 0; while (tb < 8f && NetSession.Instance.RoomCode.Length == 0) { tb += 0.1f; yield return 0.1f; } }
+                yield return 0.6f;
+                r.Check(RoomCodes.IsValid(NetSession.Instance.RoomCode) && !mui.LobbyAddrText.Contains("47782") && !mui.LobbyText.Contains("47782") && !mui.LobbyAddrText.Contains("127.0.0.1"), "relay integrado: la sala muestra el código y no la dirección del servidor");
+                ui.PressEscape(); yield return 0.3f;
+                RelayDefault.TestInject(null, null); mui.RefreshRelayUi();
+                mui.RelayField.text = "127.0.0.1:47782";
+                r.Check(mui.RelayHostButton.interactable && mui.RelayJoinButton.interactable && PlayerPrefs.GetString(RelayConfig.KRelay) == "127.0.0.1:47782" && mui.RelayHintText.Contains("Relay configurado"), "con relay configurado en el menú: botones «con código» activos y se guarda (" + mui.RelayHintText + ")");
+                mui.NameField.text = "Anfi"; mui.NameField.onEndEdit.Invoke("Anfi");
+                r.Check(ui.ClickButton("Alojar con código") && ui.Current == UIManager.Screen.Lobby && NetSession.IsHost && NetSession.Instance.ViaRelay, "«Alojar con código» abre la sala (relay)");
+                float trc = 0; while (trc < 8f && NetSession.Instance.RoomCode.Length == 0) { trc += 0.1f; yield return 0.1f; }
+                string code = NetSession.Instance.RoomCode;
+                r.Check(RoomCodes.IsValid(code), "el relay asigna un código de sala válido (" + code + ")");
+                yield return 0.6f;
+                r.Check(mui.LobbyAddrText.Contains("CÓDIGO DE SALA") && mui.LobbyAddrText.Contains(code) && mui.CurrentShareText() == code, "la sala muestra el código y «Copiar dirección» copia el código");
+                ui.ClickButton("Copiar dirección");
+                r.Check(mui.LastCopied == code, "«Copiar dirección» copia el código de sala (" + mui.LastCopied + ")");
+                INetConnector cc = new RelayTransport().Connect(code, 0, 8000);
+                while (!cc.Done) yield return 0.05f;
+                bool welcomed = false;
+                if (cc.Result != null)
+                {
+                    NetConn nc = new NetConn(cc.Result, 0f);
+                    nc.Send(new NetWriter(NetMsg.Hello).Str(NetSession.Protocol).Str("ViaRelay").ToArray()); nc.Flush();
+                    float tq = 0; while (!welcomed && tq < 6f) { nc.Pump(0f); nc.Flush(); while (nc.Incoming.Count > 0) { NetReader q = new NetReader(nc.Incoming.Dequeue()); if (q.Type == NetMsg.Welcome) welcomed = true; } tq += 0.05f; yield return 0.05f; }
+                    yield return 0.4f;
+                    r.Check(welcomed && mui.LobbyText.Contains("ViaRelay"), "un cliente entra por el relay y aparece en la sala");
+                    nc.Kill("fin");
+                }
+                else r.Check(false, "el cliente de prueba no pudo unirse por el relay: " + cc.Error);
+                ui.PressEscape(); yield return 0.3f;
+                r.Check(!NetSession.Active && ui.Current == UIManager.Screen.Multi, "salir de la sala por relay vuelve al menú multijugador");
+                // unirse con código: página + error de código inexistente
+                r.Check(ui.ClickButton("Unirse con código") && mui.CurrentPage == MultiplayerUI.Page.JoinCode && mui.CodeField != null, "«Unirse con código» abre su página");
+                mui.CodeField.text = "zzzzzz";
+                r.Check(mui.CodeField.text == "ZZZZZZ", "el código se escribe en mayúsculas");
+                ui.ClickButton("Conectar con código");
+                float tk = 0; while (tk < 10f && NetSession.Instance.Connecting) { tk += 0.1f; yield return 0.1f; }
+                yield return 0.3f;
+                r.Check(!NetSession.Instance.Connecting && NetSession.Instance.LastError.Contains("No existe ninguna sala"), "código inexistente => «" + NetSession.Instance.LastError + "»");
+                mui.CodeField.text = "AB1";
+                ui.ClickButton("Conectar con código"); yield return 0.2f;
+                r.Check(NetSession.Instance.LastError.Contains("6 caracteres"), "código mal escrito => «" + NetSession.Instance.LastError + "»");
+                ui.PressEscape();
+                try { node.Kill(); } catch (Exception) { }
+                yield return 0.5f;
+                // relay caído al alojar: vuelve con mensaje
+                r.Check(ui.ClickButton("Alojar con código"), "«Alojar con código» con el relay caído...");
+                float td = 0; while (td < 10f && NetSession.Active) { td += 0.1f; yield return 0.1f; }
+                yield return 0.3f;
+                r.Check(!NetSession.Active && NetSession.Instance.LastNotice.Contains("No se pudo contactar con el servidor relay"), "relay caído al alojar: vuelve al menú con aviso («" + NetSession.Instance.LastNotice + "»)");
+                NetSession.Instance.LastNotice = "";
+                if (ui.Current == UIManager.Screen.Lobby) ui.PressEscape();
+                mui.RelayField.text = "";
+                mui.NameField.text = "Tester";
+                r.Check(!mui.RelayHostButton.interactable && !RelayConfig.Enabled, "vaciar el campo desactiva otra vez el modo con código");
+                if (ui.Current != UIManager.Screen.Multi) { ui.SetScreen(UIManager.Screen.Multi); }
+                mui.ShowPage(MultiplayerUI.Page.Menu);
+            }
+        }
         r.Check(ui.ClickButton("Alojar partida") && mui.CurrentPage == MultiplayerUI.Page.Host && mui.HostPortField != null, "página «Alojar partida»");
+        yield return 0.8f;
+        r.Check(mui.HostInfoText.Contains("Tus direcciones locales") && mui.HostInfoText.Contains("IP pública:") && mui.HostInfoText.Contains("UPnP"), "pantalla del anfitrión: IP locales, IP pública y UPnP (" + mui.HostInfoText.Replace("\n", " / ") + ")");
+        r.Check(ui.ClickButton("Copiar dirección") && System.Text.RegularExpressions.Regex.IsMatch(mui.LastCopied ?? "", @"^\d+\.\d+\.\d+\.\d+:\d+$"), "«Copiar dirección» produce ip:puerto (" + mui.LastCopied + ")");
         r.Check(PlayerPrefs.GetInt(MultiplayerUI.KPort, NetSession.DefaultPort) > 0 && NetSession.DefaultPort == 7777, "puerto por defecto 7777");
         mui.HostPortField.text = "47793";
         r.Check(ui.ClickButton("Crear sala") && ui.Current == UIManager.Screen.Lobby && NetSession.IsHost, "«Crear sala» abre la sala de espera como anfitrión");
-        yield return 0.4f;
+        yield return 0.8f;
         r.Check(mui.LobbyText.Contains("Tester"), "la sala lista al anfitrión por su nombre");
+        r.Check(NetSession.Instance.Upnp != null && mui.LobbyAddrText.Contains("Dirección para copiar") && mui.LobbyAddrText.Contains(":47793"), "la sala muestra la dirección para copiar y el estado UPnP (" + mui.LobbyAddrText.Replace("\n", " / ") + ")");
+        r.Check(ui.ClickButton("Copiar dirección") && mui.LastCopied.EndsWith(":47793"), "«Copiar dirección» en la sala (" + mui.LastCopied + ")");
         r.Check(mui.StartButton != null && mui.StartButton.gameObject.activeInHierarchy, "el anfitrión ve el botón «Empezar»");
         {
             var raws = new List<NetConn>();

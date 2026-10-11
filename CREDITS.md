@@ -54,3 +54,10 @@ Los iconos del inventario, los modelos de los objetos recogibles (pila, agua de 
 
 La capa de red (`Assets/Scripts/Net/`) está escrita sobre `System.Net.Sockets` (TCP), incluido en .NET/Mono: **no se ha añadido ningún paquete ni activo de terceros**
 (no se usa Netcode for GameObjects ni Unity Transport). El avatar remoto reutiliza el cuerpo hazmat de Quaternius (CC0) citado arriba.
+
+
+## v6.1 (multijugador por Internet)
+UPnP/NAT-PMP, detección de IP pública y el cliente del relay son código propio con `System.Net`. El servidor relay (`backrooms-relay/`) es código propio en Node.js sin dependencias. No se han añadido paquetes ni recursos de terceros.
+
+## v6.2
+Relay oficial integrado cifrado (AES/HMAC con System.Security.Cryptography) y token compartido: código propio, sin paquetes de terceros nuevos.

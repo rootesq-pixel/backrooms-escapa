@@ -209,14 +209,14 @@ El modo de un jugador **no cambia** (la red solo se activa desde «Multijugador�
 
 1. **Todos** tenéis que usar la misma versión (la v6; el juego comprueba el protocolo `BackroomsEscape-MP-1` y rechaza versiones distintas).
 2. **Anfitrión:** menú principal → **Multijugador** → escribe tu nombre (se guarda) → **Alojar partida** → deja el puerto **7777** (o cambia
-   el número) → **Crear sala**. La pantalla enseña tus IP locales (LAN / VPN). Windows pedirá permitir el juego en el **Firewall**: acepta.
-3. Pasa a tus amigos tu IP y el puerto:
+   el número) → **Crear sala**. Windows pedirá permitir el juego en el **Firewall**: acepta. Desde la v6.1 el juego intenta **abrir el puerto
+   solo** en tu router (UPnP / NAT-PMP) y te enseña qué IP pasar a tus amigos (ver «v6.1» más abajo).
+3. Pasa a tus amigos la dirección que enseña la pantalla (botón **Copiar dirección** → `ip:puerto`):
    - **Misma red local (LAN / mismo wifi):** la IP de tu red local (suele empezar por `192.168.` o `10.`).
-   - **Por Internet:** en tu router, redirige el puerto **TCP 7777** hacia tu PC (reenvío de puertos / port forwarding) y pasa tu IP pública
-     (búscala en «cuál es mi ip»), o…
-   - **Más fácil (sin tocar el router): una VPN** como **Radmin VPN**, **ZeroTier** o **Hamachi**: todos entráis en la misma red virtual y el
-     anfitrión pasa la IP que le da la VPN.
-4. **Cliente:** Multijugador → nombre → **Unirse** → IP y puerto del anfitrión → **Conectar**. Entrarás en la sala de espera.
+   - **Por Internet:** tu **IP pública** + puerto (el juego la detecta y la copia). Si el aviso dice «Puerto abierto automáticamente», ya está;
+     si no, redirige **TCP 7777** en tu router hacia tu PC, o…
+   - **Sin tocar el router: una VPN** (**Radmin VPN**, **ZeroTier**, **Hamachi**) y pasas la IP de la VPN; o el modo **con código** (relay, v6.1).
+4. **Cliente:** Multijugador → nombre → **Unirse** → pega `ip:puerto` (o IP y puerto por separado) → **Conectar**. Entrarás en la sala de espera.
 5. El anfitrión elige el nivel con ◄ ► y pulsa **Empezar** (los demás esperan). No se puede entrar a una partida ya empezada (se avisa).
 6. Dentro: `Enter` abre el chat; `Esc` abre la pausa pero **el juego sigue** (pone «Pausa (la partida sigue)»); el inventario tampoco pausa.
 
@@ -270,13 +270,79 @@ Arquitectura: `NetSession` (sesión anfitrión/cliente, sala, bucle, snapshot a 
 
 ### Limitaciones conocidas (multijugador)
 
-- **No se ha probado por Internet real** (solo bucle local), ni con latencia/pérdida reales, ni con 3-4 jugadores reales (la prueba usa 2 procesos; 3-4 se
+- **No se ha probado por Internet real** (solo bucle local y relay local), ni con latencia/pérdida reales, ni con 3-4 jugadores reales (la prueba usa 2 procesos; 3-4 se
   simulan con clientes crudos en la sala).
 - El `.exe` de Windows no se puede ejecutar en este entorno: se comprobó que se compila con Mono e incluye `Assembly-CSharp.dll` con la capa de red.
 - Sin reconexión a mitad de partida, sin voz, sin migración de anfitrión (si el anfitrión cae, se acaba la partida).
 - El anfitrión es autoritativo para monstruos, pilas, derribados y salida; los clientes son de confianza en su propia posición (no hay anti-trampas).
 - Los clientes ven a los monstruos con ~0,1 s de retraso; el anfitrión los ve «en directo».
 - Solo el anfitrión puede reiniciar nivel / pasar de nivel / volver a la sala; el menú «Reiniciar nivel» de un cliente avisa de ello.
+
+## Cambios de la v6.1: multijugador por Internet (UPnP, IP pública, relay con código)
+
+El multijugador de la v6 era «IP + puerto» a mano. La v6.1 añade, **sin cuentas ni servicios externos obligatorios**:
+
+### 1) Apertura automática del puerto (UPnP / NAT-PMP)
+- Al **Crear sala**, un hilo de fondo (la interfaz no se congela) busca el router por **SSDP** (multicast UDP 1900), lee su descripción
+  (`WANIPConnection` / `WANPPPConnection`), y envía por **SOAP/HTTP `AddPortMapping`** para el **TCP** elegido (concesión permanente; si el router
+  responde 725 reintenta con 2 h renovables; si hay conflicto 718 borra la entrada anterior y repite). Si UPnP no responde prueba **NAT-PMP** (UDP 5351).
+  Todo con `System.Net`, con tiempos máximos y fallo limpio. Al **salir de la sala o cerrar el juego** se hace `DeletePortMapping` (el puerto no queda abierto).
+- La pantalla del anfitrión (y la sala) muestra: IP locales con puerto, **IP pública** (consulta `https://api.ipify.org`, con respaldo `http://` y `icanhazip.com`,
+  4 s de máximo; sin Internet pone «no disponible»), y el estado en español: **«Puerto abierto automáticamente (UPnP, TCP 7777)»** o
+  **«No se pudo abrir el puerto automáticamente: abre TCP 7777 en tu router o usa una VPN»**.
+- **Aviso CGNAT:** si la IP WAN que dice el router es privada / del rango 100.64.0.0/10 o no coincide con tu IP pública, aparece
+  «tu operador usa CGNAT … necesitas una VPN o un servidor intermedio (modo con código)». (No hay autoprueba de alcanzabilidad desde fuera: sin un
+  servidor externo que conecte de vuelta no se puede garantizar, y muchos routers no permiten probar la propia IP pública desde dentro.)
+- **Copiar dirección:** copia al portapapeles `ippública:puerto` (o la IP local si no hay pública; el código de sala en modo relay).
+- **Unirse:** el campo de IP acepta `ip:puerto` pegado (también `tcp://ip:puerto`); se separa solo en IP y puerto.
+
+### 2) Transporte intercambiable y relay con código de sala
+- `ITransport` (`Assets/Scripts/Net/Transports.cs`): `DirectTcpTransport` (el de siempre) y `RelayTransport`. `NetSession` solo ve sockets TCP ya conectados
+  (`INetListener.Accept` / `INetConnector.Result`), así que el protocolo del juego es idéntico por ambos caminos.
+- El **relay** es un servidor Node.js sin dependencias (`/workspace/backrooms-relay/`: `server.js`, `package.json`, `Dockerfile`, `fly.toml`, `README.md`, `test.js`).
+  Anfitrión y clientes salen *hacia fuera* hacia el relay, que los empareja por un **código de 6 caracteres** (sin I, O, 0, 1) y reenvía los bytes. Así no hace
+  falta abrir puertos, ni UPnP, y funciona incluso detrás de CGNAT. Protocolo y despliegue: ver el README del relay (VPS / Oracle Always Free / Fly.io / Railway; **necesita TCP crudo**).
+- **Configurar el relay (vacío = desactivado):** (1) campo **«Servidor relay»** del menú Multijugador (se guarda en `PlayerPrefs`), (2) archivo **`relay.txt`** junto a
+  `BackroomsEscape.exe` con `mi-relay.ejemplo.com:7780`, (3) variable de entorno `BACKROOMS_RELAY` (pruebas). Con relay válido se activan
+  **Alojar con código** (la sala enseña el código y «Copiar dirección» lo copia) y **Unirse con código**. Sin relay esos botones están desactivados y el menú lo explica.
+- Errores en español: relay inalcanzable, código inexistente / mal formado, sala llena, el anfitrión no respondió, relay lleno, protocolo distinto; si el relay
+  cae con la sala abierta, los jugadores ya conectados siguen (cada uno tiene su propia conexión) pero el código deja de servir para nuevos.
+- **Cómo desplegar el relay (resumen):** en una VM con IP pública: `node server.js` (o `docker run -d -p 7780:7780 backrooms-relay`) y abrir **TCP 7780**;
+  luego en el juego `relay.txt` ← `IP-o-dominio:7780`. Render gratis **no sirve** (solo HTTP). Detalles y alternativas en `backrooms-relay/README.md`.
+
+### Pruebas de la v6.1
+- `SmokeTest.RunEditMode`: análisis de `ip:puerto`, códigos de sala, rangos privados/CGNAT, textos de la pantalla del anfitrión, descripción UPnP y mensajes SOAP,
+  **router UPnP simulado** (SSDP + descripción + SOAP: AddPortMapping TCP, 725→lease 2 h, 718→borrar y reintentar, WANPPPConnection, descripción rota,
+  eliminación al parar), sin router (fallo limpio y texto exacto), **NAT-PMP simulado** (mapeo y borrado), IP pública contra un eco HTTP simulado (ok / basura / sin conexión),
+  configuración `relay.txt` / PlayerPrefs, y el **cliente del relay contra el `server.js` real** (código, 2 clientes, mensajes del juego, 120 KB, salida de un cliente, errores, relay caído).
+- `SmokeTest.RunPlayMode`: botones «con código» desactivados sin relay, pegar `ip:puerto`, relay local: alojar con código → cliente real entra → salir; unirse con código (inexistente / mal escrito); relay caído al alojar.
+- `backrooms-relay/test.js` (`npm test`): anfitrión + 2 clientes por el relay, 300 KB en cada sentido sin pérdidas, orden, códigos erróneos, sala llena, tiempos de espera, salud HTTP, límite por IP.
+- `/workspace/mp-test.sh` (directo) y `/workspace/mp-test.sh relay` (dos procesos de Unity, anfitrión y cliente, **a través del relay local** con código de sala): mismas comprobaciones de la v6.
+
+### Qué NO se ha podido verificar
+Routers reales (UPnP/NAT-PMP solo contra simuladores; en este entorno no hay router IGD), CGNAT real, alcanzabilidad desde Internet, latencia por relay real
+y el `.exe` de Windows en ejecución. La detección de IP pública sí se comprobó contra `api.ipify.org` en el entorno de desarrollo.
+
+## Cambios de la v6.2: relay oficial integrado (cifrado) + token
+
+El juego puede llevar integrado el relay «oficial» para que «Alojar con código» / «Unirse con código» funcionen sin configurar nada.
+
+- **Prioridad de configuración:** variable de entorno `BACKROOMS_RELAY` > campo «Servidor relay» del menú (`PlayerPrefs`) > `relay.txt` junto al .exe > **relay integrado**.
+  Si no escribes nada, se usa el integrado; si escribes otra dirección, se usa la tuya (y **no** se le envía el token integrado).
+- **La interfaz nunca muestra la dirección integrada:** el menú dice «Servidor oficial (integrado)», el campo queda vacío y los logs/errores no la imprimen.
+- **Cómo está integrada:** `Assets/Scripts/Net/RelayDefault.cs` descifra en tiempo de ejecución una carga **AES-256-CBC + HMAC-SHA256** (encrypt-then-MAC, `System.Security.Cryptography`).
+  La clave se deriva (SHA-256 + HMAC) de tres piezas: constantes dispersas (A), un texto troceado y reordenado (B) y una pieza aleatoria por compilación (C) que vive,
+  enmascarada y troceada, en el archivo **generado** `RelayDefault.Generated.cs`. Ese archivo (texto cifrado + pieza C) **no está en el repositorio** (`.gitignore`):
+  el código público compila con `HasBuiltin = false` y el juego usa solo el relay del usuario / `relay.txt`.
+- **Generarlo (compilación de release):** `RELAY_ADDR=host:puerto RELAY_TOKEN=secreto Tools/encrypt_relay.sh` (usa `RelayBlobTool`, un método de editor; también `Backrooms → Relay → Quitar relay integrado`),
+  después compilar. Sin `RELAY_ADDR` el script borra el archivo generado. Para el paquete público: borra `RelayDefault.Generated.cs(.meta)` y compila.
+- **Esto es OFUSCACIÓN, no secreto real.** El cliente necesita conocer la dirección para conectar: quien desensamble el juego y ejecute o replique `RelayDefault` puede obtenerla (y el token).
+  Lo que se consigue es que no aparezca en claro con `strings`/`grep` (ASCII ni UTF-16) en el `.exe`, los `.dll`, los recursos, el zip o el repositorio público, ni en la interfaz o los logs.
+  La protección real contra desconocidos es el **token del relay** (más los límites del servidor); si el token se filtra, cámbialo en el servidor y publica una versión nueva.
+- **Token compartido:** el servidor (`backrooms-relay/server.js`) acepta `RELAY_TOKEN`; con él puesto, `HOST`/`JOIN`/`ACCEPT` sin `T=<token>` reciben `ERR auth`. Sin la variable,
+  el servidor ignora el token (compatible con versiones anteriores). Pasos para actualizar un relay en Windows Server: `backrooms-relay/README.md`.
+- **Pruebas:** edit-mode (cifrado ida y vuelta, manipulación/clave incorrecta/IV, precedencia, el token integrado no se manda a relays ajenos, relay Node con token real, ningún log contiene dirección ni token),
+  play-mode (el menú con relay integrado no muestra su dirección), `mp-test.sh relay-token` (dos procesos con el relay protegido por token) y `test.js` del relay (token correcto/ausente/erróneo, ACCEPT, límite de fallos, compatibilidad sin token).
 
 ## Pruebas y herramientas de editor
 
