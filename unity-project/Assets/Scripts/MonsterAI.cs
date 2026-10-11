@@ -1,0 +1,649 @@
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.AI;
+
+// IA del monstruo: patrulla, persigue, busca y mata. Basada en NavMeshAgent.
+//
+// ---- NAVMESH (importante) ----
+// 1) Si el paquete "AI Navigation" (com.unity.ai.navigation) está en Packages/manifest.json,
+//    GameBootstrap hornea la NavMesh en tiempo de ejecución (TryBuildRuntimeNavMesh, por reflexión,
+//    así este script compila aunque el paquete no esté instalado).
+// 2) Si tienes una escena propia: añade un componente NavMeshSurface al nivel y pulsa "Bake"
+//    (o usa Window > AI > Navigation en versiones antiguas).
+// 3) Si no hay NavMesh disponible, el monstruo NO falla: usa un modo alternativo que sigue el camino
+//    por la cuadrícula del BackroomsGenerator (BFS) moviendo el transform directamente.
+//
+// El componente NavMeshAgent se añade solo si hay NavMesh bajo el monstruo (evita errores en consola).
+public class MonsterAI : MonoBehaviour
+{
+    public enum State { Patrol, Chase, Search, Kill }
+
+    [Header("Referencias")]
+    public Transform target;
+    public BackroomsGenerator generator;
+
+    [Header("Velocidades")]
+    public float patrolSpeed = 1.8f;
+    public float chaseSpeed = 4.2f;
+
+    [Header("Vista")]
+    public float sightRange = 18f;
+    [Range(30f, 360f)] public float fieldOfView = 120f;
+    public float eyeHeight = 1.7f;
+    [Tooltip("Multiplicador del alcance de visión cuando el jugador tiene la linterna apagada.")]
+    [Range(0.1f, 1f)] public float darkSightFactor = 0.6f;
+    public LayerMask sightMask = ~0;
+
+    [Header("Oído")]
+    [Tooltip("Multiplicador global del radio de ruido que oye (niveles difíciles > 1).")]
+    public float hearingScale = 1f;
+    [Tooltip("Multiplicador del radio de ruido si hay una pared entre ambos.")]
+    [Range(0f, 1f)] public float hearingThroughWallsFactor = 0.5f;
+
+    [Header("Comportamiento")]
+    public float killDistance = 1.4f;
+    public float loseSightTime = 4f;
+    public float searchDuration = 5f;
+    public float patrolWaitTime = 2f;
+    public float repathInterval = 0.25f;
+    public float arriveDistance = 0.6f;
+
+    [Header("Aspecto")]
+    public MonsterVisual visual;
+
+    // Lista de monstruos vivos (la usa el efecto VHS para el "glitch" por cercanía)
+    public static readonly List<MonsterAI> Instances = new List<MonsterAI>();
+
+    public State CurrentState { get; private set; }
+    public bool UsesNavMesh { get { return useNav; } }
+
+    // Agua: profundidad bajo el monstruo y factor de velocidad (más lento al chapotear)
+    public float WaterDepth { get; private set; }
+    public float WaterSlow { get; private set; }
+    private float waterTimer;
+
+    private NavMeshAgent agent;
+    private bool useNav;
+    private bool stopped;
+    private float currentSpeed;
+
+    private FirstPersonController playerController;
+    private Flashlight playerFlashlight;
+
+    private Vector3 lastKnownPosition;
+    private float lostSightTimer;
+    private float searchTimer;
+    private float waitTimer;
+    private float repathTimer;
+    private float stuckTimer;
+    private Vector3 lastPos;
+    private float visSpeed;
+    private float killTimer;
+
+    // Destino y camino alternativo (sin NavMesh)
+    private Vector3 destination;
+    private bool hasDestination;
+    private readonly List<Vector3> fallbackPath = new List<Vector3>();
+    private int fallbackIndex;
+
+    // ------------------------------------------------------------------
+    // Utilidad estática: hornear NavMesh en runtime si el paquete está instalado
+    // ------------------------------------------------------------------
+    // Devuelve true si se pudo hornear. Usa reflexión para no depender del paquete en compilación.
+    public static bool TryBuildRuntimeNavMesh(GameObject root)
+    {
+        try
+        {
+            System.Type surfaceType = System.Type.GetType("Unity.AI.Navigation.NavMeshSurface, Unity.AI.Navigation");
+            if (surfaceType == null)
+            {
+                Debug.LogWarning("[MonsterAI] Paquete com.unity.ai.navigation no encontrado: se usará el modo alternativo por cuadrícula.");
+                return false;
+            }
+
+            Component surface = root.AddComponent(surfaceType);
+
+            // Recoger solo la geometría hija de este objeto (CollectObjects.Children)
+            System.Reflection.PropertyInfo collect = surfaceType.GetProperty("collectObjects");
+            if (collect != null && collect.PropertyType.IsEnum)
+            {
+                collect.SetValue(surface, System.Enum.Parse(collect.PropertyType, "Children"), null);
+            }
+
+            System.Reflection.MethodInfo build = surfaceType.GetMethod("BuildNavMesh", System.Type.EmptyTypes);
+            if (build == null)
+            {
+                return false;
+            }
+            build.Invoke(surface, null);
+            return true;
+        }
+        catch (System.Exception e)
+        {
+            Debug.LogWarning("[MonsterAI] No se pudo hornear la NavMesh en runtime: " + e.Message);
+            return false;
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Ciclo de vida
+    // ------------------------------------------------------------------
+
+    private void OnEnable() { if (!Instances.Contains(this)) Instances.Add(this); }
+    private void OnDisable() { Instances.Remove(this); }
+
+    // Para asignar referencias desde código (GameBootstrap)
+    public void Setup(Transform playerTarget, BackroomsGenerator gen)
+    {
+        target = playerTarget;
+        generator = gen;
+    }
+
+    private void Start()
+    {
+        if (target != null)
+        {
+            playerController = target.GetComponent<FirstPersonController>();
+            playerFlashlight = target.GetComponentInChildren<Flashlight>();
+        }
+
+        InitNavigation();
+
+        CurrentState = State.Patrol;
+        SetSpeed(patrolSpeed);
+        PickNewPatrolPoint();
+        lastPos = transform.position;
+        if (visual == null) visual = GetComponent<MonsterVisual>();
+    }
+
+    // Anima el modelo según el estado y la velocidad real
+    private void UpdateVisual(float dt)
+    {
+        waterTimer -= dt;
+        if (waterTimer <= 0f)
+        {
+            waterTimer = 0.15f;
+            WaterVolume wv = WaterVolume.Active;
+            WaterDepth = wv != null ? wv.DepthAt(transform.position) : 0f;
+            WaterSlow = Mathf.Lerp(1f, 0.62f, Mathf.SmoothStep(0f, 1f, Mathf.Clamp01((WaterDepth - 0.05f) / 0.9f)));
+            if (useNav && agent != null && agent.enabled) agent.speed = currentSpeed * WaterSlow;
+        }
+        if (visual == null) return;
+        float speed;
+        if (useNav && agent != null && agent.enabled && agent.isOnNavMesh) speed = agent.velocity.magnitude;
+        else speed = dt > 0f ? (transform.position - lastPos).magnitude / dt : 0f;
+        lastPos = transform.position;
+        visSpeed = Mathf.Lerp(visSpeed, speed, 1f - Mathf.Exp(-12f * Mathf.Max(dt, 0.0001f)));
+        visual.SetLocomotion(CurrentState, visSpeed);
+    }
+
+    // Añade el NavMeshAgent solo si hay NavMesh cerca; si no, modo alternativo
+    private void InitNavigation()
+    {
+        useNav = false;
+
+        NavMeshHit hit;
+        if (NavMesh.SamplePosition(transform.position, out hit, 3f, NavMesh.AllAreas))
+        {
+            agent = GetComponent<NavMeshAgent>();
+            if (agent == null)
+            {
+                agent = gameObject.AddComponent<NavMeshAgent>();
+            }
+            agent.radius = 0.4f;
+            agent.height = 2.2f;
+            agent.acceleration = 14f;
+            agent.angularSpeed = 240f;
+            agent.stoppingDistance = 0.2f;
+            agent.autoBraking = true;
+            agent.Warp(hit.position);
+            useNav = agent.isOnNavMesh;
+        }
+
+        if (!useNav)
+        {
+            Debug.LogWarning("[MonsterAI] Sin NavMesh: el monstruo usa el modo alternativo (camino por cuadrícula).");
+        }
+    }
+
+    private void Update()
+    {
+        if (target == null)
+        {
+            return;
+        }
+        if (stopped)
+        {
+            if (visual != null && CurrentState != State.Kill) visual.SetLocomotion(State.Patrol, 0f);
+            return;
+        }
+
+        float dt = Time.deltaTime;
+        if (CurrentState == State.Kill)
+        {
+            UpdateKill(dt);
+            return;
+        }
+        Vector3 toTarget = target.position - transform.position;
+        float distance = toTarget.magnitude;
+        float flatDistance = new Vector2(toTarget.x, toTarget.z).magnitude;
+
+        bool lineOfSight = HasLineOfSight();
+        bool sees = CanSee(toTarget, distance, lineOfSight);
+        bool hears = CanHear(distance, lineOfSight);
+
+        // Matar: muy cerca y con línea de visión directa
+        if (CurrentState != State.Kill && flatDistance < killDistance && Mathf.Abs(toTarget.y) < 2f && lineOfSight)
+        {
+            EnterKill();
+            return;
+        }
+
+        switch (CurrentState)
+        {
+            case State.Patrol:
+                UpdatePatrol(dt, sees, hears);
+                break;
+            case State.Chase:
+                UpdateChase(dt, sees);
+                break;
+            case State.Search:
+                UpdateSearch(dt, sees, hears);
+                break;
+        }
+
+        if (!useNav)
+        {
+            UpdateFallbackMovement(dt);
+        }
+        UpdateVisual(dt);
+    }
+
+    // Susto: el monstruo se abalanza hasta quedar frente a la cámara
+    private void UpdateKill(float dt)
+    {
+        killTimer += dt;
+        Vector3 toPlayer = target.position - transform.position;
+        toPlayer.y = 0f;
+        float d = toPlayer.magnitude;
+        if (d > 0.01f)
+        {
+            Quaternion look = Quaternion.LookRotation(toPlayer);
+            transform.rotation = Quaternion.Slerp(transform.rotation, look, 1f - Mathf.Exp(-18f * dt));
+            float stopAt = 0.75f;
+            if (d > stopAt)
+            {
+                Vector3 np = transform.position + toPlayer / d * Mathf.Min(d - stopAt, 7f * dt);
+                transform.position = np;
+            }
+        }
+        UpdateVisual(dt);
+    }
+
+    // ------------------------------------------------------------------
+    // Estados
+    // ------------------------------------------------------------------
+
+    private void UpdatePatrol(float dt, bool sees, bool hears)
+    {
+        if (sees)
+        {
+            EnterChase();
+            return;
+        }
+        if (hears)
+        {
+            EnterSearch(target.position);
+            return;
+        }
+
+        if (HasArrived())
+        {
+            waitTimer += dt;
+            if (waitTimer >= patrolWaitTime)
+            {
+                PickNewPatrolPoint();
+            }
+        }
+        else
+        {
+            CheckStuck(dt);
+        }
+    }
+
+    private void UpdateChase(float dt, bool sees)
+    {
+        if (sees)
+        {
+            lostSightTimer = 0f;
+            lastKnownPosition = target.position;
+        }
+        else
+        {
+            lostSightTimer += dt;
+            if (lostSightTimer >= loseSightTime)
+            {
+                EnterSearch(lastKnownPosition);
+                return;
+            }
+        }
+
+        // Recalcular el destino cada cierto tiempo (más barato que cada frame)
+        repathTimer -= dt;
+        if (repathTimer <= 0f)
+        {
+            repathTimer = repathInterval;
+            SetDestination(sees ? target.position : lastKnownPosition);
+        }
+    }
+
+    private void UpdateSearch(float dt, bool sees, bool hears)
+    {
+        if (sees)
+        {
+            EnterChase();
+            return;
+        }
+
+        if (hears)
+        {
+            // Actualiza el punto de búsqueda hacia el ruido
+            repathTimer -= dt;
+            if (repathTimer <= 0f)
+            {
+                repathTimer = repathInterval;
+                lastKnownPosition = target.position;
+                SetDestination(lastKnownPosition);
+                searchTimer = 0f;
+            }
+            return;
+        }
+
+        if (HasArrived())
+        {
+            // Mira alrededor un rato y vuelve a patrullar
+            searchTimer += dt;
+            transform.Rotate(0f, 90f * dt, 0f);
+            if (searchTimer >= searchDuration)
+            {
+                EnterPatrol();
+            }
+        }
+        else
+        {
+            CheckStuck(dt);
+        }
+    }
+
+    private void EnterPatrol()
+    {
+        CurrentState = State.Patrol;
+        SetSpeed(patrolSpeed);
+        PickNewPatrolPoint();
+    }
+
+    private void EnterChase()
+    {
+        bool wasChasing = CurrentState == State.Chase;
+        CurrentState = State.Chase;
+        if (!wasChasing && visual != null) visual.OnChaseStart();
+        SetSpeed(chaseSpeed);
+        lostSightTimer = 0f;
+        lastKnownPosition = target.position;
+        repathTimer = 0f;
+    }
+
+    private void EnterSearch(Vector3 position)
+    {
+        CurrentState = State.Search;
+        SetSpeed(patrolSpeed * 1.5f);
+        lastKnownPosition = position;
+        searchTimer = 0f;
+        repathTimer = repathInterval;
+        SetDestination(position);
+    }
+
+    private void EnterKill()
+    {
+        CurrentState = State.Kill;
+        StopMoving();
+        if (useNav && agent != null && agent.enabled) agent.enabled = false;
+        if (visual != null)
+        {
+            visual.OnKill();
+            visual.SetLocomotion(State.Kill, 0f);
+        }
+
+        // Mirar al jugador
+        Vector3 look = target.position - transform.position;
+        look.y = 0f;
+        if (look.sqrMagnitude > 0.001f)
+        {
+            transform.rotation = Quaternion.LookRotation(look);
+        }
+
+        if (GameManager.Instance != null)
+        {
+            GameManager.Instance.PlayerCaught(this);
+        }
+    }
+
+    // Fuerza la captura (pruebas): reproduce la secuencia de susto completa
+    public void ForceCatch()
+    {
+        stopped = false;
+        EnterKill();
+    }
+
+    // Detiene al monstruo (lo llama GameManager al terminar la partida)
+    public void Stop()
+    {
+        stopped = true;
+        StopMoving();
+    }
+
+    private void StopMoving()
+    {
+        hasDestination = false;
+        fallbackPath.Clear();
+        fallbackIndex = 0;
+        if (useNav && agent != null && agent.isOnNavMesh)
+        {
+            agent.isStopped = true;
+            agent.ResetPath();
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Sentidos
+    // ------------------------------------------------------------------
+
+    private Vector3 EyePosition()
+    {
+        return transform.position + Vector3.up * eyeHeight;
+    }
+
+    // ¿Hay una línea sin obstáculos entre el monstruo y el jugador?
+    private bool HasLineOfSight()
+    {
+        Vector3 from = EyePosition();
+        Vector3 to = target.position + Vector3.up * 1.2f;
+
+        RaycastHit hit;
+        if (Physics.Linecast(from, to, out hit, sightMask & ~PlayerBody.LayerMaskBit, QueryTriggerInteraction.Ignore))
+        {
+            return hit.transform == target || hit.transform.IsChildOf(target);
+        }
+        return true;
+    }
+
+    // Vista: distancia + ángulo de visión + línea de visión
+    private bool CanSee(Vector3 toTarget, float distance, bool lineOfSight)
+    {
+        if (!lineOfSight)
+        {
+            return false;
+        }
+
+        float range = sightRange;
+        if (playerFlashlight != null && !playerFlashlight.IsOn)
+        {
+            range *= darkSightFactor; // en la oscuridad ve menos
+        }
+        if (distance > range)
+        {
+            return false;
+        }
+
+        Vector3 flatDir = new Vector3(toTarget.x, 0f, toTarget.z);
+        if (flatDir.sqrMagnitude < 0.0001f)
+        {
+            return true;
+        }
+        float angle = Vector3.Angle(transform.forward, flatDir);
+        return angle <= fieldOfView * 0.5f;
+    }
+
+    // Oído: el jugador hace ruido según camine o corra (FirstPersonController.CurrentNoiseRadius)
+    private bool CanHear(float distance, bool lineOfSight)
+    {
+        if (playerController == null)
+        {
+            return false;
+        }
+        float radius = playerController.CurrentNoiseRadius * hearingScale;
+        if (!lineOfSight)
+        {
+            radius *= hearingThroughWallsFactor;
+        }
+        return radius > 0f && distance <= radius;
+    }
+
+    // ------------------------------------------------------------------
+    // Navegación (NavMesh o alternativa)
+    // ------------------------------------------------------------------
+
+    private void SetSpeed(float speed)
+    {
+        currentSpeed = speed;
+        if (useNav && agent != null)
+        {
+            agent.speed = speed * (WaterSlow > 0f ? WaterSlow : 1f);
+        }
+    }
+
+    private void SetDestination(Vector3 dest)
+    {
+        destination = dest;
+        hasDestination = true;
+
+        if (useNav)
+        {
+            if (!agent.isOnNavMesh) return;
+
+            NavMeshHit hit;
+            Vector3 point = NavMesh.SamplePosition(dest, out hit, 2f, NavMesh.AllAreas) ? hit.position : dest;
+            agent.isStopped = false;
+            agent.SetDestination(point);
+        }
+        else
+        {
+            fallbackIndex = 0;
+            if (generator == null || !generator.HasLevel || !generator.TryGetPath(transform.position, dest, fallbackPath))
+            {
+                // Sin generador: línea recta (última opción)
+                fallbackPath.Clear();
+                fallbackPath.Add(dest);
+            }
+        }
+    }
+
+    private bool HasArrived()
+    {
+        if (!hasDestination)
+        {
+            return true;
+        }
+        if (useNav)
+        {
+            if (agent.pathPending) return false;
+            if (agent.pathStatus == NavMeshPathStatus.PathInvalid) return true;
+            return agent.remainingDistance <= arriveDistance;
+        }
+        return fallbackIndex >= fallbackPath.Count;
+    }
+
+    // Si el agente lleva tiempo sin avanzar, elige otro punto
+    private void CheckStuck(float dt)
+    {
+        if (!useNav || agent == null || !agent.isOnNavMesh)
+        {
+            return;
+        }
+        if (agent.velocity.sqrMagnitude < 0.01f && !agent.pathPending)
+        {
+            stuckTimer += dt;
+            if (stuckTimer > 2f)
+            {
+                stuckTimer = 0f;
+                if (CurrentState == State.Patrol) PickNewPatrolPoint();
+                else if (CurrentState == State.Search) EnterPatrol();
+            }
+        }
+        else
+        {
+            stuckTimer = 0f;
+        }
+    }
+
+    private void PickNewPatrolPoint()
+    {
+        waitTimer = 0f;
+        stuckTimer = 0f;
+
+        Vector3 point;
+        if (generator != null && generator.HasLevel)
+        {
+            point = generator.GetRandomCellCenter();
+        }
+        else
+        {
+            Vector2 circle = Random.insideUnitCircle * 15f;
+            point = transform.position + new Vector3(circle.x, 0f, circle.y);
+        }
+        SetDestination(point);
+    }
+
+    // Movimiento sin NavMesh: seguir los puntos del camino por la cuadrícula
+    private void UpdateFallbackMovement(float dt)
+    {
+        if (CurrentState == State.Kill || fallbackIndex >= fallbackPath.Count)
+        {
+            return;
+        }
+
+        Vector3 pos = transform.position;
+        Vector3 waypoint = fallbackPath[fallbackIndex];
+        waypoint.y = pos.y;
+
+        Vector3 to = waypoint - pos;
+        float dist = to.magnitude;
+        float step = currentSpeed * (WaterSlow > 0f ? WaterSlow : 1f) * dt;
+
+        if (dist <= step)
+        {
+            transform.position = waypoint;
+            fallbackIndex++;
+        }
+        else
+        {
+            transform.position = pos + (to / dist) * step;
+        }
+
+        if (to.sqrMagnitude > 0.0001f)
+        {
+            Quaternion look = Quaternion.LookRotation(to);
+            transform.rotation = Quaternion.RotateTowards(transform.rotation, look, 360f * dt);
+        }
+    }
+}

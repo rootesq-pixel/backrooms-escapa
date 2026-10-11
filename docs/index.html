@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="es" class="no-js">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <!-- El título visible se cambia con la constante GAME_TITLE de script.js.
+       Las etiquetas <title>/meta de abajo son la copia estática para buscadores y redes sociales:
+       si cambias el título, actualízalas también. -->
+  <title>BACKROOMS: ESCAPA — Juego de terror en primera persona para Windows PC</title>
+  <meta name="description" content="BACKROOMS: ESCAPA es un juego indie de terror en primera persona para Windows PC hecho en Unity. Atraviesa 6 niveles de las Backrooms, encuentra la salida oculta y sobrevive a criaturas distintas en cada nivel.">
+  <meta name="keywords" content="Backrooms, juego de terror, horror, primera persona, Unity, indie, Windows, PC, Poolrooms, found footage, VHS">
+  <meta name="author" content="Equipo de BACKROOMS: ESCAPA">
+  <meta name="robots" content="index, follow">
+  <meta name="theme-color" content="#14110a">
+  <meta name="color-scheme" content="dark">
+  <link rel="canonical" href="https://rootesq-pixel.github.io/backrooms-escapa/">
+  <meta property="og:url" content="https://rootesq-pixel.github.io/backrooms-escapa/">
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="es_ES">
+  <meta property="og:site_name" content="BACKROOMS: ESCAPA">
+  <meta property="og:title" content="BACKROOMS: ESCAPA — Escapa de las Backrooms">
+  <meta property="og:description" content="Terror indie en primera persona para Windows PC. 6 niveles, una criatura distinta en cada uno y una salida que solo encontrarás explorando.">
+  <meta property="og:image" content="https://rootesq-pixel.github.io/backrooms-escapa/assets/img/og-image.jpg">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="Logotipo de BACKROOMS: ESCAPA junto a la criatura El Alto sobre un fondo amarillento.">
+  <!-- Twitter / X -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="BACKROOMS: ESCAPA — Escapa de las Backrooms">
+  <meta name="twitter:description" content="Terror indie en primera persona para Windows PC. 6 niveles, 6 criaturas, una salida oculta.">
+  <meta name="twitter:image" content="https://rootesq-pixel.github.io/backrooms-escapa/assets/img/og-image.jpg">
+
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%2314110a'/%3E%3Crect x='6' y='6' width='52' height='52' fill='none' stroke='%23f2d65c' stroke-width='4'/%3E%3Ccircle cx='32' cy='32' r='9' fill='%23e5322d'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "VideoGame",
+    "name": "BACKROOMS: ESCAPA",
+    "description": "Juego indie de terror en primera persona: escapa de las Backrooms a través de 6 niveles.",
+    "genre": ["Terror", "Survival horror"],
+    "gamePlatform": "PC (Windows)",
+    "operatingSystem": "Windows",
+    "applicationCategory": "Game",
+    "inLanguage": "es",
+    "playMode": "SinglePlayer"
+  }
+  </script>
+</head>
+<body>
+  <a class="skip-link" href="#contenido">Saltar al contenido</a>
+
+  <!-- Capas de efecto VHS (decorativas) -->
+  <div class="vhs-overlay" aria-hidden="true">
+    <canvas id="vhs-noise" class="vhs-noise" width="160" height="90" data-fit></canvas>
+    <div class="vhs-scanlines"></div>
+    <div class="vhs-vignette"></div>
+    <div class="vhs-tracking"></div>
+  </div>
+
+  <header class="site-header" id="inicio-cabecera">
+    <div class="fluo-bar" aria-hidden="true"></div>
+    <div class="header-inner">
+      <a class="logo" href="#inicio" data-title>BACKROOMS: ESCAPA</a>
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="menu-principal">
+        <span class="nav-toggle-bars" aria-hidden="true"></span>
+        <span class="sr-only">Abrir menú</span>
+      </button>
+      <nav class="site-nav" id="menu-principal" aria-label="Navegación principal">
+        <ul>
+          <li><a href="#trailer">Tráiler</a></li>
+          <li><a href="#niveles">Niveles</a></li>
+          <li><a href="#monstruos">Monstruos</a></li>
+          <li><a href="#caracteristicas">Características</a></li>
+          <li><a href="#controles">Controles</a></li>
+          <li><a href="#capturas">Capturas</a></li>
+          <li><a href="#creditos">Créditos</a></li>
+          <li><a href="https://github.com/rootesq-pixel/backrooms-escapa/releases" target="_blank" rel="noopener">Código y versiones</a></li>
+          <li><a class="nav-cta" href="#descarga">Descarga</a></li>
+        </ul>
+      </nav>
+      <div class="rec" aria-hidden="true">
+        <span class="rec-dot"></span><span class="rec-label">REC</span>
+        <span class="rec-time" id="rec-time">00:00:00:00</span>
+      </div>
+    </div>
+  </header>
+
+  <main id="contenido">
+    <!-- HERO -->
+    <section class="hero" id="inicio" aria-labelledby="hero-title">
+      <div class="hero-wallpaper" aria-hidden="true"></div>
+      <div class="hero-light" aria-hidden="true"></div>
+      <div class="hero-inner">
+        <p class="hero-kicker"><span class="tape">CINTA 01</span> Terror indie en primera persona · Windows PC</p>
+        <h1 class="glitch" id="hero-title" data-title data-text="BACKROOMS: ESCAPA">BACKROOMS: ESCAPA</h1>
+        <p class="hero-tagline">Has atravesado la pared equivocada. Zumbido de fluorescentes, moqueta húmeda y kilómetros de pasillos amarillos. Algo te sigue. <strong>Encuentra la salida.</strong></p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v5.0.0/BackroomsEscape_v5_Windows.zip" download>
+            <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 5.5 10.5 4.4v7.1H3V5.5Zm0 13 7.5 1.1v-7H3v5.9Zm8.4 1.2L21 21v-8.4h-9.6v7.1Zm0-15.4v7.2H21V3l-9.6 1.3Z"/></svg>
+            Descargar para Windows
+          </a>
+          <a class="btn btn-ghost" href="#trailer">Ver gameplay</a>
+        </div>
+        <p class="hero-note">Build temprana v5.0.0 · Windows 64 bits · ≈ 46 MB (zip). <a href="https://github.com/rootesq-pixel/backrooms-escapa/releases" target="_blank" rel="noopener">Código y versiones<span class="sr-only"> (se abre en una pestaña nueva)</span></a></p>
+        <ul class="hero-facts" aria-label="Datos rápidos">
+          <li><strong>6</strong> niveles</li>
+          <li><strong>6</strong> criaturas</li>
+          <li><strong>1</strong> salida oculta por nivel</li>
+          <li>Hecho con <strong>Unity</strong></li>
+        </ul>
+      </div>
+      <a class="scroll-hint" href="#trailer" aria-label="Bajar a la sección del tráiler"><span aria-hidden="true">▼</span></a>
+    </section>
+
+    <!-- TRÁILER -->
+    <section class="section reveal" id="trailer" aria-labelledby="trailer-title">
+      <div class="container">
+        <header class="section-head">
+          <p class="section-tag">// 01</p>
+          <h2 id="trailer-title">Tráiler y gameplay</h2>
+        </header>
+        <div class="video-placeholder" role="img" aria-label="Espacio reservado para el tráiler. Todavía no hay vídeo publicado.">
+          <canvas class="static-canvas" width="256" height="144" aria-hidden="true"></canvas>
+          <div class="vp-osd vp-top" aria-hidden="true"><span>▶ PLAY</span><span>SP</span></div>
+          <div class="vp-center">
+            <p class="vp-signal">SIN SEÑAL</p>
+            <p class="vp-text">Tráiler en preparación</p>
+            <p class="vp-sub">Aquí irá el tráiler o un vídeo de gameplay cuando esté disponible.</p>
+          </div>
+          <div class="vp-osd vp-bottom" aria-hidden="true"><span>CH 03</span><span>--:--:--</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- NIVELES -->
+    <section class="section reveal" id="niveles" aria-labelledby="niveles-title">
+      <div class="container">
+        <header class="section-head">
+          <p class="section-tag">// 02</p>
+          <h2 id="niveles-title">Niveles</h2>
+          <p class="section-lead">Seis niveles encadenados, cada uno con su estética, su iluminación, su niebla y su propia criatura. La puerta de salida no tiene cartel ni flecha: solo la encontrarás explorando.</p>
+        </header>
+        <ol class="level-grid">
+          <li class="level-card">
+            <img src="assets/img/textura-nivel0.jpg" alt="Textura procedural de papel pintado amarillo, húmedo y despegado, del Nivel 0." width="400" height="366" loading="lazy">
+            <div class="level-body">
+              <p class="level-num">NIVEL 0</p>
+              <h3>Oficinas amarillas</h3>
+              <p>El clásico: papel pintado amarillento y húmedo, moqueta marrón, techo de placas y fluorescentes que parpadean. Un laberinto de pasillos con salas abiertas.</p>
+            </div>
+          </li>
+          <li class="level-card">
+            <img src="assets/img/textura-nivel1.jpg" alt="Textura procedural de suelo de hormigón gris con manchas de aceite, del Nivel 1." width="400" height="366" loading="lazy">
+            <div class="level-body">
+              <p class="level-num">NIVEL 1</p>
+              <h3>Aparcamiento</h3>
+              <p>Hormigón gris, manchas de aceite y pilares. Un espacio abierto, de techo alto y muy oscuro, con tubos fluorescentes muy separados y a menudo muertos.</p>
+            </div>
+          </li>
+          <li class="level-card">
+            <img src="assets/img/textura-nivel2.jpg" alt="Textura procedural de azulejos blancos de piscina con una franja azul, del Nivel 2." width="400" height="366" loading="lazy">
+            <div class="level-body">
+              <p class="level-num">NIVEL 2</p>
+              <h3>Salas inundadas</h3>
+              <p>Azulejos de piscina y agua hasta las rodillas. Luz azulada, pasos que chapotean y un avance más lento mientras algo se mueve bajo la superficie.</p>
+            </div>
+          </li>
+          <li class="level-card">
+            <img src="assets/img/textura-nivel3.jpg" alt="Render del gran salón de los Poolrooms: escalera blanca y agua verdosa." width="400" height="366" loading="lazy">
+            <div class="level-body">
+              <p class="level-num">NIVEL 3</p>
+              <h3>Poolrooms</h3>
+              <p>Un laberinto de azulejos luminoso, cian y blanco, con un gran salón de escaleras y altillo y un foso profundo donde tendrás que nadar y bucear.</p>
+            </div>
+          </li>
+          <li class="level-card">
+            <img src="assets/img/textura-nivel4.jpg" alt="Textura procedural de papel pintado granate con zócalo de madera, del Nivel 4." width="400" height="366" loading="lazy">
+            <div class="level-body">
+              <p class="level-num">NIVEL 4</p>
+              <h3>Hotel abandonado</h3>
+              <p>Pasillos estrechos, moqueta roja y papel damasco. Solo quedan lámparas de pared casi muertas y una niebla densa: la linterna es imprescindible.</p>
+            </div>
+          </li>
+          <li class="level-card">
+            <img src="assets/img/textura-nivel5.jpg" alt="Textura procedural de chapa metálica oxidada con remaches, del Nivel 5." width="400" height="366" loading="lazy">
+            <div class="level-body">
+              <p class="level-num">NIVEL 5</p>
+              <h3>Complejo industrial</h3>
+              <p>Chapa oxidada con remaches, suelo de chapa lagrimada, tuberías y luces de emergencia rojas que pulsan. El último tramo antes de salir… si sales.</p>
+            </div>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- MONSTRUOS -->
+    <section class="section section-dark reveal" id="monstruos" aria-labelledby="monstruos-title">
+      <div class="container">
+        <header class="section-head">
+          <p class="section-tag">// 03</p>
+          <h2 id="monstruos-title">Monstruos</h2>
+          <p class="section-lead">Una criatura distinta en cada nivel. Patrullan, te oyen correr, te ven si llevas la linterna encendida y, cuando te pierden, te buscan.</p>
+        </header>
+        <ul class="monster-grid">
+          <li class="monster-card">
+            <figure>
+              <div class="monster-img"><img src="assets/img/monstruo-el-alto.jpg" alt="El Alto: criatura humanoide pálida, delgada y muy alta, con la boca llena de dientes." width="480" height="480" loading="lazy"></div>
+              <figcaption>
+                <span class="monster-level">Nivel 0 · Oficinas amarillas</span>
+                <strong class="monster-name">El Alto</strong>
+                <span class="monster-desc">Pálido, ceniciento y estirado más allá de lo humano. Recorre las oficinas sin prisa… hasta que te ve.</span>
+              </figcaption>
+            </figure>
+          </li>
+          <li class="monster-card">
+            <figure>
+              <div class="monster-img"><img src="assets/img/monstruo-el-coloso.jpg" alt="El Coloso: mutante enorme y encorvado de piel oscura y rugosa." width="480" height="480" loading="lazy"></div>
+              <figcaption>
+                <span class="monster-level">Nivel 1 · Aparcamiento</span>
+                <strong class="monster-name">El Coloso</strong>
+                <span class="monster-desc">Una mole oscura que domina los espacios abiertos del aparcamiento y alcanza a verte desde muy lejos.</span>
+              </figcaption>
+            </figure>
+          </li>
+          <li class="monster-card">
+            <figure>
+              <div class="monster-img"><img src="assets/img/monstruo-el-reptador.jpg" alt="El Reptador: insecto alienígena verdoso con patas largas y afiladas y cola de escorpión." width="480" height="480" loading="lazy"></div>
+              <figcaption>
+                <span class="monster-level">Nivel 2 · Salas inundadas</span>
+                <strong class="monster-name">El Reptador</strong>
+                <span class="monster-desc">Húmedo, brillante y de oído finísimo. Si oyes un chapoteo que no es tuyo, ya es tarde.</span>
+              </figcaption>
+            </figure>
+          </li>
+          <li class="monster-card">
+            <figure>
+              <div class="monster-img"><img src="assets/img/monstruo-el-ahogado.jpg" alt="El Ahogado: zombi de piel azul verdosa y empapada, con los brazos abiertos." width="480" height="480" loading="lazy"></div>
+              <figcaption>
+                <span class="monster-level">Nivel 3 · Poolrooms</span>
+                <strong class="monster-name">El Ahogado</strong>
+                <span class="monster-desc">Empapado, de ojos fríos y con un lamento que resuena entre los azulejos de los Poolrooms.</span>
+              </figcaption>
+            </figure>
+          </li>
+          <li class="monster-card">
+            <figure>
+              <div class="monster-img"><img src="assets/img/monstruo-el-huesped.jpg" alt="El Huésped: zombi de piel gris verdosa y ropa raída, corriendo con los brazos extendidos." width="480" height="480" loading="lazy"></div>
+              <figcaption>
+                <span class="monster-level">Nivel 4 · Hotel abandonado</span>
+                <strong class="monster-name">El Huésped</strong>
+                <span class="monster-desc">Nunca hizo el check-out. Son dos, ven peor a oscuras y escuchan cada paso sobre la moqueta.</span>
+              </figcaption>
+            </figure>
+          </li>
+          <li class="monster-card">
+            <figure>
+              <div class="monster-img"><img src="assets/img/monstruo-el-hollin.jpg" alt="El Hollín: figura encorvada y estirada, cubierta de hollín negro y grasiento, con ojos pálidos." width="480" height="480" loading="lazy"></div>
+              <figcaption>
+                <span class="monster-level">Nivel 5 · Complejo industrial</span>
+                <strong class="monster-name">El Hollín</strong>
+                <span class="monster-desc">Negro, grasiento y tembloroso. Dos ejemplares, más rápidos que cualquier otra criatura.</span>
+              </figcaption>
+            </figure>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- CARACTERÍSTICAS -->
+    <section class="section reveal" id="caracteristicas" aria-labelledby="caracteristicas-title">
+      <div class="container">
+        <header class="section-head">
+          <p class="section-tag">// 04</p>
+          <h2 id="caracteristicas-title">Características</h2>
+        </header>
+        <ul class="feature-grid">
+          <li class="feature">
+            <span class="feature-icon" aria-hidden="true">◎</span>
+            <h3>Salida oculta</h3>
+            <p>Cada nivel esconde una puerta discreta en una de sus zonas más alejadas. Sin carteles, sin flechas, sin indicador de distancia.</p>
+          </li>
+          <li class="feature">
+            <span class="feature-icon" aria-hidden="true">▦</span>
+            <h3>Texturas procedurales, niebla y fluorescentes</h3>
+            <p>Paredes, suelos y techos generados por código, niebla de color distinta en cada nivel y tubos fluorescentes que zumban y parpadean.</p>
+          </li>
+          <li class="feature">
+            <span class="feature-icon" aria-hidden="true">≈</span>
+            <h3>Agua realista</h3>
+            <p>Olas, reflejos, espuma y cáusticas; vadeo con chapoteos, restos flotantes, gotas en la lente y zonas profundas donde nadar y bucear.</p>
+          </li>
+          <li class="feature">
+            <span class="feature-icon feature-rec" aria-hidden="true">●</span>
+            <h3>Cámara VHS found-footage</h3>
+            <p>Activa el modo VHS con <kbd>V</kbd>: indicador REC, timecode, scanlines, aberración de color y glitches que empeoran cuando algo se acerca.</p>
+          </li>
+          <li class="feature">
+            <span class="feature-icon" aria-hidden="true">☢</span>
+            <h3>Cuerpo completo con traje hazmat</h3>
+            <p>Mira hacia abajo y verás tu traje amarillo, tus botas y tu mano sujetando la linterna. El traje se empapa al entrar en el agua.</p>
+          </li>
+          <li class="feature">
+            <span class="feature-icon" aria-hidden="true">▤</span>
+            <h3>Inventario</h3>
+            <p>Pilas para la linterna, agua de almendras para recuperar resistencia y cordura, barras luminosas para marcar el camino y notas por descubrir.</p>
+          </li>
+          <li class="feature">
+            <span class="feature-icon" aria-hidden="true">☰</span>
+            <h3>Menú de inicio y pausa</h3>
+            <p>Menú principal con selección de nivel, opciones y créditos; pausa con <kbd>Esc</kbd>. Volumen, sensibilidad, calidad, head-bob, intensidad del VHS y más.</p>
+          </li>
+          <li class="feature">
+            <span class="feature-icon" aria-hidden="true">✕</span>
+            <h3>Susto de muerte… o «susto suave»</h3>
+            <p>Si te atrapan, la cámara se clava en su cara: grito, sacudida y pérdida de señal. La opción «Susto suave» reduce volumen, destellos, sacudida y glitch.</p>
+          </li>
+        </ul>
+
+        <div class="death-demo" role="group" aria-label="Ejemplo de la pantalla de muerte del juego">
+          <div class="death-screen" aria-hidden="true">
+            <p class="death-signal">SIGNAL LOST</p>
+            <p class="death-title">HAS MUERTO</p>
+            <p class="death-buttons"><span>Reintentar</span><span>Menú principal</span></p>
+          </div>
+          <div class="death-text">
+            <h3>La pantalla que no quieres ver</h3>
+            <p>Corte a negro, estática y «SIGNAL LOST». En esta web no hay sustos: esta pantalla es solo una recreación estática del estilo del juego.</p>
+            <ul class="inventory-list" aria-label="Objetos del inventario">
+              <li><span class="item-icon item-battery" aria-hidden="true"></span>Pilas</li>
+              <li><span class="item-icon item-water" aria-hidden="true"></span>Agua de almendras</li>
+              <li><span class="item-icon item-glow" aria-hidden="true"></span>Barras luminosas</li>
+              <li><span class="item-icon item-note" aria-hidden="true"></span>Notas</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CONTROLES -->
+    <section class="section section-dark reveal" id="controles" aria-labelledby="controles-title">
+      <div class="container">
+        <header class="section-head">
+          <p class="section-tag">// 05</p>
+          <h2 id="controles-title">Controles</h2>
+          <p class="section-lead">Teclado y ratón.</p>
+        </header>
+        <dl class="controls">
+          <div class="control"><dt><span class="keys wasd"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span></dt><dd>Moverse</dd></div>
+          <div class="control"><dt><span class="keys"><kbd class="key-wide">Ratón</kbd></span></dt><dd>Mirar</dd></div>
+          <div class="control"><dt><span class="keys"><kbd class="key-wide">Shift</kbd></span></dt><dd>Correr</dd></div>
+          <div class="control"><dt><span class="keys"><kbd class="key-wide">Ctrl</kbd><span class="key-sep">/</span><kbd>C</kbd></span></dt><dd>Agacharse</dd></div>
+          <div class="control"><dt><span class="keys"><kbd>F</kbd></span></dt><dd>Linterna</dd></div>
+          <div class="control"><dt><span class="keys"><kbd>I</kbd></span></dt><dd>Inventario</dd></div>
+          <div class="control"><dt><span class="keys"><kbd>V</kbd></span></dt><dd>Modo cámara VHS</dd></div>
+          <div class="control"><dt><span class="keys"><kbd class="key-wide">Esc</kbd></span></dt><dd>Pausa</dd></div>
+          <div class="control"><dt><span class="keys"><kbd>R</kbd></span></dt><dd>Reiniciar nivel</dd></div>
+        </dl>
+      </div>
+    </section>
+
+    <!-- CAPTURAS -->
+    <section class="section reveal" id="capturas" aria-labelledby="capturas-title">
+      <div class="container">
+        <header class="section-head">
+          <p class="section-tag">// 06</p>
+          <h2 id="capturas-title">Capturas</h2>
+          <p class="section-lead">Renders de previsualización del desarrollo (modelos, traje del jugador, Poolrooms y texturas). No son el aspecto final con niebla e iluminación del juego.</p>
+        </header>
+        <ul class="gallery">
+          <li class="gallery-item gallery-wide">
+            <button type="button" class="gallery-btn" data-full="assets/img/poolrooms-escalera.jpg" data-caption="Poolrooms: escalera del gran salón y agua verdosa.">
+              <img src="assets/img/poolrooms-escalera.jpg" alt="Poolrooms: escalera blanca del gran salón que desciende hacia agua verdosa." width="640" height="400" loading="lazy">
+            </button>
+            <p class="gallery-caption">Poolrooms · gran salón</p>
+          </li>
+          <li class="gallery-item gallery-tall">
+            <button type="button" class="gallery-btn" data-full="assets/img/texturas-contact-sheet.jpg" data-caption="Hoja de texturas procedurales: pared, suelo y techo de cada estilo de nivel.">
+              <img src="assets/img/texturas-contact-sheet.jpg" alt="Hoja de contactos con 15 texturas procedurales: papel amarillo, hormigón, azulejos de piscina, papel de hotel y chapa oxidada." width="740" height="1230" loading="lazy">
+            </button>
+            <p class="gallery-caption">Texturas procedurales</p>
+          </li>
+          <li class="gallery-item">
+            <button type="button" class="gallery-btn" data-full="assets/img/hazmat-tercera-persona.jpg" data-caption="Traje hazmat amarillo del jugador (vista exterior).">
+              <img src="assets/img/hazmat-tercera-persona.jpg" alt="Personaje con traje hazmat amarillo, casco y guantes negros, sujetando una linterna." width="960" height="540" loading="lazy">
+            </button>
+            <p class="gallery-caption">Traje hazmat · vista exterior</p>
+          </li>
+          <li class="gallery-item">
+            <button type="button" class="gallery-btn" data-full="assets/img/hazmat-linterna.jpg" data-caption="Primera persona: brazo del traje hazmat sujetando la linterna.">
+              <img src="assets/img/hazmat-linterna.jpg" alt="Vista en primera persona del brazo amarillo del traje con guante negro sujetando una linterna." width="960" height="540" loading="lazy">
+            </button>
+            <p class="gallery-caption">Primera persona · linterna en mano</p>
+          </li>
+          <li class="gallery-item">
+            <button type="button" class="gallery-btn" data-full="assets/img/poolrooms-salon.jpg" data-caption="Poolrooms: vista general del salón con altillo y escalera.">
+              <img src="assets/img/poolrooms-salon.jpg" alt="Vista general del salón de los Poolrooms con altillo, escalera y agua." width="640" height="400" loading="lazy">
+            </button>
+            <p class="gallery-caption">Poolrooms · vista general</p>
+          </li>
+          <li class="gallery-item">
+            <button type="button" class="gallery-btn" data-full="assets/img/hazmat-mirar-abajo.jpg" data-caption="Primera persona: guantes del traje y su sombra sobre la moqueta.">
+              <img src="assets/img/hazmat-mirar-abajo.jpg" alt="Primera persona: guante negro y manga amarilla del traje, con su sombra proyectada en el suelo." width="960" height="540" loading="lazy">
+            </button>
+            <p class="gallery-caption">Primera persona · cuerpo visible</p>
+          </li>
+          <li class="gallery-item">
+            <button type="button" class="gallery-btn" data-full="assets/img/poolrooms-altillo.jpg" data-caption="Poolrooms: el altillo y los pilares sobre el agua.">
+              <img src="assets/img/poolrooms-altillo.jpg" alt="Poolrooms: altillo sostenido por pilares sobre una lámina de agua." width="640" height="400" loading="lazy">
+            </button>
+            <p class="gallery-caption">Poolrooms · altillo</p>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- CRÉDITOS -->
+    <section class="section section-dark reveal" id="creditos" aria-labelledby="creditos-title">
+      <div class="container">
+        <header class="section-head">
+          <p class="section-tag">// 07</p>
+          <h2 id="creditos-title">Créditos</h2>
+          <p class="section-lead">Mallas del nivel, texturas, audio, shader VHS e interfaz son procedurales / código del proyecto (sin assets externos). Los modelos de monstruos y el traje del jugador son CC0 (dominio público); se acreditan por cortesía y trazabilidad.</p>
+        </header>
+
+        <h3 class="credits-sub">Modelos de monstruos <span class="badge">CC0 / dominio público</span></h3>
+        <div class="table-wrap">
+          <table class="credits-table">
+            <thead><tr><th scope="col">Nivel</th><th scope="col">Nombre</th><th scope="col">Modelo (Id)</th><th scope="col">Autor</th><th scope="col">Licencia</th><th scope="col">Fuente</th></tr></thead>
+            <tbody>
+              <tr><td data-label="Nivel">0 Oficinas</td><td data-label="Nombre">El Alto</td><td data-label="Modelo"><code>HorrorStalker</code></td><td data-label="Autor">HorrorGameMaker.com (City Building Game Art)</td><td data-label="Licencia">CC0 (dominio público)</td><td data-label="Fuente"><a href="https://opengameart.org/content/3d-horror-game-monster" rel="noopener" target="_blank">OpenGameArt<span class="sr-only"> (se abre en una pestaña nueva)</span></a></td></tr>
+              <tr><td data-label="Nivel">1 Aparcamiento</td><td data-label="Nombre">El Coloso</td><td data-label="Modelo"><code>GiantMutant</code></td><td data-label="Autor">Eldritch Grim</td><td data-label="Licencia">CC0 (dominio público)</td><td data-label="Fuente"><a href="https://opengameart.org/content/giant-mutant" rel="noopener" target="_blank">OpenGameArt<span class="sr-only"> (se abre en una pestaña nueva)</span></a></td></tr>
+              <tr><td data-label="Nivel">2 Salas inundadas</td><td data-label="Nombre">El Reptador</td><td data-label="Modelo"><code>AlienBug</code></td><td data-label="Autor">CDmir</td><td data-label="Licencia">CC0 (dominio público)</td><td data-label="Fuente"><a href="https://opengameart.org/content/alien-bug-animated" rel="noopener" target="_blank">OpenGameArt<span class="sr-only"> (se abre en una pestaña nueva)</span></a></td></tr>
+              <tr><td data-label="Nivel">3 Poolrooms</td><td data-label="Nombre">El Ahogado</td><td data-label="Modelo"><code>DrownedZombie</code></td><td data-label="Autor">Rikindle3D (modelo del Huésped, reteñido)</td><td data-label="Licencia">CC0 (dominio público)</td><td data-label="Fuente"><a href="https://opengameart.org/content/male-city-zombie-ready-for-use-in-game-engines" rel="noopener" target="_blank">OpenGameArt<span class="sr-only"> (se abre en una pestaña nueva)</span></a></td></tr>
+              <tr><td data-label="Nivel">4 Hotel</td><td data-label="Nombre">El Huésped</td><td data-label="Modelo"><code>CityZombie</code></td><td data-label="Autor">Rikindle3D</td><td data-label="Licencia">CC0 (dominio público)</td><td data-label="Fuente"><a href="https://opengameart.org/content/male-city-zombie-ready-for-use-in-game-engines" rel="noopener" target="_blank">OpenGameArt<span class="sr-only"> (se abre en una pestaña nueva)</span></a></td></tr>
+              <tr><td data-label="Nivel">5 Industrial</td><td data-label="Nombre">El Hollín</td><td data-label="Modelo"><code>SootHorror</code></td><td data-label="Autor">EmoPreben</td><td data-label="Licencia">CC0 (dominio público)</td><td data-label="Fuente"><a href="https://opengameart.org/content/horror-monster-0" rel="noopener" target="_blank">OpenGameArt<span class="sr-only"> (se abre en una pestaña nueva)</span></a></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="credits-note">Los modelos originales se convirtieron a FBX con Blender (decimado / renombrado de animaciones donde se indica) y se retexturizaron o tintaron en Unity. Los ojos brillantes, sonidos (gruñidos, pasos), temblor y efectos de terror son procedurales.</p>
+
+        <details class="credits-details">
+          <summary>Modificaciones de cada modelo</summary>
+          <ul>
+            <li><strong>HorrorStalker</strong> (El Alto): retextura pálida/ceniza, estirado en altura; ojos y sonidos procedurales.</li>
+            <li><strong>GiantMutant</strong> (El Coloso): malla reducida (decimado ~30 %), oscurecida; ojos y sonidos procedurales.</li>
+            <li><strong>AlienBug</strong> (El Reptador): convertido de GLB a FBX con Blender; escalado x2.5 y húmedo/brillante; sonido de chapoteo procedural.</li>
+            <li><strong>CityZombie</strong> (El Huésped): texturas desaturadas y reteñidas (gris verdoso) con Pillow; animaciones reasignadas al esqueleto con Blender; ojos y sonidos procedurales.</li>
+            <li><strong>DrownedZombie</strong> (El Ahogado): mismo modelo de Rikindle3D que el Huésped, con textura reteñida azul verdosa y empapada, ojos fríos y lamento de ahogado procedural.</li>
+            <li><strong>SootHorror</strong> (El Hollín): malla decimada (~45 %) y estirada/encorvada; textura reteñida a negro hollín grasiento; animaciones de zombi (Mixamo) reasignadas con Blender; ojos pálidos, temblor y sonidos procedurales. Licencia CC0 comprobada en la página del autor el 11-oct-2026.</li>
+          </ul>
+        </details>
+
+        <h3 class="credits-sub">Cuerpo del jugador (traje hazmat)</h3>
+        <div class="table-wrap">
+          <table class="credits-table">
+            <thead><tr><th scope="col">Modelo (Id)</th><th scope="col">Nombre</th><th scope="col">Autor</th><th scope="col">Licencia</th><th scope="col">Fuente</th></tr></thead>
+            <tbody>
+              <tr><td data-label="Modelo"><code>PlayerHazmat</code></td><td data-label="Nombre">«Character Hazmat»</td><td data-label="Autor">Quaternius</td><td data-label="Licencia">CC0 1.0 (dominio público)</td><td data-label="Fuente"><span><a href="https://poly.pizza/m/z3TSQYx1Kn" rel="noopener" target="_blank">Poly Pizza<span class="sr-only"> (se abre en una pestaña nueva)</span></a> · <a href="https://quaternius.com" rel="noopener" target="_blank">quaternius.com<span class="sr-only"> (se abre en una pestaña nueva)</span></a></span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="credits-note">Licencia comprobada el 11-oct-2026 en la página de Poly Pizza («Licence: CC0 1.0», «Public Domain (CC0)»). Cambios: GLB convertido a FBX con Blender; eliminadas las armas y el resto de objetos; conservadas las animaciones Idle, Walk, Run y Duck; color del traje cambiado a amarillo hazmat con guantes/botas negros (materiales de Unity). La linterna de mano, el IK del brazo, las sombras y el efecto de empapado son procedurales.</p>
+
+        <div class="credits-cols">
+          <div>
+            <h3 class="credits-sub">Nivel 3 «Poolrooms»</h3>
+            <p>La sala del Poolrooms procede del archivo <code>poolrooms_user.blend</code> aportado por el autor del juego (modelo propio; no requiere atribución). Se exportó con Blender a FBX (sin cámara/luz/agua; texturas por código).</p>
+          </div>
+          <div>
+            <h3 class="credits-sub">Herramientas</h3>
+            <ul class="tools-list">
+              <li>Unity 2022.3 LTS</li>
+              <li>Blender (conversión de modelos)</li>
+              <li>Python/Pillow (retexturizado de los zombis y del Hollín)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+    <!-- REQUISITOS + DESCARGA -->
+    <section class="section reveal" id="descarga" aria-labelledby="descarga-title">
+      <div class="container">
+        <header class="section-head">
+          <p class="section-tag">// 08</p>
+          <h2 id="descarga-title">Descarga</h2>
+        </header>
+        <div class="download-box">
+          <div class="download-main">
+            <p class="download-platform">Windows PC · 64 bits</p>
+            <a class="btn btn-primary" href="https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v5.0.0/BackroomsEscape_v5_Windows.zip" download>
+              <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 5.5 10.5 4.4v7.1H3V5.5Zm0 13 7.5 1.1v-7H3v5.9Zm8.4 1.2L21 21v-8.4h-9.6v7.1Zm0-15.4v7.2H21V3l-9.6 1.3Z"/></svg>
+              Descargar para Windows
+            </a>
+            <p class="download-note"><strong>v5.0.0</strong> · ZIP de ≈ 46 MB <span class="tbd">(aprox.)</span>. Descomprime y ejecuta <code>BackroomsEscape.exe</code>.</p>
+            <p class="download-note download-smartscreen"><strong>Aviso de Windows SmartScreen:</strong> el ejecutable no está firmado digitalmente, por lo que Windows puede mostrar «Windows protegió su PC». Pulsa <em>Más información</em> → <em>Ejecutar de todas formas</em> si confías en la descarga. Es una build temprana.</p>
+            <p class="download-note"><a href="https://github.com/rootesq-pixel/backrooms-escapa/releases" target="_blank" rel="noopener">Código y versiones<span class="sr-only"> (se abre en una pestaña nueva)</span></a> · <a href="https://github.com/rootesq-pixel/backrooms-escapa" target="_blank" rel="noopener">Repositorio en GitHub<span class="sr-only"> (se abre en una pestaña nueva)</span></a></p>
+          </div>
+          <div class="requirements">
+            <h3 id="requisitos">Requisitos del sistema <span class="badge">Estimados · por confirmar</span></h3>
+            <p class="req-warning">Valores provisionales: todavía no se han probado en distintos equipos. Se publicarán cuando haya pruebas.</p>
+            <table>
+              <caption class="sr-only">Requisitos del sistema estimados</caption>
+              <thead><tr><th scope="col">Componente</th><th scope="col">Mínimos</th><th scope="col">Recomendados</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">Sistema operativo</th><td>Windows de 64 bits <span class="tbd">(estimado)</span></td><td>Windows 10/11 de 64 bits <span class="tbd">(estimado)</span></td></tr>
+                <tr><th scope="row">Procesador</th><td class="tbd">Por determinar</td><td class="tbd">Por determinar</td></tr>
+                <tr><th scope="row">Memoria</th><td class="tbd">Por determinar</td><td class="tbd">Por determinar</td></tr>
+                <tr><th scope="row">Gráficos</th><td class="tbd">Por determinar</td><td class="tbd">Por determinar</td></tr>
+                <tr><th scope="row">Almacenamiento</th><td colspan="2">≈ 46 MB comprimido / ≈ 103 MB descomprimido <span class="tbd">(aproximado; puede cambiar)</span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="site-footer">
+    <div class="container footer-inner">
+      <p class="footer-title" data-title>BACKROOMS: ESCAPA</p>
+      <p class="footer-unity">Hecho con Unity</p>
+      <p class="footer-small">Juego indie para Windows PC. Las Backrooms son una leyenda colaborativa de Internet; este proyecto es una obra independiente.</p>
+      <p class="footer-small"><a href="#inicio">Volver arriba ↑</a></p>
+    </div>
+  </footer>
+
+  <dialog class="lightbox" id="lightbox" aria-label="Captura ampliada">
+    <form method="dialog"><button class="lightbox-close" type="submit" aria-label="Cerrar">✕</button></form>
+    <img alt="" id="lightbox-img">
+    <p id="lightbox-caption"></p>
+  </dialog>
+
+  <script src="script.js"></script>
+</body>
+</html>

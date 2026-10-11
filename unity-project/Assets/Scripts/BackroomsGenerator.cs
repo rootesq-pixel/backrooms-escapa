@@ -1,0 +1,1292 @@
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Rendering;
+
+// Generador procedural de niveles (Backrooms) a partir de un LevelConfig.
+// - Layout: laberinto (backtracker + bucles + salas abiertas) o rejilla abierta con pilares.
+// - Geometría: mallas por "chunks" con UV en coordenadas de mundo (texturas con escala real),
+//   suelo/techo/paredes con materiales Standard (albedo + normal + máscara PBR).
+// - Luces: accesorios emisivos; solo las N más cercanas al jugador son luces reales (LightCuller).
+// - Puerta de salida sutil (sin cartel ni pistas lejanas), pilas, puntos de aparición del monstruo.
+// NOTA: asume escala (1,1,1) en este objeto.
+public class BackroomsGenerator : MonoBehaviour
+{
+    [Header("Semilla")]
+    public bool useRandomSeed = true;
+    public int seed = 12345;
+
+    [Header("Nivel")]
+    [Tooltip("Parámetros del nivel. Si es null se usa el Nivel 0.")]
+    public LevelConfig config;
+
+    // Parámetros de layout (se copian del LevelConfig al generar)
+    [HideInInspector] public int gridWidth = 14;
+    [HideInInspector] public int gridHeight = 14;
+    [HideInInspector] public float cellSize = 4f;
+    [HideInInspector] public float wallHeight = 3f;
+    [HideInInspector] public float loopChance = 0.12f;
+    [HideInInspector] public int roomCount = 8;
+    [HideInInspector] public Vector2Int roomSizeRange = new Vector2Int(2, 4);
+    public float wallThickness = 0.2f;
+
+    [Header("Ejecución")]
+    [Tooltip("Genera el nivel en Start (déjalo en false si lo llama GameBootstrap).")]
+    public bool generateOnStart = false;
+
+    // --- Resultados públicos ---
+    public bool IsGenerated { get; private set; }
+    public bool HasLevel { get { return IsGenerated && levelRoot != null; } }
+    public int UsedSeed { get; private set; }
+    public Vector3 PlayerStart { get; private set; }
+    public float PlayerStartYaw { get; private set; }
+    public Vector3 MonsterSpawn { get; private set; }
+    public List<Vector3> MonsterSpawns { get; private set; }
+    public List<Vector3> BatterySpots { get; private set; }
+    public List<Vector3> ExtraSpots { get; private set; }     // sitios para notas, agua de almendras, barras luminosas y cintas
+    public Vector3 ExitPosition { get; private set; }
+    public Transform ExitTransform { get; private set; }
+    public Transform Root { get { return levelRoot; } }
+    public LightCuller Culler { get; private set; }
+    public int GridWidth { get { return w; } }
+    public int GridHeight { get { return h; } }
+    public Vector2Int StartCell { get { return startCell; } }
+    public Vector2Int ExitCell { get { return exitCell; } }
+    public int FixtureCount { get; private set; }
+    public int LiveFixtureCount { get; private set; }
+    public int PillarCount { get; private set; }
+    public int WallSegmentCount { get; private set; }
+
+    // --- Sala grande (Poolrooms) ---
+    public bool HasHall { get { return config != null && config.poolHall; } }
+    public RectInt HallRect { get; private set; }
+    public Transform HallRoot { get; private set; }
+    public WaterVolume Water { get; private set; }
+    public Vector3 HallBatteryMezzanine { get; private set; }
+    public Vector3 HallBatteryPit { get; private set; }
+    public Rect PitRectLocal { get; private set; }
+    public float PitDepth { get; private set; }
+    // Rampa de las escaleras (invisible, sobre la sierra de escalones) para que el CharacterController pueda subir
+    public BoxCollider StairRamp { get; private set; }
+
+    // --- Datos internos ---
+    private Transform levelRoot;
+    private Transform decorRoot;
+    private int w;
+    private int h;
+    // wallsV[i, j]: muro vertical en la línea x=i, fila j (entre celda i-1 e i)
+    private bool[,] wallsV;
+    // wallsH[i, j]: muro horizontal en la línea z=j, columna i (entre celda j-1 y j)
+    private bool[,] wallsH;
+    private int[,] distFromStart;
+    private Vector2Int startCell;
+    private Vector2Int exitCell;
+    private int maxDistCache;
+    private readonly List<Object> createdAssets = new List<Object>();
+
+    // Direcciones: 0 = Norte (+Z), 1 = Este (+X), 2 = Sur (-Z), 3 = Oeste (-X)
+    private static readonly Vector2Int[] Dirs =
+    {
+        new Vector2Int(0, 1), new Vector2Int(1, 0), new Vector2Int(0, -1), new Vector2Int(-1, 0)
+    };
+
+    private void Start()
+    {
+        if (generateOnStart && !IsGenerated)
+        {
+            Generate();
+        }
+    }
+
+    private void OnDestroy()
+    {
+        DestroyCreatedAssets();
+    }
+
+    // ------------------------------------------------------------------
+    // API principal
+    // ------------------------------------------------------------------
+
+    // Genera (o regenera) todo el nivel
+    public void Generate()
+    {
+        Clear();
+
+        if (config == null) config = LevelConfig.Get(0);
+        gridWidth = config.gridW;
+        gridHeight = config.gridH;
+        cellSize = config.cellSize;
+        wallHeight = config.wallHeight;
+        loopChance = config.loopChance;
+        roomCount = config.roomCount;
+        roomSizeRange = config.roomSize;
+
+        UsedSeed = useRandomSeed ? System.Environment.TickCount : seed;
+        System.Random rng = new System.Random(UsedSeed);
+
+        w = Mathf.Max(3, gridWidth);
+        h = Mathf.Max(3, gridHeight);
+
+        BuildLayout(rng);
+        ComputeKeyCells(rng);
+        BuildGeometry(rng);
+
+        IsGenerated = true;
+    }
+
+    // Borra el nivel generado y los materiales/mallas creados (las texturas viven en TextureLibrary)
+    public void Clear()
+    {
+        if (levelRoot != null)
+        {
+            ProceduralAssets.SafeDestroy(levelRoot.gameObject);
+            levelRoot = null;
+        }
+        if (decorRoot != null)
+        {
+            ProceduralAssets.SafeDestroy(decorRoot.gameObject);
+            decorRoot = null;
+        }
+        DestroyCreatedAssets();
+        ExitTransform = null;
+        Culler = null;
+        IsGenerated = false;
+    }
+
+    private void DestroyCreatedAssets()
+    {
+        for (int i = 0; i < createdAssets.Count; i++)
+        {
+            ProceduralAssets.SafeDestroy(createdAssets[i]);
+        }
+        createdAssets.Clear();
+    }
+
+    // Centro (en el suelo) de una celda, en coordenadas del mundo
+    public Vector3 CellCenterWorld(int x, int z)
+    {
+        return levelRoot.TransformPoint(CellCenterLocal(x, z));
+    }
+
+    public bool IsHallCell(int x, int z)
+    {
+        return config != null && config.poolHall && x >= HallRect.xMin && x < HallRect.xMax && z >= HallRect.yMin && z < HallRect.yMax;
+    }
+
+    // Distancia (en el plano XZ, coordenadas locales del nivel) hasta la pared más cercana (superficie)
+    public float WallDistance(float x, float z)
+    {
+        float cs = cellSize;
+        int ci = Mathf.FloorToInt(x / cs), cj = Mathf.FloorToInt(z / cs);
+        float best = 99f;
+        for (int i = ci - 1; i <= ci + 2; i++)
+        {
+            if (i < 0 || i > w) continue;
+            for (int j = cj - 1; j <= cj + 1; j++)
+            {
+                if (j < 0 || j >= h || !wallsV[i, j]) continue;
+                float dz = Mathf.Max(0f, Mathf.Max(j * cs - z, z - (j + 1) * cs));
+                float dx = Mathf.Abs(x - i * cs);
+                best = Mathf.Min(best, Mathf.Sqrt(dx * dx + dz * dz));
+            }
+        }
+        for (int i = ci - 1; i <= ci + 1; i++)
+        {
+            if (i < 0 || i >= w) continue;
+            for (int j = cj - 1; j <= cj + 2; j++)
+            {
+                if (j < 0 || j > h || !wallsH[i, j]) continue;
+                float dx = Mathf.Max(0f, Mathf.Max(i * cs - x, x - (i + 1) * cs));
+                float dz = Mathf.Abs(z - j * cs);
+                best = Mathf.Min(best, Mathf.Sqrt(dx * dx + dz * dz));
+            }
+        }
+        return Mathf.Max(0f, best - wallThickness * 0.5f);
+    }
+
+    // Altura del suelo analítica (solo el foso baja del 0); coordenadas locales
+    public float FloorHeightLocal(float x, float z)
+    {
+        if (HasHall && PitDepth > 0f)
+        {
+            Rect r = PitRectLocal;
+            if (x >= r.xMin && x <= r.xMax && z >= r.yMin && z <= r.yMax)
+            {
+                float zm = r.yMin + cellSize;
+                float k = Mathf.Clamp01((z - r.yMin) / cellSize);
+                if (z <= zm) return -PitDepth * k;
+                return -PitDepth;
+            }
+        }
+        return 0f;
+    }
+
+    // Un punto aleatorio (centro de celda) para patrullas
+    public Vector3 GetRandomCellCenter()
+    {
+        int x = Random.Range(0, w);
+        int z = Random.Range(0, h);
+        return CellCenterWorld(x, z);
+    }
+
+    // ¿Se puede pasar desde la celda (x,z) en la dirección dir (0 N, 1 E, 2 S, 3 O)? (para tests)
+    public bool IsCellOpen(int x, int z, int dir)
+    {
+        return IsOpen(new Vector2Int(x, z), dir);
+    }
+
+    public int DistanceFromStart(int x, int z)
+    {
+        return distFromStart != null ? distFromStart[x, z] : -1;
+    }
+
+    // Camino por la cuadrícula (BFS) entre dos posiciones del mundo.
+    // Sirve como alternativa a la NavMesh: el monstruo sigue los centros de celda.
+    public bool TryGetPath(Vector3 fromWorld, Vector3 toWorld, List<Vector3> result)
+    {
+        result.Clear();
+        if (!HasLevel)
+        {
+            return false;
+        }
+
+        Vector2Int a = WorldToCell(fromWorld);
+        Vector2Int b = WorldToCell(toWorld);
+        if (a == b)
+        {
+            result.Add(toWorld);
+            return true;
+        }
+
+        bool allowHall = IsHallCell(a.x, a.y) || IsHallCell(b.x, b.y);
+        int total = w * h;
+        int[] parent = new int[total];
+        for (int i = 0; i < total; i++) parent[i] = -2; // -2 = sin visitar
+
+        int ai = a.y * w + a.x;
+        int bi = b.y * w + b.x;
+        Queue<int> queue = new Queue<int>();
+        queue.Enqueue(ai);
+        parent[ai] = -1;
+
+        while (queue.Count > 0 && parent[bi] == -2)
+        {
+            int cur = queue.Dequeue();
+            Vector2Int c = new Vector2Int(cur % w, cur / w);
+            for (int d = 0; d < 4; d++)
+            {
+                if (!IsOpen(c, d)) continue;
+                Vector2Int n = c + Dirs[d];
+                int ni = n.y * w + n.x;
+                if (parent[ni] != -2) continue;
+                if (!allowHall && IsHallCell(n.x, n.y)) continue;   // la sala grande tiene obstáculos: no se usa como atajo
+                parent[ni] = cur;
+                queue.Enqueue(ni);
+            }
+        }
+
+        if (parent[bi] == -2)
+        {
+            return false; // no hay camino (no debería pasar: el laberinto es conexo)
+        }
+
+        // Reconstruir de destino a origen y luego invertir
+        List<Vector3> reversed = new List<Vector3>();
+        reversed.Add(toWorld);
+        int node = parent[bi];
+        while (node != ai && node >= 0)
+        {
+            reversed.Add(CellCenterWorld(node % w, node / w));
+            node = parent[node];
+        }
+        for (int i = reversed.Count - 1; i >= 0; i--)
+        {
+            result.Add(reversed[i]);
+        }
+        return true;
+    }
+
+    // ------------------------------------------------------------------
+    // Layout lógico (muros)
+    // ------------------------------------------------------------------
+
+    private void BuildLayout(System.Random rng)
+    {
+        wallsV = new bool[w + 1, h];
+        wallsH = new bool[w, h + 1];
+        for (int i = 0; i <= w; i++) for (int j = 0; j < h; j++) wallsV[i, j] = true;
+        for (int i = 0; i < w; i++) for (int j = 0; j <= h; j++) wallsH[i, j] = true;
+
+        // 1) Laberinto perfecto con backtracker iterativo
+        bool[,] visited = new bool[w, h];
+        Stack<Vector2Int> stack = new Stack<Vector2Int>();
+        List<Vector2Int> options = new List<Vector2Int>(4);
+
+        startCell = new Vector2Int(0, 0);
+        visited[0, 0] = true;
+        stack.Push(startCell);
+
+        while (stack.Count > 0)
+        {
+            Vector2Int cur = stack.Peek();
+            options.Clear();
+            for (int d = 0; d < 4; d++)
+            {
+                Vector2Int n = cur + Dirs[d];
+                if (InBounds(n) && !visited[n.x, n.y]) options.Add(n);
+            }
+
+            if (options.Count == 0)
+            {
+                stack.Pop();
+                continue;
+            }
+
+            Vector2Int next = options[rng.Next(options.Count)];
+            RemoveWallBetween(cur, next);
+            visited[next.x, next.y] = true;
+            stack.Push(next);
+        }
+
+        // 2) Bucles: abrir algunos muros interiores al azar
+        for (int i = 1; i < w; i++)
+            for (int j = 0; j < h; j++)
+                if (wallsV[i, j] && rng.NextDouble() < loopChance) wallsV[i, j] = false;
+
+        for (int i = 0; i < w; i++)
+            for (int j = 1; j < h; j++)
+                if (wallsH[i, j] && rng.NextDouble() < loopChance) wallsH[i, j] = false;
+
+        // 3) Salas abiertas: se quitan los muros interiores de un rectángulo
+        int minSize = Mathf.Max(2, roomSizeRange.x);
+        int maxSize = Mathf.Max(minSize, roomSizeRange.y);
+        for (int r = 0; r < roomCount; r++)
+        {
+            int rw = Mathf.Min(rng.Next(minSize, maxSize + 1), w);
+            int rh = Mathf.Min(rng.Next(minSize, maxSize + 1), h);
+            int rx = rng.Next(0, w - rw + 1);
+            int rz = rng.Next(0, h - rh + 1);
+
+            for (int i = rx + 1; i < rx + rw; i++)
+                for (int j = rz; j < rz + rh; j++)
+                    wallsV[i, j] = false;
+
+            for (int i = rx; i < rx + rw; i++)
+                for (int j = rz + 1; j < rz + rh; j++)
+                    wallsH[i, j] = false;
+        }
+
+        // 4) Sala grande (Poolrooms): rectángulo diáfano con una entrada por cada extremo
+        if (config.poolHall)
+        {
+            int hx0 = Mathf.Clamp(config.hallPos.x, 1, w - 2), hz0 = Mathf.Clamp(config.hallPos.y, 1, h - 2);
+            int hx1 = Mathf.Clamp(hx0 + config.hallSize.x, hx0 + 1, w - 1), hz1 = Mathf.Clamp(hz0 + config.hallSize.y, hz0 + 1, h - 1);
+            HallRect = new RectInt(hx0, hz0, hx1 - hx0, hz1 - hz0);
+            for (int i = hx0 + 1; i < hx1; i++)
+                for (int j = hz0; j < hz1; j++)
+                    wallsV[i, j] = false;
+            for (int i = hx0; i < hx1; i++)
+                for (int j = hz0 + 1; j < hz1; j++)
+                    wallsH[i, j] = false;
+            // entradas: extremo norte en la columna oeste, extremo sur en la columna este (el foso queda en medio)
+            wallsH[hx0, hz1] = false;
+            wallsH[hx1 - 1, hz0] = false;
+            // pasillo-anillo alrededor de la sala: así todo lo que no es sala sigue conectado sin atravesarla
+            for (int j = hz0; j <= hz1; j++) { wallsH[hx0 - 1, j] = false; wallsH[hx1, j] = false; }
+            for (int i = hx0; i <= hx1; i++) { wallsV[i, hz0 - 1] = false; wallsV[i, hz1] = false; }
+        }
+    }
+
+    private bool InBounds(Vector2Int c)
+    {
+        return c.x >= 0 && c.y >= 0 && c.x < w && c.y < h;
+    }
+
+    private void RemoveWallBetween(Vector2Int a, Vector2Int b)
+    {
+        if (b.x == a.x + 1) wallsV[a.x + 1, a.y] = false;
+        else if (b.x == a.x - 1) wallsV[a.x, a.y] = false;
+        else if (b.y == a.y + 1) wallsH[a.x, a.y + 1] = false;
+        else if (b.y == a.y - 1) wallsH[a.x, a.y] = false;
+    }
+
+    // ¿Se puede pasar desde la celda c en la dirección dir?
+    private bool IsOpen(Vector2Int c, int dir)
+    {
+        switch (dir)
+        {
+            case 0: return !wallsH[c.x, c.y + 1];
+            case 1: return !wallsV[c.x + 1, c.y];
+            case 2: return !wallsH[c.x, c.y];
+            default: return !wallsV[c.x, c.y];
+        }
+    }
+
+
+    // ------------------------------------------------------------------
+    // Celdas clave: inicio, salida (entre las más lejanas) y apariciones del monstruo
+    // ------------------------------------------------------------------
+
+    private void ComputeKeyCells(System.Random rng)
+    {
+        // BFS desde la celda de inicio
+        distFromStart = new int[w, h];
+        for (int i = 0; i < w; i++) for (int j = 0; j < h; j++) distFromStart[i, j] = -1;
+
+        Queue<Vector2Int> queue = new Queue<Vector2Int>();
+        distFromStart[startCell.x, startCell.y] = 0;
+        queue.Enqueue(startCell);
+
+        int maxDist = 0;
+        while (queue.Count > 0)
+        {
+            Vector2Int c = queue.Dequeue();
+            int dc = distFromStart[c.x, c.y];
+            if (dc > maxDist) maxDist = dc;
+            for (int d = 0; d < 4; d++)
+            {
+                if (!IsOpen(c, d)) continue;
+                Vector2Int n = c + Dirs[d];
+                if (distFromStart[n.x, n.y] != -1) continue;
+                distFromStart[n.x, n.y] = dc + 1;
+                queue.Enqueue(n);
+            }
+        }
+        maxDistCache = maxDist;
+
+        // Salida: una celda entre el 20% más lejano que tenga al menos un muro donde apoyar la puerta
+        List<Vector2Int> exits = new List<Vector2Int>();
+        int minExit = Mathf.Max(1, Mathf.RoundToInt(maxDist * 0.8f));
+        for (int i = 0; i < w; i++)
+        {
+            for (int j = 0; j < h; j++)
+            {
+                if (distFromStart[i, j] < minExit) continue;
+                if (IsHallCell(i, j)) continue;
+                Vector2Int c = new Vector2Int(i, j);
+                bool hasWall = false;
+                for (int d = 0; d < 4; d++) if (!IsOpen(c, d)) hasWall = true;
+                if (hasWall) exits.Add(c);
+            }
+        }
+        exitCell = exits.Count > 0 ? exits[rng.Next(exits.Count)] : new Vector2Int(w - 1, h - 1);
+    }
+
+    // Elige celdas de aparición de monstruos: lejos del inicio y separadas entre sí
+    private List<Vector2Int> PickMonsterCells(System.Random rng, int count)
+    {
+        List<Vector2Int> result = new List<Vector2Int>();
+        int minDist = Mathf.Max(3, Mathf.RoundToInt(maxDistCache * 0.4f));
+        List<Vector2Int> candidates = new List<Vector2Int>();
+        for (int i = 0; i < w; i++)
+        {
+            for (int j = 0; j < h; j++)
+            {
+                if (distFromStart[i, j] >= minDist && !(i == exitCell.x && j == exitCell.y) && !IsHallCell(i, j))
+                {
+                    candidates.Add(new Vector2Int(i, j));
+                }
+            }
+        }
+        if (candidates.Count == 0) candidates.Add(new Vector2Int(w - 1, h - 1));
+
+        for (int k = 0; k < count; k++)
+        {
+            Vector2Int best = candidates[rng.Next(candidates.Count)];
+            for (int attempt = 0; attempt < 20; attempt++)
+            {
+                Vector2Int cand = candidates[rng.Next(candidates.Count)];
+                bool farEnough = true;
+                for (int q = 0; q < result.Count; q++)
+                {
+                    if (Mathf.Abs(cand.x - result[q].x) + Mathf.Abs(cand.y - result[q].y) < Mathf.Max(5, (w + h) / 4)) farEnough = false;
+                }
+                if (farEnough) { best = cand; break; }
+            }
+            result.Add(best);
+        }
+        return result;
+    }
+
+    // ------------------------------------------------------------------
+    // Geometría
+    // ------------------------------------------------------------------
+
+    private const int SlotWall = 0;
+    private const int SlotFloor = 0;     // en el builder plano: 0 = suelo, 1 = techo
+    private const int SlotCeiling = 1;
+    private const int SlotPipe = 0;      // en el builder de decoración: 0 = tuberías, 1 = agua
+    private const int SlotWater = 1;
+
+    private void BuildGeometry(System.Random rng)
+    {
+        LevelConfig cfg = config;
+        GameObject rootGo = new GameObject("BackroomsLevel");
+        rootGo.transform.SetParent(transform, false);
+        levelRoot = rootGo.transform;
+        GameObject decorGo = new GameObject("BackroomsDecor");
+        decorGo.transform.SetParent(transform, false);
+        decorRoot = decorGo.transform;
+
+        float cs = cellSize;
+        float totalW = w * cs;
+        float totalH = h * cs;
+        float t = wallThickness;
+        float wh = wallHeight;
+
+        // --- Texturas y materiales ---
+        SurfaceSet wallSet = TextureLibrary.Get(cfg.wallStyle, wh);
+        SurfaceSet floorSet = TextureLibrary.Get(cfg.floorStyle, wh);
+        SurfaceSet ceilSet = TextureLibrary.Get(cfg.ceilingStyle, wh);
+        HashSet<string> keys = new HashSet<string>();
+        keys.Add(TextureLibrary.Key(cfg.wallStyle, wh));
+        keys.Add(TextureLibrary.Key(cfg.floorStyle, wh));
+        keys.Add(TextureLibrary.Key(cfg.ceilingStyle, wh));
+        SurfaceSet rippleSet = null;
+        if (cfg.water)
+        {
+            rippleSet = TextureLibrary.Get(SurfaceStyle.WaterNormal, wh);
+            keys.Add(TextureLibrary.Key(SurfaceStyle.WaterNormal, wh));
+        }
+        TextureLibrary.ReleaseAllExcept(keys);
+
+        Material wallMat = Track(ProceduralAssets.CreateSurfaceMaterial(wallSet, cfg.wallTint, 1f, 1f));
+        Material floorMat = Track(ProceduralAssets.CreateSurfaceMaterial(floorSet, cfg.floorTint, 1f, 1f));
+        Material ceilMat = Track(ProceduralAssets.CreateSurfaceMaterial(ceilSet, cfg.ceilTint, 1f, 1f));
+        bool hasHall = cfg.poolHall;
+        float hallH = cfg.hallHeight;
+        PitDepth = 0f;
+        Material pipeMat = cfg.pipes ? wallMat : null;
+
+        // --- Chunks (cada uno es un renderer, para que las luces por píxel se repartan bien) ---
+        int chunkCells = Mathf.Max(1, Mathf.RoundToInt(8f / cs));
+        int cxN = (w + chunkCells - 1) / chunkCells;
+        int czN = (h + chunkCells - 1) / chunkCells;
+        MeshBuilder[,] wallsB = new MeshBuilder[cxN, czN];
+        MeshBuilder[,] flatB = new MeshBuilder[cxN, czN];
+        MeshBuilder[,] decorB = new MeshBuilder[cxN, czN];
+        for (int cx = 0; cx < cxN; cx++)
+        {
+            for (int cz = 0; cz < czN; cz++)
+            {
+                wallsB[cx, cz] = new MeshBuilder(1);
+                flatB[cx, cz] = new MeshBuilder(2);
+                decorB[cx, cz] = new MeshBuilder(2);
+            }
+        }
+
+        // Suelo y techo por chunk (UV en metros del mundo)
+        Rect pitRect = new Rect(0, 0, 0, 0);
+        int pitCx = -1, pitCz = -1;
+        if (hasHall)
+        {
+            // el foso ocupa exactamente un chunk (2x2 celdas) para poder sustituir su suelo
+            int pcx = (Mathf.Clamp(cfg.pitCell.x, 0, w - 2) / chunkCells), pcz = (Mathf.Clamp(cfg.pitCell.y, 0, h - 2) / chunkCells);
+            pitCx = pcx; pitCz = pcz;
+            PitDepth = cfg.pitDepth;
+            pitRect = new Rect(pcx * chunkCells * cs, pcz * chunkCells * cs, chunkCells * cs, chunkCells * cs);
+            PitRectLocal = pitRect;
+        }
+        for (int cx = 0; cx < cxN; cx++)
+        {
+            for (int cz = 0; cz < czN; cz++)
+            {
+                float x0 = cx * chunkCells * cs, x1 = Mathf.Min(w, (cx + 1) * chunkCells) * cs;
+                float z0 = cz * chunkCells * cs, z1 = Mathf.Min(h, (cz + 1) * chunkCells) * cs;
+                if (hasHall && cx == pitCx && cz == pitCz)
+                {
+                    AddPitFloor(flatB[cx, cz], x0, x1, z0, z1, cfg);
+                }
+                else
+                {
+                    flatB[cx, cz].AddQuad(SlotFloor, new Vector3(x0, 0f, z0), new Vector3(x1, 0f, z0), new Vector3(x1, 0f, z1), new Vector3(x0, 0f, z1),
+                        Vector3.up, Vector3.right, Vector3.forward, cfg.floorTileU, cfg.floorTileV, 0f, 0f);
+                }
+                if (!hasHall)
+                {
+                    flatB[cx, cz].AddQuad(SlotCeiling, new Vector3(x0, wh, z0), new Vector3(x1, wh, z0), new Vector3(x1, wh, z1), new Vector3(x0, wh, z1),
+                        Vector3.down, Vector3.right, Vector3.forward, cfg.ceilTileU, cfg.ceilTileV, 0f, 0f);
+                }
+            }
+        }
+        if (hasHall)
+        {
+            // techo por celda: alto sobre la sala grande
+            for (int x = 0; x < w; x++)
+            {
+                for (int z = 0; z < h; z++)
+                {
+                    float y = IsHallCell(x, z) ? hallH : wh;
+                    flatB[x / chunkCells, z / chunkCells].AddQuad(SlotCeiling, new Vector3(x * cs, y, z * cs), new Vector3((x + 1) * cs, y, z * cs),
+                        new Vector3((x + 1) * cs, y, (z + 1) * cs), new Vector3(x * cs, y, (z + 1) * cs),
+                        Vector3.down, Vector3.right, Vector3.forward, cfg.ceilTileU, cfg.ceilTileV, 0f, 0f);
+                }
+            }
+        }
+
+        // Paredes verticales (a lo largo de Z) y horizontales (a lo largo de X)
+        // Se acortan 2 mm en cada extremo para que los extremos no queden coplanares con otras paredes (z-fighting)
+        float segLen = cs + t - 0.004f;
+        int wallSegments = 0;
+        for (int i = 0; i <= w; i++)
+        {
+            for (int j = 0; j < h; j++)
+            {
+                if (!wallsV[i, j]) continue;
+                int cx = Mathf.Min(i, w - 1) / chunkCells, cz = j / chunkCells;
+                float sh = (hasHall && (IsHallCell(i - 1, j) || IsHallCell(i, j))) ? hallH : wh;
+                Vector3 center = new Vector3(i * cs, sh * 0.5f, (j + 0.5f) * cs);
+                wallsB[cx, cz].AddWallBox(SlotWall, center, new Vector3(t, sh, segLen), cfg.wallTileU, cfg.wallTileV, (float)rng.NextDouble());
+                wallSegments++;
+                if (cfg.pipes && rng.NextDouble() < 0.35)
+                {
+                    float side = rng.NextDouble() < 0.5 ? -1f : 1f;
+                    float x = i * cs + side * (t * 0.5f + 0.16f);
+                    float y = wh - 0.3f - (float)rng.NextDouble() * 0.5f;
+                    decorB[cx, cz].AddTube(SlotPipe, new Vector3(x, y, j * cs + 0.1f), new Vector3(x, y, (j + 1) * cs - 0.1f), 0.08f + (float)rng.NextDouble() * 0.05f, 2.4f);
+                }
+            }
+        }
+        for (int i = 0; i < w; i++)
+        {
+            for (int j = 0; j <= h; j++)
+            {
+                if (!wallsH[i, j]) continue;
+                int cx = i / chunkCells, cz = Mathf.Min(j, h - 1) / chunkCells;
+                float sh = (hasHall && (IsHallCell(i, j - 1) || IsHallCell(i, j))) ? hallH : wh;
+                Vector3 center = new Vector3((i + 0.5f) * cs, sh * 0.5f, j * cs);
+                wallsB[cx, cz].AddWallBox(SlotWall, center, new Vector3(segLen, sh, t), cfg.wallTileU, cfg.wallTileV, (float)rng.NextDouble());
+                wallSegments++;
+                if (cfg.pipes && rng.NextDouble() < 0.35)
+                {
+                    float side = rng.NextDouble() < 0.5 ? -1f : 1f;
+                    float z = j * cs + side * (t * 0.5f + 0.16f);
+                    float y = wh - 0.3f - (float)rng.NextDouble() * 0.5f;
+                    decorB[cx, cz].AddTube(SlotPipe, new Vector3(i * cs + 0.1f, y, z), new Vector3((i + 1) * cs - 0.1f, y, z), 0.08f + (float)rng.NextDouble() * 0.05f, 2.4f);
+                }
+            }
+        }
+        WallSegmentCount = wallSegments;
+
+        // Pilares (aparcamiento): en las intersecciones de la rejilla cada N celdas
+        int pillars = 0;
+        if (cfg.layout == LayoutKind.OpenPillars && cfg.pillarEvery > 0)
+        {
+            for (int i = cfg.pillarEvery; i < w; i += cfg.pillarEvery)
+            {
+                for (int j = cfg.pillarEvery; j < h; j += cfg.pillarEvery)
+                {
+                    int cx = Mathf.Min(i, w - 1) / chunkCells, cz = Mathf.Min(j, h - 1) / chunkCells;
+                    wallsB[cx, cz].AddWallBox(SlotWall, new Vector3(i * cs, wh * 0.5f, j * cs),
+                        new Vector3(cfg.pillarSize, wh, cfg.pillarSize), cfg.wallTileU, cfg.wallTileV, (float)rng.NextDouble());
+                    pillars++;
+                }
+            }
+        }
+        PillarCount = pillars;
+
+        // Instanciar los chunks
+        Transform chunksRoot = new GameObject("Chunks").transform;
+        chunksRoot.SetParent(levelRoot, false);
+        for (int cx = 0; cx < cxN; cx++)
+        {
+            for (int cz = 0; cz < czN; cz++)
+            {
+                string tag = cx + "_" + cz;
+                if (!wallsB[cx, cz].IsEmpty)
+                {
+                    Mesh wm = Track(wallsB[cx, cz].ToMesh("Walls_" + tag));
+                    GameObject go = new GameObject("Walls_" + tag);
+                    go.transform.SetParent(chunksRoot, false);
+                    go.AddComponent<MeshFilter>().sharedMesh = wm;
+                    MeshRenderer mr = go.AddComponent<MeshRenderer>();
+                    mr.sharedMaterial = wallMat;
+                    mr.shadowCastingMode = ShadowCastingMode.Off;
+                    mr.receiveShadows = false;
+                    go.AddComponent<MeshCollider>().sharedMesh = wm;
+                }
+                if (!flatB[cx, cz].IsEmpty)
+                {
+                    Mesh fm = Track(flatB[cx, cz].ToMesh("Flat_" + tag));
+                    GameObject go = new GameObject("FloorCeiling_" + tag);
+                    go.transform.SetParent(chunksRoot, false);
+                    go.AddComponent<MeshFilter>().sharedMesh = fm;
+                    MeshRenderer mr = go.AddComponent<MeshRenderer>();
+                    mr.sharedMaterials = new Material[] { floorMat, ceilMat };
+                    mr.shadowCastingMode = ShadowCastingMode.Off;
+                    mr.receiveShadows = false;
+                }
+                if (!decorB[cx, cz].IsEmpty)
+                {
+                    Mesh dm = Track(decorB[cx, cz].ToMesh("Decor_" + tag));
+                    GameObject go = new GameObject("Decor_" + tag);
+                    go.transform.SetParent(decorRoot, false);
+                    go.AddComponent<MeshFilter>().sharedMesh = dm;
+                    MeshRenderer mr = go.AddComponent<MeshRenderer>();
+                    // Los submeshes vacíos usan igualmente un material (no se dibujan)
+                    mr.sharedMaterials = new Material[] { pipeMat != null ? pipeMat : wallMat, wallMat };
+                    mr.shadowCastingMode = ShadowCastingMode.Off;
+                    mr.receiveShadows = false;
+                }
+            }
+        }
+
+        // Colliders planos de suelo y techo (cajas grandes: sin costuras)
+        if (!hasHall)
+        {
+            AddBox("FloorCollider", new Vector3(totalW * 0.5f, -0.1f, totalH * 0.5f), new Vector3(totalW + 2f * t, 0.2f, totalH + 2f * t));
+            AddBox("CeilingCollider", new Vector3(totalW * 0.5f, wh + 0.1f, totalH * 0.5f), new Vector3(totalW + 2f * t, 0.2f, totalH + 2f * t));
+        }
+        else
+        {
+            BuildHallColliders(cs, totalW, totalH, t, wh, hallH, pitRect, cfg);
+        }
+
+        // Luces
+        BuildFixtures(rng);
+
+        // Sala grande del usuario (modelo + luces)
+        if (hasHall)
+        {
+            BuildHall(wallMat, cs, cfg);
+        }
+
+        // Posiciones clave
+        Vector3 startLocal = CellCenterLocal(startCell.x, startCell.y);
+        PlayerStart = levelRoot.TransformPoint(startLocal + new Vector3(0f, 0.1f, 0f));
+        PlayerStartYaw = ComputeStartYaw();
+
+        MonsterSpawns = new List<Vector3>();
+        List<Vector2Int> mc = PickMonsterCells(rng, Mathf.Max(1, cfg.monsterCount));
+        for (int i = 0; i < mc.Count; i++) MonsterSpawns.Add(levelRoot.TransformPoint(CellCenterLocal(mc[i].x, mc[i].y)));
+        MonsterSpawn = MonsterSpawns[0];
+
+        PickBatterySpots(rng, mc);
+        PickExtraSpots(new System.Random(UsedSeed * 31 + 7), 9);
+        BuildExitDoor(rng);
+
+        // Agua realista (shader propio + volumen con interacción)
+        if (cfg.water)
+        {
+            Water = WaterVolume.Create(this, cfg, decorRoot, rippleSet);
+        }
+    }
+
+    private BoxCollider AddBox(string name, Vector3 center, Vector3 size)
+    {
+        GameObject go = new GameObject(name);
+        go.transform.SetParent(levelRoot, false);
+        BoxCollider b = go.AddComponent<BoxCollider>();
+        b.center = center;
+        b.size = size;
+        return b;
+    }
+
+    // Suelo del foso: rampa de entrada, fondo y paredes laterales (dentro del chunk)
+    private void AddPitFloor(MeshBuilder mb, float x0, float x1, float z0, float z1, LevelConfig cfg)
+    {
+        float cs = cellSize, d = cfg.pitDepth;
+        float zm = z0 + cs;
+        Vector3 up = Vector3.up;
+        // rampa (desciende hacia +Z)
+        Vector3 rn = new Vector3(0f, cs, d).normalized;
+        mb.AddQuad(SlotFloor, new Vector3(x0, 0f, z0), new Vector3(x1, 0f, z0), new Vector3(x1, -d, zm), new Vector3(x0, -d, zm),
+            rn, Vector3.right, Vector3.forward, config.floorTileU, config.floorTileV, 0f, 0f);
+        // fondo
+        mb.AddQuad(SlotFloor, new Vector3(x0, -d, zm), new Vector3(x1, -d, zm), new Vector3(x1, -d, z1), new Vector3(x0, -d, z1),
+            up, Vector3.right, Vector3.forward, config.floorTileU, config.floorTileV, 0f, 0f);
+        // pared norte (mira a -Z)
+        mb.AddQuad(SlotFloor, new Vector3(x0, 0f, z1), new Vector3(x1, 0f, z1), new Vector3(x1, -d, z1), new Vector3(x0, -d, z1),
+            Vector3.back, Vector3.right, Vector3.up, config.wallTileU, config.wallTileU, 0f, 0f);
+        // paredes laterales
+        mb.AddQuad(SlotFloor, new Vector3(x0, 0f, z0), new Vector3(x0, 0f, z1), new Vector3(x0, -d, z1), new Vector3(x0, -d, zm),
+            Vector3.right, Vector3.forward, Vector3.up, config.wallTileU, config.wallTileU, 0f, 0f);
+        mb.AddQuad(SlotFloor, new Vector3(x1, 0f, z0), new Vector3(x1, 0f, z1), new Vector3(x1, -d, z1), new Vector3(x1, -d, zm),
+            Vector3.left, Vector3.forward, Vector3.up, config.wallTileU, config.wallTileU, 0f, 0f);
+    }
+
+    private void BuildHallColliders(float cs, float totalW, float totalH, float t, float wh, float hallH, Rect pit, LevelConfig cfg)
+    {
+        float d = cfg.pitDepth;
+        // Suelo: franja inferior, dos mitades junto al foso, franja superior
+        float pz0 = pit.yMin, pz1 = pit.yMax, px0 = pit.xMin, px1 = pit.xMax;
+        AddBox("Floor_South", new Vector3(totalW * 0.5f, -0.1f, (pz0 - t) * 0.5f), new Vector3(totalW + 2f * t, 0.2f, pz0 + t));
+        AddBox("Floor_West", new Vector3((px0 - t) * 0.5f, -0.1f, (pz0 + pz1) * 0.5f), new Vector3(px0 + t, 0.2f, pz1 - pz0));
+        AddBox("Floor_East", new Vector3((px1 + totalW + t) * 0.5f, -0.1f, (pz0 + pz1) * 0.5f), new Vector3(totalW + t - px1, 0.2f, pz1 - pz0));
+        AddBox("Floor_North", new Vector3(totalW * 0.5f, -0.1f, (pz1 + totalH + t) * 0.5f), new Vector3(totalW + 2f * t, 0.2f, totalH + t - pz1));
+        // Foso: fondo + rampa
+        AddBox("Pit_Bottom", new Vector3((px0 + px1) * 0.5f, -d - 0.1f, (pz0 + pz1) * 0.5f), new Vector3(px1 - px0, 0.2f, pz1 - pz0));
+        float L = Mathf.Sqrt(cs * cs + d * d);
+        Vector3 f = new Vector3(0f, -d, cs) / L;
+        Vector3 u = new Vector3(0f, cs, d) / L;
+        GameObject ramp = new GameObject("Pit_Ramp");
+        ramp.transform.SetParent(levelRoot, false);
+        ramp.transform.localPosition = new Vector3((px0 + px1) * 0.5f, -d * 0.5f, pz0 + cs * 0.5f) - u * 0.1f;
+        ramp.transform.localRotation = Quaternion.LookRotation(f, u);
+        BoxCollider rb = ramp.AddComponent<BoxCollider>();
+        rb.size = new Vector3(px1 - px0, 0.2f, L + 0.1f);
+
+        // Techo: bajo el nivel normal salvo sobre la sala grande
+        float hx0 = HallRect.xMin * cs, hx1 = HallRect.xMax * cs, hz0 = HallRect.yMin * cs, hz1 = HallRect.yMax * cs;
+        AddBox("Ceil_South", new Vector3(totalW * 0.5f, wh + 0.1f, (hz0 - t) * 0.5f), new Vector3(totalW + 2f * t, 0.2f, hz0 + t));
+        AddBox("Ceil_West", new Vector3((hx0 - t) * 0.5f, wh + 0.1f, (hz0 + hz1) * 0.5f), new Vector3(hx0 + t, 0.2f, hz1 - hz0));
+        AddBox("Ceil_East", new Vector3((hx1 + totalW + t) * 0.5f, wh + 0.1f, (hz0 + hz1) * 0.5f), new Vector3(totalW + t - hx1, 0.2f, hz1 - hz0));
+        AddBox("Ceil_North", new Vector3(totalW * 0.5f, wh + 0.1f, (hz1 + totalH + t) * 0.5f), new Vector3(totalW + 2f * t, 0.2f, totalH + t - hz1));
+        AddBox("Ceil_Hall", new Vector3((hx0 + hx1) * 0.5f, hallH + 0.1f, (hz0 + hz1) * 0.5f), new Vector3(hx1 - hx0, 0.2f, hz1 - hz0));
+    }
+
+    // Modelo de sala del usuario (Resources/Poolrooms/PoolHall): escaleras, altillo, bloque y pilar.
+    // El suelo, las paredes laterales y el techo los pone el generador (para encajar con el laberinto).
+    private void BuildHall(Material tileMat, float cs, LevelConfig cfg)
+    {
+        GameObject root = new GameObject("PoolHall");
+        root.transform.SetParent(levelRoot, false);
+        HallRoot = root.transform;
+        float hx0 = HallRect.xMin * cs, hz0 = HallRect.yMin * cs;
+        float width = HallRect.width * cs;
+        // El modelo (ya en Y arriba) ocupa X [-7.8, 7.8] y Z [-13.27, 32.57]
+        root.transform.localPosition = new Vector3(hx0 + width * 0.5f, 0f, hz0 + 13.27f);
+
+        GameObject prefab = Resources.Load<GameObject>("Poolrooms/PoolHall");
+        if (prefab != null)
+        {
+            GameObject model = (GameObject)Object.Instantiate(prefab);
+            model.name = "Model";
+            model.transform.SetParent(root.transform, false);
+            model.transform.localPosition = Vector3.zero;
+            model.transform.localRotation = Quaternion.identity;
+            MeshFilter[] mfs = model.GetComponentsInChildren<MeshFilter>();
+            for (int i = 0; i < mfs.Length; i++)
+            {
+                MeshFilter mf = mfs[i];
+                Mesh m = Track(BoxProjectUV(mf.sharedMesh, mf.transform, levelRoot, 2.0f));
+                mf.sharedMesh = m;
+                MeshRenderer mr = mf.GetComponent<MeshRenderer>();
+                mr.sharedMaterial = tileMat;
+                mr.shadowCastingMode = ShadowCastingMode.Off;
+                mr.receiveShadows = false;
+                MeshCollider mc = mf.gameObject.AddComponent<MeshCollider>();
+                mc.sharedMesh = m;
+            }
+        }
+        else
+        {
+            Debug.LogWarning("[BackroomsGenerator] Falta Resources/Poolrooms/PoolHall (modelo del usuario).");
+        }
+
+        // Rampa invisible sobre los escalones (cada escalón mide ~0,6-0,85 m: demasiado para el CharacterController)
+        {
+            Vector3 p0 = new Vector3(0f, 0f, 6.5f), p1 = new Vector3(0f, 10.26f, -5.32f);
+            Vector3 dir = (p1 - p0);
+            float L = dir.magnitude;
+            Vector3 f = dir / L;
+            Vector3 u = Vector3.Cross(Vector3.right, f); // perpendicular hacia arriba
+            if (u.y < 0f) u = -u;
+            GameObject ramp = new GameObject("StairRamp");
+            ramp.transform.SetParent(root.transform, false);
+            ramp.transform.localPosition = new Vector3(4.91f, (p0.y + p1.y) * 0.5f, (p0.z + p1.z) * 0.5f) + u * (0.03f - 0.15f);
+            ramp.transform.localRotation = Quaternion.LookRotation(f, u);
+            BoxCollider bc = ramp.AddComponent<BoxCollider>();
+            bc.size = new Vector3(5.8f, 0.3f, L);
+            StairRamp = bc;
+        }
+
+        // Luces suaves de la sala (bajo el altillo, sobre el altillo y en la zona abierta)
+        Vector3[] lp =
+        {
+            new Vector3(0f, 7.6f, -6f), new Vector3(0f, 7.6f, 6f), new Vector3(0f, 7.6f, 15f),
+            new Vector3(0f, 14.5f, 3f), new Vector3(0f, 11f, 27f)
+        };
+        for (int i = 0; i < lp.Length; i++)
+        {
+            GameObject lg = new GameObject("HallLight" + i);
+            lg.transform.SetParent(root.transform, false);
+            lg.transform.localPosition = lp[i];
+            Light l = lg.AddComponent<Light>();
+            l.type = LightType.Point;
+            l.color = cfg.lightColor;
+            l.range = 17f;
+            l.intensity = 1.25f;
+            l.shadows = LightShadows.None;
+        }
+
+        // Puntos de recompensa: altillo (tras la escalera) y fondo del foso
+        HallBatteryMezzanine = root.transform.TransformPoint(new Vector3(-5f, 10.4f, -2f));
+        Rect pr = PitRectLocal;
+        HallBatteryPit = levelRoot.TransformPoint(new Vector3(pr.center.x, -cfg.pitDepth + 0.15f, pr.yMax - 1f));
+    }
+
+    // Copia la malla con UV de proyección en caja (metros del nivel) para que los azulejos tengan escala real
+    private static Mesh BoxProjectUV(Mesh src, Transform t, Transform levelRoot, float tile)
+    {
+        Mesh m = Object.Instantiate(src);
+        m.name = src.name + "_UV";
+        Vector3[] v = m.vertices;
+        Vector3[] n = m.normals;
+        Vector2[] uv = new Vector2[v.Length];
+        for (int i = 0; i < v.Length; i++)
+        {
+            Vector3 wp = levelRoot.InverseTransformPoint(t.TransformPoint(v[i]));
+            Vector3 wn = levelRoot.InverseTransformDirection(t.TransformDirection(n.Length > i ? n[i] : Vector3.up));
+            float ax = Mathf.Abs(wn.x), ay = Mathf.Abs(wn.y), az = Mathf.Abs(wn.z);
+            if (ay >= ax && ay >= az) uv[i] = new Vector2(wp.x, wp.z) / tile;
+            else if (ax >= az) uv[i] = new Vector2(wp.z, wp.y) / tile;
+            else uv[i] = new Vector2(wp.x, wp.y) / tile;
+        }
+        m.uv = uv;
+        m.RecalculateBounds();
+        try { m.RecalculateTangents(); } catch { }
+        return m;
+    }
+
+    private T Track<T>(T obj) where T : Object
+    {
+        createdAssets.Add(obj);
+        return obj;
+    }
+
+    // ------------------------------------------------------------------
+    // Accesorios de luz (paneles, tubos, apliques, emergencia)
+    // ------------------------------------------------------------------
+
+    private void BuildFixtures(System.Random rng)
+    {
+        LevelConfig cfg = config;
+        Transform lightsRoot = new GameObject("Fixtures").transform;
+        lightsRoot.SetParent(levelRoot, false);
+
+        LightCuller culler = lightsRoot.gameObject.AddComponent<LightCuller>();
+        culler.maxActive = cfg.maxRealtimeLights;
+        Culler = culler;
+
+        Material emissive = Track(ProceduralAssets.CreateMaterial(new Color(0.95f, 0.95f, 0.85f), null, Vector2.one, 0.2f));
+        ProceduralAssets.SetEmission(emissive, cfg.emissionColor);
+        Material dead = Track(ProceduralAssets.CreateMaterial(new Color(0.45f, 0.45f, 0.42f), null, Vector2.one, 0.1f));
+        Material housing = Track(ProceduralAssets.CreateMaterial(new Color(0.12f, 0.12f, 0.12f), null, Vector2.one, 0.4f));
+
+        AudioClip buzzClip = null;
+        if (cfg.buzzChance > 0f)
+        {
+            buzzClip = Track(ProceduralAudio.CreateBuzzClip());
+        }
+
+        int fixtures = 0, live = 0;
+        int spacing = Mathf.Max(1, cfg.lightSpacing);
+        float wh = wallHeight;
+
+        for (int x = 0; x < w; x++)
+        {
+            for (int z = 0; z < h; z++)
+            {
+                Vector3 c = CellCenterLocal(x, z);
+                if (IsHallCell(x, z)) continue;   // la sala grande tiene sus propias luces
+
+                if (cfg.fixture == FixtureKind.Sconce)
+                {
+                    // Aplique en una pared de la celda (si tiene alguna)
+                    List<int> sides = new List<int>(4);
+                    for (int d = 0; d < 4; d++) if (!IsOpen(new Vector2Int(x, z), d)) sides.Add(d);
+                    if (sides.Count == 0 || rng.NextDouble() >= cfg.sconceChance) continue;
+                    int side = sides[rng.Next(sides.Count)];
+                    Vector3 dir = new Vector3(Dirs[side].x, 0f, Dirs[side].y);
+                    float along = ((float)rng.NextDouble() - 0.5f) * cellSize * 0.4f;
+                    Vector3 perp = new Vector3(-dir.z, 0f, dir.x);
+                    Vector3 wallPos = c + dir * (cellSize * 0.5f - wallThickness * 0.5f) + perp * along + new Vector3(0f, wh * 0.66f, 0f);
+                    bool isDead = rng.NextDouble() < cfg.deadChance;
+                    CreateSconce(lightsRoot, wallPos, dir, isDead, emissive, dead, housing, rng, buzzClip);
+                    fixtures++;
+                    if (!isDead) live++;
+                    continue;
+                }
+
+                if (x % spacing != 0 || z % spacing != 0) continue;
+                bool deadFix = rng.NextDouble() < cfg.deadChance;
+                CreateCeilingFixture(lightsRoot, c, deadFix, emissive, dead, housing, rng, buzzClip);
+                fixtures++;
+                if (!deadFix) live++;
+            }
+        }
+        FixtureCount = fixtures;
+        LiveFixtureCount = live;
+    }
+
+    private void CreateCeilingFixture(Transform parent, Vector3 c, bool isDead, Material emissive, Material dead,
+        Material housing, System.Random rng, AudioClip buzzClip)
+    {
+        LevelConfig cfg = config;
+        float wh = wallHeight;
+        GameObject fx = new GameObject("Fixture");
+        fx.transform.SetParent(parent, false);
+        fx.transform.localPosition = new Vector3(c.x, 0f, c.z);
+
+        Renderer lens;
+        float lightY = wh - 0.5f;
+        Material lensMat = isDead ? dead : emissive;
+
+        switch (cfg.fixture)
+        {
+            case FixtureKind.Tube:
+            {
+                bool alongX = rng.NextDouble() < 0.5;
+                Vector3 scale = alongX ? new Vector3(1.3f, 0.07f, 0.22f) : new Vector3(0.22f, 0.07f, 1.3f);
+                ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "Housing", fx.transform, new Vector3(0f, wh - 0.035f, 0f), scale, housing, false);
+                Vector3 lscale = alongX ? new Vector3(1.2f, 0.04f, 0.1f) : new Vector3(0.1f, 0.04f, 1.2f);
+                lens = ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "Tube", fx.transform, new Vector3(0f, wh - 0.085f, 0f), lscale, lensMat, false).GetComponent<Renderer>();
+                lightY = wh - 0.6f;
+                break;
+            }
+            case FixtureKind.Emergency:
+            {
+                ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "Housing", fx.transform, new Vector3(0f, wh - 0.1f, 0f), new Vector3(0.4f, 0.2f, 0.26f), housing, false);
+                lens = ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "Lens", fx.transform, new Vector3(0f, wh - 0.215f, 0f), new Vector3(0.28f, 0.03f, 0.16f), lensMat, false).GetComponent<Renderer>();
+                lightY = wh - 0.55f;
+                break;
+            }
+            default: // Panel
+            {
+                lens = ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "Panel", fx.transform, new Vector3(0f, wh - 0.03f, 0f), new Vector3(1.6f, 0.06f, 0.8f), lensMat, false).GetComponent<Renderer>();
+                lightY = wh - 0.5f;
+                break;
+            }
+        }
+
+        if (isDead) return;
+        CreateFixtureLight(fx.transform, new Vector3(0f, lightY, 0f), lens, rng, buzzClip);
+    }
+
+    private void CreateSconce(Transform parent, Vector3 wallPos, Vector3 dirToWall, bool isDead, Material emissive,
+        Material dead, Material housing, System.Random rng, AudioClip buzzClip)
+    {
+        GameObject fx = new GameObject("Sconce");
+        fx.transform.SetParent(parent, false);
+        fx.transform.localPosition = wallPos;
+        fx.transform.localRotation = Quaternion.LookRotation(-dirToWall); // +Z local = hacia la habitación
+
+        // Placa trasera + pantalla emisiva
+        ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "Plate", fx.transform, new Vector3(0f, 0f, 0.015f), new Vector3(0.16f, 0.32f, 0.03f), housing, false);
+        Renderer lens = ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "Shade", fx.transform, new Vector3(0f, 0.04f, 0.1f),
+            new Vector3(0.11f, 0.2f, 0.11f), isDead ? dead : emissive, false).GetComponent<Renderer>();
+        ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "Arm", fx.transform, new Vector3(0f, -0.1f, 0.06f), new Vector3(0.03f, 0.03f, 0.1f), housing, false);
+
+        if (isDead) return;
+        CreateFixtureLight(fx.transform, new Vector3(0f, 0.05f, 0.45f), lens, rng, buzzClip);
+    }
+
+    private void CreateFixtureLight(Transform parent, Vector3 localPos, Renderer lens, System.Random rng, AudioClip buzzClip)
+    {
+        LevelConfig cfg = config;
+        GameObject lightGo = new GameObject("Light");
+        lightGo.transform.SetParent(parent, false);
+        lightGo.transform.localPosition = localPos;
+
+        Light l = lightGo.AddComponent<Light>();
+        l.type = LightType.Point;
+        l.range = cfg.lightRange;
+        l.intensity = cfg.lightIntensity;
+        l.color = cfg.lightColor;
+        l.shadows = LightShadows.None;
+
+        FlickeringLight f = lightGo.AddComponent<FlickeringLight>();
+        f.targetLight = l;
+        f.emissiveRenderer = lens;
+        f.emissionColor = cfg.emissionColor;
+        f.baseIntensity = cfg.lightIntensity;
+        f.flickerEnabled = rng.NextDouble() < cfg.flickerChance;
+        f.pulse = cfg.pulse;
+        if (cfg.pulse) f.pulseSpeed = 1.2f + (float)rng.NextDouble() * 0.8f;
+
+        if (f.flickerEnabled && buzzClip != null && rng.NextDouble() < cfg.buzzChance)
+        {
+            AudioSource src = lightGo.AddComponent<AudioSource>();
+            src.clip = buzzClip;
+            src.loop = true;
+            src.playOnAwake = false;
+            src.spatialBlend = 1f;
+            src.rolloffMode = AudioRolloffMode.Linear;
+            src.minDistance = 1f;
+            src.maxDistance = 9f;
+            src.volume = f.buzzVolume;
+            src.Play();
+            src.time = (float)rng.NextDouble(); // desfasa los zumbidos
+            f.buzz = src;
+        }
+
+        Culler.Register(f);
+    }
+
+    // ------------------------------------------------------------------
+    // Pilas
+    // ------------------------------------------------------------------
+
+    private void PickBatterySpots(System.Random rng, List<Vector2Int> monsterCells)
+    {
+        BatterySpots = new List<Vector3>();
+        List<Vector2Int> picked = new List<Vector2Int>();
+        int want = config.batteries;
+        int guard = 0;
+        while (picked.Count < want && guard++ < 500)
+        {
+            Vector2Int c = new Vector2Int(rng.Next(w), rng.Next(h));
+            if (c == startCell || c == exitCell) continue;
+            if (distFromStart[c.x, c.y] < 2 || IsHallCell(c.x, c.y)) continue;
+            bool ok = true;
+            int minSep = guard < 250 ? 3 : 1;
+            for (int i = 0; i < picked.Count; i++)
+            {
+                if (Mathf.Abs(picked[i].x - c.x) + Mathf.Abs(picked[i].y - c.y) < minSep) ok = false;
+            }
+            if (!ok) continue;
+            picked.Add(c);
+            float ox = ((float)rng.NextDouble() - 0.5f) * cellSize * 0.4f;
+            float oz = ((float)rng.NextDouble() - 0.5f) * cellSize * 0.4f;
+            BatterySpots.Add(levelRoot.TransformPoint(CellCenterLocal(c.x, c.y) + new Vector3(ox, 0.1f, oz)));
+        }
+        if (HasHall)
+        {
+            // Recompensas de la sala grande: una en el altillo (tras subir las escaleras) y otra en el fondo del foso (nadando)
+            BatterySpots.Add(HallBatteryMezzanine);
+            BatterySpots.Add(HallBatteryPit);
+        }
+    }
+
+    // Sitios para objetos extra (el orden de uso lo decide GameBootstrap): celdas libres, separadas entre sí y de las pilas
+    private void PickExtraSpots(System.Random rng, int count)
+    {
+        ExtraSpots = new List<Vector3>();
+        List<Vector2Int> picked = new List<Vector2Int>();
+        int guard = 0;
+        while (picked.Count < count && guard++ < 1500)
+        {
+            Vector2Int c = new Vector2Int(rng.Next(w), rng.Next(h));
+            if (c == startCell || c == exitCell || IsHallCell(c.x, c.y)) continue;
+            if (distFromStart[c.x, c.y] < 2) continue;
+            int minSep = guard < 600 ? 2 : 1;
+            bool ok = true;
+            for (int i = 0; i < picked.Count; i++)
+                if (Mathf.Abs(picked[i].x - c.x) + Mathf.Abs(picked[i].y - c.y) < minSep) { ok = false; break; }
+            if (!ok) continue;
+            // no encima de una pila
+            Vector3 world = levelRoot.TransformPoint(CellCenterLocal(c.x, c.y));
+            for (int i = 0; i < BatterySpots.Count && ok; i++)
+            {
+                Vector3 d = BatterySpots[i] - world; d.y = 0f;
+                if (d.magnitude < cellSize * 0.8f) ok = false;
+            }
+            if (!ok && guard < 1200) continue;
+            picked.Add(c);
+            float ox = ((float)rng.NextDouble() - 0.5f) * cellSize * 0.5f;
+            float oz = ((float)rng.NextDouble() - 0.5f) * cellSize * 0.5f;
+            ExtraSpots.Add(levelRoot.TransformPoint(CellCenterLocal(c.x, c.y) + new Vector3(ox, 0.1f, oz)));
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Puerta de salida: discreta (marco distinto, LED verde tenue visible solo de cerca)
+    // ------------------------------------------------------------------
+
+    private void BuildExitDoor(System.Random rng)
+    {
+        LevelConfig cfg = config;
+        Vector3 c = CellCenterLocal(exitCell.x, exitCell.y);
+
+        // Lados de la celda que tienen muro (ahí se apoya la puerta)
+        List<int> wallSides = new List<int>(4);
+        for (int d = 0; d < 4; d++)
+        {
+            if (!IsOpen(exitCell, d)) wallSides.Add(d);
+        }
+
+        Vector3 dir = Vector3.zero; // dirección hacia el muro (en local)
+        if (wallSides.Count > 0)
+        {
+            int side = wallSides[rng.Next(wallSides.Count)];
+            dir = new Vector3(Dirs[side].x, 0f, Dirs[side].y);
+        }
+
+        float doorThickness = 0.07f;
+        float offset = cellSize * 0.5f - wallThickness * 0.5f - doorThickness * 0.5f - 0.012f;
+        Vector3 basePos = c + dir * offset;
+        float doorH = Mathf.Min(2.15f, wallHeight - 0.5f);
+
+        Quaternion rot = dir.sqrMagnitude > 0.01f ? Quaternion.LookRotation(-dir) : Quaternion.identity;
+
+        Material doorMat = Track(ProceduralAssets.CreateMaterial(cfg.doorColor, null, Vector2.one, 0.25f));
+        Material panelMat = Track(ProceduralAssets.CreateMaterial(cfg.doorColor * 0.82f, null, Vector2.one, 0.2f));
+        Material frameMat = Track(ProceduralAssets.CreateMaterial(cfg.doorFrameColor, null, Vector2.one, 0.3f));
+        Material handleMat = Track(ProceduralAssets.CreateMaterial(new Color(0.6f, 0.55f, 0.4f), null, Vector2.one, 0.7f));
+        handleMat.SetFloat("_Metallic", 0.8f);
+        Material ledMat = Track(ProceduralAssets.CreateMaterial(new Color(0.05f, 0.15f, 0.06f), null, Vector2.one, 0.3f));
+        ProceduralAssets.SetEmission(ledMat, new Color(0.15f, 1.3f, 0.3f));
+
+        GameObject doorRoot = new GameObject("ExitDoor");
+        doorRoot.transform.SetParent(levelRoot, false);
+        doorRoot.transform.localPosition = basePos;
+        doorRoot.transform.localRotation = rot;
+
+        // Hoja y paneles (el eje local Z apunta hacia el interior de la habitación)
+        GameObject slab = ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "DoorSlab", doorRoot.transform,
+            new Vector3(0f, doorH * 0.5f, 0f), new Vector3(1.0f, doorH, doorThickness), doorMat, false);
+        ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "PanelUpper", doorRoot.transform,
+            new Vector3(0f, doorH * 0.72f, 0.003f + doorThickness * 0.5f), new Vector3(0.7f, doorH * 0.28f, 0.006f), panelMat, false);
+        ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "PanelLower", doorRoot.transform,
+            new Vector3(0f, doorH * 0.30f, 0.003f + doorThickness * 0.5f), new Vector3(0.7f, doorH * 0.36f, 0.006f), panelMat, false);
+        // Marco algo distinto del muro
+        ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "FrameL", doorRoot.transform,
+            new Vector3(-0.56f, doorH * 0.5f + 0.05f, 0.01f), new Vector3(0.12f, doorH + 0.1f, 0.1f), frameMat, false);
+        ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "FrameR", doorRoot.transform,
+            new Vector3(0.56f, doorH * 0.5f + 0.05f, 0.01f), new Vector3(0.12f, doorH + 0.1f, 0.1f), frameMat, false);
+        ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "FrameTop", doorRoot.transform,
+            new Vector3(0f, doorH + 0.05f, 0.01f), new Vector3(1.24f, 0.12f, 0.1f), frameMat, false);
+        ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "Handle", doorRoot.transform,
+            new Vector3(0.36f, 1.0f, 0.06f), new Vector3(0.14f, 0.04f, 0.08f), handleMat, false);
+
+        // LED verde diminuto sobre el marco + luz verde tenue: solo existen a menos de ~8 m (ExitDoorCue)
+        GameObject led = ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "ExitLed", doorRoot.transform,
+            new Vector3(0f, doorH + 0.19f, 0.03f), new Vector3(0.09f, 0.035f, 0.03f), ledMat, false);
+        GameObject glow = new GameObject("ExitGlow");
+        glow.transform.SetParent(doorRoot.transform, false);
+        glow.transform.localPosition = new Vector3(0f, doorH + 0.15f, 0.5f);
+        Light gl = glow.AddComponent<Light>();
+        gl.type = LightType.Point;
+        gl.color = new Color(0.25f, 1f, 0.4f);
+        gl.range = 8f;
+        gl.intensity = 0.45f;
+        gl.shadows = LightShadows.None;
+
+        ExitDoorCue cue = doorRoot.AddComponent<ExitDoorCue>();
+        cue.ledRenderer = led.GetComponent<Renderer>();
+        cue.glow = gl;
+        cue.visibleDistance = 8f;
+        cue.glowIntensity = 0.45f;
+        led.GetComponent<Renderer>().enabled = false;
+        gl.enabled = false;
+
+        ExitTransform = slab.transform;
+        ExitPosition = slab.transform.position;
+    }
+
+    // Orienta al jugador hacia una dirección abierta
+    private float ComputeStartYaw()
+    {
+        if (IsOpen(startCell, 0)) return 0f;     // Norte
+        if (IsOpen(startCell, 1)) return 90f;    // Este
+        if (IsOpen(startCell, 2)) return 180f;   // Sur
+        return 270f;                             // Oeste
+    }
+
+    // ------------------------------------------------------------------
+    // Utilidades
+    // ------------------------------------------------------------------
+
+    private Vector3 CellCenterLocal(int x, int z)
+    {
+        return new Vector3((x + 0.5f) * cellSize, 0f, (z + 0.5f) * cellSize);
+    }
+
+    private Vector2Int WorldToCell(Vector3 world)
+    {
+        Vector3 local = levelRoot.InverseTransformPoint(world);
+        int x = Mathf.Clamp(Mathf.FloorToInt(local.x / cellSize), 0, w - 1);
+        int z = Mathf.Clamp(Mathf.FloorToInt(local.z / cellSize), 0, h - 1);
+        return new Vector2Int(x, z);
+    }
+}
