@@ -139,7 +139,7 @@ public class FlickeringLight : MonoBehaviour
 
         if (buzz != null)
         {
-            buzz.volume = buzzVolume * Mathf.Lerp(0.4f, 1f, f);
+            buzz.volume = AudioMix.Buzz(buzzVolume * Mathf.Lerp(0.4f, 1f, f));
             buzz.pitch = Mathf.Lerp(0.9f, 1.05f, f);
         }
     }

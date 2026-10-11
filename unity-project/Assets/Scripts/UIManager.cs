@@ -231,7 +231,7 @@ public class UIManager : MonoBehaviour
     // Acciones de los botones ---------------------------------------------
     private void Click()
     {
-        if (clickSrc != null && clickClip != null) clickSrc.PlayOneShot(clickClip);
+        if (clickSrc != null && clickClip != null) clickSrc.PlayOneShot(clickClip, AudioMix.S(1f));
     }
 
     public void OnPlay() { Click(); StartGame(0); }
@@ -507,18 +507,21 @@ public class UIManager : MonoBehaviour
     }
 
     // --- Opciones ---
-    private Slider sVol, sSens, sVhs;
-    private Toggle tFull, tInvert, tBob, tSmooth, tVhs, tSoft, tBody;
+    private Slider sVol, sSens, sVhs, sSfx, sAmb;
+    private Toggle tFull, tInvert, tBob, tSmooth, tVhs, tSoft, tBody, tBreath;
     public bool CursorShouldBeLocked { get { return current == Screen.None && GameplayActive; } }   // el editor sin ventana no refleja Cursor.lockState
     public Slider VhsSlider { get { return sVhs; } }
     public Slider VolumeSlider { get { return sVol; } }
+    public Slider SfxSlider { get { return sSfx; } }
+    public Slider AmbienceSlider { get { return sAmb; } }
+    public Toggle BreathToggle { get { return tBreath; } }
     public Toggle VhsToggle { get { return tVhs; } }
     public Toggle BobToggle { get { return tBob; } }
     public Toggle SmoothToggle { get { return tSmooth; } }
     public Toggle SoftScareToggle { get { return tSoft; } }
     public Toggle BodyToggle { get { return tBody; } }
     private Button[] qBtns;
-    private Text vVol, vSens, vVhs;
+    private Text vVol, vSens, vVhs, vSfx, vAmb;
     private bool refreshing;
 
     private GameObject BuildOptions(Transform parent)
@@ -527,39 +530,51 @@ public class UIManager : MonoBehaviour
         Label(root.transform, "OPCIONES", 76, TextAnchor.MiddleCenter, 0f, 400f, 1500f, 110f, new Color(0.96f, 0.9f, 0.55f));
         float y = 310f;
         const float lx = -430f, sx = 130f;
+        const float rowS = 54f, rowT = 42f;
 
         Label(root.transform, "Volumen general", 30, TextAnchor.MiddleLeft, lx, y, 520f, 40f).rectTransform.pivot = new Vector2(0.5f, 0.5f);
         sVol = MakeSlider(root.transform, sx, y, 520f, 0f, 1f, GameSettings.MasterVolume, v => { if (!refreshing) GameSettings.MasterVolume = v; vVol.text = Mathf.RoundToInt(v * 100f) + "%"; });
         vVol = Label(root.transform, "", 28, TextAnchor.MiddleLeft, 470f, y, 120f, 40f);
-        y -= 62f;
+        y -= rowS;
+
+        Label(root.transform, "Efectos", 30, TextAnchor.MiddleLeft, lx, y, 520f, 40f);
+        sSfx = MakeSlider(root.transform, sx, y, 520f, 0f, 1f, GameSettings.SfxVolume, v => { if (!refreshing) GameSettings.SfxVolume = v; vSfx.text = Mathf.RoundToInt(v * 100f) + "%"; });
+        vSfx = Label(root.transform, "", 28, TextAnchor.MiddleLeft, 470f, y, 120f, 40f);
+        y -= rowS;
+
+        Label(root.transform, "Ambiente", 30, TextAnchor.MiddleLeft, lx, y, 520f, 40f);
+        sAmb = MakeSlider(root.transform, sx, y, 520f, 0f, 1f, GameSettings.AmbienceVolume, v => { if (!refreshing) GameSettings.AmbienceVolume = v; vAmb.text = Mathf.RoundToInt(v * 100f) + "%"; });
+        vAmb = Label(root.transform, "", 28, TextAnchor.MiddleLeft, 470f, y, 120f, 40f);
+        y -= rowS;
 
         Label(root.transform, "Sensibilidad del ratón", 30, TextAnchor.MiddleLeft, lx, y, 520f, 40f);
         sSens = MakeSlider(root.transform, sx, y, 520f, 0.3f, 6f, GameSettings.MouseSensitivity, v => { if (!refreshing) GameSettings.MouseSensitivity = v; vSens.text = v.ToString("0.0"); });
         vSens = Label(root.transform, "", 28, TextAnchor.MiddleLeft, 470f, y, 120f, 40f);
-        y -= 62f;
+        y -= rowS;
 
         Label(root.transform, "Calidad gráfica", 30, TextAnchor.MiddleLeft, lx, y, 520f, 40f);
         qBtns = new Button[3];
         for (int i = 0; i < 3; i++)
         {
             int q = i;
-            qBtns[i] = MakeButton(root.transform, GameSettings.QualityNames[i], sx - 170f + i * 175f, y, 165f, 48f, () => { Click(); GameSettings.Quality = q; RefreshOptions(); }, 28);
+            qBtns[i] = MakeButton(root.transform, GameSettings.QualityNames[i], sx - 170f + i * 175f, y, 165f, 46f, () => { Click(); GameSettings.Quality = q; RefreshOptions(); }, 28);
         }
-        y -= 62f;
+        y -= rowS;
 
         float tx = -90f;
-        tFull = MakeToggle(root.transform, "Pantalla completa", tx, y, GameSettings.Fullscreen, v => { if (!refreshing) GameSettings.Fullscreen = v; }); y -= 48f;
-        tInvert = MakeToggle(root.transform, "Invertir eje Y del ratón", tx, y, GameSettings.InvertY, v => { if (!refreshing) GameSettings.InvertY = v; }); y -= 48f;
-        tBob = MakeToggle(root.transform, "Balanceo de cabeza (head-bob)", tx, y, GameSettings.HeadBob, v => { if (!refreshing) GameSettings.HeadBob = v; }); y -= 48f;
-        tSmooth = MakeToggle(root.transform, "Suavizado de ratón", tx, y, GameSettings.SmoothLook, v => { if (!refreshing) GameSettings.SmoothLook = v; }); y -= 48f;
-        tVhs = MakeToggle(root.transform, "Modo cámara VHS (tecla V)", tx, y, GameSettings.VhsOn, v => { if (!refreshing) GameSettings.VhsOn = v; }); y -= 48f;
-        tSoft = MakeToggle(root.transform, "Susto suave (reduce el susto de muerte)", tx, y, GameSettings.SoftScare, v => { if (!refreshing) GameSettings.SoftScare = v; }); y -= 48f;
-        tBody = MakeToggle(root.transform, "Mostrar cuerpo (manos, brazos y piernas)", tx, y, GameSettings.ShowBody, v => { if (!refreshing) GameSettings.ShowBody = v; }); y -= 56f;
+        tFull = MakeToggle(root.transform, "Pantalla completa", tx, y, GameSettings.Fullscreen, v => { if (!refreshing) GameSettings.Fullscreen = v; }); y -= rowT;
+        tInvert = MakeToggle(root.transform, "Invertir eje Y del ratón", tx, y, GameSettings.InvertY, v => { if (!refreshing) GameSettings.InvertY = v; }); y -= rowT;
+        tBob = MakeToggle(root.transform, "Balanceo de cabeza (head-bob)", tx, y, GameSettings.HeadBob, v => { if (!refreshing) GameSettings.HeadBob = v; }); y -= rowT;
+        tSmooth = MakeToggle(root.transform, "Suavizado de ratón", tx, y, GameSettings.SmoothLook, v => { if (!refreshing) GameSettings.SmoothLook = v; }); y -= rowT;
+        tVhs = MakeToggle(root.transform, "Modo cámara VHS (tecla V)", tx, y, GameSettings.VhsOn, v => { if (!refreshing) GameSettings.VhsOn = v; }); y -= rowT;
+        tBreath = MakeToggle(root.transform, "Respiración (suave, solo al cansarse)", tx, y, GameSettings.BreathEnabled, v => { if (!refreshing) GameSettings.BreathEnabled = v; }); y -= rowT;
+        tSoft = MakeToggle(root.transform, "Susto suave (reduce el susto de muerte)", tx, y, GameSettings.SoftScare, v => { if (!refreshing) GameSettings.SoftScare = v; }); y -= rowT;
+        tBody = MakeToggle(root.transform, "Mostrar cuerpo (manos, brazos y piernas)", tx, y, GameSettings.ShowBody, v => { if (!refreshing) GameSettings.ShowBody = v; }); y -= rowT + 14f;
 
         Label(root.transform, "Intensidad VHS", 30, TextAnchor.MiddleLeft, lx, y, 520f, 40f);
         sVhs = MakeSlider(root.transform, sx, y, 520f, 0f, 1f, GameSettings.VhsIntensity, v => { if (!refreshing) GameSettings.VhsIntensity = v; vVhs.text = Mathf.RoundToInt(v * 100f) + "%"; });
         vVhs = Label(root.transform, "", 28, TextAnchor.MiddleLeft, 470f, y, 120f, 40f);
-        y -= 80f;
+        y -= 70f;
 
         MakeButton(root.transform, "Restablecer", -230f, y, 360f, 60f, () => { Click(); GameSettings.ResetDefaults(); RefreshOptions(); }, 30);
         MakeButton(root.transform, "Volver", 230f, y, 360f, 60f, () => { Click(); GameSettings.Save(); SetScreen(optionsReturn); }, 30);
@@ -571,6 +586,9 @@ public class UIManager : MonoBehaviour
         if (sVol == null) return;
         refreshing = true;
         sVol.value = GameSettings.MasterVolume; vVol.text = Mathf.RoundToInt(sVol.value * 100f) + "%";
+        sSfx.value = GameSettings.SfxVolume; vSfx.text = Mathf.RoundToInt(sSfx.value * 100f) + "%";
+        sAmb.value = GameSettings.AmbienceVolume; vAmb.text = Mathf.RoundToInt(sAmb.value * 100f) + "%";
+        tBreath.isOn = GameSettings.BreathEnabled;
         sSens.value = GameSettings.MouseSensitivity; vSens.text = sSens.value.ToString("0.0");
         sVhs.value = GameSettings.VhsIntensity; vVhs.text = Mathf.RoundToInt(sVhs.value * 100f) + "%";
         tFull.isOn = GameSettings.Fullscreen; tInvert.isOn = GameSettings.InvertY; tBob.isOn = GameSettings.HeadBob;
@@ -603,7 +621,6 @@ public class UIManager : MonoBehaviour
         sb.AppendLine();
         sb.AppendLine("Cuerpo del jugador (traje hazmat): «Character Hazmat» — Quaternius — CC0 (Dominio público)");
         sb.AppendLine("   https://poly.pizza/m/z3TSQYx1Kn   (recolor amarillo, armas retiradas, animaciones Idle/Walk/Run/Duck)");
-        sb.AppendLine("Nivel 3 «Poolrooms»: modelo propio del autor del juego (sin atribución necesaria).");
         sb.AppendLine();
         sb.AppendLine("Los modelos se han convertido a FBX con Blender y retexturizado donde se indica. Detalles en CREDITS.md.");
         Text t = Label(root.transform, sb.ToString(), 21, TextAnchor.UpperLeft, 0f, 10f, 1600f, 760f);

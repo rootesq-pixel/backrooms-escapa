@@ -133,8 +133,8 @@ public class Screamer : MonoBehaviour
         screamSrc = NewSource("ScreamSrc", screamClip);
         afterSrc = NewSource("AftermathSrc", afterClip);
         boomSrc = NewSource("BoomSrc", null);
-        screamSrc.volume = Mathf.Lerp(1f, 0.4f, Soft ? 1f : 0f);
-        afterSrc.volume = Soft ? 0.25f : 0.5f;
+        screamSrc.volume = Mathf.Lerp(1f, 0.4f, Soft ? 1f : 0f) * AudioMix.Sfx;
+        afterSrc.volume = (Soft ? 0.25f : 0.5f) * AudioMix.Sfx;
 
         BuildUi();
         BuildPhotoRig();
@@ -477,7 +477,7 @@ public class Screamer : MonoBehaviour
         if (afterStarted && afterSrc != null)
         {
             float v = Mathf.Clamp01((T - (faceEnd - 0.2f)) / 0.8f) * (Soft ? 0.3f : 0.55f);
-            afterSrc.volume = v;
+            afterSrc.volume = v * AudioMix.Sfx;
         }
     }
 

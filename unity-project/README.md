@@ -1,11 +1,11 @@
 # Backrooms Escape (esqueleto de proyecto Unity)
 
-Juego de terror en primera persona para PC: **escapa de las Backrooms** a través de **6 niveles** encadenados.
+Juego de terror en primera persona para PC: **escapa de las Backrooms** a través de **5 niveles** encadenados.
 Cada nivel es un laberinto (o aparcamiento abierto) procedural con su propia estética, luces, dificultad y
 entidades que patrullan y te persiguen. La salida es una puerta discreta que **solo se descubre explorando**
 (sin cartel, sin flecha, sin indicador de distancia).
 
-Casi todo se genera **desde código** (mallas, texturas PBR con ruido Perlin/fBm, audio); los únicos assets externos son los modelos de monstruos y el traje hazmat (CC0, ver `CREDITS.md`) y la sala del Poolrooms (modelo del autor).
+Casi todo se genera **desde código** (mallas, texturas PBR con ruido Perlin/fBm, audio); los únicos assets externos son los modelos de monstruos y el traje hazmat (CC0, ver `CREDITS.md`).
 
 ## Niveles
 
@@ -13,15 +13,14 @@ Casi todo se genera **desde código** (mallas, texturas PBR con ruido Perlin/fBm
 |---|---|---|---|---|
 | 0 | Oficinas amarillas | Clásico: papel pintado amarillento húmedo, moqueta marrón, techo de placas y fluorescentes parpadeantes. Laberinto 16×16 con salas abiertas. | 1 «El Alto» (patrulla 1.8, persecución 4.0) | Drenaje 0.5/s, 4 pilas |
 | 1 | Aparcamiento | Hormigón gris con manchas de aceite y líneas de plaza, rejilla abierta 20×20 con pilares y muros sueltos, techo alto, muy oscuro; tubos fluorescentes muy separados y a menudo muertos. | 1 «El Coloso» (2.0 / 4.4, ve hasta 24 m) | Drenaje 0.7/s, 5 pilas |
-| 2 | Salas inundadas | Azulejos blancos de piscina con franja azul y **agua realista** (olas Gerstner, reflejos, espuma, cáusticas, vadeo, restos flotantes); luz azulada; caminas más lento y los pasos chapotean. | 1 «El Reptador» (2.0 / 4.5, oído ×1.3) | Drenaje 0.75/s, sin recarga pasiva, 5 pilas |
-| 3 | **Poolrooms** | **Nuevo.** Laberinto de azulejos luminoso y cian-blanco con el **gran salón del modelo del usuario** (`poolrooms_user.blend`: escaleras, altillo, bloque, pilar) en el centro, con un **foso profundo** donde se nada y se bucea. Agua con el mismo sistema que el nivel 2. | 1 «El Ahogado» (2.0 / 4.6, ve hasta 24 m) | Drenaje 0.55/s, 5 pilas + 2 en el salón |
-| 4 | Hotel abandonado | Pasillos estrechos con moqueta roja, papel damasco y zócalo de madera, **solo lámparas de pared** casi muertas y niebla densa: la linterna es imprescindible. | 2 «El Huésped» (2.0 / 4.4, ven menos a oscuras, oído ×1.2) | Drenaje 0.9/s, sin recarga, 7 pilas de +40 |
-| 5 | Complejo industrial | Chapa oxidada con remaches, suelo de chapa lagrimada, **tuberías**, luces de emergencia rojas que pulsan. | 2 «El Hollín», **más rápidos** (2.3 / 5.3, oído ×1.4) | Drenaje 0.95/s, sin recarga, 6 pilas de +40 |
+| 2 | **Poolrooms** | Azulejos blancos de piscina con franja azul y **agua realista** (olas Gerstner, reflejos, espuma, cáusticas, vadeo, restos flotantes); luz azulada; caminas más lento y los pasos chapotean. | 1 «El Ahogado» (2.0 / 4.5, oído ×1.3) | Drenaje 0.75/s, sin recarga pasiva, 5 pilas |
+| 3 | Hotel abandonado | Pasillos estrechos con moqueta roja, papel damasco y zócalo de madera, **solo lámparas de pared** casi muertas y niebla densa: la linterna es imprescindible. | 2 «El Huésped» (2.0 / 4.4, ven menos a oscuras, oído ×1.2) | Drenaje 0.9/s, sin recarga, 7 pilas de +40 |
+| 4 | Complejo industrial | Chapa oxidada con remaches, suelo de chapa lagrimada, **tuberías**, luces de emergencia rojas que pulsan. | 2 «El Hollín», **más rápidos** (2.3 / 5.3, oído ×1.4) | Drenaje 0.95/s, sin recarga, 6 pilas de +40 |
 
-Flujo de juego: al llegar a la puerta de salida se carga el siguiente nivel; tras el nivel 5 aparece la pantalla de
+Flujo de juego: al llegar a la puerta de salida se carga el siguiente nivel; tras el nivel 4 aparece la pantalla de
 victoria (tiempo total e intentos fallidos) y **R** vuelve a empezar desde el Nivel 0. Si te atrapan, el nivel actual
 se reinicia solo a los pocos segundos (o al instante con **R**). Cada nivel empieza con una tarjeta de título
-(«NIVEL 2 — SALAS INUNDADAS») durante unos segundos.
+(«NIVEL 2 — POOLROOMS») durante unos segundos.
 
 ## Requisitos
 
@@ -65,7 +64,7 @@ se reinicia solo a los pocos segundos (o al instante con **R**). Cada nivel empi
 | Barra rápida: usar el objeto de la casilla 1-5 (1 = linterna, resto según lo recogido) | `1`-`5` |
 | Usar una pila (recarga la linterna) | `B` (o botón «Recargar linterna» en el inventario) |
 | Modo cámara VHS on/off | `V` |
-| Nadar / bucear en agua profunda (Poolrooms): avanzar + `Ctrl`/`C` para sumergirte | `W` + `Ctrl` |
+| Nadar / bucear en agua profunda: avanzar + `Ctrl`/`C` para sumergirte | `W` + `Ctrl` |
 | Menú de pausa (Continuar / Reiniciar nivel / Opciones / Menú principal / Salir). En multijugador la partida **no** se detiene | `Esc` |
 | Chat de texto (solo multijugador; `Enter` envía, `Esc` cancela) | `Enter` |
 | Reanimar a un compañero derribado (multijugador): quédate a su lado ~4 s | (automático) |
@@ -85,7 +84,7 @@ invertir eje Y, balanceo de cabeza (head-bob) on/off, suavizado del ratón (apag
 | Script | Qué hace |
 |---|---|
 | `GameBootstrap` | Construye todo en runtime para el nivel actual: atmósfera (niebla exponencial, ambiente, viñeta), generador, NavMesh, jugador + cámara + linterna + pasos, monstruos, pilas, ambiente sonoro, HUD y `GameManager`. Carga/reinicia niveles con pantalla de carga. Inspector: nivel inicial (`startLevel`, o argumento `-level N`), semilla, monstruo sí/no, teclas de depuración (`N` salta de nivel). |
-| `LevelConfig` | Datos de los 6 niveles (tamaño, estilo, texturas, luces, niebla, monstruos, batería, audio, puerta). Para añadir un nivel: sube `Count` y crea otro `LevelN()`. |
+| `LevelConfig` | Datos de los 5 niveles (tamaño, estilo, texturas, luces, niebla, monstruos, batería, audio, puerta). Para añadir un nivel: sube `Count` y crea otro `LevelN()`. |
 | `BackroomsGenerator` | Layout (laberinto con backtracker + bucles + salas, o rejilla abierta con pilares) y geometría por *chunks* con UV en metros del mundo (cada pared/suelo/techo tiene la escala correcta). Accesorios de luz emisivos, puerta de salida discreta (entre el 20 % de celdas más lejanas), pilas y apariciones de monstruos. |
 | `ProceduralTextures` / `Noise` | Texturas de 512–1024 px con Perlin/fBm periódico y ruido de valor: albedo + normal map + máscara (metálico/oclusión/suavidad), mipmaps, filtro trilineal y anisotrópico. Sin costuras al repetir. |
 | `LightCuller` | Solo las N luces de techo más cercanas al jugador son luces reales (con fundido); el resto de accesorios siguen siendo emisivos. |
@@ -126,8 +125,8 @@ invertir eje Y, balanceo de cabeza (head-bob) on/off, suavizado del ratón (apag
 
 ## Cambios de esta versión
 
-- **Monstruos con modelos 3D animados (CC0), uno distinto por nivel:** El Alto (nivel 0), El Coloso (1), El Reptador (2), El Ahogado (3,
-  Poolrooms), El Huésped (4) y El Hollín (5, sustituye al robot «El Operario»). Cada uno tiene su rig con Idle / Walk / Run / Attack (`Animator`), escala y pivote normalizados, ojos brillantes
+- **Monstruos con modelos 3D animados (CC0), uno distinto por nivel:** El Alto (nivel 0), El Coloso (1), El Ahogado (2,
+  Poolrooms), El Huésped (3) y El Hollín (4, sustituye al robot «El Operario»). Cada uno tiene su rig con Idle / Walk / Run / Attack (`Animator`), escala y pivote normalizados, ojos brillantes
   procedurales, gruñidos y pasos propios, y un **jump-scare** al atraparte (la cámara se clava en su cara, golpe de FOV, temblor e
   interferencia VHS). Si un modelo no carga, se usa una criatura procedural de reserva. Autores, fuentes y modificaciones: `CREDITS.md`
   y pantalla «Créditos» del juego (más una línea en el menú principal). Perfiles en `MonsterProfile.cs`; los prefabs se generan con
@@ -152,22 +151,16 @@ invertir eje Y, balanceo de cabeza (head-bob) on/off, suavizado del ratón (apag
   (sin estiramientos), mipmaps, trilineal y anisotrópico x8.
 - **Atmósfera:** niebla exponencial de color por nivel, ambiente bajo, oscurecimiento de esquinas horneado en las texturas y en
   el mapa de oclusión, viñeta (overlay de UI), reflejos del cielo desactivados.
-- **6 niveles** con progresión, tarjeta de título, pilas recogibles, audio ambiente y pasos por superficie.
+- **5 niveles** con progresión, tarjeta de título, pilas recogibles, audio ambiente y pasos por superficie.
 - `R` reinicia el nivel actual; perder reinicia el nivel; ganar el último muestra la victoria y `R` vuelve al Nivel 0.
 - Editor: `Backrooms > ...` (menú) y pruebas por línea de comandos (ver abajo).
 
 ## Cambios de la v4
 
-- **Nivel 3 «Poolrooms»** con el modelo del usuario (`poolrooms_user.blend` → `Assets/Resources/Poolrooms/PoolHall.fbx`, exportado con
-  Blender: sin cámara/luz/plano de agua, mallas legibles, un solo material con UV proyectadas por metros). El modelo es una **sala
-  grande** (escaleras, altillo, bloque, pilar), no un laberinto: el generador la **inserta en el centro** de un laberinto de azulejos
-  del mismo estilo (anillo de pasillo alrededor + puertas), crea colliders de suelo/techo/foso/rampa, luces suaves cian-blanco,
-  NavMesh para el monstruo, salida lejos del inicio y 2 pilas en el salón (altillo y foso). Los niveles hotel e industrial pasan a ser
-  el 4 y el 5. Vista previa del modelo: `monster-previews/poolrooms_preview.png`.
-- **Agua realista** (niveles 2 y 3): shader propio `Resources/Water/BackroomsWater.shader` (3 olas Gerstner, normal maps móviles,
+- **Agua realista** (nivel 2, Poolrooms): shader propio `Resources/Water/BackroomsWater.shader` (3 olas Gerstner, normal maps móviles,
   fresnel, reflejos de una *reflection probe*, brillos de las luces del techo, tinte por profundidad, espuma en muros/pilares,
-  ondas circulares), con *fallback* a Standard transparente. Vadeo con arrastre según profundidad, **nado y buceo** en el foso
-  (`Ctrl` sumerge), salpicaduras + ondas + sonido en cada pisada, **gotas en la lente** al salir, **bajo el agua** (niebla azul,
+  ondas circulares), con *fallback* a Standard transparente. Vadeo con arrastre según profundidad, **nado y buceo** en aguas profundas
+  (`Ctrl` sumerge; el nivel actual solo tiene agua poco profunda, la mecánica sigue implementada y probada), salpicaduras + ondas + sonido en cada pisada, **gotas en la lente** al salir, **bajo el agua** (niebla azul,
   burbujas, audio apagado), **cáusticas** animadas en la linterna (cookie), monstruo ralentizado que chapotea y **restos flotantes**
   con flotabilidad que reaccionan a ondas y empujones. *No verificado visualmente en pantalla real (solo por pruebas automáticas).*
 - **Susto de muerte (screamer)** muy mejorado: embestida con *ease-in*, golpe de FOV, sacudida violenta, linterna que parpadea y
@@ -349,8 +342,8 @@ El juego puede llevar integrado el relay «oficial» para que «Alojar con códi
 Todo se ejecuta en batchmode (sin ventana):
 
 ```
-Unity -batchmode -nographics -projectPath <proyecto> -executeMethod SmokeTest.RunEditMode  -logFile edit.log   # genera los 6 niveles x 3 semillas y valida
-Unity -batchmode -nographics -projectPath <proyecto> -executeMethod SmokeTest.RunPlayMode  -logFile play.log   # entra en Play y recorre los 6 niveles
+Unity -batchmode -nographics -projectPath <proyecto> -executeMethod SmokeTest.RunEditMode  -logFile edit.log   # genera los 5 niveles x 3 semillas y valida
+Unity -batchmode -nographics -projectPath <proyecto> -executeMethod SmokeTest.RunPlayMode  -logFile play.log   # entra en Play y recorre los 5 niveles
 Unity -batchmode -nographics -quit -projectPath <proyecto> -executeMethod TexturePreviewExporter.Export          # PNG de texturas + hoja de contacto
 Unity -batchmode -nographics -quit -projectPath <proyecto> -executeMethod BuildScript.BuildWindows               # build Windows x64
 ```
@@ -361,7 +354,7 @@ triángulos. `RunPlayMode` comprueba además HUD sin pistas, luces reales ≤ N,
 victoria final y reinicio total, y además: menú principal / opciones / créditos / pausa (Esc) / inventario (I, usar pila) / sin
 conflictos con derrota y victoria, modelos de monstruo reales (sin fallback) por nivel, animaciones, movimiento (aceleración,
 head-bob on/off, correr, agacharse, asomarse, linterna con retardo), VHS (material no nulo, ON/OFF con `V`, overlay REC/timecode,
-glitch según cercanía del monstruo) jump-scare / screamer (fases, corte a negro, foto, grito, pantalla final con botones), cuerpo del jugador (Animator, capas, IK, estados Idle/Walk/Run/Duck, opción), agua (shader propio, vadeo, foso, bajo el agua, burbujas, gotas, cáusticas) y Poolrooms. `RunEditMode` valida además prefabs/clips/avatares/créditos de los monstruos,
+glitch según cercanía del monstruo) jump-scare / screamer (fases, corte a negro, foto, grito, pantalla final con botones), cuerpo del jugador (Animator, capas, IK, estados Idle/Walk/Run/Duck, opción), agua (shader propio, vadeo, aguas profundas, bajo el agua, burbujas, gotas, cáusticas). `RunEditMode` valida además prefabs/clips/avatares/créditos de los monstruos,
 el shader VHS (carga, compila, material, `VhsPostKeeper`) y la persistencia de opciones. Los informes se escriben en `/workspace/logs/smoke-*.txt`.
 `Assets/Resources/ShaderVariantKeeper` contiene materiales que fuerzan a incluir en el build las variantes de Standard usadas en runtime
 (`_NORMALMAP`, `_METALLICGLOSSMAP`, `_EMISSION`, transparente); el build también conserva las variantes de niebla.
@@ -386,3 +379,14 @@ el shader VHS (carga, compila, material, `VhsPostKeeper`) y la persistencia de o
 6. **Pulido:** menú principal/pausa, ajustes (sensibilidad, volumen, FOV), post-proceso real (grano, aberración; requiere URP/Post Processing),
    guardado de mejor tiempo y semilla diaria.
 7. **Rendimiento:** combinar mallas estáticas, luces baked/Light Probes, oclusión por celdas.
+
+## Cambios de la v6.3
+
+- **Sonido «de aire» (respiración):** el culpable era la respiración en bucle continuo (ruido filtrado casi siempre audible, más fuerte al
+  perder resistencia) apoyada por el siseo de cinta VHS y los drones de ruido de algunos niveles. Ahora la respiración son *one-shots*
+  de inhalar/exhalar con envolvente suave, solo tras correr o con poca resistencia, con límite de ritmo y a ≤ -35 dBFS; hay una tabla de
+  mezcla única (`AudioMix`) y nuevos deslizadores en Opciones: **Volumen general**, **Efectos**, **Ambiente** y el interruptor **Respiración**.
+  El volumen general escala toda la mezcla (`AudioListener.volume`). Los drones del hotel y del complejo industrial se bajaron unos dB.
+- **Niveles: ahora son 5.** Se eliminó el nivel «Poolrooms» basado en el modelo propio (`PoolHall.fbx`, junto con su código de sala grande/foso/escaleras
+  en el generador) y el nivel de agua «Salas inundadas» pasa a llamarse **Poolrooms** (nivel 2, con «El Ahogado»; «El Reptador» ya no se usa y sus
+  assets se han quitado del proyecto). Orden: 0 Oficinas · 1 Aparcamiento · 2 Poolrooms · 3 Hotel · 4 Industrial. Notas: 15 (3 por nivel).

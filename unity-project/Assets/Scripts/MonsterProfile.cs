@@ -106,23 +106,9 @@ public class MonsterProfile
             walkUsesRun = true, walkRunSlowdown = 0.45f, runAnimSpeed = 1.0f, stridePatrol = 2.4f, strideChase = 3.4f,
             tint = new Color(0.75f, 0.72f, 0.7f), smoothness = 0.15f, jitter = 0f,
         };
-        MonsterProfile bug = new MonsterProfile
-        {
-            id = "AlienBug", displayName = "El Reptador (Nivel 2)",
-            modelAuthor = "CDmir", modelSource = "https://opengameart.org/content/alien-bug-animated",
-            licence = "CC0 (dominio público)",
-            note = "Convertido de GLB a FBX con Blender; escalado x2.5 y húmedo/brillante; sonido de chapoteo procedural.",
-            fit = FitMode.MaxExtent, size = 2.2f, yaw = 0f,
-            ai_eyeHeight = 0.7f, killDistance = 1.7f,
-            eyes = false, eyePos = new Vector3(0f, 0.30f, 0.38f), eyeSpacing = 0.07f, eyeSize = 0.018f,
-            eyeColor = new Color(0.2f, 1f, 0.6f), eyeLightIntensity = 0.7f, eyeLightRange = 4f,
-            growl = GrowlKind.Hiss, growlPitch = 1.0f, footstepPitch = 1.3f, footstepVolume = 0.45f,
-            walkUsesRun = true, walkRunSlowdown = 0.55f, runAnimSpeed = 1.1f, stridePatrol = 1.0f, strideChase = 1.4f,
-            tint = new Color(0.55f, 0.75f, 0.75f), smoothness = 0.75f, jitter = 0.15f, stutterChance = 0.1f,
-        };
         MonsterProfile zombie = new MonsterProfile
         {
-            id = "CityZombie", displayName = "El Huésped (Nivel 4)",
+            id = "CityZombie", displayName = "El Huésped (Nivel 3)",
             modelAuthor = "Rikindle3D", modelSource = "https://opengameart.org/content/male-city-zombie-ready-for-use-in-game-engines",
             licence = "CC0 (dominio público)",
             note = "Texturas desaturadas y reteñidas (gris verdoso) con Pillow; animaciones Mixamo-style reasignadas con Blender; ojos y sonidos procedurales.",
@@ -136,7 +122,7 @@ public class MonsterProfile
         };
         MonsterProfile bot = new MonsterProfile
         {
-            id = "SootHorror", displayName = "El Hollín (Nivel 5)",
+            id = "SootHorror", displayName = "El Hollín (Nivel 4)",
             modelAuthor = "EmoPreben", modelSource = "https://opengameart.org/content/horror-monster-0",
             licence = "CC0 (dominio público)",
             note = "Malla decimada (~45 %) y estirada/encorvada; textura reteñida a negro hollín grasiento con parches pálidos; animaciones de zombi Mixamo reasignadas con Blender; ojos pálidos, temblor y sonidos procedurales.",
@@ -150,7 +136,7 @@ public class MonsterProfile
         };
         MonsterProfile drowned = new MonsterProfile
         {
-            id = "DrownedZombie", modelFile = "CityZombie", displayName = "El Ahogado (Nivel 3)",
+            id = "DrownedZombie", modelFile = "CityZombie", displayName = "El Ahogado (Nivel 2)",
             modelAuthor = "Rikindle3D", modelSource = "https://opengameart.org/content/male-city-zombie-ready-for-use-in-game-engines",
             licence = "CC0 (dominio público)",
             note = "Mismo rig que El Huésped, reteñido con Pillow (piel azulada, hinchada y empapada, ropa verdiazul), más ancho y lento; ojos cian, gemidos húmedos y chapoteo procedurales.",
@@ -162,6 +148,6 @@ public class MonsterProfile
             walkAnimSpeed = 0.8f, runAnimSpeed = 0.95f, stridePatrol = 1.4f, strideChase = 2.2f,
             tint = new Color(0.85f, 0.95f, 1f), smoothness = 0.55f, lightReactive = true, stutterChance = 0.12f, jitter = 0.08f,
         };
-        return new[] { stalker, giant, bug, drowned, zombie, bot };
+        return new[] { stalker, giant, drowned, zombie, bot };
     }
 }

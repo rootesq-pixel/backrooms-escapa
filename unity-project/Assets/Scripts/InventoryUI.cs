@@ -219,7 +219,7 @@ public class InventoryUI : MonoBehaviour
         {
             int col = i / 9, row = i % 9;
             int level = i / LoreNotes.PerLevel, k = i % LoreNotes.PerLevel;
-            // orden: nivel 0..5, 3 notas por nivel -> 2 columnas de 9 (niveles 0-2 | 3-5)
+            // orden: nivel 0..4, 3 notas por nivel -> 2 columnas (9 + 6)
             float x = left + rowW * 0.5f + col * (rowW + gap);
             float y = top - rowH * 0.5f - row * (rowH + gap);
             Image b = UiStyle.Rect(notesPage.transform, "Note" + i, x, y, rowW, rowH, UiStyle.Border);

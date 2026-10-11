@@ -4,11 +4,16 @@ using UnityEngine;
 public static class GameSettings
 {
     private const string KVolume = "opt_volume", KSens = "opt_sens", KFull = "opt_fullscreen", KQuality = "opt_quality",
-        KInvert = "opt_invertY", KBob = "opt_headbob", KSmooth = "opt_smooth", KVhs = "opt_vhs", KVhsInt = "opt_vhsIntensity", KSoft = "opt_softScare", KBody = "opt_showBody";
+        KInvert = "opt_invertY", KBob = "opt_headbob", KSmooth = "opt_smooth", KVhs = "opt_vhs", KVhsInt = "opt_vhsIntensity", KSoft = "opt_softScare", KBody = "opt_showBody", KSfx = "opt_sfx", KAmb = "opt_ambience", KBreath = "opt_breath";
 
     public static event System.Action Changed;
 
     public static float MasterVolume { get { return PlayerPrefs.GetFloat(KVolume, 0.8f); } set { PlayerPrefs.SetFloat(KVolume, Mathf.Clamp01(value)); ApplyAudio(); Notify(); } }
+    // Grupos de volumen (se multiplican por el volumen general): Efectos (pasos, respiración, monstruos, susto…) y Ambiente (drone, zumbidos, siseo VHS…)
+    public static float SfxVolume { get { return PlayerPrefs.GetFloat(KSfx, 1f); } set { PlayerPrefs.SetFloat(KSfx, Mathf.Clamp01(value)); Notify(); } }
+    public static float AmbienceVolume { get { return PlayerPrefs.GetFloat(KAmb, 1f); } set { PlayerPrefs.SetFloat(KAmb, Mathf.Clamp01(value)); Notify(); } }
+    // Respiración del jugador (suave; solo suena tras correr o con poca stamina)
+    public static bool BreathEnabled { get { return PlayerPrefs.GetInt(KBreath, 1) != 0; } set { PlayerPrefs.SetInt(KBreath, value ? 1 : 0); Notify(); } }
     public static float MouseSensitivity { get { return PlayerPrefs.GetFloat(KSens, 2f); } set { PlayerPrefs.SetFloat(KSens, Mathf.Clamp(value, 0.2f, 8f)); Notify(); } }
     public static bool Fullscreen { get { return PlayerPrefs.GetInt(KFull, 1) != 0; } set { PlayerPrefs.SetInt(KFull, value ? 1 : 0); ApplyScreen(); Notify(); } }
     // 0 = Bajo, 1 = Medio, 2 = Alto
@@ -39,7 +44,7 @@ public static class GameSettings
     public static void ResetDefaults()
     {
         PlayerPrefs.DeleteKey(KVolume); PlayerPrefs.DeleteKey(KSens); PlayerPrefs.DeleteKey(KFull); PlayerPrefs.DeleteKey(KQuality);
-        PlayerPrefs.DeleteKey(KInvert); PlayerPrefs.DeleteKey(KBob); PlayerPrefs.DeleteKey(KSmooth); PlayerPrefs.DeleteKey(KVhs); PlayerPrefs.DeleteKey(KVhsInt); PlayerPrefs.DeleteKey(KSoft); PlayerPrefs.DeleteKey(KBody);
+        PlayerPrefs.DeleteKey(KInvert); PlayerPrefs.DeleteKey(KBob); PlayerPrefs.DeleteKey(KSmooth); PlayerPrefs.DeleteKey(KVhs); PlayerPrefs.DeleteKey(KVhsInt); PlayerPrefs.DeleteKey(KSoft); PlayerPrefs.DeleteKey(KBody); PlayerPrefs.DeleteKey(KSfx); PlayerPrefs.DeleteKey(KAmb); PlayerPrefs.DeleteKey(KBreath);
         ApplyAll();
         Notify();
     }

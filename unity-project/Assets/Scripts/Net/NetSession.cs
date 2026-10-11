@@ -499,7 +499,7 @@ public class NetSession : MonoBehaviour
         CurrentStart = ns;
     }
 
-    // Escalado por nº de jugadores: a partir de 3 jugadores, +1 monstruo desde el nivel 3 (Poolrooms)
+    // Escalado por nº de jugadores: a partir de 3 jugadores, +1 monstruo desde el nivel 3 (hotel) en adelante
     public static int ExtraMonstersFor(int players, int level)
     {
         return players >= 3 && level >= 3 ? 1 : 0;

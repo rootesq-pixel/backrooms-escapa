@@ -10,18 +10,6 @@ public class MonsterModelPostprocessor : AssetPostprocessor
 {
     private void OnPreprocessModel()
     {
-        if (assetPath.StartsWith("Assets/Resources/Poolrooms/"))
-        {
-            // Sala del usuario: el generador lee la malla (UV, colliders, NavMesh) => legible; sin animación ni cámaras/luces
-            ModelImporter pi = (ModelImporter)assetImporter;
-            pi.isReadable = true;
-            pi.importAnimation = false;
-            pi.importCameras = false;
-            pi.importLights = false;
-            pi.animationType = ModelImporterAnimationType.None;
-            pi.meshCompression = ModelImporterMeshCompression.Off;
-            return;
-        }
         if (!assetPath.StartsWith("Assets/Monsters/Models/")) return;
         ModelImporter mi = (ModelImporter)assetImporter;
         mi.animationType = ModelImporterAnimationType.Generic;
@@ -149,8 +137,6 @@ public static class MonsterAssetBuilder
                 return MakeMat("HorrorStalker", Tex("Stalker_Albedo"), Tex("Stalker_Normal"), null, null, p.tint, p.smoothness, Color.black);
             case "GiantMutant":
                 return MakeMat("GiantMutant", Tex("Giant_Albedo"), null, null, null, p.tint, p.smoothness, Color.black);
-            case "AlienBug":
-                return MakeMat("AlienBug", Tex("Bug_Albedo"), Tex("Bug_Normal"), null, null, p.tint, p.smoothness, Color.black);
             case "SootHorror":
                 return MakeMat("SootHorror", Tex("Soot_Albedo"), Tex("Soot_Normal"), null, null, p.tint, p.smoothness, Color.black);
         }

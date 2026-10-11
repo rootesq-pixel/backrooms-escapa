@@ -409,7 +409,7 @@ public class PlayerBody : MonoBehaviour
         if (clickSrc != null && clickClip != null && Visible)
         {
             clickSrc.pitch = on ? 1.35f : 0.9f;
-            clickSrc.PlayOneShot(clickClip, 0.5f);
+            clickSrc.PlayOneShot(clickClip, AudioMix.S(0.5f));
         }
     }
 

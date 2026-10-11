@@ -10,16 +10,14 @@ Cada nivel usa una criatura distinta. Los modelos originales se convirtieron a F
 |---|---|---|---|---|---|
 | 0 Oficinas | HorrorStalker | El Alto | HorrorGameMaker.com (City Building Game Art) | CC0 (dominio público) | https://opengameart.org/content/3d-horror-game-monster |
 | 1 Aparcamiento | GiantMutant | El Coloso | Eldritch Grim | CC0 (dominio público) | https://opengameart.org/content/giant-mutant |
-| 2 Salas inundadas | AlienBug | El Reptador | CDmir | CC0 (dominio público) | https://opengameart.org/content/alien-bug-animated |
-| 3 Poolrooms | DrownedZombie | El Ahogado | Rikindle3D (modelo del Huésped, reteñido) | CC0 (dominio público) | https://opengameart.org/content/male-city-zombie-ready-for-use-in-game-engines |
-| 4 Hotel | CityZombie | El Huésped | Rikindle3D | CC0 (dominio público) | https://opengameart.org/content/male-city-zombie-ready-for-use-in-game-engines |
-| 5 Industrial | SootHorror | El Hollín | EmoPreben | CC0 (dominio público) | https://opengameart.org/content/horror-monster-0 |
+| 2 Poolrooms | DrownedZombie | El Ahogado | Rikindle3D (modelo del Huésped, reteñido) | CC0 (dominio público) | https://opengameart.org/content/male-city-zombie-ready-for-use-in-game-engines |
+| 3 Hotel | CityZombie | El Huésped | Rikindle3D | CC0 (dominio público) | https://opengameart.org/content/male-city-zombie-ready-for-use-in-game-engines |
+| 4 Industrial | SootHorror | El Hollín | EmoPreben | CC0 (dominio público) | https://opengameart.org/content/horror-monster-0 |
 
 ### Modificaciones
 
 - **HorrorStalker** (El Alto): Retextura pálida/ceniza, estirado en altura; ojos y sonidos procedurales.
 - **GiantMutant** (El Coloso): Malla reducida (decimado ~30 %), oscurecida; ojos y sonidos procedurales.
-- **AlienBug** (El Reptador): Convertido de GLB a FBX con Blender; escalado x2.5 y húmedo/brillante; sonido de chapoteo procedural.
 - **CityZombie** (El Huésped): Texturas desaturadas y reteñidas (gris verdoso) con Pillow; animaciones reasignadas al esqueleto con Blender; ojos y sonidos procedurales.
 - **DrownedZombie** (El Ahogado): mismo modelo de Rikindle3D que el Huésped, con textura reteñida azul verdosa y empapada, ojos fríos y lamento de ahogado procedural.
 - **SootHorror** (El Hollín): Malla decimada (~45 %) y estirada/encorvada; textura reteñida a negro hollín grasiento; animaciones de zombi (Mixamo) reasignadas con Blender; ojos pálidos, temblor y sonidos procedurales. Licencia CC0 comprobada en la página del autor el 11-oct-2026.
@@ -32,9 +30,9 @@ Cada nivel usa una criatura distinta. Los modelos originales se convirtieron a F
 
 Licencia comprobada el 11-oct-2026 en la página de Poly Pizza (campo «Licence: CC0 1.0», «Public Domain (CC0)»). Cambios: GLB convertido a FBX con Blender; eliminadas las armas y el resto de objetos; conservadas las animaciones Idle, Walk, Run y Duck; color del traje cambiado a amarillo hazmat con guantes/botas negros (materiales de Unity). La linterna de mano, el IK del brazo, las sombras y el efecto de empapado son procedurales.
 
-## Nivel 3 «Poolrooms»
+## Poolrooms (nivel 2)
 
-La sala del Poolrooms procede del archivo `poolrooms_user.blend` aportado por el autor del juego (modelo propio; no requiere atribución). Se exportó con Blender a `Assets/Resources/Poolrooms/PoolHall.fbx` (sin cámara/luz/agua; texturas por código).
+El nivel de agua (antes «Salas inundadas») se llama ahora Poolrooms. Es totalmente procedural (sin modelos externos). En la v6.3 se eliminó la sala del modelo propio del autor (`PoolHall.fbx`) y el monstruo «El Reptador» (AlienBug) ya no se usa ni se incluye.
 
 ## CGTrader
 

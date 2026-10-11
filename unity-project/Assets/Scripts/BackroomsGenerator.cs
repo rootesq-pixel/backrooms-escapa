@@ -58,17 +58,7 @@ public class BackroomsGenerator : MonoBehaviour
     public int PillarCount { get; private set; }
     public int WallSegmentCount { get; private set; }
 
-    // --- Sala grande (Poolrooms) ---
-    public bool HasHall { get { return config != null && config.poolHall; } }
-    public RectInt HallRect { get; private set; }
-    public Transform HallRoot { get; private set; }
     public WaterVolume Water { get; private set; }
-    public Vector3 HallBatteryMezzanine { get; private set; }
-    public Vector3 HallBatteryPit { get; private set; }
-    public Rect PitRectLocal { get; private set; }
-    public float PitDepth { get; private set; }
-    // Rampa de las escaleras (invisible, sobre la sierra de escalones) para que el CharacterController pueda subir
-    public BoxCollider StairRamp { get; private set; }
 
     // --- Datos internos ---
     private Transform levelRoot;
@@ -169,11 +159,6 @@ public class BackroomsGenerator : MonoBehaviour
         return levelRoot.TransformPoint(CellCenterLocal(x, z));
     }
 
-    public bool IsHallCell(int x, int z)
-    {
-        return config != null && config.poolHall && x >= HallRect.xMin && x < HallRect.xMax && z >= HallRect.yMin && z < HallRect.yMax;
-    }
-
     // Distancia (en el plano XZ, coordenadas locales del nivel) hasta la pared más cercana (superficie)
     public float WallDistance(float x, float z)
     {
@@ -205,20 +190,9 @@ public class BackroomsGenerator : MonoBehaviour
         return Mathf.Max(0f, best - wallThickness * 0.5f);
     }
 
-    // Altura del suelo analítica (solo el foso baja del 0); coordenadas locales
+    // Altura del suelo analítica (el suelo es plano); coordenadas locales
     public float FloorHeightLocal(float x, float z)
     {
-        if (HasHall && PitDepth > 0f)
-        {
-            Rect r = PitRectLocal;
-            if (x >= r.xMin && x <= r.xMax && z >= r.yMin && z <= r.yMax)
-            {
-                float zm = r.yMin + cellSize;
-                float k = Mathf.Clamp01((z - r.yMin) / cellSize);
-                if (z <= zm) return -PitDepth * k;
-                return -PitDepth;
-            }
-        }
         return 0f;
     }
 
@@ -286,7 +260,6 @@ public class BackroomsGenerator : MonoBehaviour
             return true;
         }
 
-        bool allowHall = IsHallCell(a.x, a.y) || IsHallCell(b.x, b.y);
         int total = w * h;
         int[] parent = new int[total];
         for (int i = 0; i < total; i++) parent[i] = -2; // -2 = sin visitar
@@ -307,7 +280,6 @@ public class BackroomsGenerator : MonoBehaviour
                 Vector2Int n = c + Dirs[d];
                 int ni = n.y * w + n.x;
                 if (parent[ni] != -2) continue;
-                if (!allowHall && IsHallCell(n.x, n.y)) continue;   // la sala grande tiene obstáculos: no se usa como atajo
                 parent[ni] = cur;
                 queue.Enqueue(ni);
             }
@@ -404,25 +376,6 @@ public class BackroomsGenerator : MonoBehaviour
                     wallsH[i, j] = false;
         }
 
-        // 4) Sala grande (Poolrooms): rectángulo diáfano con una entrada por cada extremo
-        if (config.poolHall)
-        {
-            int hx0 = Mathf.Clamp(config.hallPos.x, 1, w - 2), hz0 = Mathf.Clamp(config.hallPos.y, 1, h - 2);
-            int hx1 = Mathf.Clamp(hx0 + config.hallSize.x, hx0 + 1, w - 1), hz1 = Mathf.Clamp(hz0 + config.hallSize.y, hz0 + 1, h - 1);
-            HallRect = new RectInt(hx0, hz0, hx1 - hx0, hz1 - hz0);
-            for (int i = hx0 + 1; i < hx1; i++)
-                for (int j = hz0; j < hz1; j++)
-                    wallsV[i, j] = false;
-            for (int i = hx0; i < hx1; i++)
-                for (int j = hz0 + 1; j < hz1; j++)
-                    wallsH[i, j] = false;
-            // entradas: extremo norte en la columna oeste, extremo sur en la columna este (el foso queda en medio)
-            wallsH[hx0, hz1] = false;
-            wallsH[hx1 - 1, hz0] = false;
-            // pasillo-anillo alrededor de la sala: así todo lo que no es sala sigue conectado sin atravesarla
-            for (int j = hz0; j <= hz1; j++) { wallsH[hx0 - 1, j] = false; wallsH[hx1, j] = false; }
-            for (int i = hx0; i <= hx1; i++) { wallsV[i, hz0 - 1] = false; wallsV[i, hz1] = false; }
-        }
     }
 
     private bool InBounds(Vector2Int c)
@@ -490,7 +443,6 @@ public class BackroomsGenerator : MonoBehaviour
             for (int j = 0; j < h; j++)
             {
                 if (distFromStart[i, j] < minExit) continue;
-                if (IsHallCell(i, j)) continue;
                 Vector2Int c = new Vector2Int(i, j);
                 bool hasWall = false;
                 for (int d = 0; d < 4; d++) if (!IsOpen(c, d)) hasWall = true;
@@ -510,7 +462,7 @@ public class BackroomsGenerator : MonoBehaviour
         {
             for (int j = 0; j < h; j++)
             {
-                if (distFromStart[i, j] >= minDist && !(i == exitCell.x && j == exitCell.y) && !IsHallCell(i, j))
+                if (distFromStart[i, j] >= minDist && !(i == exitCell.x && j == exitCell.y))
                 {
                     candidates.Add(new Vector2Int(i, j));
                 }
@@ -581,9 +533,6 @@ public class BackroomsGenerator : MonoBehaviour
         Material wallMat = Track(ProceduralAssets.CreateSurfaceMaterial(wallSet, cfg.wallTint, 1f, 1f));
         Material floorMat = Track(ProceduralAssets.CreateSurfaceMaterial(floorSet, cfg.floorTint, 1f, 1f));
         Material ceilMat = Track(ProceduralAssets.CreateSurfaceMaterial(ceilSet, cfg.ceilTint, 1f, 1f));
-        bool hasHall = cfg.poolHall;
-        float hallH = cfg.hallHeight;
-        PitDepth = 0f;
         Material pipeMat = cfg.pipes ? wallMat : null;
 
         // --- Chunks (cada uno es un renderer, para que las luces por píxel se repartan bien) ---
@@ -604,54 +553,18 @@ public class BackroomsGenerator : MonoBehaviour
         }
 
         // Suelo y techo por chunk (UV en metros del mundo)
-        Rect pitRect = new Rect(0, 0, 0, 0);
-        int pitCx = -1, pitCz = -1;
-        if (hasHall)
-        {
-            // el foso ocupa exactamente un chunk (2x2 celdas) para poder sustituir su suelo
-            int pcx = (Mathf.Clamp(cfg.pitCell.x, 0, w - 2) / chunkCells), pcz = (Mathf.Clamp(cfg.pitCell.y, 0, h - 2) / chunkCells);
-            pitCx = pcx; pitCz = pcz;
-            PitDepth = cfg.pitDepth;
-            pitRect = new Rect(pcx * chunkCells * cs, pcz * chunkCells * cs, chunkCells * cs, chunkCells * cs);
-            PitRectLocal = pitRect;
-        }
         for (int cx = 0; cx < cxN; cx++)
         {
             for (int cz = 0; cz < czN; cz++)
             {
                 float x0 = cx * chunkCells * cs, x1 = Mathf.Min(w, (cx + 1) * chunkCells) * cs;
                 float z0 = cz * chunkCells * cs, z1 = Mathf.Min(h, (cz + 1) * chunkCells) * cs;
-                if (hasHall && cx == pitCx && cz == pitCz)
-                {
-                    AddPitFloor(flatB[cx, cz], x0, x1, z0, z1, cfg);
-                }
-                else
-                {
-                    flatB[cx, cz].AddQuad(SlotFloor, new Vector3(x0, 0f, z0), new Vector3(x1, 0f, z0), new Vector3(x1, 0f, z1), new Vector3(x0, 0f, z1),
-                        Vector3.up, Vector3.right, Vector3.forward, cfg.floorTileU, cfg.floorTileV, 0f, 0f);
-                }
-                if (!hasHall)
-                {
-                    flatB[cx, cz].AddQuad(SlotCeiling, new Vector3(x0, wh, z0), new Vector3(x1, wh, z0), new Vector3(x1, wh, z1), new Vector3(x0, wh, z1),
-                        Vector3.down, Vector3.right, Vector3.forward, cfg.ceilTileU, cfg.ceilTileV, 0f, 0f);
-                }
+                flatB[cx, cz].AddQuad(SlotFloor, new Vector3(x0, 0f, z0), new Vector3(x1, 0f, z0), new Vector3(x1, 0f, z1), new Vector3(x0, 0f, z1),
+                    Vector3.up, Vector3.right, Vector3.forward, cfg.floorTileU, cfg.floorTileV, 0f, 0f);
+                flatB[cx, cz].AddQuad(SlotCeiling, new Vector3(x0, wh, z0), new Vector3(x1, wh, z0), new Vector3(x1, wh, z1), new Vector3(x0, wh, z1),
+                    Vector3.down, Vector3.right, Vector3.forward, cfg.ceilTileU, cfg.ceilTileV, 0f, 0f);
             }
         }
-        if (hasHall)
-        {
-            // techo por celda: alto sobre la sala grande
-            for (int x = 0; x < w; x++)
-            {
-                for (int z = 0; z < h; z++)
-                {
-                    float y = IsHallCell(x, z) ? hallH : wh;
-                    flatB[x / chunkCells, z / chunkCells].AddQuad(SlotCeiling, new Vector3(x * cs, y, z * cs), new Vector3((x + 1) * cs, y, z * cs),
-                        new Vector3((x + 1) * cs, y, (z + 1) * cs), new Vector3(x * cs, y, (z + 1) * cs),
-                        Vector3.down, Vector3.right, Vector3.forward, cfg.ceilTileU, cfg.ceilTileV, 0f, 0f);
-                }
-            }
-        }
-
         // Paredes verticales (a lo largo de Z) y horizontales (a lo largo de X)
         // Se acortan 2 mm en cada extremo para que los extremos no queden coplanares con otras paredes (z-fighting)
         float segLen = cs + t - 0.004f;
@@ -662,7 +575,7 @@ public class BackroomsGenerator : MonoBehaviour
             {
                 if (!wallsV[i, j]) continue;
                 int cx = Mathf.Min(i, w - 1) / chunkCells, cz = j / chunkCells;
-                float sh = (hasHall && (IsHallCell(i - 1, j) || IsHallCell(i, j))) ? hallH : wh;
+                float sh = wh;
                 Vector3 center = new Vector3(i * cs, sh * 0.5f, (j + 0.5f) * cs);
                 wallsB[cx, cz].AddWallBox(SlotWall, center, new Vector3(t, sh, segLen), cfg.wallTileU, cfg.wallTileV, (float)rng.NextDouble());
                 wallSegments++;
@@ -681,7 +594,7 @@ public class BackroomsGenerator : MonoBehaviour
             {
                 if (!wallsH[i, j]) continue;
                 int cx = i / chunkCells, cz = Mathf.Min(j, h - 1) / chunkCells;
-                float sh = (hasHall && (IsHallCell(i, j - 1) || IsHallCell(i, j))) ? hallH : wh;
+                float sh = wh;
                 Vector3 center = new Vector3((i + 0.5f) * cs, sh * 0.5f, j * cs);
                 wallsB[cx, cz].AddWallBox(SlotWall, center, new Vector3(segLen, sh, t), cfg.wallTileU, cfg.wallTileV, (float)rng.NextDouble());
                 wallSegments++;
@@ -760,24 +673,11 @@ public class BackroomsGenerator : MonoBehaviour
         }
 
         // Colliders planos de suelo y techo (cajas grandes: sin costuras)
-        if (!hasHall)
-        {
-            AddBox("FloorCollider", new Vector3(totalW * 0.5f, -0.1f, totalH * 0.5f), new Vector3(totalW + 2f * t, 0.2f, totalH + 2f * t));
-            AddBox("CeilingCollider", new Vector3(totalW * 0.5f, wh + 0.1f, totalH * 0.5f), new Vector3(totalW + 2f * t, 0.2f, totalH + 2f * t));
-        }
-        else
-        {
-            BuildHallColliders(cs, totalW, totalH, t, wh, hallH, pitRect, cfg);
-        }
+        AddBox("FloorCollider", new Vector3(totalW * 0.5f, -0.1f, totalH * 0.5f), new Vector3(totalW + 2f * t, 0.2f, totalH + 2f * t));
+        AddBox("CeilingCollider", new Vector3(totalW * 0.5f, wh + 0.1f, totalH * 0.5f), new Vector3(totalW + 2f * t, 0.2f, totalH + 2f * t));
 
         // Luces
         BuildFixtures(rng);
-
-        // Sala grande del usuario (modelo + luces)
-        if (hasHall)
-        {
-            BuildHall(wallMat, cs, cfg);
-        }
 
         // Posiciones clave
         Vector3 startLocal = CellCenterLocal(startCell.x, startCell.y);
@@ -808,163 +708,6 @@ public class BackroomsGenerator : MonoBehaviour
         b.center = center;
         b.size = size;
         return b;
-    }
-
-    // Suelo del foso: rampa de entrada, fondo y paredes laterales (dentro del chunk)
-    private void AddPitFloor(MeshBuilder mb, float x0, float x1, float z0, float z1, LevelConfig cfg)
-    {
-        float cs = cellSize, d = cfg.pitDepth;
-        float zm = z0 + cs;
-        Vector3 up = Vector3.up;
-        // rampa (desciende hacia +Z)
-        Vector3 rn = new Vector3(0f, cs, d).normalized;
-        mb.AddQuad(SlotFloor, new Vector3(x0, 0f, z0), new Vector3(x1, 0f, z0), new Vector3(x1, -d, zm), new Vector3(x0, -d, zm),
-            rn, Vector3.right, Vector3.forward, config.floorTileU, config.floorTileV, 0f, 0f);
-        // fondo
-        mb.AddQuad(SlotFloor, new Vector3(x0, -d, zm), new Vector3(x1, -d, zm), new Vector3(x1, -d, z1), new Vector3(x0, -d, z1),
-            up, Vector3.right, Vector3.forward, config.floorTileU, config.floorTileV, 0f, 0f);
-        // pared norte (mira a -Z)
-        mb.AddQuad(SlotFloor, new Vector3(x0, 0f, z1), new Vector3(x1, 0f, z1), new Vector3(x1, -d, z1), new Vector3(x0, -d, z1),
-            Vector3.back, Vector3.right, Vector3.up, config.wallTileU, config.wallTileU, 0f, 0f);
-        // paredes laterales
-        mb.AddQuad(SlotFloor, new Vector3(x0, 0f, z0), new Vector3(x0, 0f, z1), new Vector3(x0, -d, z1), new Vector3(x0, -d, zm),
-            Vector3.right, Vector3.forward, Vector3.up, config.wallTileU, config.wallTileU, 0f, 0f);
-        mb.AddQuad(SlotFloor, new Vector3(x1, 0f, z0), new Vector3(x1, 0f, z1), new Vector3(x1, -d, z1), new Vector3(x1, -d, zm),
-            Vector3.left, Vector3.forward, Vector3.up, config.wallTileU, config.wallTileU, 0f, 0f);
-    }
-
-    private void BuildHallColliders(float cs, float totalW, float totalH, float t, float wh, float hallH, Rect pit, LevelConfig cfg)
-    {
-        float d = cfg.pitDepth;
-        // Suelo: franja inferior, dos mitades junto al foso, franja superior
-        float pz0 = pit.yMin, pz1 = pit.yMax, px0 = pit.xMin, px1 = pit.xMax;
-        AddBox("Floor_South", new Vector3(totalW * 0.5f, -0.1f, (pz0 - t) * 0.5f), new Vector3(totalW + 2f * t, 0.2f, pz0 + t));
-        AddBox("Floor_West", new Vector3((px0 - t) * 0.5f, -0.1f, (pz0 + pz1) * 0.5f), new Vector3(px0 + t, 0.2f, pz1 - pz0));
-        AddBox("Floor_East", new Vector3((px1 + totalW + t) * 0.5f, -0.1f, (pz0 + pz1) * 0.5f), new Vector3(totalW + t - px1, 0.2f, pz1 - pz0));
-        AddBox("Floor_North", new Vector3(totalW * 0.5f, -0.1f, (pz1 + totalH + t) * 0.5f), new Vector3(totalW + 2f * t, 0.2f, totalH + t - pz1));
-        // Foso: fondo + rampa
-        AddBox("Pit_Bottom", new Vector3((px0 + px1) * 0.5f, -d - 0.1f, (pz0 + pz1) * 0.5f), new Vector3(px1 - px0, 0.2f, pz1 - pz0));
-        float L = Mathf.Sqrt(cs * cs + d * d);
-        Vector3 f = new Vector3(0f, -d, cs) / L;
-        Vector3 u = new Vector3(0f, cs, d) / L;
-        GameObject ramp = new GameObject("Pit_Ramp");
-        ramp.transform.SetParent(levelRoot, false);
-        ramp.transform.localPosition = new Vector3((px0 + px1) * 0.5f, -d * 0.5f, pz0 + cs * 0.5f) - u * 0.1f;
-        ramp.transform.localRotation = Quaternion.LookRotation(f, u);
-        BoxCollider rb = ramp.AddComponent<BoxCollider>();
-        rb.size = new Vector3(px1 - px0, 0.2f, L + 0.1f);
-
-        // Techo: bajo el nivel normal salvo sobre la sala grande
-        float hx0 = HallRect.xMin * cs, hx1 = HallRect.xMax * cs, hz0 = HallRect.yMin * cs, hz1 = HallRect.yMax * cs;
-        AddBox("Ceil_South", new Vector3(totalW * 0.5f, wh + 0.1f, (hz0 - t) * 0.5f), new Vector3(totalW + 2f * t, 0.2f, hz0 + t));
-        AddBox("Ceil_West", new Vector3((hx0 - t) * 0.5f, wh + 0.1f, (hz0 + hz1) * 0.5f), new Vector3(hx0 + t, 0.2f, hz1 - hz0));
-        AddBox("Ceil_East", new Vector3((hx1 + totalW + t) * 0.5f, wh + 0.1f, (hz0 + hz1) * 0.5f), new Vector3(totalW + t - hx1, 0.2f, hz1 - hz0));
-        AddBox("Ceil_North", new Vector3(totalW * 0.5f, wh + 0.1f, (hz1 + totalH + t) * 0.5f), new Vector3(totalW + 2f * t, 0.2f, totalH + t - hz1));
-        AddBox("Ceil_Hall", new Vector3((hx0 + hx1) * 0.5f, hallH + 0.1f, (hz0 + hz1) * 0.5f), new Vector3(hx1 - hx0, 0.2f, hz1 - hz0));
-    }
-
-    // Modelo de sala del usuario (Resources/Poolrooms/PoolHall): escaleras, altillo, bloque y pilar.
-    // El suelo, las paredes laterales y el techo los pone el generador (para encajar con el laberinto).
-    private void BuildHall(Material tileMat, float cs, LevelConfig cfg)
-    {
-        GameObject root = new GameObject("PoolHall");
-        root.transform.SetParent(levelRoot, false);
-        HallRoot = root.transform;
-        float hx0 = HallRect.xMin * cs, hz0 = HallRect.yMin * cs;
-        float width = HallRect.width * cs;
-        // El modelo (ya en Y arriba) ocupa X [-7.8, 7.8] y Z [-13.27, 32.57]
-        root.transform.localPosition = new Vector3(hx0 + width * 0.5f, 0f, hz0 + 13.27f);
-
-        GameObject prefab = Resources.Load<GameObject>("Poolrooms/PoolHall");
-        if (prefab != null)
-        {
-            GameObject model = (GameObject)Object.Instantiate(prefab);
-            model.name = "Model";
-            model.transform.SetParent(root.transform, false);
-            model.transform.localPosition = Vector3.zero;
-            model.transform.localRotation = Quaternion.identity;
-            MeshFilter[] mfs = model.GetComponentsInChildren<MeshFilter>();
-            for (int i = 0; i < mfs.Length; i++)
-            {
-                MeshFilter mf = mfs[i];
-                Mesh m = Track(BoxProjectUV(mf.sharedMesh, mf.transform, levelRoot, 2.0f));
-                mf.sharedMesh = m;
-                MeshRenderer mr = mf.GetComponent<MeshRenderer>();
-                mr.sharedMaterial = tileMat;
-                mr.shadowCastingMode = ShadowCastingMode.Off;
-                mr.receiveShadows = false;
-                MeshCollider mc = mf.gameObject.AddComponent<MeshCollider>();
-                mc.sharedMesh = m;
-            }
-        }
-        else
-        {
-            Debug.LogWarning("[BackroomsGenerator] Falta Resources/Poolrooms/PoolHall (modelo del usuario).");
-        }
-
-        // Rampa invisible sobre los escalones (cada escalón mide ~0,6-0,85 m: demasiado para el CharacterController)
-        {
-            Vector3 p0 = new Vector3(0f, 0f, 6.5f), p1 = new Vector3(0f, 10.26f, -5.32f);
-            Vector3 dir = (p1 - p0);
-            float L = dir.magnitude;
-            Vector3 f = dir / L;
-            Vector3 u = Vector3.Cross(Vector3.right, f); // perpendicular hacia arriba
-            if (u.y < 0f) u = -u;
-            GameObject ramp = new GameObject("StairRamp");
-            ramp.transform.SetParent(root.transform, false);
-            ramp.transform.localPosition = new Vector3(4.91f, (p0.y + p1.y) * 0.5f, (p0.z + p1.z) * 0.5f) + u * (0.03f - 0.15f);
-            ramp.transform.localRotation = Quaternion.LookRotation(f, u);
-            BoxCollider bc = ramp.AddComponent<BoxCollider>();
-            bc.size = new Vector3(5.8f, 0.3f, L);
-            StairRamp = bc;
-        }
-
-        // Luces suaves de la sala (bajo el altillo, sobre el altillo y en la zona abierta)
-        Vector3[] lp =
-        {
-            new Vector3(0f, 7.6f, -6f), new Vector3(0f, 7.6f, 6f), new Vector3(0f, 7.6f, 15f),
-            new Vector3(0f, 14.5f, 3f), new Vector3(0f, 11f, 27f)
-        };
-        for (int i = 0; i < lp.Length; i++)
-        {
-            GameObject lg = new GameObject("HallLight" + i);
-            lg.transform.SetParent(root.transform, false);
-            lg.transform.localPosition = lp[i];
-            Light l = lg.AddComponent<Light>();
-            l.type = LightType.Point;
-            l.color = cfg.lightColor;
-            l.range = 17f;
-            l.intensity = 1.25f;
-            l.shadows = LightShadows.None;
-        }
-
-        // Puntos de recompensa: altillo (tras la escalera) y fondo del foso
-        HallBatteryMezzanine = root.transform.TransformPoint(new Vector3(-5f, 10.4f, -2f));
-        Rect pr = PitRectLocal;
-        HallBatteryPit = levelRoot.TransformPoint(new Vector3(pr.center.x, -cfg.pitDepth + 0.15f, pr.yMax - 1f));
-    }
-
-    // Copia la malla con UV de proyección en caja (metros del nivel) para que los azulejos tengan escala real
-    private static Mesh BoxProjectUV(Mesh src, Transform t, Transform levelRoot, float tile)
-    {
-        Mesh m = Object.Instantiate(src);
-        m.name = src.name + "_UV";
-        Vector3[] v = m.vertices;
-        Vector3[] n = m.normals;
-        Vector2[] uv = new Vector2[v.Length];
-        for (int i = 0; i < v.Length; i++)
-        {
-            Vector3 wp = levelRoot.InverseTransformPoint(t.TransformPoint(v[i]));
-            Vector3 wn = levelRoot.InverseTransformDirection(t.TransformDirection(n.Length > i ? n[i] : Vector3.up));
-            float ax = Mathf.Abs(wn.x), ay = Mathf.Abs(wn.y), az = Mathf.Abs(wn.z);
-            if (ay >= ax && ay >= az) uv[i] = new Vector2(wp.x, wp.z) / tile;
-            else if (ax >= az) uv[i] = new Vector2(wp.z, wp.y) / tile;
-            else uv[i] = new Vector2(wp.x, wp.y) / tile;
-        }
-        m.uv = uv;
-        m.RecalculateBounds();
-        try { m.RecalculateTangents(); } catch { }
-        return m;
     }
 
     private T Track<T>(T obj) where T : Object
@@ -1007,7 +750,6 @@ public class BackroomsGenerator : MonoBehaviour
             for (int z = 0; z < h; z++)
             {
                 Vector3 c = CellCenterLocal(x, z);
-                if (IsHallCell(x, z)) continue;   // la sala grande tiene sus propias luces
 
                 if (cfg.fixture == FixtureKind.Sconce)
                 {
@@ -1133,7 +875,7 @@ public class BackroomsGenerator : MonoBehaviour
             src.rolloffMode = AudioRolloffMode.Linear;
             src.minDistance = 1f;
             src.maxDistance = 9f;
-            src.volume = f.buzzVolume;
+            src.volume = AudioMix.Buzz(f.buzzVolume);
             src.Play();
             src.time = (float)rng.NextDouble(); // desfasa los zumbidos
             f.buzz = src;
@@ -1156,7 +898,7 @@ public class BackroomsGenerator : MonoBehaviour
         {
             Vector2Int c = new Vector2Int(rng.Next(w), rng.Next(h));
             if (c == startCell || c == exitCell) continue;
-            if (distFromStart[c.x, c.y] < 2 || IsHallCell(c.x, c.y)) continue;
+            if (distFromStart[c.x, c.y] < 2) continue;
             bool ok = true;
             int minSep = guard < 250 ? 3 : 1;
             for (int i = 0; i < picked.Count; i++)
@@ -1169,12 +911,6 @@ public class BackroomsGenerator : MonoBehaviour
             float oz = ((float)rng.NextDouble() - 0.5f) * cellSize * 0.4f;
             BatterySpots.Add(levelRoot.TransformPoint(CellCenterLocal(c.x, c.y) + new Vector3(ox, 0.1f, oz)));
         }
-        if (HasHall)
-        {
-            // Recompensas de la sala grande: una en el altillo (tras subir las escaleras) y otra en el fondo del foso (nadando)
-            BatterySpots.Add(HallBatteryMezzanine);
-            BatterySpots.Add(HallBatteryPit);
-        }
     }
 
     // Sitios para objetos extra (el orden de uso lo decide GameBootstrap): celdas libres, separadas entre sí y de las pilas
@@ -1186,7 +922,7 @@ public class BackroomsGenerator : MonoBehaviour
         while (picked.Count < count && guard++ < 1500)
         {
             Vector2Int c = new Vector2Int(rng.Next(w), rng.Next(h));
-            if (c == startCell || c == exitCell || IsHallCell(c.x, c.y)) continue;
+            if (c == startCell || c == exitCell) continue;
             if (distFromStart[c.x, c.y] < 2) continue;
             int minSep = guard < 600 ? 2 : 1;
             bool ok = true;

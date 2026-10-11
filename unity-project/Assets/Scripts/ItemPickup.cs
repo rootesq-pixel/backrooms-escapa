@@ -121,7 +121,7 @@ public class ItemPickup : MonoBehaviour
     {
         collected = true;
         if (pickupClip == null) pickupClip = ProceduralAudio.CreatePickup();
-        AudioSource.PlayClipAtPoint(pickupClip, basePos + Vector3.up, 0.8f);
+        AudioSource.PlayClipAtPoint(pickupClip, basePos + Vector3.up, AudioMix.S(0.8f));
         Destroy(gameObject);
     }
 

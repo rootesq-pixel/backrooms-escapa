@@ -74,7 +74,7 @@ public static class ProceduralAudio
                 v += amp[h] * Mathf.Sin(2f * Mathf.PI * f * t + h);
             }
             float lfo = 0.75f + 0.25f * Mathf.Sin(2f * Mathf.PI * 2f * t / seconds * 1f);   // 2 ciclos por bucle
-            d[i] = v * 0.25f * lfo + noise[i] * 6f * noiseAmount * (0.6f + 0.4f * lfo) + noise2[i] * 0.4f * noiseAmount * 0.3f;
+            d[i] = v * 0.25f * lfo + noise[i] * 3.4f * noiseAmount * (0.6f + 0.4f * lfo) + noise2[i] * 0.4f * noiseAmount * 0.3f;
         }
         Normalize(d, 0.8f);
         return Make("Drone", d);
@@ -304,45 +304,49 @@ public static class ProceduralAudio
         return Make("MStep_" + kind, d);
     }
 
-    // Respiración (bucle ~2.4 s): ruido filtrado con envolvente inhalar/exhalar
-    public static AudioClip CreateBreath()
+    // Respiración suave: una inhalación o una exhalación por clip (NO es un bucle: FirstPersonController las programa).
+    // Ruido limitado en banda (≈150 Hz – 1,2 kHz, sin agudos «siseantes») con envolvente de coseno elevado: ataque lento y cola larga.
+    public static AudioClip CreateBreathPhase(bool inhale)
     {
-        float len = 2.4f;
+        float len = inhale ? 0.85f : 1.25f;
         int n = (int)(SR * len);
         float[] d = new float[n];
-        float lp = 0f, lp2 = 0f;
+        float a1 = 0f, a2 = 0f, hp = 0f;
+        float alpha = inhale ? 0.20f : 0.15f;           // ~700 / ~520 Hz por polo (dos polos en cascada)
+        float riseFrac = inhale ? 0.62f : 0.22f;
         for (int i = 0; i < n; i++)
         {
-            float t = i / (float)SR, u = t / len;
-            float w = Noise.Hash01(i, 21, 77) * 2f - 1f;
-            lp += 0.22f * (w - lp);
-            lp2 += 0.05f * (lp - lp2);
-            float inhale = Mathf.Exp(-Mathf.Pow((u - 0.22f) / 0.10f, 2f));
-            float exhale = Mathf.Exp(-Mathf.Pow((u - 0.62f) / 0.16f, 2f)) * 1.2f;
-            d[i] = (lp - lp2) * (inhale * 0.8f + exhale);
+            float u = i / (float)n;
+            float w = Noise.Hash01(i, inhale ? 21 : 22, 77) * 2f - 1f;
+            a1 += alpha * (w - a1);
+            a2 += alpha * (a1 - a2);
+            hp += 0.043f * (a2 - hp);                    // quita graves < ~150 Hz
+            float band = a2 - hp;
+            float env = u < riseFrac ? 0.5f - 0.5f * Mathf.Cos(Mathf.PI * u / riseFrac)
+                                     : 0.5f + 0.5f * Mathf.Cos(Mathf.PI * (u - riseFrac) / (1f - riseFrac));
+            d[i] = band * env * env;                     // env² => aún más suave en los extremos
         }
-        // sin costura: desvanecer los extremos
-        int fade = SR / 40;
-        for (int i = 0; i < fade; i++) { float k = i / (float)fade; d[i] *= k; d[n - 1 - i] *= k; }
-        Normalize(d, 0.7f);
-        return Make("Breath", d);
+        Normalize(d, 0.5f);
+        return Make(inhale ? "BreathIn" : "BreathOut", d);
     }
 
-    // Siseo de cinta VHS (bucle de 2 s)
+    // Siseo de cinta VHS (bucle de 2 s): ruido de banda media, suave (sin agudos estridentes) + zumbido de 50 Hz muy tenue
     public static AudioClip CreateTapeHiss()
     {
         int n = SR * 2;
         float[] d = new float[n];
-        float lp = 0f;
+        float l1 = 0f, l2 = 0f, slow = 0f;
         for (int i = 0; i < n; i++)
         {
             float w = Noise.Hash01(i, 9, 31) * 2f - 1f;
-            lp += 0.65f * (w - lp);
-            d[i] = (w - lp) * 0.9f + Mathf.Sin(2f * Mathf.PI * 50f * i / SR) * 0.05f;
+            l1 += 0.22f * (w - l1);
+            l2 += 0.22f * (l1 - l2);                    // paso-bajo de 2 polos (~800 Hz)
+            slow += 0.03f * (l2 - slow);                // paso-alto (~100 Hz)
+            d[i] = (l2 - slow) + Mathf.Sin(2f * Mathf.PI * 50f * i / SR) * 0.03f;
         }
         int fade = SR / 50;
         for (int i = 0; i < fade; i++) { float k = i / (float)fade; d[i] *= k; d[n - 1 - i] *= k; }
-        Normalize(d, 0.6f);
+        Normalize(d, 0.5f);
         return Make("TapeHiss", d);
     }
 

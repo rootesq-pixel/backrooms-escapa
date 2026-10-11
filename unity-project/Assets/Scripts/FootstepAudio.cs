@@ -6,6 +6,7 @@ public class FootstepAudio : MonoBehaviour
 {
     public StepKind kind = StepKind.Carpet;
     public float volume = 0.45f;
+    private float Vol { get { return volume * AudioMix.Sfx * AudioMix.StepMaster; } }
 
     private AudioSource source;
     private AudioClip clip;
@@ -57,18 +58,18 @@ public class FootstepAudio : MonoBehaviour
         float depth = fpc.WaterDepth;
         bool inWater = wv != null && depth > 0.03f;
         // pisada sobre suelo mojado (charco): clip del nivel con menos graves + chapoteo; en agua profunda solo chapoteo
-        source.PlayOneShot(clip, volume * intensity * (inWater ? Mathf.Lerp(0.8f, 0.3f, Mathf.Clamp01(depth / 0.5f)) : 1f));
+        source.PlayOneShot(clip, Vol * intensity * (inWater ? Mathf.Lerp(0.8f, 0.3f, Mathf.Clamp01(depth / 0.5f)) : 1f));
         if (inWater)
         {
             if (splash == null) splash = ProceduralAudio.CreateSplash();
             source.pitch = Random.Range(0.9f, 1.25f) * Mathf.Lerp(1.1f, 0.75f, Mathf.Clamp01(depth / 0.9f));
-            source.PlayOneShot(splash, volume * Mathf.Lerp(0.5f, 1f, Mathf.Clamp01(depth / 0.5f)) * intensity);
+            source.PlayOneShot(splash, Vol * Mathf.Lerp(0.5f, 1f, Mathf.Clamp01(depth / 0.5f)) * intensity);
             wv.Splash(fpc.transform.position + fpc.transform.forward * 0.25f, Mathf.Clamp01(0.25f * intensity + depth * 0.5f), false);
         }
         else if (splash != null && (fpc.IsSprinting || Random.value < 0.3f))
         {
             source.pitch = Random.Range(0.9f, 1.25f);
-            source.PlayOneShot(splash, volume * 0.55f * intensity);
+            source.PlayOneShot(splash, Vol * 0.55f * intensity);
         }
     }
 
@@ -76,14 +77,14 @@ public class FootstepAudio : MonoBehaviour
     {
         if (clip == null) return;
         source.pitch = 0.8f;
-        source.PlayOneShot(clip, Mathf.Min(1f, volume * intensity * 1.4f));
+        source.PlayOneShot(clip, Mathf.Min(1f, Vol * intensity * 1.4f));
         WaterVolume wv = WaterVolume.Active;
         if (wv != null && fpc != null && fpc.WaterDepth > 0.03f)
         {
             if (splash == null) splash = ProceduralAudio.CreateSplash();
-            source.PlayOneShot(splash, volume * 1.1f);
+            source.PlayOneShot(splash, Vol * 1.1f);
             wv.Splash(fpc.transform.position, Mathf.Clamp01(intensity), false);
         }
-        else if (splash != null) source.PlayOneShot(splash, volume * 0.8f);
+        else if (splash != null) source.PlayOneShot(splash, Vol * 0.8f);
     }
 }

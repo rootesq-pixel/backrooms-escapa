@@ -70,7 +70,7 @@ public class BatteryPickup : MonoBehaviour
             }
             if (GameManager.Instance != null) GameManager.Instance.ShowToast("+ Pila   (I: inventario · 2 / B: usar pila)");
         }
-        if (pickupClip != null) AudioSource.PlayClipAtPoint(pickupClip, basePos + Vector3.up * 1f, 0.8f);
+        if (pickupClip != null) AudioSource.PlayClipAtPoint(pickupClip, basePos + Vector3.up * 1f, AudioMix.S(0.8f));
         Destroy(gameObject);
     }
 
@@ -87,7 +87,7 @@ public class BatteryPickup : MonoBehaviour
         }
         else if (flashlight != null) flashlight.AddBattery(amount);   // sin inventario: recarga directa
         CollectedThisLevel++;
-        if (pickupClip != null) AudioSource.PlayClipAtPoint(pickupClip, basePos + Vector3.up * 1f, 0.8f);
+        if (pickupClip != null) AudioSource.PlayClipAtPoint(pickupClip, basePos + Vector3.up * 1f, AudioMix.S(0.8f));
         if (GameManager.Instance != null) GameManager.Instance.ShowToast("+ Pila   (I: inventario · 2 / B: usar pila)");
         Destroy(gameObject);
     }

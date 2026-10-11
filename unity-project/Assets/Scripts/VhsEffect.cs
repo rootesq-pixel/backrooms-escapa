@@ -130,7 +130,7 @@ public class VhsEffect : MonoBehaviour
         }
         if (hiss != null)
         {
-            hiss.volume = (CurrentIntensity * 0.035f + glitch * 0.16f * Mathf.Max(0.4f, CurrentIntensity)) * (EffectEnabled ? 1f : 0f);
+            hiss.volume = AudioMix.Hiss(CurrentIntensity, glitch) * (EffectEnabled ? 1f : 0f);
         }
 
         UpdateFallback();

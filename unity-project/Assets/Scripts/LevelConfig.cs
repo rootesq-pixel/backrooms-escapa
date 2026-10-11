@@ -40,13 +40,6 @@ public class LevelConfig
     public Color waterColor = new Color(0.30f, 0.52f, 0.60f, 0.5f);
     public int debrisCount = 0;            // objetos flotantes con flotabilidad (nivel con agua)
 
-    // --- Sala grande del usuario (Poolrooms): modelo Resources/Poolrooms/PoolHall + foso profundo ---
-    public bool poolHall = false;
-    public Vector2Int hallPos = new Vector2Int(5, 1);     // celda de la esquina (x, z)
-    public Vector2Int hallSize = new Vector2Int(4, 12);   // en celdas
-    public float hallHeight = 16.95f;
-    public Vector2Int pitCell = new Vector2Int(6, 10);    // esquina del foso (2x2 celdas, alineado a un chunk)
-    public float pitDepth = 1.8f;
 
     // --- Atmósfera ---
     public Color ambient = new Color(0.12f, 0.10f, 0.05f);
@@ -100,7 +93,7 @@ public class LevelConfig
     public Color doorColor = new Color(0.55f, 0.52f, 0.38f);
     public Color doorFrameColor = new Color(0.30f, 0.24f, 0.14f);
 
-    public const int Count = 6;
+    public const int Count = 5;
     private static LevelConfig[] cache;
 
     public static LevelConfig Get(int index)
@@ -122,8 +115,7 @@ public class LevelConfig
             case 1: c = Level1(); break;
             case 2: c = Level2(); break;
             case 3: c = Level3(); break;
-            case 4: c = Level4(); break;
-            default: c = Level5(); break;
+            default: c = Level4(); break;
         }
         c.monsterModel = MonsterProfile.ForLevel(i).id;   // un monstruo distinto por nivel
         return c;
@@ -183,13 +175,13 @@ public class LevelConfig
         return c;
     }
 
-    // Nivel 2: pasillos inundados tipo "poolrooms"
+    // Nivel 2: Poolrooms — pasillos de azulejos inundados
     private static LevelConfig Level2()
     {
         LevelConfig c = new LevelConfig();
         c.index = 2;
-        c.name = "Salas inundadas";
-        c.subtitle = "Azulejos blancos, agua estancada y una luz azulada que no debería existir.";
+        c.name = "Poolrooms";
+        c.subtitle = "Azulejos blancos, agua estancada y una luz azulada que no debería existir. Una piscina interminable.";
         c.gridW = 15; c.gridH = 15; c.cellSize = 4f; c.wallHeight = 3.2f;
         c.loopChance = 0.20f; c.roomCount = 10; c.roomSize = new Vector2Int(2, 4);
         c.wallStyle = SurfaceStyle.PoolWall; c.floorStyle = SurfaceStyle.PoolFloor; c.ceilingStyle = SurfaceStyle.CeilingPool;
@@ -213,42 +205,11 @@ public class LevelConfig
         return c;
     }
 
-    // Nivel 3: Poolrooms (modelo de sala del usuario + laberinto de azulejos con agua)
+    // Nivel 3: pasillos de hotel muy oscuros, solo lámparas de pared
     private static LevelConfig Level3()
     {
         LevelConfig c = new LevelConfig();
         c.index = 3;
-        c.name = "Poolrooms";
-        c.subtitle = "Una piscina interminable de azulejos, luz blanca y un silencio que gotea. El gran salón del centro tiene escaleras y un foso.";
-        c.gridW = 15; c.gridH = 15; c.cellSize = 3.9f; c.wallHeight = 4.2f;
-        c.loopChance = 0.16f; c.roomCount = 6; c.roomSize = new Vector2Int(2, 3);
-        c.wallStyle = SurfaceStyle.PoolWall; c.floorStyle = SurfaceStyle.PoolFloor; c.ceilingStyle = SurfaceStyle.CeilingPool;
-        c.wallTileU = 2f; c.wallTileV = 2f; c.floorTileU = c.floorTileV = 2f; c.ceilTileU = c.ceilTileV = 2.4f;
-        c.wallTint = new Color(0.95f, 1.0f, 1.0f); c.floorTint = new Color(0.95f, 1.0f, 1.0f);
-        c.water = true; c.waterLevel = 0.3f; c.waterColor = new Color(0.35f, 0.75f, 0.85f, 0.42f); c.debrisCount = 10;
-        c.poolHall = true;
-        c.ambient = new Color(0.20f, 0.30f, 0.34f);
-        c.fog = new Color(0.45f, 0.70f, 0.75f);
-        c.fogDensity = 0.016f;
-        c.reflectionIntensity = 0.6f;
-        c.fixture = FixtureKind.Panel; c.lightSpacing = 2; c.deadChance = 0.04f; c.flickerChance = 0.08f;
-        c.lightColor = new Color(0.85f, 1f, 1f); c.emissionColor = new Color(1.3f, 1.8f, 1.9f);
-        c.lightIntensity = 1.5f; c.lightRange = 12f; c.maxRealtimeLights = 11; c.buzzChance = 0.2f;
-        c.playerSpeedFactor = 0.9f;
-        c.flashlightDrain = 0.55f; c.flashlightRecharge = 0.1f; c.batteries = 5; c.batteryAmount = 35f; c.flashlightIntensity = 2.2f;
-        c.monsterCount = 1; c.patrolSpeed = 2.0f; c.chaseSpeed = 4.6f; c.sightRange = 24f; c.hearingScale = 1.4f; c.darkSightFactor = 0.8f; c.loseSightTime = 4.5f;
-        c.droneHz = 52f; c.droneNoise = 0.22f; c.droneVolume = 0.32f; c.ambientEvent = AmbientEvent.Drip;
-        c.eventInterval = new Vector2(3f, 8f);
-        c.step = StepKind.Water;
-        c.doorColor = new Color(0.82f, 0.90f, 0.92f); c.doorFrameColor = new Color(0.40f, 0.62f, 0.66f);
-        return c;
-    }
-
-    // Nivel 4: pasillos de hotel muy oscuros, solo lámparas de pared
-    private static LevelConfig Level4()
-    {
-        LevelConfig c = new LevelConfig();
-        c.index = 4;
         c.name = "Hotel abandonado";
         c.subtitle = "Moqueta roja, lámparas casi muertas. Sin linterna no verás nada.";
         c.gridW = 17; c.gridH = 17; c.cellSize = 3.2f; c.wallHeight = 2.8f;
@@ -264,18 +225,18 @@ public class LevelConfig
         c.lightIntensity = 0.75f; c.lightRange = 6f; c.maxRealtimeLights = 8; c.buzzChance = 0f;
         c.flashlightDrain = 0.9f; c.flashlightRecharge = 0f; c.batteries = 7; c.batteryAmount = 40f; c.flashlightIntensity = 2.8f;
         c.monsterCount = 2; c.patrolSpeed = 2.0f; c.chaseSpeed = 4.4f; c.sightRange = 14f; c.darkSightFactor = 0.4f; c.hearingScale = 1.2f;
-        c.droneHz = 36f; c.droneNoise = 0.2f; c.droneVolume = 0.45f; c.ambientEvent = AmbientEvent.Creak;
+        c.droneHz = 36f; c.droneNoise = 0.2f; c.droneVolume = 0.38f; c.ambientEvent = AmbientEvent.Creak;
         c.eventInterval = new Vector2(5f, 13f);
         c.step = StepKind.Carpet;
         c.doorColor = new Color(0.21f, 0.11f, 0.065f); c.doorFrameColor = new Color(0.34f, 0.24f, 0.10f);
         return c;
     }
 
-    // Nivel 5: complejo industrial con tuberías y emergencia roja; monstruo más rápido
-    private static LevelConfig Level5()
+    // Nivel 4: complejo industrial con tuberías y emergencia roja; monstruo más rápido
+    private static LevelConfig Level4()
     {
         LevelConfig c = new LevelConfig();
-        c.index = 5;
+        c.index = 4;
         c.name = "Complejo industrial";
         c.subtitle = "Tuberías, chapa oxidada y luces de emergencia. Algo corre más rápido que tú.";
         c.gridW = 20; c.gridH = 20; c.cellSize = 4f; c.wallHeight = 3.4f;
@@ -293,7 +254,7 @@ public class LevelConfig
         c.flashlightDrain = 0.95f; c.flashlightRecharge = 0f; c.batteries = 6; c.batteryAmount = 40f;
         c.monsterCount = 2; c.patrolSpeed = 2.3f; c.chaseSpeed = 5.3f; c.sightRange = 22f; c.darkSightFactor = 0.55f;
         c.hearingScale = 1.4f; c.loseSightTime = 5f; c.killDistance = 1.5f;
-        c.droneHz = 45f; c.droneNoise = 0.3f; c.droneVolume = 0.5f; c.ambientEvent = AmbientEvent.Clank;
+        c.droneHz = 45f; c.droneNoise = 0.3f; c.droneVolume = 0.36f; c.ambientEvent = AmbientEvent.Clank;
         c.eventInterval = new Vector2(4f, 10f);
         c.step = StepKind.Metal;
         c.doorColor = new Color(0.30f, 0.32f, 0.30f); c.doorFrameColor = new Color(0.18f, 0.14f, 0.08f);

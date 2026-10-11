@@ -60,22 +60,17 @@ public static class LoreNotes
             "Tique de aparcamiento|Entrada 23:41. Salida: sin registrar. Planta -1, plaza 118. La barrera no se levanta. Las luces del fondo llevan días muertas.",
             "Nota sobre el capó|Algo enorme respira al otro lado de los pilares. Apagué la linterna y se quedó quieto. Creo que oye mejor de lo que ve.",
             "Aviso de la comunidad|Se recuerda que está prohibido estacionar en la rampa. Sobre todo de noche. Sobre todo si el suelo tiembla." },
-        // Nivel 2 — Salas inundadas
+        // Nivel 2 — Poolrooms
         new[] {
             "Cuaderno mojado|El agua sube un centímetro por hora. No sé de dónde viene. Está tibia. Anoche algo con demasiadas patas cruzó el pasillo sin hacer ruido.",
             "Cartel de la piscina|Prohibido correr. Prohibido bucear. Prohibido bañarse sin vigilancia. Aquí no hay vigilante desde hace años.",
             "Diario de J.|Si ves una puerta con un LED verde diminuto, no la busques: ella te encuentra a ti. Yo la crucé por casualidad. Me alegro de haberlo hecho." },
-        // Nivel 3 — Poolrooms
-        new[] {
-            "Nota de socorrista|Azulejos, azulejos, azulejos. Cada sala parece la anterior con más luz. El foso no tiene fondo, pero sí algo que te mira desde abajo.",
-            "Papel doblado|Oí a alguien chapotear a mi espalda. Cuando me giré solo había ondas. Siguen llegando ondas. Siguen llegando.",
-            "Pegatina de taquilla|Taquilla 17. Dentro: una toalla seca, un reloj parado a las 3:07 y una nota que dice «no bajes al foso». No bajé. Ya estoy abajo." },
-        // Nivel 4 — Hotel
+        // Nivel 3 — Hotel
         new[] {
             "Carta de recepción|Estimado huésped: su habitación 304 está lista desde hace años. El minibar no funciona. El pasillo tampoco termina. Disfrute de su estancia.",
             "Servilleta|Las lámparas se apagan cuando pasa el huésped de la 12. Lleva el cuello torcido. Siempre sonríe. Nunca parpadea.",
             "Registro de visitas|Entradas: 1.041. Salidas: 0. Última firma: la mía. Letra temblorosa. Mañana ya no sabré firmar." },
-        // Nivel 5 — Industrial
+        // Nivel 4 — Industrial
         new[] {
             "Parte de turno|Caldera 3 sin presión. Turno de noche cancelado. Se oyen golpes dentro de las tuberías, a un ritmo constante. Parece que alguien cuenta.",
             "Etiqueta de seguridad|PELIGRO: no apagar las luces de emergencia. Lo que trabaja en la oscuridad nunca ha cobrado. Nunca ha cobrado.",

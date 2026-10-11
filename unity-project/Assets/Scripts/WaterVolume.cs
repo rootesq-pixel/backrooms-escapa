@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-// Volumen de agua de un nivel (nivel 2 inundado y Poolrooms).
+// Volumen de agua de un nivel (nivel 2: Poolrooms).
 //  - Superficie: mallas por chunk (rejilla de 0,5 m) con el shader "BackroomsWater" (olas Gerstner, fresnel, reflejo con
 //    ReflectionProbe, brillos de las luces del techo, tinte por profundidad y espuma junto a las paredes en el color de vértice).
 //    Si el shader no carga se usa el material Standard transparente de antes (sin olas) como alternativa.
@@ -278,7 +278,6 @@ public class WaterVolume : MonoBehaviour
         while (placed < cfg.debrisCount && guard++ < 400)
         {
             int cx = rng.Next(gen.GridWidth), cz = rng.Next(gen.GridHeight);
-            if (gen.IsHallCell(cx, cz)) continue;
             if (cx == gen.StartCell.x && cz == gen.StartCell.y) continue;
             if (cx == gen.ExitCell.x && cz == gen.ExitCell.y) continue;
             Vector3 c = gen.CellCenterWorld(cx, cz);
@@ -513,7 +512,7 @@ public class WaterVolume : MonoBehaviour
             splashSrcIndex = (splashSrcIndex + 1) % splashSources.Length;
             a.transform.position = new Vector3(world.x, surfaceY, world.z);
             a.pitch = Random.Range(0.85f, 1.25f);
-            a.volume = Mathf.Clamp01(0.25f + strength * 0.6f);
+            a.volume = Mathf.Clamp01(0.25f + strength * 0.6f) * AudioMix.Sfx;
             a.Play();
         }
     }

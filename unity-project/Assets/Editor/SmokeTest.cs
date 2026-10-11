@@ -13,7 +13,7 @@ using UnityEngine.UI;
 // Pruebas de humo (sin necesidad de ventana):
 //  - RunEditMode: genera cada nivel con varias semillas (modo edición) y comprueba materiales, salida, alcanzabilidad (BFS),
 //    colisiones por el camino, pilas, monstruos, ausencia de cartel "SALIDA", NavMesh...
-//  - RunPlayMode: abre Assets/Scenes/Main.unity, entra en Play y recorre los 6 niveles
+//  - RunPlayMode: abre Assets/Scenes/Main.unity, entra en Play y recorre los 5 niveles
 //    (comprueba HUD, pilas, derrota -> reinicio, llegar a la salida -> siguiente nivel, victoria final, reinicio total).
 // Uso: Unity -batchmode -nographics -projectPath <proyecto> -executeMethod SmokeTest.RunEditMode -logFile <log>
 //      (sin -quit en PlayMode: el propio test llama a EditorApplication.Exit)
@@ -46,6 +46,7 @@ public static class SmokeTest
             TestVhsAssets(r);
             TestInventoryData(r);
             TestSettings(r);
+            TestAudioMix(r);
             TestV4Assets(r);
             TestNetwork(r);
             TestNatAndRelay(r);
@@ -777,10 +778,13 @@ public static class SmokeTest
     private static void TestV4Assets(Report r)
     {
         // Niveles
-        r.Check(LevelConfig.Count == 6, "hay 6 niveles (" + LevelConfig.Count + ")");
-        r.Check(LevelConfig.Get(2).water && !LevelConfig.Get(2).poolHall, "nivel 2 = salas inundadas (agua, sin sala Poolrooms)");
-        LevelConfig pool = LevelConfig.Get(3);
-        r.Check(pool.poolHall && pool.water, "nivel 3 = Poolrooms (sala del modelo del usuario + agua)");
+        r.Check(LevelConfig.Count == 5, "hay 5 niveles (" + LevelConfig.Count + ")");
+        r.Check(LevelConfig.Get(2).water && LevelConfig.Get(2).name == "Poolrooms", "nivel 2 = Poolrooms (antes «Salas inundadas»: agua realista)");
+        bool onlyOneWater = true; for (int i = 0; i < LevelConfig.Count; i++) if (i != 2 && LevelConfig.Get(i).water) onlyOneWater = false;
+        r.Check(onlyOneWater && LevelConfig.Get(3).name == "Hotel abandonado" && LevelConfig.Get(4).name == "Complejo industrial", "sin otro nivel de agua; nivel 3 = hotel, nivel 4 = industrial");
+        r.Check(MonsterProfile.ForLevel(2).id == "DrownedZombie", "el Ahogado es el monstruo del nivel de agua (Poolrooms)");
+        r.Check(Resources.Load<GameObject>("Poolrooms/PoolHall") == null && MonsterProfile.ById("AlienBug") == null, "el modelo PoolHall y El Reptador ya no existen");
+        r.Check(LoreNotes.Total == 15 && !LoreNotes.Valid(50) && LoreNotes.Valid(42), "15 notas de ambiente (3 por nivel, 5 niveles)");
         var seenMonsters = new HashSet<string>();
         for (int i = 0; i < LevelConfig.Count; i++)
         {
@@ -789,9 +793,6 @@ public static class SmokeTest
             seenMonsters.Add(c.monsterModel);
         }
         r.Check(seenMonsters.Count == LevelConfig.Count, "un monstruo distinto por nivel (" + seenMonsters.Count + ")");
-        GameObject hall = Resources.Load<GameObject>("Poolrooms/PoolHall");
-        r.Check(hall != null && hall.GetComponentInChildren<MeshFilter>() != null && hall.GetComponentInChildren<MeshFilter>().sharedMesh != null, "modelo PoolHall.fbx carga desde Resources (malla)");
-        r.Check(hall != null && hall.GetComponentInChildren<MeshFilter>().sharedMesh.isReadable, "PoolHall.fbx con mallas legibles (Read/Write) para UV, colliders y NavMesh en el build");
 
         // Agua
         Shader ws = Resources.Load<Shader>(WaterVolume.ShaderResource);
@@ -854,6 +855,10 @@ public static class SmokeTest
     private static void TestSettings(Report r)
     {
         GameSettings.ResetDefaults();
+        r.Check(Mathf.Approximately(GameSettings.SfxVolume, 1f) && Mathf.Approximately(GameSettings.AmbienceVolume, 1f) && GameSettings.BreathEnabled, "Efectos 100 %, Ambiente 100 % y respiración activada por defecto");
+        GameSettings.SfxVolume = 0.4f; GameSettings.AmbienceVolume = 0.25f; GameSettings.BreathEnabled = false; GameSettings.Save();
+        r.Check(Mathf.Approximately(PlayerPrefs.GetFloat("opt_sfx", -1f), 0.4f) && Mathf.Approximately(PlayerPrefs.GetFloat("opt_ambience", -1f), 0.25f) && PlayerPrefs.GetInt("opt_breath", -1) == 0, "Efectos / Ambiente / Respiración se guardan en PlayerPrefs");
+        GameSettings.ResetDefaults();
         r.Check(GameSettings.VhsOn, "VHS activado por defecto");
         r.Check(GameSettings.HeadBob, "head-bob activado por defecto");
         r.Check(!GameSettings.SmoothLook, "suavizado de ratón desactivado por defecto");
@@ -869,6 +874,77 @@ public static class SmokeTest
         r.Check(GameSettings.SoftScare && !GameSettings.ShowBody, "'Susto suave' / 'Mostrar cuerpo' persisten");
         GameSettings.ResetDefaults();
         r.Check(GameSettings.VhsOn && GameSettings.HeadBob && Mathf.Approximately(GameSettings.MasterVolume, 0.8f) && GameSettings.ShowBody && !GameSettings.SoftScare, "ResetDefaults restaura los valores");
+    }
+
+
+    // ---- mezcla de audio: niveles de los sonidos de «ruido / aire», grupos de volumen ----
+    private static void TestAudioMix(Report r)
+    {
+        GameSettings.ResetDefaults();
+        float stepDb = -99f;
+        foreach (StepKind k in new[] { StepKind.Carpet, StepKind.Concrete, StepKind.Water, StepKind.Metal })
+        {
+            AudioClip c = ProceduralAudio.CreateFootstep(k);
+            AudioAudit.Stat st = AudioAudit.Measure(c);
+            stepDb = Mathf.Max(stepDb, AudioMix.Db(st.rms * 0.45f));    // volumen base de FootstepAudio
+            r.Check(st.peak <= 0.65f && st.rms <= 0.12f, "[Audio] paso " + k + ": pico " + st.peak.ToString("F2") + " / rms " + st.rms.ToString("F3"));
+            UnityEngine.Object.DestroyImmediate(c);
+        }
+        // respiración: suave, sin agudos, muy por debajo de los pasos
+        foreach (bool inhale in new[] { true, false })
+        {
+            AudioClip c = ProceduralAudio.CreateBreathPhase(inhale);
+            AudioAudit.Stat st = AudioAudit.Measure(c);
+            float eff = AudioMix.Db(st.rms * AudioMix.BreathMax);
+            r.Check(st.peak <= 0.55f && st.rms <= 0.10f, "[Audio] respiración " + (inhale ? "inhalar" : "exhalar") + ": pico " + st.peak.ToString("F2") + " / rms " + st.rms.ToString("F3") + " (≤ 0,55 / 0,10)");
+            r.Check(st.hf <= 0.04f, "[Audio] respiración sin siseo agudo (hf " + st.hf.ToString("F3") + " ≤ 0,04)");
+            r.Check(eff <= -35f && eff < stepDb - 8f, "[Audio] respiración al máximo ≤ -35 dBFS y ≥ 8 dB por debajo de los pasos (" + eff.ToString("F1") + " dB; pasos " + stepDb.ToString("F1") + " dB)");
+            // envolvente: empieza y acaba en silencio (sin clics)
+            float[] d = new float[c.samples]; c.GetData(d, 0);
+            r.Check(Mathf.Abs(d[0]) < 0.02f && Mathf.Abs(d[d.Length - 1]) < 0.02f, "[Audio] respiración con envolvente suave (extremos ≈ 0)");
+            UnityEngine.Object.DestroyImmediate(c);
+        }
+        // siseo VHS
+        {
+            AudioClip c = ProceduralAudio.CreateTapeHiss();
+            AudioAudit.Stat st = AudioAudit.Measure(c);
+            float idle = AudioMix.Db(st.rms * AudioMix.Hiss(1f, 0f)), max = AudioMix.Db(st.rms * AudioMix.Hiss(1f, 1f));
+            r.Check(st.peak <= 0.55f && st.hf <= 0.06f, "[Audio] siseo VHS: pico " + st.peak.ToString("F2") + ", hf " + st.hf.ToString("F3") + " (sin agudos estridentes)");
+            r.Check(idle <= -52f && max <= -36f && max < stepDb - 10f, "[Audio] siseo VHS: reposo " + idle.ToString("F1") + " dB (≤ -52), con interferencia máxima " + max.ToString("F1") + " dB (≤ -36)");
+            UnityEngine.Object.DestroyImmediate(c);
+        }
+        // drones por nivel, zumbido y sucesos
+        for (int i = 0; i < LevelConfig.Count; i++)
+        {
+            LevelConfig cfg = LevelConfig.Get(i);
+            AudioClip c = ProceduralAudio.CreateDrone(cfg.droneHz, cfg.droneNoise, 1000 + i * 17);
+            AudioAudit.Stat st = AudioAudit.Measure(c);
+            float eff = AudioMix.Db(st.rms * AudioMix.Drone(cfg.droneVolume));
+            r.Check(st.peak <= 0.85f && eff <= -27f && eff < stepDb - 3f, "[Audio] drone del nivel " + i + ": " + eff.ToString("F1") + " dB (≤ -27 y por debajo de los pasos)");
+            UnityEngine.Object.DestroyImmediate(c);
+        }
+        {
+            AudioClip c = ProceduralAudio.CreateBuzzClip();
+            AudioAudit.Stat st = AudioAudit.Measure(c);
+            float eff = AudioMix.Db(st.rms * AudioMix.Buzz(0.25f));
+            r.Check(eff <= -29f, "[Audio] zumbido de fluorescente: " + eff.ToString("F1") + " dB (≤ -29)");
+            UnityEngine.Object.DestroyImmediate(c);
+        }
+        foreach (AudioClip c in new[] { ProceduralAudio.CreateDrip(), ProceduralAudio.CreateCreak(), ProceduralAudio.CreateClank() })
+        {
+            AudioAudit.Stat st = AudioAudit.Measure(c);
+            r.Check(st.peak <= 0.75f && AudioMix.Db(st.rms * AudioMix.EventMaster) <= -20f, "[Audio] suceso ambiental " + c.name + ": pico " + st.peak.ToString("F2"));
+            UnityEngine.Object.DestroyImmediate(c);
+        }
+        // grupos de volumen
+        GameSettings.SfxVolume = 0.5f; GameSettings.AmbienceVolume = 0.25f;
+        r.Check(Mathf.Approximately(AudioMix.S(0.8f), 0.4f) && Mathf.Approximately(AudioMix.A(0.8f), 0.2f), "[Audio] 'Efectos' y 'Ambiente' escalan sus sonidos");
+        r.Check(Mathf.Approximately(AudioMix.Drone(0.5f), 0.5f * AudioMix.DroneMaster * 0.25f) && AudioMix.Hiss(1f, 1f) < AudioMix.HissIdle + AudioMix.HissGlitch, "[Audio] drone y siseo siguen al deslizador de Ambiente");
+        GameSettings.SfxVolume = 0f; GameSettings.AmbienceVolume = 0f;
+        r.Check(AudioMix.S(1f) == 0f && AudioMix.Drone(1f) == 0f && AudioMix.Buzz(1f) == 0f && AudioMix.Hiss(1f, 1f) == 0f && AudioMix.Event(1f) == 0f, "[Audio] a 0 % silencian todo su grupo");
+        GameSettings.MasterVolume = 0.3f;
+        r.Check(Mathf.Approximately(AudioListener.volume, 0.3f), "[Audio] el volumen general escala toda la mezcla (AudioListener.volume = 0,3)");
+        GameSettings.ResetDefaults();
     }
 
     private static void ScanSourcesForExitHints(Report r)
@@ -903,7 +979,7 @@ public static class SmokeTest
         r.Check(gen.HasLevel, tag + "nivel generado");
         r.Check(gen.ExitTransform != null, tag + "existe la puerta de salida");
         r.Check(gen.MonsterSpawns != null && gen.MonsterSpawns.Count == Mathf.Max(1, cfg.monsterCount), tag + "apariciones de monstruo = " + cfg.monsterCount);
-        r.Check(gen.BatterySpots != null && gen.BatterySpots.Count == cfg.batteries + (cfg.poolHall ? 2 : 0), tag + "pilas colocadas = " + (cfg.batteries + (cfg.poolHall ? 2 : 0)) + " (hay " + (gen.BatterySpots != null ? gen.BatterySpots.Count : 0) + ")");
+        r.Check(gen.BatterySpots != null && gen.BatterySpots.Count == cfg.batteries, tag + "pilas colocadas = " + cfg.batteries + " (hay " + (gen.BatterySpots != null ? gen.BatterySpots.Count : 0) + ")");
         r.Check(gen.FixtureCount > 0, tag + "hay accesorios de luz");
         if (cfg.layout == LayoutKind.OpenPillars) r.Check(gen.PillarCount > 0, tag + "hay pilares");
 
@@ -1235,6 +1311,14 @@ public static class SmokePlayRunner
         ui.BobToggle.isOn = true;
         ui.VolumeSlider.value = 0.5f;
         r.Check(Mathf.Approximately(GameSettings.MasterVolume, 0.5f) && Mathf.Approximately(AudioListener.volume, 0.5f), "slider de volumen -> AudioListener.volume");
+        ui.SfxSlider.value = 0.6f; ui.AmbienceSlider.value = 0.35f;
+        r.Check(Mathf.Approximately(GameSettings.SfxVolume, 0.6f) && Mathf.Approximately(GameSettings.AmbienceVolume, 0.35f), "sliders 'Efectos' y 'Ambiente' -> GameSettings");
+        ui.BreathToggle.isOn = false;
+        r.Check(!GameSettings.BreathEnabled, "toggle 'Respiración' -> GameSettings");
+        ui.BreathToggle.isOn = true;
+        { bool okLabels = false, okBreath = false; int nSl = 0; foreach (Text t in UnityEngine.Object.FindObjectsOfType<Text>(true)) { if (t.text == "Volumen general") okLabels = true; if (t.text == "Efectos") nSl++; if (t.text == "Ambiente") nSl++; if (t.text.StartsWith("Respiración")) okBreath = true; }
+          r.Check(okLabels && nSl == 2 && okBreath, "Opciones muestra 'Volumen general', 'Efectos', 'Ambiente' y 'Respiración'"); }
+        ui.SfxSlider.value = 1f; ui.AmbienceSlider.value = 1f;
         ui.SoftScareToggle.isOn = true;
         r.Check(GameSettings.SoftScare, "toggle 'Susto suave' -> GameSettings");
         ui.SoftScareToggle.isOn = false;
@@ -1664,10 +1748,45 @@ public static class SmokePlayRunner
             r.Check(pc.IsSprinting && pc.FlatSpeed > pc.walkSpeed * 1.2f, "correr: velocidad " + pc.FlatSpeed.ToString("F2") + " m/s");
             r.Check(pcam.fieldOfView > baseFov + 2f, "FOV kick al correr (" + baseFov.ToString("F1") + " -> " + pcam.fieldOfView.ToString("F1") + ")");
             r.Check(pc.Stamina01 < stam0 - 0.1f, "la stamina baja al correr (" + pc.Stamina01.ToString("F2") + ")");
-            r.Check(pc.BreathVolume > 0.05f, "respiración audible al estar cansado (vol " + pc.BreathVolume.ToString("F2") + ")");
+            r.Check(pc.BreathNeed > 0.05f, "al correr un rato aparece necesidad de respirar (" + pc.BreathNeed.ToString("F2") + ")");
+            { bool heard = pc.BreathAudible; float maxV = pc.BreathVolume; for (int i = 0; i < 40 && !heard; i++) { yield return 0.05f; heard = pc.BreathAudible; maxV = Mathf.Max(maxV, pc.BreathVolume); }
+              r.Check(heard && maxV <= AudioMix.BreathMax + 0.001f && maxV > 0f, "respiración audible tras correr y por debajo del máximo (" + maxV.ToString("F3") + " ≤ " + AudioMix.BreathMax.ToString("F2") + ")"); }
             pc.debugSprint = false;
             pc.debugMove = Vector2.zero;
             yield return 1.2f;
+            // se apaga sola poco después de dejar de correr, y en reposo con stamina alta no suena nada
+            { float t0 = Time.time; float silentAt = -1f; for (int i = 0; i < 160; i++) { yield return 0.05f; if (!pc.BreathAudible && pc.BreathNeed <= 0.001f) { silentAt = Time.time - t0; break; } }
+              r.Check(silentAt >= 0f && silentAt < 6f, "la respiración se apaga sola tras correr (silencio a los " + silentAt.ToString("F1") + " s)"); }
+            pc.RestoreStamina(1f);
+            { int bre0 = pc.BreathsPlayed; bool any = false; for (int i = 0; i < 100; i++) { yield return 0.05f; any |= pc.BreathAudible || pc.BreathVolume > 0f; }
+              r.Check(!any && pc.BreathsPlayed == bre0 && pc.BreathNeed <= 0.001f, "en reposo con stamina alta la respiración está en silencio (0 respiraciones en 5 s)"); }
+            // poca stamina: respira, con límite de frecuencia (≥ 1 s entre respiraciones) y volumen suave
+            pc.SetStamina01(0.12f);
+            { int b0 = pc.BreathsPlayed; float tStart = Time.time; bool heard = false; float maxV = 0f; for (int i = 0; i < 100; i++) { yield return 0.05f; heard |= pc.BreathAudible; maxV = Mathf.Max(maxV, pc.BreathVolume); pc.SetStamina01(0.12f); }
+              int n = pc.BreathsPlayed - b0; float dur = Time.time - tStart;
+              r.Check(heard && maxV <= AudioMix.BreathMax + 0.001f, "con poca stamina se oye respirar suave (máx " + maxV.ToString("F3") + ")");
+              r.Check(n >= 1 && n <= Mathf.CeilToInt(dur / 1.0f) + 1, "respiración limitada en frecuencia (" + n + " respiraciones en " + dur.ToString("F1") + " s)"); }
+            // desactivada en Opciones: silencio aunque esté agotado
+            GameSettings.BreathEnabled = false;
+            { int b0 = pc.BreathsPlayed; bool any = false; for (int i = 0; i < 60; i++) { yield return 0.05f; pc.SetStamina01(0.05f); any |= pc.BreathAudible; }
+              r.Check(!any && pc.BreathsPlayed == b0, "con 'Respiración' desactivada no suena nunca"); }
+            GameSettings.BreathEnabled = true;
+            pc.RestoreStamina(1f);
+            yield return 5f;
+            r.Check(!pc.BreathAudible && pc.BreathNeed <= 0.001f, "tras recuperarse, silencio");
+            // ningún bucle de ruido de la escena supera el nivel razonable y todos respetan el volumen general
+            { int loops = 0; float worst = -99f; bool ignoreListener = false;
+              foreach (AudioSource src in UnityEngine.Object.FindObjectsOfType<AudioSource>())
+              {
+                  if (src.ignoreListenerVolume) ignoreListener = true;
+                  if (!src.loop || src.clip == null || !src.isActiveAndEnabled) continue;
+                  AudioAudit.Stat st = AudioAudit.Measure(src.clip);
+                  float eff = AudioMix.Db(st.rms * src.volume);
+                  loops++; worst = Mathf.Max(worst, eff);
+              }
+              r.Check(loops >= 1 && worst <= -26f, "bucles de audio de la escena (" + loops + "): el más alto " + worst.ToString("F1") + " dBFS (≤ -26)");
+              r.Check(!ignoreListener, "ninguna fuente ignora el volumen general (AudioListener.volume)"); }
+            yield return 0.5f;
             // agacharse
             float eye0 = pc.EyeHeightNow;
             pc.debugCrouch = true;
@@ -1896,7 +2015,7 @@ public static class SmokePlayRunner
 
             // Atmósfera
             r.Check(RenderSettings.fog && RenderSettings.fogMode == FogMode.Exponential && RenderSettings.fogDensity > 0.01f, tag + "niebla exponencial activa");
-            r.Check(RenderSettings.ambientLight.maxColorComponent < (cfg.poolHall ? 0.75f : 0.25f), tag + "luz ambiente " + (cfg.poolHall ? "moderada (Poolrooms luminoso)" : "baja"));
+            r.Check(RenderSettings.ambientLight.maxColorComponent < 0.25f, tag + "luz ambiente baja");
 
             // Sin pistas de la salida en HUD / escena
             bool hint = false;
@@ -1924,7 +2043,7 @@ public static class SmokePlayRunner
 
             // Pilas: recoger una
             BatteryPickup[] picks = UnityEngine.Object.FindObjectsOfType<BatteryPickup>();
-            r.Check(picks.Length == cfg.batteries + (cfg.poolHall ? 2 : 0), tag + "pilas en escena = " + picks.Length);
+            r.Check(picks.Length == cfg.batteries, tag + "pilas en escena = " + picks.Length);
             foreach (MonsterAI m in gm.monsters) m.Stop();   // para que no interfieran con el test
 
             // Objetos extra del nivel: notas, agua de almendras, barras luminosas, cinta
@@ -1990,27 +2109,29 @@ public static class SmokePlayRunner
                         yield return 0.6f;
                         r.Check(wfx.ActiveDrops > 0, tag + "gotas en la lente al salir del agua (" + wfx.ActiveDrops + ")");
                     }
-                    // bajo el agua (foso del Poolrooms)
-                    if (cfg.poolHall)
+                    // aguas profundas: el nivel solo tiene 22 cm, así que se sube la superficie un momento para probar nadar / bucear
+                    if (cfg.water && gm.generator.Water != null)
                     {
-                        Vector3 pit = gm.generator.HallBatteryPit;
-                        pw.Teleport(new Vector3(pit.x, pit.y + 0.1f, pit.z), 0f);
+                        WaterVolume deepWv = gm.generator.Water; float baseSurface = deepWv.surfaceY;
+                        deepWv.surfaceY = baseSurface + 1.7f;
+                        pw.Teleport(gm.generator.PlayerStart, 0f);
                         yield return 0.9f;
-                        r.Check(pw.WaterDepth > pw.swimDepth, tag + "foso profundo: " + pw.WaterDepth.ToString("F2") + " m > " + pw.swimDepth.ToString("F2"));
-                        r.Check(pw.IsSwimming || pw.IsUnderwater, tag + "en el foso se nada / se sumerge (nada=" + pw.IsSwimming + " bajo agua=" + pw.IsUnderwater + ")");
+                        r.Check(pw.WaterDepth > pw.swimDepth, tag + "aguas profundas: " + pw.WaterDepth.ToString("F2") + " m > " + pw.swimDepth.ToString("F2"));
+                        r.Check(pw.IsSwimming || pw.IsUnderwater, tag + "en aguas profundas se nada / se sumerge (nada=" + pw.IsSwimming + " bajo agua=" + pw.IsUnderwater + ")");
                         pw.debugInput = true; pw.debugCrouch = true;
                         yield return 1.5f;
                         r.Check(pw.IsUnderwater, tag + "buceando: cámara bajo la superficie");
                         if (wfx != null) r.Check(wfx.Underwater01 > 0.5f && wfx.BubblesEmitting, tag + "bajo el agua: velo/niebla (" + wfx.Underwater01.ToString("F2") + ") y burbujas");
                         r.Check(VhsEffect.Active != null && VhsEffect.Active.extraMuffle > 0.5f, tag + "bajo el agua: audio apagado (low-pass)");
                         pw.debugCrouch = false; pw.debugInput = false;
+                        deepWv.surfaceY = baseSurface;
                         pw.Teleport(gm.generator.PlayerStart, 0f);
                         yield return 1.2f;
-                        r.Check(!pw.IsUnderwater, tag + "al salir del foso deja de estar bajo el agua");
+                        r.Check(!pw.IsUnderwater, tag + "al volver al nivel normal deja de estar bajo el agua");
                     }
                 }
             }
-            picks = UnityEngine.Object.FindObjectsOfType<BatteryPickup>();   // el foso pudo recoger una pila
+            picks = UnityEngine.Object.FindObjectsOfType<BatteryPickup>();   // (por si se recogió alguna pila)
             if (picks.Length > 0)
             {
                 Vector3 p = picks[0].transform.position;

@@ -71,7 +71,12 @@ public class FirstPersonController : MonoBehaviour
     [HideInInspector] public Vector2 debugMove;
     [HideInInspector] public bool debugSprint, debugCrouch;
     [HideInInspector] public float debugLean;
-    public float BreathVolume { get { return breathVol; } }
+    // Respiración: volumen de la última respiración si está sonando (0 si no suena nada), necesidad 0..1 y si hay alguna sonando
+    public float BreathVolume { get { return BreathAudible ? breathVol : 0f; } }
+    public float BreathNeed { get { return breathNeed; } }
+    public bool BreathAudible { get { return breathVol > 0.0001f && Time.time < breathEndTime; } }
+    public int BreathsPlayed { get; private set; }
+    public void SetStamina01(float f) { stamina = Mathf.Clamp01(f) * maxStamina; if (stamina < minStaminaToSprint) exhausted = stamina <= 0f; }
     public float EyeHeightNow { get { return eyeHeightCurrent; } }
 
     // Estado público (para HUD, IA y audio)
@@ -131,8 +136,9 @@ public class FirstPersonController : MonoBehaviour
 
     // Respiración
     private AudioSource breath;
-    private AudioClip breathClip;
-    private float breathVol;
+    private AudioClip breathIn, breathOut;
+    private float breathVol, breathNeed, breathEndTime, nextBreathAt, exhaleAt = -1f, exhaleGain;
+    private float sprintTime, windTimer;
 
     private void Awake()
     {
@@ -162,19 +168,20 @@ public class FirstPersonController : MonoBehaviour
             SetCursorLocked(true);
         }
 
-        breathClip = ProceduralAudio.CreateBreath();
+        // Respiración: dos clips cortos (inhalar / exhalar) que se lanzan «a mano»; no hay ningún bucle de ruido sonando.
+        breathIn = ProceduralAudio.CreateBreathPhase(true);
+        breathOut = ProceduralAudio.CreateBreathPhase(false);
         breath = gameObject.AddComponent<AudioSource>();
-        breath.clip = breathClip;
-        breath.loop = true;
-        breath.volume = 0f;
+        breath.loop = false;
+        breath.volume = 1f;
         breath.spatialBlend = 0f;
         breath.playOnAwake = false;
-        breath.Play();
     }
 
     private void OnDestroy()
     {
-        ProceduralAssets.SafeDestroy(breathClip);
+        ProceduralAssets.SafeDestroy(breathIn);
+        ProceduralAssets.SafeDestroy(breathOut);
     }
 
     private void Update()
@@ -472,18 +479,64 @@ public class FirstPersonController : MonoBehaviour
         body.AddForceAtPosition(push * Mathf.Clamp(FlatSpeed, 0.8f, 6f) * 1.6f, hit.point, ForceMode.Impulse);
     }
 
-    // Respiración: más fuerte y rápida cuanto menos stamina; jadeo al agotarse
+    // Respiración suave y limitada:
+    //  · en reposo con stamina > 50 % y sin haber corrido: silencio total (no suena ni se reproduce nada);
+    //  · tras correr ≥ 1 s: unas pocas respiraciones que se apagan solas (cola proporcional al esfuerzo, máx. 3,5 s);
+    //  · con stamina < 50 % o agotado: respiración más rápida y algo más fuerte (siempre muy por debajo de pasos / ambiente);
+    //  · inhalar y exhalar son clips distintos con envolvente suave; mínimo 1 s entre respiraciones; se puede desactivar en Opciones.
     private void UpdateBreathing(float dt)
     {
         if (breath == null) return;
-        float low = 1f - Stamina01;                    // 0 = fresco, 1 = agotado
-        float target = Mathf.Clamp01(low * 1.15f - 0.08f);
-        if (IsSprinting) target = Mathf.Max(target, 0.25f);
-        if (exhausted) target = Mathf.Max(target, 0.9f);
-        if (!InputEnabled) target = 0f;
-        breathVol = Mathf.Lerp(breathVol, target, 1f - Mathf.Exp(-3f * Mathf.Max(dt, 0.001f)));
-        breath.volume = breathVol * 0.55f;
-        breath.pitch = Mathf.Lerp(0.85f, 1.55f, breathVol);
+        bool allowed = GameSettings.BreathEnabled && InputEnabled && dt > 0f && !IsUnderwater;
+        float now = Time.time;
+
+        if (IsSprinting) sprintTime += dt;
+        else
+        {
+            if (sprintTime > 0f)
+            {
+                if (sprintTime > 1f) windTimer = Mathf.Clamp(sprintTime * 0.8f, 0.8f, 3.5f);
+                sprintTime = 0f;
+            }
+            windTimer = Mathf.Max(0f, windTimer - dt);
+        }
+
+        float deficit = Mathf.Clamp01((0.5f - Stamina01) / 0.5f);
+        float need = deficit * 0.9f;
+        if (IsSprinting && sprintTime > 1f) need = Mathf.Max(need, 0.25f + 0.15f * Mathf.Clamp01((sprintTime - 1f) / 3f));
+        if (windTimer > 0f) need = Mathf.Max(need, 0.3f * Mathf.Clamp01(windTimer / 1.5f));
+        if (exhausted) need = 1f;
+        if (!allowed) need = 0f;
+        breathNeed = need;
+
+        if (!allowed)
+        {
+            if (breath.isPlaying) breath.Stop();
+            breathEndTime = 0f; exhaleAt = -1f;
+            return;
+        }
+
+        // exhalación pendiente (aunque la necesidad haya bajado: se desvanece sola)
+        if (exhaleAt >= 0f && now >= exhaleAt)
+        {
+            exhaleAt = -1f;
+            breath.pitch = Mathf.Lerp(0.92f, 1.08f, breathNeed);
+            breath.PlayOneShot(breathOut, AudioMix.S(exhaleGain));
+            breathEndTime = now + breathOut.length;
+        }
+
+        if (need > 0.04f && now >= nextBreathAt && exhaleAt < 0f)
+        {
+            float period = Mathf.Lerp(3.4f, 1.3f, need);
+            breathVol = AudioMix.BreathGain(need);
+            exhaleGain = breathVol * 0.9f;
+            breath.pitch = Mathf.Lerp(0.95f, 1.1f, need);
+            breath.PlayOneShot(breathIn, AudioMix.S(breathVol));
+            BreathsPlayed++;
+            exhaleAt = now + breathIn.length * 0.8f + 0.12f;
+            breathEndTime = Mathf.Max(breathEndTime, now + breathIn.length);
+            nextBreathAt = now + Mathf.Max(1.0f, period);   // límite de frecuencia
+        }
     }
 
     // Mueve al jugador a una posición (desactiva el CharacterController un instante para que no lo pise)

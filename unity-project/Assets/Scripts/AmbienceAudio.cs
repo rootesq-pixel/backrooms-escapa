@@ -12,6 +12,7 @@ public class AmbienceAudio : MonoBehaviour
     private AmbientEvent kind;
     private Vector2 interval;
     private float timer;
+    private float droneBase;
 
     public void Setup(LevelConfig cfg, Transform listenerTransform)
     {
@@ -24,7 +25,8 @@ public class AmbienceAudio : MonoBehaviour
         drone.clip = droneClip;
         drone.loop = true;
         drone.spatialBlend = 0f;
-        drone.volume = cfg.droneVolume;
+        droneBase = cfg.droneVolume;
+        drone.volume = AudioMix.Drone(droneBase);
         drone.playOnAwake = false;
         drone.Play();
 
@@ -56,6 +58,7 @@ public class AmbienceAudio : MonoBehaviour
 
     private void Update()
     {
+        if (drone != null) drone.volume = AudioMix.Drone(droneBase);   // sigue al deslizador «Ambiente»
         if (events == null || eventClip == null || listener == null) return;
         timer -= Time.deltaTime;
         if (timer > 0f) return;
@@ -64,6 +67,6 @@ public class AmbienceAudio : MonoBehaviour
         Vector2 dir = Random.insideUnitCircle.normalized * Random.Range(5f, 16f);
         events.transform.position = listener.position + new Vector3(dir.x, 0.5f, dir.y);
         events.pitch = Random.Range(0.8f, 1.2f);
-        events.PlayOneShot(eventClip, Random.Range(0.4f, 0.9f));
+        events.PlayOneShot(eventClip, AudioMix.Event(Random.Range(0.4f, 0.9f)));
     }
 }

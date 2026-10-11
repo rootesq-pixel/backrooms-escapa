@@ -252,7 +252,7 @@ public class MonsterVisual : MonoBehaviour
             {
                 stepAccum = 0f;
                 stepSrc.pitch = profile.footstepPitch * Random.Range(0.92f, 1.08f);
-                stepSrc.PlayOneShot(stepClip, profile.footstepVolume * (chasing ? 1.2f : 0.8f));
+                stepSrc.PlayOneShot(stepClip, AudioMix.S(profile.footstepVolume * (chasing ? 1.2f : 0.8f)));
                 // en el agua: chapoteo audible + onda en la superficie
                 if (owner == null) owner = GetComponent<MonsterAI>();
                 WaterVolume wv = WaterVolume.Active;
@@ -260,7 +260,7 @@ public class MonsterVisual : MonoBehaviour
                 {
                     if (splashClip == null) splashClip = ProceduralAudio.CreateSplash();
                     stepSrc.pitch = profile.footstepPitch * Random.Range(0.75f, 1.0f);
-                    stepSrc.PlayOneShot(splashClip, Mathf.Clamp01(0.45f + owner.WaterDepth) * (chasing ? 1f : 0.7f));
+                    stepSrc.PlayOneShot(splashClip, AudioMix.S(Mathf.Clamp01(0.45f + owner.WaterDepth) * (chasing ? 1f : 0.7f)));
                     wv.Splash(transform.position, chasing ? 0.7f : 0.4f, false);
                 }
             }
@@ -277,7 +277,7 @@ public class MonsterVisual : MonoBehaviour
     {
         if (growlClip == null || voiceSrc == null) return;
         voiceSrc.pitch = profile.growlPitch * Random.Range(0.93f, 1.07f);
-        voiceSrc.PlayOneShot(growlClip, volume);
+        voiceSrc.PlayOneShot(growlClip, AudioMix.S(volume));
     }
 
     // Susto al ser atrapado: grito 2D fuerte
@@ -288,7 +288,7 @@ public class MonsterVisual : MonoBehaviour
         {
             voiceSrc.spatialBlend = 0.2f;
             voiceSrc.pitch = profile.growlPitch;
-            voiceSrc.PlayOneShot(screamClip, 1f);
+            voiceSrc.PlayOneShot(screamClip, AudioMix.S(1f));
         }
     }
 

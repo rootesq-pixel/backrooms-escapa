@@ -327,7 +327,7 @@ public class RemotePlayer : MonoBehaviour
         WaterVolume wv = WaterVolume.Active;
         float depth = wv != null ? wv.DepthAt(transform.position) : 0f;
         bool inWater = wv != null && depth > 0.03f;
-        float vol = (Sprinting ? 0.6f : (Crouching ? 0.22f : 0.42f));
+        float vol = (Sprinting ? 0.6f : (Crouching ? 0.22f : 0.42f)) * AudioMix.Sfx;
         stepSrc.pitch = Random.Range(0.88f, 1.1f) * (Crouching ? 1.1f : 1f);
         if (stepClip != null) stepSrc.PlayOneShot(stepClip, vol * (inWater ? 0.5f : 1f));
         if (inWater && splashClip != null)
