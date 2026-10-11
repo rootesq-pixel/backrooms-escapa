@@ -22,6 +22,11 @@ public class MonsterProfile
     public float hover = 0f;        // elevación sobre el suelo (robots flotantes)
     public float ai_eyeHeight = 1.5f; // altura de "ojos" para la línea de visión
     public float killDistance = 1.4f;
+    public float screamHeadTop = 0f; // susto: si >0, la cabeza está a esta fracción de la altura bajo la parte más alta del modelo (ignora los ojos)
+    public float screamUp = 0f;
+    public float screamLight = 1f;  // multiplicador de la luz del susto (modelos muy oscuros)
+    public MonsterVisual.Anim screamAnim = MonsterVisual.Anim.Idle; // clip del susto (los zombis tienen el Idle en pose T)
+    public float screamDist = 1f;   // multiplicador de la distancia de cámara del susto (cabezas pequeñas/hundidas)      // susto: la cámara se sube esta fracción de la altura sobre la cara (monstruos encorvados)
 
     // Ojos brillantes procedurales (fracciones de la altura del modelo, en espacio local del modelo normalizado)
     public bool eyes = true;
@@ -86,7 +91,7 @@ public class MonsterProfile
             licence = "CC0 (dominio público)",
             note = "Retextura pálida/ceniza, estirado en altura; ojos y sonidos procedurales.",
             fit = FitMode.Height, size = 2.7f, stretch = new Vector3(0.88f, 1f, 0.88f), yaw = 0f,
-            ai_eyeHeight = 2.2f, killDistance = 1.55f,
+            ai_eyeHeight = 2.2f, killDistance = 1.55f, screamUp = -0.02f,
             eyes = false, jitter = 0.35f, stutterChance = 0.22f, lightReactive = true,
             growl = GrowlKind.Moan, growlPitch = 0.8f, footstepPitch = 0.85f, footstepVolume = 0.35f,
             walkUsesRun = false, walkAnimSpeed = 0.8f, runAnimSpeed = 1.15f, stridePatrol = 2.0f, strideChase = 2.8f,
@@ -99,7 +104,7 @@ public class MonsterProfile
             licence = "CC0 (dominio público)",
             note = "Malla reducida (decimado ~30 %), oscurecida; ojos y sonidos procedurales.",
             fit = FitMode.Height, size = 3.0f, stretch = new Vector3(0.95f, 1f, 0.95f), yaw = 0f,
-            ai_eyeHeight = 2.6f, killDistance = 2.0f,
+            ai_eyeHeight = 2.6f, killDistance = 2.0f, screamUp = 0.0f, screamHeadTop = 0.10f, screamDist = 1.6f, screamLight = 3.2f,
             eyes = true, eyePos = new Vector3(0f, 0.80f, 0.13f), eyeSpacing = 0.03f, eyeSize = 0.012f,
             eyeColor = new Color(1f, 0.55f, 0.1f), eyeLightIntensity = 0.5f, eyeLightRange = 5f,
             growl = GrowlKind.LowRumble, growlPitch = 0.6f, footstepPitch = 0.5f, footstepVolume = 0.9f,
@@ -112,7 +117,7 @@ public class MonsterProfile
             modelAuthor = "Rikindle3D", modelSource = "https://opengameart.org/content/male-city-zombie-ready-for-use-in-game-engines",
             licence = "CC0 (dominio público)",
             note = "Texturas desaturadas y reteñidas (gris verdoso) con Pillow; animaciones Mixamo-style reasignadas con Blender; ojos y sonidos procedurales.",
-            fit = FitMode.Height, size = 1.9f, yaw = 0f,
+            screamAnim = MonsterVisual.Anim.Walk, fit = FitMode.Height, size = 1.9f, yaw = 0f,
             ai_eyeHeight = 1.6f, killDistance = 1.4f,
             eyes = true, eyePos = new Vector3(0f, 0.935f, 0.04f), eyeSpacing = 0.022f, eyeSize = 0.008f,
             eyeColor = new Color(0.9f, 0.95f, 1f), eyeLightIntensity = 0.45f, eyeLightRange = 3.5f,
@@ -140,7 +145,7 @@ public class MonsterProfile
             modelAuthor = "Rikindle3D", modelSource = "https://opengameart.org/content/male-city-zombie-ready-for-use-in-game-engines",
             licence = "CC0 (dominio público)",
             note = "Mismo rig que El Huésped, reteñido con Pillow (piel azulada, hinchada y empapada, ropa verdiazul), más ancho y lento; ojos cian, gemidos húmedos y chapoteo procedurales.",
-            fit = FitMode.Height, size = 2.0f, stretch = new Vector3(1.12f, 0.98f, 1.12f), yaw = 0f,
+            screamAnim = MonsterVisual.Anim.Walk, fit = FitMode.Height, size = 2.0f, stretch = new Vector3(1.12f, 0.98f, 1.12f), yaw = 0f,
             ai_eyeHeight = 1.7f, killDistance = 1.5f,
             eyes = true, eyePos = new Vector3(0f, 0.935f, 0.04f), eyeSpacing = 0.022f, eyeSize = 0.009f,
             eyeColor = new Color(0.55f, 0.95f, 1f), eyeLightIntensity = 0.55f, eyeLightRange = 4f,

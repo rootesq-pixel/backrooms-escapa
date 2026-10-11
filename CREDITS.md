@@ -1,6 +1,6 @@
 # Créditos
 
-BACKROOMS: ESCAPA — juego en Unity (pipeline integrado). Mallas del nivel, texturas, audio, shader VHS e interfaz son procedurales / código del proyecto (sin assets externos).
+BACKROOMS: ESCAPA — juego en Unity (pipeline integrado). Mallas del nivel, texturas, audio, shader VHS e interfaz son procedurales / código del proyecto (sin assets externos; las texturas de superficie se hornean desde materiales procedurales de Blender, ver «Texturas»).
 
 ## Modelos de monstruos (todos CC0 / dominio público)
 
@@ -53,9 +53,13 @@ Se intentó consultar https://www.cgtrader.com/3d-models/backrooms: casi todo es
 
 Las licencias CC0 no exigen atribución; se incluye por cortesía y trazabilidad. Los archivos fuente originales no se incluyen en el repositorio (solo los FBX/texturas convertidos en `Assets/Monsters`).
 
+## Texturas de superficie (v6.6)
+
+Todas las texturas de paredes, suelos y techos de los 5 niveles son **trabajo propio y 100 % procedurales**: materiales por nodos de Blender (ruido 4D, Voronoi, rampas de color, máscaras de manchas/humedad/óxido/desgaste) escritos como scripts de Python en `Tools/blender/` (`texlib.py`, `styles.py`, `bake.py`, `pack_textures.py`) y horneados a albedo / normal / máscara Standard (metálico, oclusión, suavidad) en `Assets/Resources/Textures/`. No se usa ninguna foto ni textura de terceros. El ruido se evalúa sobre un toro 4D, por lo que las texturas se repiten sin costuras. La generación por CPU anterior (`ProceduralTextures`) se conserva como alternativa si falta alguna textura.
+
 ## Herramientas
 
-- Unity 2022.3 LTS, Blender (conversión de modelos), Python/Pillow (retexturizado de los zombis y del Hollín).
+- Unity 2022.3 LTS, Blender 4.2 (conversión de modelos y horneado de texturas procedurales), Python/Pillow/NumPy/OpenCV (retexturizado de los zombis y del Hollín; empaquetado de texturas).
 
 ## Inventario, objetos y linterna (v5)
 

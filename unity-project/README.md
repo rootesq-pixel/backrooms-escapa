@@ -87,7 +87,7 @@ invertir eje Y, balanceo de cabeza (head-bob) on/off, suavizado del ratón (apag
 | `GameBootstrap` | Construye todo en runtime para el nivel actual: atmósfera (niebla exponencial, ambiente, viñeta), generador, NavMesh, jugador + cámara + linterna + pasos, monstruos, pilas, ambiente sonoro, HUD y `GameManager`. Carga/reinicia niveles con pantalla de carga. Inspector: nivel inicial (`startLevel`, o argumento `-level N`), semilla, monstruo sí/no, teclas de depuración (`N` salta de nivel). |
 | `LevelConfig` | Datos de los 5 niveles (tamaño, estilo, texturas, luces, niebla, monstruos, batería, audio, puerta). Para añadir un nivel: sube `Count` y crea otro `LevelN()`. |
 | `BackroomsGenerator` | Layout (laberinto con backtracker + bucles + salas, o rejilla abierta con pilares) y geometría por *chunks* con UV en metros del mundo (cada pared/suelo/techo tiene la escala correcta). Accesorios de luz emisivos, puerta de salida discreta (entre el 20 % de celdas más lejanas), pilas y apariciones de monstruos. |
-| `ProceduralTextures` / `Noise` | Texturas de 512–1024 px con Perlin/fBm periódico y ruido de valor: albedo + normal map + máscara (metálico/oclusión/suavidad), mipmaps, filtro trilineal y anisotrópico. Sin costuras al repetir. |
+| `ProceduralTextures` / `Noise` | Desde la v6.6 se cargan las texturas horneadas con Blender (`Assets/Resources/Textures`, ver «Cambios de la v6.6»); si faltan, texturas de 512–1024 px con Perlin/fBm periódico (albedo + normal + máscara metálico/oclusión/suavidad, mipmaps, filtro trilineal y anisotrópico). Sin costuras al repetir. |
 | `LightCuller` | Solo las N luces de techo más cercanas al jugador son luces reales (con fundido); el resto de accesorios siguen siendo emisivos. |
 | `ExitDoorCue` | LED verde diminuto y luz tenue de la puerta: solo existen a menos de 8 m. |
 | `BatteryPickup` | Pilas recogibles que recargan la linterna. |
@@ -443,3 +443,35 @@ y se volcó cada clip a WAV (`AudioDump`) para analizarlo con numpy/scipy (RMS, 
 - **Pantalla de Unity:** el build pide `PlayerSettings.SplashScreen.show = false`. Con la licencia **Personal** de Unity 2022.3 el logo
   de Unity puede quedar forzado por la licencia (no se elude); ver el informe de la compilación.
 - Vistas previas: `/workspace/monster-previews/intro_*.png`.
+
+## Cambios de la v6.6: susto de muerte visible + texturas horneadas con Blender
+
+### Susto (screamer): por qué no se veía la entidad
+- La cámara se lanzaba hacia un punto fijo (`ai_eyeHeight`, ~0,95 de la altura de los ojos de la IA) del monstruo, con la linterna apagada
+  durante el corte a negro y sin luz propia: la cara quedaba **a oscuras**, a veces **tapada por paredes/cabina o por la niebla**, el
+  punto no coincidía con la cabeza real (modelos encorvados, animación de ataque que gira el torso) y encima el **glitch VHS extremo**
+  (barra rodante invertida, bloques de estática, ruido pesado) tapaba lo poco que se veía.
+- Ahora (`Screamer.cs`): tras la embestida y el corte a negro, la cámara principal pasa a dibujar **solo la capa 29** donde se mueve el
+  monstruo (sin muros, cabina, niebla ni sombras), fondo oscuro rojizo, plano cercano 3 cm, **luz principal fría + luz de contorno roja**
+  propias (las luces de la escena no iluminan esa capa) y la cabeza se localiza por los ojos/hueso/mallas (con ajuste por perfil:
+  `screamUp`, `screamHeadTop`). El monstruo se gira hacia el jugador y mantiene una pose estable (Idle).
+- Tres planos con cortes secos: **A)** cara y hombros a 0,9–1,4 m (según altura), **B)** primerísimo plano de ojos, **C)** plano abierto con
+  embestida hacia la cámara; ~2,0 s de cara + 0,5 s de fundido, luego «HAS MUERTO». Pulso de escala, giro de cabeza, balanceo y sacudida.
+- El glitch VHS del plano de la cara se reduce y los bloques/barra/ruido pesado crecen con S² en el shader, para que la cara se lea. «Susto
+  suave» sigue reduciendo luces, destellos y glitch.
+- Multijugador: el susto solo se lanza para todos cuando caen todos (`AllDown`); la cámara se coloca respecto al monstruo (no al jugador),
+  así que todos ven al monstruo que atrapó al último.
+- Vistas previas (`ScreamerPreview.Export`, 3 planos × 5 monstruos): imagen «Susto de muerte» de la web (`docs/assets/img/susto-monstruos.jpg`).
+- Zombis (El Huésped y El Ahogado): su clip Idle está en pose T, así que el susto usa el clip Walk (`screamAnim`). `screamDist` y `screamLight` por monstruo ajustan distancia y luz (El Coloso: ×1,6 y luz ×3,2).
+
+### Texturas realistas (Blender)
+- `Tools/blender/`: `texlib.py` (mini-DSL de nodos: ruido 4D sobre un toro → **sin costuras**, Voronoi, rampas de color, máscaras),
+  `styles.py` (14 materiales: papel amarillo con rayas/manchas/moho/despegado/rodapié, damasco de hotel con zócalo de madera, moquetas,
+  placas de techo, hormigón de pared/suelo/techo, azulejos de piscina, chapa pintada oxidada con remaches, chapa lagrimada),
+  `bake.py` (Cycles CPU, 1 muestra, emisión) y `pack_textures.py` (normal desde altura, máscara Standard, JPG/PNG).
+  `blender -b -P Tools/blender/bake.py -- <carpeta>` y luego `python3 Tools/blender/pack_textures.py <carpeta> Assets/Resources/Textures`.
+- Albedo 1024 px (2048 en pared y moqueta del nivel 0), normal y máscara a 1024 px. Mipmaps, anisotrópico x8, repetición, no legibles,
+  compresión con crunch (`TextureImportRules`). UV siguen en metros. Si falta alguna textura (o la altura de pared no coincide) se usa
+  la generación por CPU anterior. Son cosméticas: no tocan la semilla ni el hash del mundo (multijugador intacto).
+- Vistas previas antes/después (`TextureV66Preview.Export`): `docs/assets/img/texturas-blender-antes-despues.jpg`
+  (`TextureV66Preview.Export`).

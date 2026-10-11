@@ -15,8 +15,9 @@ public static class TexturePreviewExporter
     {
         Directory.CreateDirectory(OutDir);
         Directory.CreateDirectory(OutDir + "/normal");
-        bool prevKeep = TextureLibrary.KeepReadable;
+        bool prevKeep = TextureLibrary.KeepReadable, prevBaked = ProceduralTextures.UseBaked;
         TextureLibrary.KeepReadable = true;
+        ProceduralTextures.UseBaked = false;   // este exportador vuelca las texturas generadas por CPU (legibles); las de Blender: TextureV66Preview
         TextureLibrary.ReleaseAll();
 
         const int tile = 480;
@@ -66,6 +67,7 @@ public static class TexturePreviewExporter
 
         TextureLibrary.ReleaseAll();
         TextureLibrary.KeepReadable = prevKeep;
+        ProceduralTextures.UseBaked = prevBaked;
         Debug.Log("[TexturePreviewExporter] Exportado a " + OutDir + " (" + written.Count + " texturas, hoja " + sheetW + "x" + sheetH + ")");
     }
 

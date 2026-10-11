@@ -5,10 +5,13 @@ using UnityEngine.Rendering;
 // Susto de muerte ("screamer"), dirigido por tiempo (independiente de Time.timeScale):
 //   0.00-0.32  EMBESTIDA: la cámara se clava en la cara del monstruo con ease-in, golpe de FOV, sacudida y la linterna parpadea
 //   0.32-0.44  CORTE A NEGRO (más corto con "Susto suave")
-//   0.44-2.00  CARA: cara a centímetros, fogonazo de foto (fotograma de la cara a pantalla completa), grito en capas,
-//              glitch VHS extremo (RGB split, bloques de estática, barra rodante, congelados), destellos rojos, sacudida violenta
-//   2.00-2.60  fundido a negro con estática, acúfeno + latido
-//   2.60-      pantalla "SIGNAL LOST / HAS MUERTO" con estática, botones Reintentar / Menú principal y reinicio automático
+//   0.44-2.45  CARA (v6.6): la cámara principal pasa a renderizar SOLO al monstruo (capa propia 29: sin muros, cabina, niebla ni sombras
+//              que lo oculten), con luz principal fría fuerte + luz de contorno roja, sobre fondo oscuro. Tres planos con cortes rápidos:
+//              A) cara y hombros a ~1-1,4 m (según la altura del modelo), B) primerísimo primer plano de los ojos, C) plano abierto con
+//              embestida hacia la cámara. Además fogonazo de foto, grito en capas, glitch VHS reducido (la cara debe leerse),
+//              destellos rojos y sacudida.
+//   2.45-2.95  fundido a negro con estática, acúfeno + latido
+//   2.95-      pantalla "SIGNAL LOST / HAS MUERTO" con estática, botones Reintentar / Menú principal y reinicio automático
 // El volumen respeta el volumen general (AudioListener.volume). GameSettings.SoftScare reduce todo (volumen, flashes, sacudida, glitch).
 public class Screamer : MonoBehaviour
 {
@@ -17,14 +20,19 @@ public class Screamer : MonoBehaviour
 
     public enum Phase { Idle, Lunge, BlackCut, Face, Fade, DeathScreen }
 
+    // Capa donde se mueve el monstruo durante el plano de la cara; solo la cámara del susto la dibuja
+    public const int ScreamLayer = 29;
+    public const float ShotBEnd = 1.36f, ShotAEnd = 0.72f;
+
     public float cutStart = 0.32f;
     public float cutLength = 0.12f;
-    public float faceEnd = 2.0f;
-    public float fadeEnd = 2.6f;
+    public float faceEnd = 2.45f;
+    public float fadeEnd = 2.95f;
     public float autoRestartAt = 9.5f;
 
     public Phase CurrentPhase { get; private set; }
     public float T { get; private set; }
+    public float PreviewSeek = -1f;     // solo vistas previas/pruebas: fija el tiempo de la secuencia
     public bool Soft { get; private set; }
     public float Intensity { get { return Soft ? 0.45f : 1f; } }
     public bool PhotoFlashShown { get; private set; }
@@ -39,6 +47,20 @@ public class Screamer : MonoBehaviour
     public bool AftermathPlaying { get { return afterSrc != null && afterSrc.isPlaying; } }
     public AudioClip ScreamClip { get { return screamClip; } }
     public MonsterProfile Profile { get; private set; }
+    // ---- estado del plano de la cara (para pruebas y vistas previas)
+    public bool FaceMode { get; private set; }
+    public int Shot { get; private set; }                 // 0 = ninguno, 1 = A (cara), 2 = B (ojos), 3 = C (plano abierto)
+    public float FaceDistance { get; private set; }       // distancia cámara-cara (m)
+    public float HeadHeight { get; private set; }         // altura del modelo (m)
+    public Vector3 HeadPoint { get { return headPoint; } }
+    public string HeadBoneName { get { return eyesT != null ? "Eyes" : headBone != null ? headBone.name : "(bounds)"; } }
+    public Vector3 FaceDir { get { return FaceForward(); } }
+    public Camera FaceCamera { get { return camComp; } }
+    public Light KeyLight { get { return keyLight; } }
+    public Light RimLight { get { return rimLight; } }
+    public bool MonsterVisibleToCamera { get; private set; }   // algún renderer del monstruo está dentro del frustum y en la máscara
+    public float HeadScreenFraction { get; private set; }      // altura de la cabeza en pantalla (0..1)
+    public int ShotsSeen { get { return shotsSeen; } }
 
     private GameManager gm;
     private Transform cam;
@@ -69,7 +91,18 @@ public class Screamer : MonoBehaviour
     private float noiseTimer;
     private RenderTexture photoRt;
     private GameObject faceCamGo;
-    private Light photoLight;
+    private Light photoLight, keyLight, rimLight;
+    private Vector3 headPoint, faceDirFixed, faceSmooth;
+    private Transform eyesT;
+    private Transform headBone;
+    private int shotsSeen, lastShot;
+    private readonly System.Collections.Generic.List<Transform> layerTs = new System.Collections.Generic.List<Transform>();
+    private readonly System.Collections.Generic.List<int> layerOld = new System.Collections.Generic.List<int>();
+    private int savedMask; private CameraClearFlags savedClear; private Color savedBg; private float savedNear;
+    private bool savedFog; private Color savedAmbient; private UnityEngine.Rendering.AmbientMode savedAmbientMode;
+    private Vector3 savedModelScale; private float cutDip;
+    private readonly System.Collections.Generic.List<Light> dimmedLights = new System.Collections.Generic.List<Light>();
+    private readonly System.Collections.Generic.List<int> dimmedMasks = new System.Collections.Generic.List<int>();
     private AudioSource screamSrc, afterSrc, boomSrc;
     private AudioClip screamClip, afterClip;
     private bool screamStarted, afterStarted, photoTaken;
@@ -101,28 +134,25 @@ public class Screamer : MonoBehaviour
         vhs = camera.GetComponent<VhsEffect>();
         seed = Random.value * 100f;
         if (Soft) { cutLength = 0.06f; }
+        savedNear = camComp != null ? camComp.nearClipPlane : 0.1f;
 
         baseLocalPos = cam.localPosition;
         baseWorldPos = cam.position;
         baseWorldRot = cam.rotation;
         baseFov = camComp != null ? camComp.fieldOfView : 70f;
 
-        // posición de la cara y punto de cámara muy cerca de ella
-        float headY = Profile != null ? Profile.ai_eyeHeight * 0.95f : 1.7f;
+        // posición de la cara (a partir de los renderers / hueso de la cabeza) y punto de cámara del plano A
         if (killer != null)
         {
-            headWorld = killer.position + Vector3.up * headY;
-            Vector3 away = baseWorldPos - headWorld; away.y = 0f;
-            if (away.sqrMagnitude < 0.01f) away = -killer.forward;
-            away.Normalize();
-            float d = 0.55f + (Profile != null ? Mathf.Clamp(Profile.size - 1.9f, 0f, 3f) * 0.12f : 0f);
-            closeWorldPos = headWorld + away * d + Vector3.up * 0.05f;
+            // el monstruo mira siempre hacia donde estaba el jugador (también en clientes, donde es un proxy de red)
+            Vector3 fd = baseWorldPos - killer.position; fd.y = 0f;
+            if (fd.sqrMagnitude > 0.01f) { faceDirFixed = fd.normalized; killer.rotation = Quaternion.LookRotation(faceDirFixed); }
         }
-        else
-        {
-            headWorld = baseWorldPos + cam.forward * 1.5f;
-            closeWorldPos = baseWorldPos + cam.forward * 0.9f;
-        }
+        if (killerVisual != null && killerVisual.animator != null) killerVisual.animator.applyRootMotion = false;
+        FindHeadBone();
+        ComputeHead();
+        headWorld = headPoint;
+        closeWorldPos = ShotPose(ShotAEnd * 0.5f, 1f).pos;
 
         // audio (clips distintos por tipo de monstruo)
         GrowlKind kind = Profile != null ? Profile.growl : GrowlKind.Rasp;
@@ -304,6 +334,229 @@ public class Screamer : MonoBehaviour
     }
 
     // ------------------------------------------------------------------
+    // Cara del monstruo y planos de cámara
+    // ------------------------------------------------------------------
+    private void FindHeadBone()
+    {
+        headBone = null; eyesT = null;
+        if (killer == null) return;
+        foreach (Transform t in killer.GetComponentsInChildren<Transform>(true)) if (t.name == "Eyes") { eyesT = t; break; }
+        float best = -1f;
+        foreach (Transform t in killer.GetComponentsInChildren<Transform>(true))
+        {
+            string n = t.name.ToLowerInvariant();
+            if (!n.Contains("head") || n.Contains("end") || n.Contains("top") || n.Contains("eye") || n.Contains("light")) continue;
+            if (t.position.y > best) { best = t.position.y; headBone = t; }
+        }
+    }
+
+    // altura del modelo (renderers) y punto de la cara (centro de la cabeza)
+    private void ComputeHead()
+    {
+        Bounds b = new Bounds(killer != null ? killer.position + Vector3.up : cam.position, Vector3.zero);
+        bool any = false;
+        if (killerVisual != null && killerVisual.Renderers != null)
+            foreach (Renderer r in killerVisual.Renderers)
+            {
+                if (r == null || r is ParticleSystemRenderer) continue;
+                if (!any) { b = r.bounds; any = true; } else b.Encapsulate(r.bounds);
+            }
+        float h = Profile != null ? Mathf.Clamp(Profile.size, 1.2f, 4f) : (any ? Mathf.Clamp(b.size.y, 1.2f, 5f) : 1.9f);
+        HeadHeight = h;
+        float topY = any ? b.max.y : (killer != null ? killer.position.y + h : cam.position.y);
+        Vector3 c = any ? b.center : (killer != null ? killer.position : cam.position);
+        Vector3 p = new Vector3(c.x, topY - 0.06f * h, c.z);
+        if (killer != null)
+        {
+            // desplaza hacia el eje real del cuerpo (los brazos extendidos desplazan el centro de la caja)
+            p.x = killer.position.x; p.z = killer.position.z;
+        }
+        if (eyesT == null && !(Profile != null && Profile.screamHeadTop > 0f))
+        {
+            if (headBone != null && headBone.position.y > (any ? b.min.y : 0f) + 0.55f * h) p = headBone.position + Vector3.up * 0.04f * h;
+        }
+        if (Profile != null && Profile.screamHeadTop > 0f && any) p = new Vector3(killer != null ? killer.position.x : c.x, topY - Profile.screamHeadTop * h, killer != null ? killer.position.z : c.z);
+        if (Profile != null && Profile.screamHeadTop > 0f && any) headPoint = p;
+        else if (eyesT != null)
+        {
+            // Los ojos están enganchados al hueso de la cabeza: su posición y su "adelante" son la cara real, también con la animación
+            headPoint = eyesT.position;
+            Vector3 want = eyesT.forward;
+            want.y = Mathf.Clamp(want.y, -0.55f, 0.55f);   // mirando muy arriba/abajo la cámara no sigue del todo
+            if (new Vector2(want.x, want.z).sqrMagnitude < 0.05f) want = faceSmooth.sqrMagnitude > 0.01f ? faceSmooth : faceDirFixed;
+            want.Normalize();
+            faceSmooth = faceSmooth.sqrMagnitude < 0.01f ? want : Vector3.Slerp(faceSmooth, want, 1f - Mathf.Exp(-16f * Time.unscaledDeltaTime)).normalized;
+        }
+        else headPoint = p;
+    }
+
+    // Hacia dónde mira la cara: el monstruo se gira hacia donde estaba el jugador y en los planos de cara se mantiene en su pose
+    // de reposo (Idle: los clips de ataque/carrera giran el torso respecto a la raíz), así que "adelante" del monstruo es la cara (los clips de ataque giran el torso y no sirven de referencia).
+    private Mesh bakeMesh;
+    // Centro de la cabeza a partir de los vértices más altos de la malla animada (sirve aunque el rig no tenga hueso "Head")
+    private bool HeadFromMesh(float h, out Vector3 center)
+    {
+        center = Vector3.zero;
+        if (killerVisual == null || killerVisual.Renderers == null) return false;
+        SkinnedMeshRenderer best = null; float bestY = float.MinValue;
+        foreach (Renderer r in killerVisual.Renderers)
+        {
+            SkinnedMeshRenderer sk = r as SkinnedMeshRenderer;
+            if (sk == null || sk.sharedMesh == null || !sk.enabled) continue;
+            if (sk.bounds.max.y > bestY) { bestY = sk.bounds.max.y; best = sk; }
+        }
+        if (best == null) return false;
+        if (bakeMesh == null) bakeMesh = new Mesh();
+        best.BakeMesh(bakeMesh, true);
+        Vector3[] vs = bakeMesh.vertices;
+        if (vs.Length == 0) return false;
+        Transform t = best.transform;
+        float maxY = float.MinValue;
+        Vector3[] wv = new Vector3[vs.Length];
+        for (int i = 0; i < vs.Length; i++) { wv[i] = t.position + t.rotation * vs[i]; if (wv[i].y > maxY) maxY = wv[i].y; }
+        Vector3 sum = Vector3.zero; int n = 0;
+        for (int i = 0; i < wv.Length; i++) if (wv[i].y > maxY - 0.09f * h) { sum += wv[i]; n++; }
+        if (n < 8) return false;
+        center = sum / n;
+        return true;
+    }
+
+    private Vector3 FaceForward()
+    {
+        Vector3 f = faceDirFixed;
+        if (f.sqrMagnitude < 0.01f) f = killer != null ? killer.forward : -cam.forward;
+        f.y = 0f;
+        if (f.sqrMagnitude < 0.01f) f = new Vector3(baseWorldPos.x - headPoint.x, 0f, baseWorldPos.z - headPoint.z);
+        return f.normalized;
+    }
+
+    public struct Pose { public Vector3 pos; public Quaternion rot; public float fov; public int shot; public float dist; }
+
+    // f = segundos desde el inicio del plano de la cara
+    private Pose ShotPose(float f, float k)
+    {
+        float H = HeadHeight;
+        float up0 = Profile != null ? Profile.screamUp * H : 0f;
+        float ds = Profile != null ? Profile.screamDist : 1f;
+        Vector3 P = headPoint, fwd = FaceForward(), right = Vector3.Cross(Vector3.up, new Vector3(fwd.x, 0f, fwd.z).normalized);
+        float faceDur = faceEnd - (cutStart + cutLength);
+        Pose o = new Pose();
+        Vector3 aim;
+        if (f < ShotAEnd)
+        {
+            o.shot = 1; o.dist = Mathf.Clamp(0.5f * H, 0.9f, 1.4f) * ds; o.fov = 48f;
+            aim = P - Vector3.up * 0.03f * H;
+            o.pos = P + fwd * o.dist + right * 0.05f * H + Vector3.up * (0.03f * H + up0);
+        }
+        else if (f < ShotBEnd)
+        {
+            o.shot = 2; o.dist = Mathf.Clamp(0.36f * H, 0.55f, 1.1f) * Mathf.Lerp(1f, ds, 0.7f); o.fov = 30f;
+            aim = P + Vector3.up * 0.01f * H;
+            o.pos = P + fwd * o.dist - right * 0.03f * H + Vector3.up * (0.02f * H + up0);
+        }
+        else
+        {
+            float u = Mathf.Clamp01((f - ShotBEnd) / Mathf.Max(0.1f, faceDur - ShotBEnd));
+            o.shot = 3;
+            o.dist = Mathf.Lerp(Mathf.Clamp(0.55f * H, 1.3f, 1.9f), Mathf.Clamp(0.3f * H, 0.65f, 0.9f), EaseIn(u)) * ds;
+            o.fov = Mathf.Lerp(62f, 54f, u);
+            aim = P - Vector3.up * 0.07f * H;
+            o.pos = P + fwd * o.dist + right * 0.1f * H * (1f - u) + Vector3.up * (0.05f * H + up0);
+        }
+        Vector3 d = aim - o.pos;
+        o.rot = d.sqrMagnitude > 1e-4f ? Quaternion.LookRotation(d) : cam.rotation;
+        return o;
+    }
+
+    // La cámara principal pasa a dibujar solo la capa del monstruo (sin muros, cabina, niebla...), con luz propia
+    private void EnterFaceMode()
+    {
+        if (FaceMode || camComp == null) return;
+        FaceMode = true;
+        savedMask = camComp.cullingMask; savedClear = camComp.clearFlags; savedBg = camComp.backgroundColor; savedNear = camComp.nearClipPlane;
+        savedFog = RenderSettings.fog; savedAmbient = RenderSettings.ambientLight; savedAmbientMode = RenderSettings.ambientMode;
+        camComp.cullingMask = 1 << ScreamLayer;
+        camComp.clearFlags = CameraClearFlags.SolidColor;
+        camComp.backgroundColor = new Color(0.035f, 0.004f, 0.006f);
+        camComp.nearClipPlane = 0.03f;
+        RenderSettings.fog = false;
+        RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Flat;
+        RenderSettings.ambientLight = new Color(0.16f, 0.16f, 0.2f);
+        if (killer != null)
+        {
+            foreach (Transform t in killer.GetComponentsInChildren<Transform>(true)) { layerTs.Add(t); layerOld.Add(t.gameObject.layer); t.gameObject.layer = ScreamLayer; }
+            if (killerVisual != null && killerVisual.Renderers != null) foreach (Renderer r in killerVisual.Renderers) if (r != null) r.enabled = true;
+            if (killerVisual != null && killerVisual.model != null) savedModelScale = killerVisual.model.localScale;
+        }
+        // las luces de la escena (techo, linterna...) no deben iluminar la capa del monstruo: solo la luz del susto
+        foreach (Light l in Object.FindObjectsOfType<Light>())
+        {
+            if (l == null || (killer != null && l.transform.IsChildOf(killer))) continue;
+            dimmedLights.Add(l); dimmedMasks.Add(l.cullingMask);
+            l.cullingMask &= ~(1 << ScreamLayer);
+        }
+        if (killerVisual != null && killerVisual.animator != null)
+        {
+            killerVisual.animator.applyRootMotion = false;
+            killerVisual.animator.CrossFadeInFixedTime((Profile != null ? Profile.screamAnim : MonsterVisual.Anim.Idle).ToString(), 0.05f);
+        }
+        GameObject kg = new GameObject("ScreamerKeyLight");
+        kg.transform.SetParent(transform, false);
+        keyLight = kg.AddComponent<Light>();
+        keyLight.type = LightType.Spot; keyLight.spotAngle = 85f; keyLight.range = 9f; keyLight.intensity = 2.3f;
+        keyLight.color = new Color(0.82f, 0.9f, 1f); keyLight.shadows = LightShadows.None; keyLight.cullingMask = 1 << ScreamLayer;
+        GameObject rg = new GameObject("ScreamerRimLight");
+        rg.transform.SetParent(transform, false);
+        rimLight = rg.AddComponent<Light>();
+        rimLight.type = LightType.Point; rimLight.range = 4f; rimLight.intensity = 1.4f;
+        rimLight.color = new Color(1f, 0.16f, 0.1f); rimLight.shadows = LightShadows.None; rimLight.cullingMask = 1 << ScreamLayer;
+    }
+
+    private void ExitFaceMode()
+    {
+        if (!FaceMode) return;
+        FaceMode = false;
+        for (int i = 0; i < layerTs.Count; i++) if (layerTs[i] != null) layerTs[i].gameObject.layer = layerOld[i];
+        layerTs.Clear(); layerOld.Clear();
+        for (int i = 0; i < dimmedLights.Count; i++) if (dimmedLights[i] != null) dimmedLights[i].cullingMask = dimmedMasks[i];
+        dimmedLights.Clear(); dimmedMasks.Clear();
+        if (killerVisual != null && killerVisual.model != null) killerVisual.model.localScale = savedModelScale;
+        if (camComp != null) { camComp.cullingMask = savedMask; camComp.clearFlags = savedClear; camComp.backgroundColor = savedBg; camComp.nearClipPlane = savedNear; }
+        RenderSettings.fog = savedFog; RenderSettings.ambientLight = savedAmbient; RenderSettings.ambientMode = savedAmbientMode;
+        if (keyLight != null) ProceduralAssets.SafeDestroy(keyLight.gameObject);
+        if (rimLight != null) ProceduralAssets.SafeDestroy(rimLight.gameObject);
+    }
+
+    // ¿se ve el monstruo? (renderers dentro del frustum de la cámara y en su máscara) y cuánto ocupa la cabeza
+    private void MeasureVisibility()
+    {
+        MonsterVisibleToCamera = false; HeadScreenFraction = 0f;
+        if (camComp == null || killerVisual == null || killerVisual.Renderers == null) return;
+        Plane[] pl = GeometryUtility.CalculateFrustumPlanes(camComp);
+        foreach (Renderer r in killerVisual.Renderers)
+        {
+            if (r == null || !r.enabled || !r.gameObject.activeInHierarchy) continue;
+            if ((camComp.cullingMask & (1 << r.gameObject.layer)) == 0) continue;
+            if (GeometryUtility.TestPlanesAABB(pl, r.bounds)) { MonsterVisibleToCamera = true; break; }
+        }
+        Vector3 a = camComp.WorldToViewportPoint(headPoint + Vector3.up * 0.08f * HeadHeight), b2 = camComp.WorldToViewportPoint(headPoint - Vector3.up * 0.08f * HeadHeight);
+        HeadScreenFraction = a.z > 0f ? Mathf.Abs(a.y - b2.y) : 0f;
+    }
+
+    // ------------------------------------------------------------------
+    private void UpdateFaceLights(Vector3 camPos, Quaternion camRot, float k)
+    {
+        if (keyLight == null || rimLight == null) return;
+        Vector3 fwd = FaceForward(), right = Vector3.Cross(Vector3.up, new Vector3(fwd.x, 0f, fwd.z).normalized);
+        float H = HeadHeight;
+        float lm = Profile != null ? Profile.screamLight : 1f;
+        keyLight.transform.position = camPos + camRot * new Vector3(0.35f, 0.3f, -0.2f);
+        keyLight.transform.rotation = Quaternion.LookRotation(headPoint - keyLight.transform.position);
+        keyLight.intensity = (2.3f + (Soft ? 0f : 0.5f * Mathf.Sin(T * 17f))) * (Soft ? 0.85f : 1f) * lm;
+        rimLight.transform.position = headPoint - fwd * 0.6f * (H / 2f) + right * 0.5f + Vector3.up * 0.25f * H;
+        rimLight.intensity = (1.3f + (Soft ? 0f : 0.7f * Mathf.PerlinNoise(T * 13f, seed + 5f))) * (Soft ? 0.8f : 1f) * Mathf.Lerp(1f, lm, 0.6f);
+    }
+
     private static float EaseIn(float x) { x = Mathf.Clamp01(x); return x * x * x; }
     private static float EaseOut(float x) { x = Mathf.Clamp01(x); return 1f - (1f - x) * (1f - x); }
 
@@ -311,14 +564,14 @@ public class Screamer : MonoBehaviour
     {
         if (CurrentPhase == Phase.Idle || cam == null) return;
         float dt = Time.unscaledDeltaTime;
-        T += dt;
+        if (PreviewSeek >= 0f) T = PreviewSeek; else T += dt;
         float k = Intensity;
 
-        // actualizar posición de la cara (el monstruo se mueve en la embestida)
+        // actualizar posición de la cara (el monstruo se mueve / se anima)
         if (killer != null)
         {
-            float headY = Profile != null ? Profile.ai_eyeHeight * 0.95f : 1.7f;
-            headWorld = killer.position + Vector3.up * headY;
+            if (faceDirFixed.sqrMagnitude > 0.01f) killer.rotation = Quaternion.LookRotation(faceDirFixed);
+            ComputeHead(); headWorld = headPoint;
         }
 
         float cutEnd = cutStart + cutLength;
@@ -339,8 +592,8 @@ public class Screamer : MonoBehaviour
             {
                 float u = T / cutStart;
                 float move = EaseIn(u);
-                Vector3 target = Vector3.Lerp(baseWorldPos, closeWorldPos, 0.9f);
-                pos = Vector3.Lerp(baseWorldPos, target, move);
+                closeWorldPos = ShotPose(0f, 1f).pos;
+                pos = Vector3.Lerp(baseWorldPos, closeWorldPos, move);
                 Quaternion look = LookAt(pos, headWorld);
                 rot = Quaternion.Slerp(baseWorldRot, look, EaseIn(Mathf.Clamp01(T / (cutStart * 0.6f))));
                 // golpe de FOV: se abre y luego se cierra de golpe
@@ -351,22 +604,35 @@ public class Screamer : MonoBehaviour
                 break;
             }
             case Phase.BlackCut:
-                pos = closeWorldPos; rot = LookAt(closeWorldPos, headWorld); fovNow = baseFov - 22f * k;
+            {
+                Pose pa = ShotPose(0f, k);
+                pos = pa.pos; rot = pa.rot; fovNow = pa.fov;
                 if (flashlight != null && flashlight.spot != null) flashlight.spot.enabled = false;
                 BlackCutShown = true;
+                EnterFaceMode();
                 break;
+            }
             default:
             {
+                EnterFaceMode();
                 float f = Mathf.Max(0f, T - cutEnd);
                 float decay = Mathf.Exp(-f * 1.6f);
-                // pequeño dolly hacia la cara
-                Vector3 closer = Vector3.Lerp(closeWorldPos, headWorld, 0.12f * Mathf.Clamp01(f / 1.4f));
-                pos = closer;
-                rot = LookAt(closer, headWorld);
-                fovNow = baseFov - 22f * k - 8f * Mathf.Clamp01(f / 1.5f) * k + (Mathf.PerlinNoise(T * 31f, seed) - 0.5f) * 8f * k * decay;
-                shake = (0.012f + 0.06f * decay) * k;
+                Pose ps = ShotPose(f, k);
+                pos = ps.pos; rot = ps.rot; fovNow = ps.fov;
+                Shot = ps.shot; FaceDistance = ps.dist;
+                if (ps.shot != lastShot) { lastShot = ps.shot; shotsSeen++; cutDip = Soft ? 0f : 0.05f; }
+                // pulso de escala (embestida del plano C) y ligera deformación de la cabeza
+                if (killerVisual != null && killerVisual.model != null)
+                    killerVisual.model.localScale = savedModelScale * (1f + (ps.shot == 3 ? 0.07f : 0.025f) * Mathf.Sin(T * 23f) * k);
+                if (headBone != null)
+                    headBone.rotation = headBone.rotation * Quaternion.Euler((Mathf.PerlinNoise(T * 14f, seed + 3f) - 0.5f) * 16f * k, (Mathf.PerlinNoise(T * 12f, seed + 9f) - 0.5f) * 22f * k, 0f);
+                float roll = ((Mathf.PerlinNoise(T * 9f, seed + 21f) - 0.5f) * 2f) * (ps.shot == 1 ? 3f : ps.shot == 2 ? 6f : 8f) * k;
+                rot = rot * Quaternion.Euler(0f, 0f, roll);
+                fovNow += (Mathf.PerlinNoise(T * 31f, seed) - 0.5f) * 5f * k * decay;
+                shake = (0.004f + 0.02f * decay) * k;
                 if (CurrentPhase == Phase.Fade) shake *= 0.5f;
-                FlickerFlashlight(0.7f);
+                UpdateFaceLights(pos, rot, k);
+                MeasureVisibility();
                 break;
             }
         }
@@ -418,7 +684,7 @@ public class Screamer : MonoBehaviour
             float u = (T - faceEnd) / (fadeEnd - faceEnd);
             blackA = Mathf.Clamp01(u) * (0.75f + 0.25f * Random.value);
         }
-        else if (CurrentPhase == Phase.Face && T < cutEnd + 0.05f) blackA = 0f;
+        else if (CurrentPhase == Phase.Face && cutDip > 0f) { blackA = 1f; cutDip -= dt; }   // corte seco entre planos
         black.color = new Color(0f, 0f, 0f, blackA);
 
         // foto: fotograma de la cara a pantalla completa durante ~0.14 s al volver de negro
@@ -450,7 +716,7 @@ public class Screamer : MonoBehaviour
         else if (CurrentPhase == Phase.Face)
         {
             float decay = Mathf.Exp(-f * 1.3f);
-            r = (0.16f + 0.5f * Mathf.Abs(Mathf.Sin(T * 26f)) * decay) * k;
+            r = (0.07f + 0.3f * Mathf.Abs(Mathf.Sin(T * 26f)) * decay) * k;   // la cara debe leerse: rojo moderado
         }
         else if (CurrentPhase == Phase.Fade) r = 0.18f * k;
         red.color = new Color(0.75f, 0f, 0f, r);
@@ -490,7 +756,7 @@ public class Screamer : MonoBehaviour
         {
             case Phase.Lunge: level = Mathf.Clamp01(T / cutStart) * 0.8f; break;
             case Phase.BlackCut: level = 1f; break;
-            case Phase.Face: level = 1f - 0.3f * Mathf.Clamp01((T - cutStart - cutLength) / 1.5f); break;
+            case Phase.Face: level = 0.3f - 0.1f * Mathf.Clamp01((T - cutStart - cutLength) / 1.5f); break;   // glitch reducido: la cara se lee
             case Phase.Fade: level = 0.8f; break;
             case Phase.DeathScreen: level = 0.55f; break;
         }
@@ -546,7 +812,9 @@ public class Screamer : MonoBehaviour
     // Final de la secuencia (Restart): restaurar lo que se haya tocado
     private void OnDestroy()
     {
+        if (bakeMesh != null) Destroy(bakeMesh);
         if (Active == this) Active = null;
+        ExitFaceMode();
         if (vhs != null) vhs.ScreamLevel = 0f;
         if (camComp != null) camComp.fieldOfView = baseFov;
         if (photoRt != null) { photoRt.Release(); ProceduralAssets.SafeDestroy(photoRt); }

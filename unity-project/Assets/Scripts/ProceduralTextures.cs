@@ -30,9 +30,18 @@ public class SurfaceSet
     public Texture2D albedo;
     public Texture2D normal;
     public Texture2D mask;
+    public bool baked;     // texturas horneadas en Blender (assets de Resources): se descargan, no se destruyen
 
     public void DestroyTextures()
     {
+        if (baked)
+        {
+            if (albedo != null) Resources.UnloadAsset(albedo);
+            if (normal != null) Resources.UnloadAsset(normal);
+            if (mask != null) Resources.UnloadAsset(mask);
+            albedo = normal = mask = null;
+            return;
+        }
         Kill(albedo);
         Kill(normal);
         Kill(mask);
@@ -134,8 +143,34 @@ public static class ProceduralTextures
         return p;
     }
 
+    // v6.6: texturas horneadas con Blender (materiales procedurales por nodos) en Assets/Resources/Textures:
+    //   <Estilo>_a.jpg albedo, <Estilo>_n.png normal, <Estilo>_m.png máscara Standard (R metálico, G oclusión, A suavidad).
+    // Si faltan (o para otra altura de pared) se usa la generación por CPU de abajo. Son solo cosméticas: no afectan al mundo ni a la red.
+    public static bool UseBaked = true;
+    private static readonly Dictionary<SurfaceStyle, float> BakedWallHeight = new Dictionary<SurfaceStyle, float>
+    {
+        { SurfaceStyle.WallpaperYellow, 3.0f }, { SurfaceStyle.WallpaperHotel, 2.8f }, { SurfaceStyle.ConcreteWall, 3.6f },
+    };
+
+    public static SurfaceSet TryLoadBaked(SurfaceStyle style, float wallHeight)
+    {
+        if (!UseBaked || style == SurfaceStyle.WaterNormal) return null;
+        float bh;
+        if (BakedWallHeight.TryGetValue(style, out bh) && Mathf.Abs(bh - wallHeight) > 0.02f) return null;   // las paredes llevan zócalo a escala
+        string n = "Textures/" + style;
+        Texture2D a = null, nm = null, m = null;
+        try { a = Resources.Load<Texture2D>(n + "_a"); nm = Resources.Load<Texture2D>(n + "_n"); m = Resources.Load<Texture2D>(n + "_m"); }
+        catch (System.Exception e) { Debug.LogWarning("[Texturas] " + style + ": " + e.Message); }
+        if (a == null || nm == null || m == null) return null;
+        SurfaceSet set = new SurfaceSet();
+        set.style = style; set.albedo = a; set.normal = nm; set.mask = m; set.baked = true;
+        return set;
+    }
+
     public static SurfaceSet Generate(SurfaceStyle style, float wallHeight)
     {
+        SurfaceSet bakedSet = TryLoadBaked(style, wallHeight);
+        if (bakedSet != null) return bakedSet;
         Canvas c;
         float normalStrength = 2f;
         int aniso = 8;

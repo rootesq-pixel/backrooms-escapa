@@ -51,6 +51,7 @@ Shader "Hidden/BackroomsVHS"
                 float G = saturate(_Glitch);
                 float t = _VhsTime;
                 float S = saturate(_Scream);
+                float S2 = S * S;   // bloques, barra y ruido pesado crecen con S² (con el glitch reducido del plano de la cara la imagen se lee)
                 float4 orig = tex2D(_MainTex, uv);
 
                 // --- Susto: salto vertical de la imagen (pérdida de tracking) y bloques desplazados ---
@@ -58,7 +59,7 @@ Shader "Hidden/BackroomsVHS"
                 uv.y = frac(uv.y + step(0.82, hash11(jt * 2.3)) * (hash11(jt * 5.1) - 0.5) * 0.5 * S);
                 float2 blkId = floor(uv * float2(10.0, 7.0));
                 float bh = hash21(blkId + jt);
-                uv.x += step(1.0 - 0.24 * S, bh) * (hash11(bh * 77.0) - 0.5) * 0.28 * S;
+                uv.x += step(1.0 - 0.24 * S2, bh) * (hash11(bh * 77.0) - 0.5) * 0.28 * S;
 
                 // --- Distorsión de lente suave (fisheye ligero) ---
                 float2 c = uv - 0.5;
@@ -127,11 +128,11 @@ Shader "Hidden/BackroomsVHS"
                 // --- Susto: barra rodante, bloques de estática y ruido pesado ---
                 float rb = frac(t * 1.35);
                 float inRb = smoothstep(0.0, 0.02, uv.y - rb) * (1.0 - smoothstep(0.10, 0.17, uv.y - rb));
-                col = lerp(col, 1.0 - col, inRb * S * 0.75);
-                col *= 1.0 + inRb * S * 0.6;
-                float blkN = step(1.0 - 0.14 * S, hash21(floor(uv * float2(16.0, 9.0)) + floor(t * 20.0)));
+                col = lerp(col, 1.0 - col, inRb * S2 * 0.75);
+                col *= 1.0 + inRb * S2 * 0.6;
+                float blkN = step(1.0 - 0.14 * S2, hash21(floor(uv * float2(16.0, 9.0)) + floor(t * 20.0)));
                 col = lerp(col, float3(1, 1, 1) * hash21(floor(np) + t), blkN * 0.9);
-                col += (hash21(floor(np * 2.0) + t * 1.7) - 0.5) * 0.55 * S;
+                col += (hash21(floor(np * 2.0) + t * 1.7) - 0.5) * 0.55 * S2;
 
                 // --- Viñeta ---
                 float vig = smoothstep(0.85, 0.25, length(c) * (1.0 + 0.2 * G));

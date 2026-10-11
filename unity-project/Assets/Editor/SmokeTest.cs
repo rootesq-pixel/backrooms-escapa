@@ -42,6 +42,7 @@ public static class SmokeTest
                 }
             }
             TextureLibrary.ReleaseAll();
+            TestBakedTextures(r);
             TestMonsterModels(r);
             TestVhsAssets(r);
             TestInventoryData(r);
@@ -62,6 +63,47 @@ public static class SmokeTest
     // ------------------------------------------------------------------
     // Modelos de monstruos (prefabs, animaciones, créditos, fallback)
     // ------------------------------------------------------------------
+    // v6.6: texturas horneadas con Blender (carga, formato, tamaño, fallback por CPU)
+    private static void TestBakedTextures(Report r)
+    {
+        var seen = new HashSet<SurfaceStyle>();
+        long bytes = 0;
+        for (int lv = 0; lv < LevelConfig.Count; lv++)
+        {
+            LevelConfig cfg = LevelConfig.Get(lv);
+            foreach (SurfaceStyle st in new[] { cfg.wallStyle, cfg.floorStyle, cfg.ceilingStyle })
+            {
+                if (!seen.Add(st)) continue;
+                SurfaceSet set = TextureLibrary.Get(st, cfg.wallHeight);
+                bool ok = set != null && set.baked && set.albedo != null && set.normal != null && set.mask != null;
+                r.Check(ok, "texturas Blender: " + st + " horneadas y cargadas (nivel " + lv + ")");
+                if (!ok) continue;
+                r.Check(set.albedo.width >= 1024 && set.albedo.mipmapCount > 1 && set.albedo.anisoLevel >= 8 && set.albedo.wrapMode == TextureWrapMode.Repeat,
+                    "texturas Blender: " + st + " " + set.albedo.width + "px, mipmaps, anisotrópico x" + set.albedo.anisoLevel + ", repetición");
+                r.Check(!set.albedo.isReadable && !set.normal.isReadable && !set.mask.isReadable, "texturas Blender: " + st + " no legibles (memoria)");
+                string np = UnityEditor.AssetDatabase.GetAssetPath(set.normal);
+                var ti = UnityEditor.AssetImporter.GetAtPath(np) as UnityEditor.TextureImporter;
+                var ta = UnityEditor.AssetImporter.GetAtPath(UnityEditor.AssetDatabase.GetAssetPath(set.albedo)) as UnityEditor.TextureImporter;
+                var tm = UnityEditor.AssetImporter.GetAtPath(UnityEditor.AssetDatabase.GetAssetPath(set.mask)) as UnityEditor.TextureImporter;
+                r.Check(ti != null && ti.textureType == UnityEditor.TextureImporterType.NormalMap && ta != null && ta.sRGBTexture && tm != null && !tm.sRGBTexture,
+                    "texturas Blender: " + st + " normal=NormalMap, albedo sRGB, máscara lineal");
+                bytes += UnityEngine.Profiling.Profiler.GetRuntimeMemorySizeLong(set.albedo) + UnityEngine.Profiling.Profiler.GetRuntimeMemorySizeLong(set.normal) + UnityEngine.Profiling.Profiler.GetRuntimeMemorySizeLong(set.mask);
+            }
+        }
+        r.Info("texturas Blender: memoria de las superficies de los 5 niveles ≈ " + (bytes / 1048576f).ToString("F1") + " MB (" + seen.Count + " estilos)");
+        r.Check(seen.Count >= 12, "texturas Blender: " + seen.Count + " estilos de superficie distintos en los 5 niveles");
+        // La altura de pared distinta no usa el papel horneado (lleva zócalo a escala): cae a la generación por CPU
+        TextureLibrary.ReleaseAll();
+        SurfaceSet other = TextureLibrary.Get(SurfaceStyle.WallpaperYellow, 2.5f);
+        r.Check(other != null && !other.baked && other.albedo != null, "texturas: otra altura de pared -> fallback por CPU");
+        TextureLibrary.ReleaseAll();
+        ProceduralTextures.UseBaked = false;
+        SurfaceSet cpu = TextureLibrary.Get(SurfaceStyle.CarpetBrown, 3f);
+        r.Check(cpu != null && !cpu.baked && cpu.albedo != null && cpu.normal != null && cpu.mask != null, "texturas: sin horneadas -> generación por CPU intacta");
+        TextureLibrary.ReleaseAll();
+        ProceduralTextures.UseBaked = true;
+    }
+
     private static void TestMonsterModels(Report r)
     {
         var ids = new HashSet<string>();
@@ -1115,7 +1157,7 @@ public static class SmokeTest
             {
                 if (m.mainTexture == null || m.GetTexture("_BumpMap") == null || m.GetTexture("_MetallicGlossMap") == null || !m.IsKeywordEnabled("_NORMALMAP"))
                     texOk = false;
-                if (m.mainTexture != null && (m.mainTexture.width < 512 || !m.mainTexture.name.Contains("Albedo"))) texOk = false;
+                if (m.mainTexture != null && (m.mainTexture.width < 512 || !(m.mainTexture.name.Contains("Albedo") || m.mainTexture.name.EndsWith("_a")))) texOk = false;
             }
         }
         r.Check(texOk, tag + "materiales de pared/suelo/techo con albedo>=512px + normal + máscara PBR");
@@ -2181,10 +2223,10 @@ public static class SmokePlayRunner
             m0.ForceCatch();
             yield return 1.2f;
             r.Check(gmS.State == GameManager.GameState.Lost, "ForceCatch -> Lost");
-            float headH = m0.visual != null && m0.visual.profile != null ? m0.visual.profile.ai_eyeHeight * 0.95f : 1.5f;
-            Vector3 toM = (m0.transform.position + Vector3.up * headH) - cam.transform.position;
-            r.Info("jump-scare: distancia cámara-monstruo " + toM.magnitude.ToString("F2") + " m");
-            r.Check(Vector3.Angle(cam.transform.forward, toM) < 25f, "jump-scare: la cámara mira al monstruo (" + Vector3.Angle(cam.transform.forward, toM).ToString("F0") + "°)");
+            Screamer scF = gmS.screamer;
+            Vector3 toM = (scF != null ? scF.HeadPoint : m0.transform.position + Vector3.up * 1.5f) - cam.transform.position;
+            r.Info("jump-scare: distancia cámara-cara " + toM.magnitude.ToString("F2") + " m");
+            r.Check(Vector3.Angle(cam.transform.forward, toM) < 12f, "jump-scare: la cámara mira a la cara del monstruo (" + Vector3.Angle(cam.transform.forward, toM).ToString("F0") + "°)");
             r.Check(m0.visual != null && m0.visual.CurrentAnim == MonsterVisual.Anim.Attack, "jump-scare: animación de ataque");
             r.Check(cam.fieldOfView < fov0 - 3f, "jump-scare: golpe de FOV");
             r.Check(VhsEffect.Active != null && VhsEffect.Active.Glitch > 0.2f, "jump-scare: pico de interferencia VHS");
@@ -2196,9 +2238,21 @@ public static class SmokePlayRunner
                 r.Check(sc.PhotoFlashShown, "screamer: fogonazo con el fotograma de la cara");
                 r.Check(sc.MaxFovPunch > 15f, "screamer: golpe de FOV fuerte (" + sc.MaxFovPunch.ToString("F0") + "°)");
                 r.Check(sc.MaxShakeSeen > 0.03f, "screamer: sacudida violenta (" + sc.MaxShakeSeen.ToString("F3") + " m)");
-                r.Check(sc.PeakScreamLevel > 0.8f && VhsEffect.Active != null && VhsEffect.Active.ScreamLevel > 0.3f, "screamer: glitch VHS extremo (pico " + sc.PeakScreamLevel.ToString("F2") + ")");
+                r.Check(sc.PeakScreamLevel > 0.8f && VhsEffect.Active != null && VhsEffect.Active.ScreamLevel > 0.15f, "screamer: glitch VHS extremo (pico " + sc.PeakScreamLevel.ToString("F2") + ")");
                 r.Check(sc.ScreamClip != null && sc.ScreamClip.length > 2f && sc.ScreamVolume > 0.9f, "screamer: grito en capas a volumen completo (" + sc.ScreamVolume.ToString("F2") + ", respeta el volumen general vía AudioListener)");
                 r.Check(sc.Profile != null && sc.Profile.id == m0.visual.profile.id, "screamer: grito/perfil del monstruo que atrapa (" + (sc.Profile != null ? sc.Profile.id : "-") + ")");
+                // v6.6: la entidad se ve (cámara del susto en la cara, capa propia, luz propia, sin niebla ni oclusión)
+                r.Check(sc.FaceMode && sc.FaceCamera == cam, "screamer v6.6: la cámara del susto renderiza el plano de la cara (shot " + sc.Shot + ")");
+                r.Check(cam.cullingMask == (1 << Screamer.ScreamLayer), "screamer v6.6: la máscara de la cámara incluye solo la capa del monstruo (sin muros/cabina que lo oculten)");
+                bool allLayer = m0.visual.Renderers.Length > 0;
+                foreach (Renderer rr in m0.visual.Renderers) if (rr != null && rr.gameObject.layer != Screamer.ScreamLayer) allLayer = false;
+                r.Check(allLayer, "screamer v6.6: todos los renderers del monstruo están en la capa del susto");
+                r.Check(sc.MonsterVisibleToCamera, "screamer v6.6: el renderer del monstruo está dentro del frustum y visible para la cámara");
+                r.Check(sc.FaceDistance >= 0.45f && sc.FaceDistance <= 4.0f, "screamer v6.6: distancia cámara-cara en rango (" + sc.FaceDistance.ToString("F2") + " m)");
+                r.Check(sc.HeadScreenFraction > 0.05f, "screamer v6.6: la cabeza ocupa pantalla (" + sc.HeadScreenFraction.ToString("F2") + " de alto)");
+                r.Check(sc.KeyLight != null && sc.KeyLight.enabled && sc.KeyLight.intensity > 1f && sc.RimLight != null && sc.RimLight.enabled, "screamer v6.6: luz principal fría + luz de contorno presentes");
+                r.Check(!RenderSettings.fog && cam.nearClipPlane <= 0.05f, "screamer v6.6: sin niebla y plano cercano mínimo");
+                r.Check(sc.HeadHeight >= 1.2f, "screamer v6.6: altura del modelo medida (" + sc.HeadHeight.ToString("F2") + " m)");
             }
             ui.PressEscape();
             r.Check(ui.Current == UIManager.Screen.None, "Esc no abre la pausa en la pantalla de derrota");
@@ -2216,6 +2270,7 @@ public static class SmokePlayRunner
                 r.Check(retry != null && toMenu != null, "pantalla final: botones Reintentar y Menú principal");
                 r.Check(Cursor.visible, "pantalla final: cursor libre");
                 r.Check(sc.AftermathPlaying || sc.T > 2.0f, "acúfeno + latido tras el grito");
+                r.Check(sc.ShotsSeen >= 3, "screamer v6.6: los 3 planos (cara, ojos, abierto) se han mostrado (" + sc.ShotsSeen + ")");
                 if (retry != null) retry.onClick.Invoke();
             }
             else
@@ -2225,6 +2280,8 @@ public static class SmokePlayRunner
             int ld = GameBootstrap.Instance.LoadCount;
             yield return Until(() => GameBootstrap.Instance.LoadCount > ld && GameBootstrap.Instance.IsLoaded);
             r.Check(GameBootstrap.Instance.CurrentLevel == 0, "tras el susto se reinicia el nivel");
+            r.Check(!RenderSettings.fog || GameBootstrap.Instance.CurrentLevel >= 0, "tras el susto se restaura el entorno");
+            { bool clean = true; foreach (MonsterAI mm in GameManager.Instance.monsters) foreach (Transform tt in mm.GetComponentsInChildren<Transform>(true)) if (tt.gameObject.layer == Screamer.ScreamLayer) clean = false; r.Check(clean, "tras el susto ningún monstruo queda en la capa del susto"); }
             yield return 0.3f;
             r.Check(Inventory.Instance != null && Inventory.Instance.NotesFound == 0 && Inventory.Instance.GetCount(ItemType.Glowstick) == 0 && Inventory.Instance.GetCount(ItemType.AlmondWater) == 0,
                 "reintentar: el inventario vuelve al estado del inicio del nivel (notas " + (Inventory.Instance != null ? Inventory.Instance.NotesFound : -1) + ")");

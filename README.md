@@ -3,16 +3,16 @@
 Juego de terror en primera persona para PC (Windows 64 bits) hecho con **Unity**: escapa de las Backrooms a través de **5 niveles** encadenados. Cada nivel es un laberinto (o aparcamiento abierto) procedural con su propia estética, luces, dificultad y criaturas que patrullan y te persiguen. La salida es una puerta discreta que **solo se descubre explorando**: sin cartel, sin flecha, sin indicador de distancia.
 
 - 🌐 **Web:** https://rootesq-pixel.github.io/backrooms-escapa/
-- ⬇️ **Descarga directa v6.5 (Windows, ZIP ≈ 46 MB):** [BackroomsEscape_v6_5_Windows.zip](https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v6.5.0/BackroomsEscape_v6_5_Windows.zip)
-- 📦 **Release v6.5.0:** https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.5.0
-- 🕓 Versiones anteriores: [v6.4.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.4.0) (ascensor) · [v6.3.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.3.0) (5 niveles, sin ascensor) · [v6.2.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.2.0) (multijugador por Internet, 6 niveles) · [v6.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.0.0) (multijugador por IP y puerto) · [v5.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v5.0.0) (un jugador)
+- ⬇️ **Descarga directa v6.6 (Windows, ZIP ≈ 57 MB):** [BackroomsEscape_v6_6_Windows.zip](https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v6.6.0/BackroomsEscape_v6_6_Windows.zip)
+- 📦 **Release v6.6.0:** https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.6.0
+- 🕓 Versiones anteriores: [v6.5.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.5.0) (audio e intro) · [v6.4.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.4.0) (ascensor) · [v6.3.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.3.0) (5 niveles, sin ascensor) · [v6.2.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.2.0) (multijugador por Internet, 6 niveles) · [v6.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.0.0) (multijugador por IP y puerto) · [v5.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v5.0.0) (un jugador)
 
 > ⚠️ **Build temprana.** Puede haber errores. El **multijugador** se ha probado en local y con un servidor intermedio real; **las pruebas con amigos por Internet están pendientes**. El ejecutable **no está firmado**, así que Windows SmartScreen puede avisar al abrirlo (*Más información → Ejecutar de todas formas*).
 
 ## Cómo jugar
 
-1. Descarga `BackroomsEscape_v6_5_Windows.zip` desde la [release v6.5.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.5.0).
-2. Descomprime el ZIP (≈ 103 MB descomprimido).
+1. Descarga `BackroomsEscape_v6_6_Windows.zip` desde la [release v6.6.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.6.0).
+2. Descomprime el ZIP (≈ 113 MB descomprimido).
 3. Ejecuta `BackroomsEscape.exe`.
 
 ## Niveles
@@ -26,6 +26,13 @@ Juego de terror en primera persona para PC (Windows 64 bits) hecho con **Unity**
 | 4 | Complejo industrial | Chapa oxidada, tuberías y luces de emergencia rojas | 2 × El Hollín (más rápidos) |
 
 Al llegar a la puerta de salida se carga el siguiente nivel; tras el nivel 4 aparece la pantalla de victoria (tiempo total e intentos fallidos). Si te atrapan, el nivel se reinicia.
+
+## Novedades de la v6.6: susto de muerte visible y texturas realistas
+
+- **El susto de muerte ahora se ve:** antes la entidad quedaba a oscuras, tapada por muros/niebla o mal encuadrada y el glitch VHS la ocultaba. Ahora, al atraparte, la cámara dibuja solo al monstruo (capa propia, fondo rojo oscuro, sin niebla ni muros), con **luz fría de frente y luz roja de contorno**, y encuadra la cara con **tres planos de corte seco** (rostro y hombros, primerísimo plano de los ojos y embestida), unos 2 s + fundido, antes de «HAS MUERTO». Funciona con las 5 entidades; «Susto suave» sigue reduciendo luces, destellos, sacudida y glitch. En multijugador el susto completo solo salta cuando caen todos.
+- **Texturas horneadas con Blender:** paredes, suelos y techos de los 5 niveles usan texturas tileables (albedo 1024 px, 2048 px en pared y moqueta del nivel 0, normal y máscara PBR) creadas con materiales procedurales de Blender (papel con rayas y manchas, moqueta, techo acústico, hormigón, azulejos de piscina, damasco de hotel, chapa oxidada y lagrimada). Si faltan, el juego vuelve a las texturas generadas por código. El ZIP pasa de ≈ 46 a ≈ 57 MB.
+- Los zombis usan el clip *Walk* en el susto (su *Idle* era una pose en T).
+- Multijugador sin cambios de protocolo (MP-2).
 
 ## Novedades de la v6.5: audio más suave e intro
 
@@ -49,7 +56,7 @@ Al llegar a la puerta de salida se carga el siguiente nivel; tras el nivel 4 apa
 - **Se eliminó el monstruo «El Reptador»**. Quedan 5 criaturas: El Alto, El Coloso, El Ahogado, El Huésped y El Hollín.
 - Las notas por nivel pasan a ser 15 en total (3 por nivel).
 
-## Multijugador (v6.5, prueba temprana)
+## Multijugador (v6.6, prueba temprana)
 
 Modo **cooperativo de 2 a 4 jugadores**. El modo de un jugador no cambia: la red solo se activa desde el menú **Multijugador**.
 
@@ -67,7 +74,7 @@ Modo **cooperativo de 2 a 4 jugadores**. El modo de un jugador no cambia: la red
 
 **Opción A: con código (recomendada, sin abrir puertos)**
 
-1. Todos necesitáis la **misma versión** (v6.5). El protocolo sigue siendo **MP-2** (el de la v6.4): la v6.3 y anteriores **no pueden unirse**; v6.4 y v6.5 comparten protocolo, pero lo más seguro es que todos uséis la misma versión.
+1. Todos necesitáis la **misma versión** (v6.6). El protocolo sigue siendo **MP-2** (el de la v6.4): la v6.3 y anteriores **no pueden unirse**; v6.4, v6.5 y v6.6 comparten protocolo, pero lo más seguro es que todos uséis la misma versión.
 2. **Anfitrión:** menú principal → **Multijugador** → tu nombre → **Alojar con código**. Pasa a tus amigos el código de la sala.
 3. **Clientes:** Multijugador → tu nombre → **Unirse con código** → escribe el código → entras en la sala de espera.
 4. El anfitrión elige el nivel con ◄ ► y pulsa **Empezar**. No se puede entrar en una partida ya empezada.

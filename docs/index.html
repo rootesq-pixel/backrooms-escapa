@@ -101,13 +101,13 @@
         <h1 class="glitch" id="hero-title" data-title data-text="BACKROOMS: ESCAPA">BACKROOMS: ESCAPA</h1>
         <p class="hero-tagline">Has atravesado la pared equivocada. Zumbido de fluorescentes, moqueta húmeda y kilómetros de pasillos amarillos. Algo te sigue. <strong>Encuentra la salida.</strong></p>
         <div class="hero-actions">
-          <a class="btn btn-primary" href="https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v6.5.0/BackroomsEscape_v6_5_Windows.zip" download>
+          <a class="btn btn-primary" href="https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v6.6.0/BackroomsEscape_v6_6_Windows.zip" download>
             <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 5.5 10.5 4.4v7.1H3V5.5Zm0 13 7.5 1.1v-7H3v5.9Zm8.4 1.2L21 21v-8.4h-9.6v7.1Zm0-15.4v7.2H21V3l-9.6 1.3Z"/></svg>
             Descargar para Windows
           </a>
           <a class="btn btn-ghost" href="#trailer">Ver gameplay</a>
         </div>
-        <p class="hero-note">Build temprana v6.5.0 (multijugador por Internet) · Windows 64 bits · ≈ 46 MB (zip). <a href="https://github.com/rootesq-pixel/backrooms-escapa/releases" target="_blank" rel="noopener">Código y versiones<span class="sr-only"> (se abre en una pestaña nueva)</span></a></p>
+        <p class="hero-note">Build temprana v6.6.0 (susto de muerte visible y texturas nuevas) · Windows 64 bits · ≈ 57 MB (zip). <a href="https://github.com/rootesq-pixel/backrooms-escapa/releases" target="_blank" rel="noopener">Código y versiones<span class="sr-only"> (se abre en una pestaña nueva)</span></a></p>
         <ul class="hero-facts" aria-label="Datos rápidos">
           <li><strong>5</strong> niveles</li>
           <li><strong>5</strong> criaturas</li>
@@ -270,8 +270,8 @@
           </li>
           <li class="feature">
             <span class="feature-icon" aria-hidden="true">▦</span>
-            <h3>Texturas procedurales, niebla y fluorescentes</h3>
-            <p>Paredes, suelos y techos generados por código, niebla de color distinta en cada nivel y tubos fluorescentes que zumban y parpadean.</p>
+            <h3>Texturas procedurales (Blender), niebla y fluorescentes</h3>
+            <p>Desde la v6.6, paredes, suelos y techos con texturas realistas horneadas desde materiales procedurales de Blender (manchas, humedad, óxido, juntas, relieve), niebla de color distinta en cada nivel y tubos fluorescentes que zumban y parpadean.</p>
           </li>
           <li class="feature">
             <span class="feature-icon" aria-hidden="true">≈</span>
@@ -316,7 +316,7 @@
           <li class="feature">
             <span class="feature-icon" aria-hidden="true">✕</span>
             <h3>Susto de muerte… o «susto suave»</h3>
-            <p>Si te atrapan, la cámara se clava en su cara: grito, sacudida y pérdida de señal. La opción «Susto suave» reduce volumen, destellos, sacudida y glitch.</p>
+            <p>Si te atrapan, la cámara se clava en su cara con tres planos rápidos (rostro, ojos y embestida), con luz propia para que la entidad se vea siempre: grito, sacudida y pérdida de señal. La opción «Susto suave» reduce volumen, destellos, sacudida y glitch.</p>
           </li>
         </ul>
 
@@ -354,7 +354,7 @@
             <h3>Cómo jugar con amigos</h3>
             <p class="mp-opt"><strong>Opción A · Con código</strong> (recomendada: sin abrir puertos, funciona incluso con CGNAT)</p>
             <ol class="steps">
-              <li><strong>Misma versión.</strong> Todos necesitáis la v6.4 o la v6.5 (protocolo <strong>MP-2</strong>); las versiones anteriores (v6.3 y anteriores) no pueden unirse. Lo más seguro es que todos uséis la misma versión.</li>
+              <li><strong>Misma versión.</strong> Todos necesitáis la v6.4, la v6.5 o la v6.6 (protocolo <strong>MP-2</strong>); las versiones anteriores (v6.3 y anteriores) no pueden unirse. Lo más seguro es que todos uséis la misma versión.</li>
               <li><strong>Anfitrión:</strong> menú principal → <em>Multijugador</em> → escribe tu nombre → <em>Alojar con código</em>. La sala muestra un código de 6 caracteres: pásaselo a tus amigos.</li>
               <li><strong>Clientes:</strong> <em>Multijugador</em> → nombre → <em>Unirse con código</em> → escribe el código. Entraréis en la sala de espera.</li>
               <li>El anfitrión elige el nivel con ◄ ► y pulsa <em>Empezar</em>. No se puede entrar en una partida ya empezada.</li>
@@ -448,6 +448,18 @@
               <img src="assets/img/ascensor-puertas.jpg" alt="Primera persona: las puertas del ascensor abiertas al Nivel 0, Oficinas amarillas, con el indicador de planta -24 y la tarjeta de título del nivel." width="960" height="540" loading="lazy">
             </button>
             <p class="gallery-caption">Ascensor · llegada al nivel · vista previa de desarrollo</p>
+          </li>
+          <li class="gallery-item gallery-tall">
+            <button type="button" class="gallery-btn" data-full="assets/img/texturas-blender-antes-despues.jpg" data-caption="Texturas de la v6.6: a la izquierda las generadas por CPU (antes), a la derecha las horneadas con Blender (después), en los 5 niveles (vista previa de desarrollo).">
+              <img src="assets/img/texturas-blender-antes-despues.jpg" alt="Comparativa antes y después de las texturas en los cinco niveles: papel amarillo, hormigón, azulejos de piscina, papel de hotel y chapa oxidada, con las texturas nuevas a la derecha." width="1200" height="1690" loading="lazy">
+            </button>
+            <p class="gallery-caption">Texturas v6.6 · antes y después</p>
+          </li>
+          <li class="gallery-item">
+            <button type="button" class="gallery-btn" data-full="assets/img/susto-monstruos.jpg" data-caption="Los tres planos del susto de muerte de cada una de las cinco entidades, con el glitch VHS reducido (vista previa de desarrollo; contiene imágenes de monstruos).">
+              <img src="assets/img/susto-monstruos.jpg" alt="Hoja de contactos de 15 imágenes: tres planos del susto de muerte de cada una de las cinco criaturas sobre fondo oscuro, con estática de cinta VHS." width="960" height="900" loading="lazy">
+            </button>
+            <p class="gallery-caption">Susto de muerte · 5 entidades · vista previa</p>
           </li>
           <li class="gallery-item gallery-tall">
             <button type="button" class="gallery-btn" data-full="assets/img/texturas-contact-sheet.jpg" data-caption="Hoja de texturas procedurales: pared, suelo y techo de cada estilo de nivel.">
@@ -544,7 +556,7 @@
             <h3 class="credits-sub">Herramientas</h3>
             <ul class="tools-list">
               <li>Unity 2022.3 LTS</li>
-              <li>Blender (conversión de modelos)</li>
+              <li>Blender (conversión de modelos y horneado de las texturas procedurales)</li>
               <li>Python/Pillow (retexturizado de los zombis y del Hollín)</li>
             </ul>
           </div>
@@ -561,11 +573,11 @@
         <div class="download-box">
           <div class="download-main">
             <p class="download-platform">Windows PC · 64 bits</p>
-            <a class="btn btn-primary" href="https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v6.5.0/BackroomsEscape_v6_5_Windows.zip" download>
+            <a class="btn btn-primary" href="https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v6.6.0/BackroomsEscape_v6_6_Windows.zip" download>
               <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 5.5 10.5 4.4v7.1H3V5.5Zm0 13 7.5 1.1v-7H3v5.9Zm8.4 1.2L21 21v-8.4h-9.6v7.1Zm0-15.4v7.2H21V3l-9.6 1.3Z"/></svg>
               Descargar para Windows
             </a>
-            <p class="download-note"><strong>v6.5.0</strong> · ZIP de ≈ 46 MB <span class="tbd">(aprox.)</span>. Descomprime y ejecuta <code>BackroomsEscape.exe</code>.</p>
+            <p class="download-note"><strong>v6.6.0</strong> · ZIP de ≈ 57 MB <span class="tbd">(aprox.)</span>. Descomprime y ejecuta <code>BackroomsEscape.exe</code>.</p>
             <p class="download-note download-smartscreen"><strong>Aviso de Windows SmartScreen:</strong> el ejecutable no está firmado digitalmente, por lo que Windows puede mostrar «Windows protegió su PC». Pulsa <em>Más información</em> → <em>Ejecutar de todas formas</em> si confías en la descarga. Es una build temprana.</p>
             <p class="download-note"><a href="https://github.com/rootesq-pixel/backrooms-escapa/releases" target="_blank" rel="noopener">Código y versiones<span class="sr-only"> (se abre en una pestaña nueva)</span></a> · <a href="https://github.com/rootesq-pixel/backrooms-escapa" target="_blank" rel="noopener">Repositorio en GitHub<span class="sr-only"> (se abre en una pestaña nueva)</span></a></p>
           </div>
@@ -580,7 +592,7 @@
                 <tr><th scope="row">Procesador</th><td class="tbd">Por determinar</td><td class="tbd">Por determinar</td></tr>
                 <tr><th scope="row">Memoria</th><td class="tbd">Por determinar</td><td class="tbd">Por determinar</td></tr>
                 <tr><th scope="row">Gráficos</th><td class="tbd">Por determinar</td><td class="tbd">Por determinar</td></tr>
-                <tr><th scope="row">Almacenamiento</th><td colspan="2">≈ 46 MB comprimido / ≈ 103 MB descomprimido <span class="tbd">(aproximado; puede cambiar)</span></td></tr>
+                <tr><th scope="row">Almacenamiento</th><td colspan="2">≈ 57 MB comprimido / ≈ 113 MB descomprimido <span class="tbd">(aproximado; puede cambiar)</span></td></tr>
               </tbody>
             </table>
           </div>
