@@ -3,15 +3,15 @@
 Juego de terror en primera persona para PC (Windows 64 bits) hecho con **Unity**: escapa de las Backrooms a través de **5 niveles** encadenados. Cada nivel es un laberinto (o aparcamiento abierto) procedural con su propia estética, luces, dificultad y criaturas que patrullan y te persiguen. La salida es una puerta discreta que **solo se descubre explorando**: sin cartel, sin flecha, sin indicador de distancia.
 
 - 🌐 **Web:** https://rootesq-pixel.github.io/backrooms-escapa/
-- ⬇️ **Descarga directa v6.4 (Windows, ZIP ≈ 46 MB):** [BackroomsEscape_v6_4_Windows.zip](https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v6.4.0/BackroomsEscape_v6_4_Windows.zip)
-- 📦 **Release v6.4.0 — El ascensor:** https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.4.0
-- 🕓 Versiones anteriores: [v6.3.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.3.0) (5 niveles, sin ascensor) · [v6.2.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.2.0) (multijugador por Internet, 6 niveles) · [v6.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.0.0) (multijugador por IP y puerto) · [v5.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v5.0.0) (un jugador)
+- ⬇️ **Descarga directa v6.5 (Windows, ZIP ≈ 46 MB):** [BackroomsEscape_v6_5_Windows.zip](https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v6.5.0/BackroomsEscape_v6_5_Windows.zip)
+- 📦 **Release v6.5.0:** https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.5.0
+- 🕓 Versiones anteriores: [v6.4.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.4.0) (ascensor) · [v6.3.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.3.0) (5 niveles, sin ascensor) · [v6.2.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.2.0) (multijugador por Internet, 6 niveles) · [v6.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.0.0) (multijugador por IP y puerto) · [v5.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v5.0.0) (un jugador)
 
 > ⚠️ **Build temprana.** Puede haber errores. El **multijugador** se ha probado en local y con un servidor intermedio real; **las pruebas con amigos por Internet están pendientes**. El ejecutable **no está firmado**, así que Windows SmartScreen puede avisar al abrirlo (*Más información → Ejecutar de todas formas*).
 
 ## Cómo jugar
 
-1. Descarga `BackroomsEscape_v6_4_Windows.zip` desde la [release v6.4.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.4.0).
+1. Descarga `BackroomsEscape_v6_5_Windows.zip` desde la [release v6.5.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.5.0).
 2. Descomprime el ZIP (≈ 103 MB descomprimido).
 3. Ejecuta `BackroomsEscape.exe`.
 
@@ -27,6 +27,14 @@ Juego de terror en primera persona para PC (Windows 64 bits) hecho con **Unity**
 
 Al llegar a la puerta de salida se carga el siguiente nivel; tras el nivel 4 aparece la pantalla de victoria (tiempo total e intentos fallidos). Si te atrapan, el nivel se reinicia.
 
+## Novedades de la v6.5: audio más suave e intro
+
+- **Audio ambiente más suave (el «soplo de aire»):** se analizaron todas las fuentes de sonido del juego y el culpable principal era el ruido grave del drone ambiental de los niveles 1-4. Ahora el drone es **solo tonal**, el zumbido de la cinta VHS en reposo es un tono grave y el siseo de ruido solo aparece con interferencias y mucho más bajo. Los sonidos del ascensor (aire y retumbo) también pasan a ser tonales. Se arregló lo mejor que se pudo medir con análisis del audio; no se ha comprobado con oídos ajenos, así que puede quedar algún matiz.
+- **Solo zumban las 3 luces de techo más cercanas** (antes sonaban decenas de zumbidos 3D a la vez).
+- **Nueva opción «Siseo VHS / ruido»** en Opciones (activada por defecto) para quitar el siseo de cinta.
+- **Intro de arranque** (~9 s, estilo found footage: estática VHS, inserción de cinta, aviso de contenido, título y fundido al menú). Se salta con cualquier tecla o clic pasados 2 s. El menú principal ahora habla de cinco niveles.
+- **Pantalla de Unity:** el logo de Unity puede seguir apareciendo al arrancar por la licencia Personal de Unity (no se puede quitar con esa licencia).
+
 ## Novedades de la v6.4: el ascensor
 
 - **Cada nivel empieza con un descenso en ascensor** (obligatorio, también en multijugador): la cabina cae a toda velocidad durante unos 8 s, con sacudidas de cámara, contador de planta que baja rápido, frenazo con sacudida, «ding» y apertura de puertas al nivel. Mientras dura, el jugador no puede moverse y los monstruos esperan quietos. La animación **solo se puede saltar tras morir y reiniciar el nivel** (`Espacio` / `E`).
@@ -41,7 +49,7 @@ Al llegar a la puerta de salida se carga el siguiente nivel; tras el nivel 4 apa
 - **Se eliminó el monstruo «El Reptador»**. Quedan 5 criaturas: El Alto, El Coloso, El Ahogado, El Huésped y El Hollín.
 - Las notas por nivel pasan a ser 15 en total (3 por nivel).
 
-## Multijugador (v6.4, prueba temprana)
+## Multijugador (v6.5, prueba temprana)
 
 Modo **cooperativo de 2 a 4 jugadores**. El modo de un jugador no cambia: la red solo se activa desde el menú **Multijugador**.
 
@@ -59,7 +67,7 @@ Modo **cooperativo de 2 a 4 jugadores**. El modo de un jugador no cambia: la red
 
 **Opción A: con código (recomendada, sin abrir puertos)**
 
-1. Todos necesitáis la **misma versión** (v6.4). El protocolo es ahora **MP-2**: la v6.3 y anteriores **no pueden unirse** a partidas de la v6.4.
+1. Todos necesitáis la **misma versión** (v6.5). El protocolo sigue siendo **MP-2** (el de la v6.4): la v6.3 y anteriores **no pueden unirse**; v6.4 y v6.5 comparten protocolo, pero lo más seguro es que todos uséis la misma versión.
 2. **Anfitrión:** menú principal → **Multijugador** → tu nombre → **Alojar con código**. Pasa a tus amigos el código de la sala.
 3. **Clientes:** Multijugador → tu nombre → **Unirse con código** → escribe el código → entras en la sala de espera.
 4. El anfitrión elige el nivel con ◄ ► y pulsa **Empezar**. No se puede entrar en una partida ya empezada.
@@ -107,7 +115,7 @@ Sin reconexión a mitad de partida, sin voz, sin migración de anfitrión (si el
 
 ## Características
 
-- Cada nivel empieza con un descenso en ascensor (v6.4).
+- Cada nivel empieza con un descenso en ascensor (v6.4) y el juego abre con una intro found footage (v6.5).
 - 5 niveles procedurales con texturas PBR, niebla, luces y audio generados por código.
 - Criaturas con vista y oído (correr hace más ruido; apagar la linterna te oculta).
 - Cámara VHS opcional, inventario en rejilla, notas y pilas para la linterna.

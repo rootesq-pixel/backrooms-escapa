@@ -54,16 +54,17 @@ public static class ProceduralAudio
         return Make("FluorescentBuzz", data);
     }
 
-    // Drone ambiental (bucle de 8 s): graves con ciclos enteros + ruido grave modulado lentamente
+    // Drone ambiental (bucle de 8 s): SOLO tonal (graves con ciclos enteros + parciales desafinados que "laten" despacio).
+    // v6.5: antes llevaba ruido grave modulado lentamente, que sonaba a viento/soplo constante. «noiseAmount» es ahora la «aspereza»
+    // (cuánto laten los parciales desafinados); no hay ruido en el drone.
     public static AudioClip CreateDrone(float baseHz, float noiseAmount, int seed)
     {
         const float seconds = 8f;
         int n = (int)(SR * seconds);
         float[] d = new float[n];
-        float[] noise = LowNoise(n, 0.04f, seed, true);
-        float[] noise2 = LowNoise(n, 0.4f, seed + 7, true);
         float[] mult = { 1f, 2f, 3f, 5f };
         float[] amp = { 1f, 0.5f, 0.28f, 0.1f };
+        float rough = Mathf.Clamp01(noiseAmount / 0.35f);
         for (int i = 0; i < n; i++)
         {
             float t = i / (float)SR;
@@ -72,9 +73,12 @@ public static class ProceduralAudio
             {
                 float f = Mathf.Round(baseHz * mult[h] * seconds) / seconds;      // ciclos enteros
                 v += amp[h] * Mathf.Sin(2f * Mathf.PI * f * t + h);
+                // parcial desafinado ±(1..2)/8 Hz: batido lento (sin ruido)
+                float fd = f + (h % 2 == 0 ? 1f : 2f) / seconds;
+                v += rough * 0.45f * amp[h] * Mathf.Sin(2f * Mathf.PI * fd * t + h * 1.7f + seed * 0.013f);
             }
-            float lfo = 0.75f + 0.25f * Mathf.Sin(2f * Mathf.PI * 2f * t / seconds * 1f);   // 2 ciclos por bucle
-            d[i] = v * 0.25f * lfo + noise[i] * 3.4f * noiseAmount * (0.6f + 0.4f * lfo) + noise2[i] * 0.4f * noiseAmount * 0.3f;
+            float lfo = 0.75f + 0.25f * Mathf.Sin(2f * Mathf.PI * 2f * t / seconds);   // 2 ciclos por bucle
+            d[i] = v * 0.25f * lfo;
         }
         Normalize(d, 0.8f);
         return Make("Drone", d);
@@ -330,7 +334,23 @@ public static class ProceduralAudio
         return Make(inhale ? "BreathIn" : "BreathOut", d);
     }
 
-    // Siseo de cinta VHS (bucle de 2 s): ruido de banda media, suave (sin agudos estridentes) + zumbido de 50 Hz muy tenue
+    // Zumbido de la cinta/cabezal VHS (bucle de 2 s): 50 Hz y armónicos con ciclos enteros, sin ruido. Es lo que suena en reposo.
+    public static AudioClip CreateTapeHum()
+    {
+        int n = SR * 2;
+        float[] d = new float[n];
+        for (int i = 0; i < n; i++)
+        {
+            float t = i / (float)SR;
+            float flutter = 1f + 0.15f * Mathf.Sin(2f * Mathf.PI * 0.5f * t);
+            d[i] = (Mathf.Sin(2f * Mathf.PI * 50f * t) + 0.5f * Mathf.Sin(2f * Mathf.PI * 100f * t + 1f) + 0.25f * Mathf.Sin(2f * Mathf.PI * 150f * t + 2f)
+                    + 0.12f * Mathf.Sin(2f * Mathf.PI * 250f * t)) * flutter;
+        }
+        Normalize(d, 0.5f);
+        return Make("TapeHum", d);
+    }
+
+    // Siseo de cinta VHS (bucle de 2 s): ruido de banda media. v6.5: SOLO suena (muy bajo) en las interferencias por glitch y se puede apagar en Opciones
     public static AudioClip CreateTapeHiss()
     {
         int n = SR * 2;

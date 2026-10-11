@@ -32,7 +32,8 @@ public class VhsEffect : MonoBehaviour
     private Shader shader;
     private float glitch, spike;
     private AudioSource hiss;
-    private AudioClip hissClip;
+    private AudioClip hissClip, humClip;
+    private AudioSource hum;
     private AudioLowPassFilter lowPass;
     private Transform monsterTarget;
     private GameObject fallbackCanvas;
@@ -66,7 +67,9 @@ public class VhsEffect : MonoBehaviour
         if (fallbackCanvas != null) ProceduralAssets.SafeDestroy(fallbackCanvas);
         if (lowPass != null) ProceduralAssets.SafeDestroy(lowPass);   // primero el filtro (depende del AudioSource)
         if (hiss != null) ProceduralAssets.SafeDestroy(hiss);
+        if (hum != null) ProceduralAssets.SafeDestroy(hum);
         ProceduralAssets.SafeDestroy(hissClip);
+        ProceduralAssets.SafeDestroy(humClip);
         ProceduralAssets.SafeDestroy(scanTex); ProceduralAssets.SafeDestroy(noiseTex); ProceduralAssets.SafeDestroy(vigTex);
     }
 
@@ -98,6 +101,10 @@ public class VhsEffect : MonoBehaviour
         hiss.bypassEffects = true;
         hiss.playOnAwake = false;
         hiss.Play();
+        humClip = ProceduralAudio.CreateTapeHum();
+        hum = gameObject.AddComponent<AudioSource>();
+        hum.clip = humClip; hum.loop = true; hum.spatialBlend = 0f; hum.volume = 0f; hum.bypassEffects = true; hum.playOnAwake = false;
+        hum.Play();
     }
 
     private void Update()
@@ -131,6 +138,7 @@ public class VhsEffect : MonoBehaviour
         if (hiss != null)
         {
             hiss.volume = AudioMix.Hiss(CurrentIntensity, glitch) * (EffectEnabled ? 1f : 0f);
+            if (hum != null) hum.volume = AudioMix.Hum(CurrentIntensity) * (EffectEnabled ? 1f : 0f);
         }
 
         UpdateFallback();

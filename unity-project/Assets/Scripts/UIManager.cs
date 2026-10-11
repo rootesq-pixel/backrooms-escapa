@@ -462,7 +462,7 @@ public class UIManager : MonoBehaviour
         Text title = Label(root.transform, "BACKROOMS: ESCAPA", 118, TextAnchor.MiddleCenter, 0f, 330f, 1700f, 180f, new Color(0.96f, 0.9f, 0.55f));
         title.fontStyle = FontStyle.Bold;
         Shadow sh = title.gameObject.AddComponent<Shadow>(); sh.effectColor = new Color(0f, 0f, 0f, 0.9f); sh.effectDistance = new Vector2(4f, -4f);
-        Label(root.transform, "Seis niveles. Una salida. Algo te está buscando.", 32, TextAnchor.MiddleCenter, 0f, 235f, 1400f, 50f, Dim);
+        Label(root.transform, "Cinco niveles. Una salida. Algo te está buscando.", 32, TextAnchor.MiddleCenter, 0f, 235f, 1400f, 50f, Dim);
 
         float y = 150f;
         MakeButton(root.transform, "Jugar", 0f, y, 520f, 68f, OnPlay); y -= 78f;
@@ -508,13 +508,14 @@ public class UIManager : MonoBehaviour
 
     // --- Opciones ---
     private Slider sVol, sSens, sVhs, sSfx, sAmb;
-    private Toggle tFull, tInvert, tBob, tSmooth, tVhs, tSoft, tBody, tBreath;
+    private Toggle tFull, tInvert, tBob, tSmooth, tVhs, tSoft, tBody, tBreath, tNoise;
     public bool CursorShouldBeLocked { get { return current == Screen.None && GameplayActive; } }   // el editor sin ventana no refleja Cursor.lockState
     public Slider VhsSlider { get { return sVhs; } }
     public Slider VolumeSlider { get { return sVol; } }
     public Slider SfxSlider { get { return sSfx; } }
     public Slider AmbienceSlider { get { return sAmb; } }
     public Toggle BreathToggle { get { return tBreath; } }
+    public Toggle NoiseToggle { get { return tNoise; } }
     public Toggle VhsToggle { get { return tVhs; } }
     public Toggle BobToggle { get { return tBob; } }
     public Toggle SmoothToggle { get { return tSmooth; } }
@@ -530,7 +531,7 @@ public class UIManager : MonoBehaviour
         Label(root.transform, "OPCIONES", 76, TextAnchor.MiddleCenter, 0f, 400f, 1500f, 110f, new Color(0.96f, 0.9f, 0.55f));
         float y = 310f;
         const float lx = -430f, sx = 130f;
-        const float rowS = 54f, rowT = 42f;
+        const float rowS = 52f, rowT = 40f;
 
         Label(root.transform, "Volumen general", 30, TextAnchor.MiddleLeft, lx, y, 520f, 40f).rectTransform.pivot = new Vector2(0.5f, 0.5f);
         sVol = MakeSlider(root.transform, sx, y, 520f, 0f, 1f, GameSettings.MasterVolume, v => { if (!refreshing) GameSettings.MasterVolume = v; vVol.text = Mathf.RoundToInt(v * 100f) + "%"; });
@@ -568,6 +569,7 @@ public class UIManager : MonoBehaviour
         tSmooth = MakeToggle(root.transform, "Suavizado de ratón", tx, y, GameSettings.SmoothLook, v => { if (!refreshing) GameSettings.SmoothLook = v; }); y -= rowT;
         tVhs = MakeToggle(root.transform, "Modo cámara VHS (tecla V)", tx, y, GameSettings.VhsOn, v => { if (!refreshing) GameSettings.VhsOn = v; }); y -= rowT;
         tBreath = MakeToggle(root.transform, "Respiración (suave, solo al cansarse)", tx, y, GameSettings.BreathEnabled, v => { if (!refreshing) GameSettings.BreathEnabled = v; }); y -= rowT;
+        tNoise = MakeToggle(root.transform, "Siseo VHS / ruido (audio de ruido)", tx, y, GameSettings.NoiseEnabled, v => { if (!refreshing) GameSettings.NoiseEnabled = v; }); y -= rowT;
         tSoft = MakeToggle(root.transform, "Susto suave (reduce el susto de muerte)", tx, y, GameSettings.SoftScare, v => { if (!refreshing) GameSettings.SoftScare = v; }); y -= rowT;
         tBody = MakeToggle(root.transform, "Mostrar cuerpo (manos, brazos y piernas)", tx, y, GameSettings.ShowBody, v => { if (!refreshing) GameSettings.ShowBody = v; }); y -= rowT + 14f;
 
@@ -589,6 +591,7 @@ public class UIManager : MonoBehaviour
         sSfx.value = GameSettings.SfxVolume; vSfx.text = Mathf.RoundToInt(sSfx.value * 100f) + "%";
         sAmb.value = GameSettings.AmbienceVolume; vAmb.text = Mathf.RoundToInt(sAmb.value * 100f) + "%";
         tBreath.isOn = GameSettings.BreathEnabled;
+        tNoise.isOn = GameSettings.NoiseEnabled;
         sSens.value = GameSettings.MouseSensitivity; vSens.text = sSens.value.ToString("0.0");
         sVhs.value = GameSettings.VhsIntensity; vVhs.text = Mathf.RoundToInt(sVhs.value * 100f) + "%";
         tFull.isOn = GameSettings.Fullscreen; tInvert.isOn = GameSettings.InvertY; tBob.isOn = GameSettings.HeadBob;

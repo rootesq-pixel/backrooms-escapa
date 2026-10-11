@@ -876,9 +876,8 @@ public class BackroomsGenerator : MonoBehaviour
             src.spatialBlend = 1f;
             src.rolloffMode = AudioRolloffMode.Linear;
             src.minDistance = 1f;
-            src.maxDistance = 9f;
-            src.volume = AudioMix.Buzz(f.buzzVolume);
-            src.Play();
+            src.maxDistance = 6f;
+            src.volume = 0f;   // AudioBuzzLimiter lo enciende solo si es de las luces más cercanas
             src.time = (float)rng.NextDouble(); // desfasa los zumbidos
             f.buzz = src;
         }

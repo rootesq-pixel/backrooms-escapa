@@ -79,7 +79,11 @@ public class GameBootstrap : MonoBehaviour
 
     private void Start()
     {
-        if (showMenuOnStart) GoToMainMenu();
+        if (showMenuOnStart)
+        {
+            if (IntroSequence.ShouldPlay()) IntroSequence.Begin(transform);   // intro de arranque; el menú se carga detrás
+            GoToMainMenu();
+        }
         else LoadLevel(startLevel);
     }
 

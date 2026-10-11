@@ -49,6 +49,12 @@ public static class BuildScript
         PlayerSettings.defaultIsNativeResolution = true;
         PlayerSettings.runInBackground = true;
         PlayerSettings.SetScriptingBackend(BuildTargetGroup.Standalone, ScriptingImplementation.Mono2x);
+        // Sin pantalla de Unity: se pide desactivarla; con la licencia Personal Unity puede forzarla (no se elude la licencia).
+        PlayerSettings.SplashScreen.show = false;
+        PlayerSettings.SplashScreen.showUnityLogo = false;
+        PlayerSettings.SplashScreen.logos = new PlayerSettings.SplashScreenLogo[0];
+        PlayerSettings.SplashScreen.animationMode = PlayerSettings.SplashScreen.AnimationMode.Static;
+        Debug.Log("[Splash] SplashScreen.show = " + PlayerSettings.SplashScreen.show + ", showUnityLogo = " + PlayerSettings.SplashScreen.showUnityLogo + ", licencia Pro/Plus = " + Application.HasProLicense());
     }
 
     // Los materiales se crean en runtime y la niebla se activa por código: hay que conservar las variantes de niebla

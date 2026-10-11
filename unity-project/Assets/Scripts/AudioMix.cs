@@ -14,13 +14,13 @@ using UnityEngine;
 public static class AudioMix
 {
     // ---- tabla de ganancias
-    public const float DroneMaster = 0.36f;      // × LevelConfig.droneVolume
+    public const float DroneMaster = 0.24f;      // × LevelConfig.droneVolume
     public const float BuzzMaster = 0.50f;       // × volumen de zumbido de cada luz
     public const float EventMaster = 0.75f;      // gotas / crujidos / golpes aleatorios
     public const float BreathMax = 0.16f;        // volumen máximo de una respiración (agotado)
     public const float BreathMin = 0.04f;        // volumen de la respiración más suave
-    public const float HissIdle = 0.010f;        // siseo VHS: componente fija (× intensidad VHS)
-    public const float HissGlitch = 0.080f;      // siseo VHS: componente por interferencia (× glitch)
+    public const float HissIdle = 0.010f;        // zumbido VHS (tonal, sin ruido) en reposo (× intensidad VHS)
+    public const float HissGlitch = 0.050f;      // siseo VHS (ruido): SOLO por interferencia (× glitch); se puede apagar en Opciones
     public const float StepMaster = 1f;          // pasos (ya normalizados a ≈ -23 dBFS)
 
     private static int frame = -1;
@@ -51,11 +51,18 @@ public static class AudioMix
     public static float Buzz(float configured) { return A(configured * BuzzMaster); }
     public static float Event(float v) { return A(v * EventMaster); }
 
-    // volumen del siseo de cinta VHS (intensity y glitch 0..1)
+    // ruido (siseo VHS) activado en Opciones («Siseo VHS / ruido»)
+    public static bool NoiseOn { get { return GameSettings.NoiseEnabled; } }
+
+    // volumen del SISEO de cinta (ruido): solo por interferencia (glitch); 0 en reposo y con la opción apagada
     public static float Hiss(float intensity, float glitch)
     {
-        return A(intensity * HissIdle + glitch * HissGlitch * Mathf.Max(0.4f, intensity));
+        if (!NoiseOn) return 0f;
+        return A(glitch * HissGlitch * Mathf.Max(0.4f, intensity));
     }
+
+    // volumen del zumbido tonal de la cinta (siempre presente, muy bajo)
+    public static float Hum(float intensity) { return A(intensity * HissIdle); }
 
     // volumen de una respiración según la necesidad 0..1 (sin escalar por grupo)
     public static float BreathGain(float need) { return Mathf.Lerp(BreathMin, BreathMax, Mathf.Clamp01(need)); }

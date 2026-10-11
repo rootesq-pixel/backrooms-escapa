@@ -1,6 +1,6 @@
 using UnityEngine;
 
-// Sonidos del ascensor generados por código (sin ficheros): retumbo grave del descenso, motor y cables, soplo de aire (muy suave),
+// Sonidos del ascensor generados por código (sin ficheros): retumbo grave del descenso, motor y cables, zumbido de presión (tonal),
 // frenazo con sacudida, «ding», deslizar de puertas y golpe de cierre.
 // Los bucles usan ciclos enteros (sin costura) y todos pasan por AudioMix (Efectos × volumen general).
 public static class ElevatorAudio
@@ -8,7 +8,7 @@ public static class ElevatorAudio
     private const int SR = 22050;
 
     // Ganancias de la tabla de mezcla (volumen de AudioSource, antes de escalar por Efectos)
-    public const float RumbleGain = 0.32f, MachineGain = 0.21f, AirGain = 0.05f, JoltGain = 0.70f, DingGain = 0.45f, DoorGain = 0.42f, ThudGain = 0.6f;
+    public const float RumbleGain = 0.27f, MachineGain = 0.21f, AirGain = 0.05f, JoltGain = 0.70f, DingGain = 0.45f, DoorGain = 0.42f, ThudGain = 0.6f;
 
     private static float R(int i, int seed) { return Noise.Hash01(i, 0, seed) * 2f - 1f; }
 
@@ -41,18 +41,20 @@ public static class ElevatorAudio
         return d;
     }
 
-    // Retumbo grave del descenso (bucle de 2 s): senos graves de ciclos enteros + ruido grave
+    // Retumbo grave del descenso (bucle de 2 s): SOLO senos graves de ciclos enteros con modulación de amplitud (v6.5: sin ruido,
+    // el ruido grave sonaba a soplo de viento)
     public static AudioClip CreateRumble()
     {
         int n = SR * 2;
-        float[] noise = LowNoise(n, 0.035f, 11), noise2 = LowNoise(n, 0.12f, 29);
         float[] d = new float[n];
+        float[] fr = { 26f, 39f, 52f, 65f, 78f, 91f, 104f };
+        float[] am = { 0.55f, 0.35f, 0.3f, 0.22f, 0.16f, 0.1f, 0.07f };
         for (int i = 0; i < n; i++)
         {
             float t = i / (float)SR;
-            float v = 0.55f * Mathf.Sin(2f * Mathf.PI * 26f * t) + 0.35f * Mathf.Sin(2f * Mathf.PI * 39f * t + 1.1f) + 0.2f * Mathf.Sin(2f * Mathf.PI * 52f * t + 2.3f);
-            float am = 0.8f + 0.2f * Mathf.Sin(2f * Mathf.PI * 3f * t);
-            d[i] = (v * 0.5f + noise[i] * 5f + noise2[i] * 0.9f) * am;
+            float v = 0f;
+            for (int k = 0; k < fr.Length; k++) v += am[k] * Mathf.Sin(2f * Mathf.PI * fr[k] * t + k * 1.3f) * (0.75f + 0.25f * Mathf.Sin(2f * Mathf.PI * (3f + k) * t + k));
+            d[i] = v;
         }
         Normalize(d, 0.8f);
         return Make("ElevatorRumble", d);
@@ -76,13 +78,18 @@ public static class ElevatorAudio
         return Make("ElevatorMachinery", d);
     }
 
-    // Soplo de aire del hueco (bucle de 2 s, banda media-grave, muy suave; su volumen real es mínimo)
+    // «Aire» del hueco (bucle de 2 s): v6.5, TONAL (zumbido grave de presión con tres senos de ciclos enteros y respiración lenta de
+    // amplitud). Antes era ruido filtrado y sonaba a soplo de viento.
     public static AudioClip CreateAir()
     {
         int n = SR * 2;
-        float[] a = LowNoise(n, 0.05f, 41), b = LowNoise(n, 0.012f, 41);
         float[] d = new float[n];
-        for (int i = 0; i < n; i++) d[i] = (a[i] - b[i]) * 1f;
+        for (int i = 0; i < n; i++)
+        {
+            float t = i / (float)SR;
+            float v = Mathf.Sin(2f * Mathf.PI * 84f * t) + 0.6f * Mathf.Sin(2f * Mathf.PI * 126f * t + 1.1f) + 0.35f * Mathf.Sin(2f * Mathf.PI * 189f * t + 2.2f);
+            d[i] = v * (0.7f + 0.3f * Mathf.Sin(2f * Mathf.PI * 1f * t));
+        }
         Normalize(d, 0.7f);
         return Make("ElevatorAir", d);
     }

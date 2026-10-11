@@ -937,6 +937,51 @@ public static class SmokeTest
             r.Check(st.peak <= 0.75f && AudioMix.Db(st.rms * AudioMix.EventMaster) <= -20f, "[Audio] suceso ambiental " + c.name + ": pico " + st.peak.ToString("F2"));
             UnityEngine.Object.DestroyImmediate(c);
         }
+        // v6.5: planitud espectral de TODOS los bucles (ruido = «aire/soplo»): un bucle con planitud alta (> 0,02) debe ser casi inaudible
+        {
+            float stepDbL = AudioMix.Db(AudioAudit.Measure(ProceduralAudio.CreateFootstep(StepKind.Carpet)).rms);
+            System.Collections.Generic.List<KeyValuePair<string, KeyValuePair<AudioClip, float>>> loops = new System.Collections.Generic.List<KeyValuePair<string, KeyValuePair<AudioClip, float>>>();
+            Action<string, AudioClip, float> addLoop = (nm, cl, gain) => loops.Add(new KeyValuePair<string, KeyValuePair<AudioClip, float>>(nm, new KeyValuePair<AudioClip, float>(cl, gain)));
+            for (int i = 0; i < LevelConfig.Count; i++) { LevelConfig cfg = LevelConfig.Get(i); addLoop("drone nivel " + i, ProceduralAudio.CreateDrone(cfg.droneHz, cfg.droneNoise, 1000 + i * 17), AudioMix.Drone(cfg.droneVolume)); }
+            addLoop("zumbido luz", ProceduralAudio.CreateBuzzClip(), AudioMix.Buzz(0.25f));
+            addLoop("zumbido cinta", ProceduralAudio.CreateTapeHum(), AudioMix.Hum(1f));
+            addLoop("siseo cinta (máx.)", ProceduralAudio.CreateTapeHiss(), AudioMix.Hiss(1f, 1f));
+            addLoop("ascensor retumbo", ElevatorAudio.CreateRumble(), ElevatorAudio.RumbleGain);
+            addLoop("ascensor motor", ElevatorAudio.CreateMachinery(), ElevatorAudio.MachineGain);
+            addLoop("ascensor aire", ElevatorAudio.CreateAir(), ElevatorAudio.AirGain);
+            addLoop("intro zumbido", ProceduralAudio.CreateTapeHum(), AudioMix.A(IntroAudio.HumGain * 1.8f));
+            int noisy = 0; string worst = "";
+            foreach (KeyValuePair<string, KeyValuePair<AudioClip, float>> kv in loops)
+            {
+                AudioAudit.Stat st = AudioAudit.Measure(kv.Value.Key);
+                float eff = AudioMix.Db(st.rms * kv.Value.Value);
+                if (st.flat > 0.02f && eff > -45f) { noisy++; worst += kv.Key + " (planitud " + st.flat.ToString("F3") + ", " + eff.ToString("F1") + " dB) "; }
+                if (kv.Key.StartsWith("drone")) r.Check(st.flat <= 0.02f && eff <= -27f && eff < stepDbL - 3f, "[Audio] " + kv.Key + " solo tonal (planitud " + st.flat.ToString("F3") + " ≤ 0,02) y " + eff.ToString("F1") + " dB");
+                r.Info("[Audio] bucle «" + kv.Key + "»: planitud " + st.flat.ToString("F3") + ", efectivo " + eff.ToString("F1") + " dBFS");
+                UnityEngine.Object.DestroyImmediate(kv.Value.Key);
+            }
+            r.Check(noisy == 0, "[Audio] ningún bucle con ruido (planitud espectral > 0,02) suena por encima de -45 dBFS efectivo " + worst);
+            {
+                AudioClip cl = IntroAudio.CreateClunk(), ht = IntroAudio.CreateTitleHit();
+                AudioAudit.Stat sc = AudioAudit.Measure(cl), sh = AudioAudit.Measure(ht);
+                r.Check(AudioMix.Db(sc.peak * IntroAudio.ClunkGain) <= -3f && AudioMix.Db(sh.peak * IntroAudio.HitGain) <= -5f && sc.flat <= 0.2f && sh.flat <= 0.02f, "[Intro] sonidos de la intro sin saturar (golpe " + AudioMix.Db(sc.peak * IntroAudio.ClunkGain).ToString("F1") + " dB, título " + AudioMix.Db(sh.peak * IntroAudio.HitGain).ToString("F1") + " dB) y tonales");
+                UnityEngine.Object.DestroyImmediate(cl); UnityEngine.Object.DestroyImmediate(ht);
+            }
+            AudioClip hissC = ProceduralAudio.CreateTapeHiss();
+            AudioAudit.Stat hs = AudioAudit.Measure(hissC);
+            r.Check(hs.flat > 0.02f, "[Audio] (control) el medidor reconoce el siseo de cinta como ruido (planitud " + hs.flat.ToString("F3") + ")");
+            UnityEngine.Object.DestroyImmediate(hissC);
+            // opción «Siseo VHS / ruido»
+            bool noiseWas = GameSettings.NoiseEnabled;
+            GameSettings.NoiseEnabled = true;
+            float h1 = AudioMix.Hiss(1f, 1f), hu = AudioMix.Hum(1f);
+            GameSettings.NoiseEnabled = false;
+            float h0 = AudioMix.Hiss(1f, 1f);
+            GameSettings.NoiseEnabled = noiseWas;
+            r.Check(h1 > 0f && h0 == 0f && hu > 0f && AudioMix.Hiss(1f, 0f) == 0f, "[Audio] «Siseo VHS / ruido»: apagado silencia el siseo; en reposo (sin interferencia) no hay siseo, solo el zumbido tonal");
+            PlayerPrefs.DeleteKey("opt_noise");
+            r.Check(GameSettings.NoiseEnabled, "[Audio] «Siseo VHS / ruido» está activado por defecto");
+        }
         // grupos de volumen
         GameSettings.SfxVolume = 0.5f; GameSettings.AmbienceVolume = 0.25f;
         r.Check(Mathf.Approximately(AudioMix.S(0.8f), 0.4f) && Mathf.Approximately(AudioMix.A(0.8f), 0.2f), "[Audio] 'Efectos' y 'Ambiente' escalan sus sonidos");
@@ -1193,6 +1238,7 @@ public static class SmokeTest
         File.WriteAllText(PlayReport, "");
         EditorSceneManager.OpenScene("Assets/Scenes/Main.unity");
         SessionState.SetString("smoke_phase", "play");
+        SessionState.SetBool("intro_real", true);   // la prueba comprueba la intro real; los demás ejecutores del editor la omiten
         EditorApplication.EnterPlaymode();
     }
 
@@ -1318,6 +1364,35 @@ public static class SmokePlayRunner
         else m.transform.position = pos;
     }
 
+    // ---------------- Censo de audio (v6.5): fuentes sonando, bucles audibles, duplicados ----------------
+    private static int census0Total = -1, census0Loops = -1;
+    private static void Census(SmokeTest.Report r, string tag, bool inGame, bool compareToLevel0)
+    {
+        string dump = AudioCensus.Dump(tag);
+        try { File.AppendAllText("/workspace/logs/audio-census.txt", dump); } catch { }
+        System.Collections.Generic.List<AudioCensus.Row> rows = AudioCensus.Take();
+        int total = 0, drones = 0, hiss = 0, buzzPlaying = 0, buzzAudible = 0, loopsAudible = 0, loopsPlaying = 0, noiseLoopsAudible = 0;
+        foreach (AudioCensus.Row x in rows) if (x.clip != "FluorescentBuzz") total++;   // los zumbidos varían con la semilla
+        foreach (AudioCensus.Row x in rows)
+        {
+            if (!(x.loop && x.playing)) continue;
+            loopsPlaying++;
+            if (x.clip == "Drone") drones++;
+            if (x.clip == "TapeHiss") hiss++;
+            if (x.clip == "FluorescentBuzz") { buzzPlaying++; if (x.effective > 0.0005f) buzzAudible++; }
+            if (x.effective > 0.0005f) loopsAudible++;
+            if (x.effective > 0.0005f && (x.clip == "TapeHiss" || x.clip == "ElevatorAir" || x.clip == "ElevatorRumble")) noiseLoopsAudible++;
+        }
+        r.Info(tag + ": " + total + " fuentes, " + loopsPlaying + " bucles sonando, " + loopsAudible + " audibles, zumbidos sonando " + buzzPlaying + " (audibles " + buzzAudible + "), drones " + drones + ", siseo " + hiss);
+        r.Check(drones <= 1, tag + " nunca hay más de un drone ambiental sonando (" + drones + ")");
+        r.Check(hiss <= 1, tag + " nunca hay más de un siseo de cinta (" + hiss + ")");
+        r.Check(buzzPlaying <= AudioBuzzLimiter.MaxBuzzing, tag + " zumbidos de luces sonando a la vez ≤ " + AudioBuzzLimiter.MaxBuzzing + " (" + buzzPlaying + ")");
+        r.Check(loopsPlaying <= AudioBuzzLimiter.MaxBuzzing + 4, tag + " bucles de audio sonando a la vez ≤ " + (AudioBuzzLimiter.MaxBuzzing + 4) + " (" + loopsPlaying + ")");
+        if (!inGame) r.Check(buzzPlaying == 0, tag + " en el menú no suenan los zumbidos de luces");
+        if (inGame && !compareToLevel0) { census0Total = total; census0Loops = loopsPlaying; }
+        if (compareToLevel0 && census0Total >= 0) r.Check(total <= census0Total + 1 && loopsPlaying == census0Loops, tag + " tras reiniciar el nivel el nº de fuentes de audio (sin zumbidos) no crece (" + total + " vs " + census0Total + ", bucles " + loopsPlaying + " vs " + census0Loops + ")");
+    }
+
     private static IEnumerator Run()
     {
         SmokeTest.Report r = report;
@@ -1327,10 +1402,70 @@ public static class SmokePlayRunner
         GameBootstrap gb = GameBootstrap.Instance;
         r.Info("Play mode activo. Nivel inicial " + gb.CurrentLevel);
 
+        // ---------------- Intro de arranque (v6.5): va ANTES del menú principal ----------------
+        {
+            string it = "[Intro] ";
+            IntroSequence intro = IntroSequence.Current;
+            r.Check(intro != null && IntroSequence.Active, it + "la intro se reproduce al abrir el juego (antes del menú)");
+            if (intro != null)
+            {
+                r.Check(intro.BlocksInput && intro.Alpha > 0.99f, it + "cubre la pantalla y bloquea el menú mientras suena");
+                r.Check(IntroSequence.TEnd >= 8f && IntroSequence.TEnd <= 10f && IntroSequence.SkipAfter >= 2f, it + "dura " + IntroSequence.TEnd.ToString("F1") + " s (8-10 s) y se puede saltar tras " + IntroSequence.SkipAfter + " s");
+                if (intro.T < IntroSequence.SkipAfter - 0.3f)
+                {
+                    intro.RequestSkip();
+                    yield return 0.15f;
+                    r.Check(IntroSequence.Active && !intro.Skipped && !intro.Fading, it + "pulsar una tecla antes de 2 s no salta la intro");
+                }
+                else r.Info(it + "(la carga tardó: T = " + intro.T.ToString("F1") + " s; no se prueba el rechazo antes de 2 s)");
+                yield return Until(() => intro == null || intro.T >= 1.7f);
+                if (intro != null)
+                {
+                    r.Check(intro.VisibleText.Contains("SUSTOS Y SONIDOS FUERTES") && intro.VisibleText.Contains("LUCES PARPADEANTES"), it + "aviso de luces parpadeantes, sustos y sonidos fuertes: «" + intro.VisibleText.Replace("\n", " ") + "»");
+                    r.Check(System.Text.RegularExpressions.Regex.IsMatch(intro.TimecodeText, "^[0-9]{2}:[0-9]{2}:[0-9]{2}:[0-9]{2}$") && intro.TimecodeText != "00:00:00:00", it + "código de tiempo corriendo (" + intro.TimecodeText + ")");
+                    r.Check(intro.StaticAlpha > 0.02f && intro.StaticAlpha <= 0.4f, it + "estática VHS suave (alfa " + intro.StaticAlpha.ToString("F2") + " ≤ 0,40)");
+                    r.Check(intro.AudioSourceCount == 2, it + "audio procedural de la intro (2 fuentes: golpes y zumbido)");
+                    // «Susto suave»: aún menos estática y sin desplazamiento de color
+                    float normalStatic = intro.StaticAlpha;
+                    GameSettings.SoftScare = true;
+                    yield return 0.2f;
+                    r.Check(intro.Soft && intro.StaticAlpha < normalStatic * 0.75f + 0.001f, it + "con «Susto suave» la estática baja (" + normalStatic.ToString("F2") + " -> " + intro.StaticAlpha.ToString("F2") + ")");
+                    GameSettings.SoftScare = false;
+                }
+                yield return Until(() => intro == null || intro.T >= 4.4f);
+                if (intro != null) r.Check(intro.VisibleText == IntroSequence.StudioText, it + "línea de estudio: «" + intro.VisibleText + "»");
+                yield return Until(() => intro == null || intro.T >= 6.9f);
+                if (intro != null)
+                {
+                    r.Check(intro.VisibleText == IntroSequence.TitleText, it + "título: «" + intro.VisibleText + "»");
+                    r.Check(intro.MaxFlickerRate <= 3.1f, it + "parpadeo del título ≤ 3 cambios por segundo (máx. medido " + intro.MaxFlickerRate.ToString("F1") + ")");
+                    intro.RequestSkip();
+                    yield return 0.1f;
+                    r.Check(intro.Skipped && intro.Fading, it + "tras 2 s una tecla salta la intro (funde en " + IntroSequence.SkipFade + " s)");
+                    yield return Until(() => !IntroSequence.Active);
+                }
+                r.Check(!IntroSequence.Active && IntroSequence.Completed, it + "la intro termina y se retira");
+            }
+            yield return Until(() => GameBootstrap.Instance != null && GameBootstrap.Instance.IsLoaded);
+            r.Check(GameBootstrap.Instance.InMenu && UIManager.Instance.Current == UIManager.Screen.Main, it + "tras la intro aparece el menú principal con el pasillo en vivo");
+            // segunda intro completa sin saltar: termina sola en ~9,4 s y deja el menú
+            IntroSequence second = IntroSequence.Begin(GameBootstrap.Instance.transform);
+            float tBegin = Time.realtimeSinceStartup;
+            yield return Until(() => !IntroSequence.Active);
+            float took = Time.realtimeSinceStartup - tBegin;
+            r.Check(took >= 8.5f && took <= 11.5f && IntroSequence.Completed && !second, it + "sin pulsar nada termina sola (" + took.ToString("F1") + " s)");
+            r.Check(UIManager.Instance.Current == UIManager.Screen.Main && GameBootstrap.Instance.InMenu, it + "y deja el menú principal");
+            r.Check(IntroSequence.PlayedCount >= 2, it + "la intro se instanció " + IntroSequence.PlayedCount + " veces (sin fugas de fuentes de audio: " + UnityEngine.Object.FindObjectsOfType<IntroSequence>().Length + " activas)");
+            r.Check(UnityEngine.Object.FindObjectsOfType<IntroSequence>().Length == 0, it + "no queda ningún objeto de la intro");
+        }
+
         // ---------------- Menú principal ----------------
         UIManager ui = UIManager.Instance;
         r.Check(ui != null, "UIManager existe");
         r.Check(gb.InMenu && ui.Current == UIManager.Screen.Main, "el juego arranca en el menú principal");
+        try { File.Delete("/workspace/logs/audio-census.txt"); } catch { }
+        yield return 0.5f;
+        Census(r, "[Audio menú inicial]", false, false);
         r.Check(UnityEngine.Object.FindObjectOfType<UnityEngine.EventSystems.EventSystem>() != null
             && UnityEngine.Object.FindObjectOfType<UnityEngine.EventSystems.StandaloneInputModule>() != null, "EventSystem + StandaloneInputModule presentes");
         r.Check(UIManager.InputBlocked && Cursor.lockState == CursorLockMode.None && Cursor.visible, "menú: cursor libre e input del jugador bloqueado");
@@ -1364,6 +1499,10 @@ public static class SmokePlayRunner
         r.Check(Mathf.Approximately(GameSettings.MasterVolume, 0.5f) && Mathf.Approximately(AudioListener.volume, 0.5f), "slider de volumen -> AudioListener.volume");
         ui.SfxSlider.value = 0.6f; ui.AmbienceSlider.value = 0.35f;
         r.Check(Mathf.Approximately(GameSettings.SfxVolume, 0.6f) && Mathf.Approximately(GameSettings.AmbienceVolume, 0.35f), "sliders 'Efectos' y 'Ambiente' -> GameSettings");
+        r.Check(ui.NoiseToggle != null, "Opciones tiene el interruptor «Siseo VHS / ruido»");
+        ui.NoiseToggle.isOn = false;
+        r.Check(!GameSettings.NoiseEnabled && AudioMix.Hiss(1f, 1f) == 0f, "el interruptor «Siseo VHS / ruido» se guarda y silencia el siseo");
+        ui.NoiseToggle.isOn = true;
         ui.BreathToggle.isOn = false;
         r.Check(!GameSettings.BreathEnabled, "toggle 'Respiración' -> GameSettings");
         ui.BreathToggle.isOn = true;
@@ -2107,6 +2246,8 @@ public static class SmokePlayRunner
             r.Check(ui.ClickButton("Menú principal"), "pausa: Menú principal");
             yield return Until(() => GameBootstrap.Instance.LoadCount > ld && GameBootstrap.Instance.IsLoaded);
             r.Check(GameBootstrap.Instance.InMenu && ui.Current == UIManager.Screen.Main && Time.timeScale == 1f, "vuelve al menú principal");
+            yield return 0.6f;
+            Census(r, "[Audio menú tras jugar]", false, false);
             ui.PressEscape();
             r.Check(ui.Current == UIManager.Screen.Main, "Esc en el menú principal no hace nada");
             ld = GameBootstrap.Instance.LoadCount;
@@ -2135,6 +2276,8 @@ public static class SmokePlayRunner
                 ElevatorCabin.InstantForTests = true;
             }
             yield return 1.0f;   // unos frames de juego (luces, IA, audio)
+            yield return 0.6f;
+            Census(r, "[Audio nivel " + lv + "]", true, false);
 
             GameManager gm = GameManager.Instance;
             LevelConfig cfg = LevelConfig.Get(lv);
@@ -2176,6 +2319,23 @@ public static class SmokePlayRunner
                     r.Check(al > 1.5f, eg + "se sale de la cabina andando (avance " + al.ToString("F1") + " m)");
                     gm.player.Teleport(gm.generator.PlayerStart, gm.generator.PlayerStartYaw);
                     yield return 0.3f;
+                }
+            }
+            {
+                // zumbidos de luces: junto a una luz con zumbido suena ella (y como mucho 3); lejos no suena ninguna
+                FlickeringLight nearest = null;
+                foreach (FlickeringLight fl in UnityEngine.Object.FindObjectsOfType<FlickeringLight>()) if (fl.buzz != null) { nearest = fl; break; }
+                if (nearest != null)
+                {
+                    Vector3 fp = nearest.transform.position;
+                    GameManager gmB = GameManager.Instance;
+                    gmB.player.Teleport(new Vector3(fp.x, gmB.generator.PlayerStart.y, fp.z), 0f);
+                    yield return 1.2f;
+                    int bp = 0, ba = 0;
+                    foreach (AudioCensus.Row x in AudioCensus.Take()) if (x.clip == "FluorescentBuzz" && x.playing) { bp++; if (x.effective > 0.0005f) ba++; }
+                    r.Check(bp >= 1 && bp <= AudioBuzzLimiter.MaxBuzzing && ba >= 1, "[Audio nivel " + lv + "] junto a una luz con zumbido suena (" + bp + " sonando, " + ba + " audibles; máx. " + AudioBuzzLimiter.MaxBuzzing + ")");
+                    gmB.player.Teleport(gmB.generator.PlayerStart, gmB.generator.PlayerStartYaw);
+                    yield return 0.5f;
                 }
             }
             r.Check(gm.monsters != null && gm.monsters.Length == Mathf.Max(1, cfg.monsterCount), tag + "monstruos = " + cfg.monsterCount);
@@ -2333,6 +2493,8 @@ public static class SmokePlayRunner
                 yield return Until(() => GameBootstrap.Instance.LoadCount > loads && GameBootstrap.Instance.IsLoaded);
                 r.Check(GameBootstrap.Instance.CurrentLevel == 0, tag + "Restart() recarga el nivel actual");
                 yield return 0.5f;
+                yield return 1.0f;
+                Census(r, "[Audio tras reiniciar]", true, true);
                 gm = GameManager.Instance;
                 foreach (MonsterAI m in gm.monsters) m.Stop();
             }

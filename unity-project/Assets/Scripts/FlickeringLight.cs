@@ -34,6 +34,7 @@ public class FlickeringLight : MonoBehaviour
     [Header("Zumbido (opcional)")]
     public AudioSource buzz;
     public float buzzVolume = 0.25f;
+    [HideInInspector] public float buzzGateTarget, buzzGate;   // lo gobierna AudioBuzzLimiter (solo suenan los más cercanos)
 
     private static readonly int EmissionColorId = Shader.PropertyToID("_EmissionColor");
 
@@ -62,9 +63,26 @@ public class FlickeringLight : MonoBehaviour
         Apply(1f);
     }
 
+    private void OnEnable() { AudioBuzzLimiter.Register(this); }
+    private void OnDisable() { AudioBuzzLimiter.Unregister(this); }
+
+    private void UpdateBuzzGate(float dt)
+    {
+        if (buzz == null) return;
+        AudioBuzzLimiter.Tick();
+        buzzGate = Mathf.MoveTowards(buzzGate, buzzGateTarget, dt * 2f);
+        if (buzzGate > 0.001f)
+        {
+            if (!buzz.isPlaying) buzz.Play();
+            buzz.volume = AudioMix.Buzz(buzzVolume * Mathf.Lerp(0.4f, 1f, Mathf.Clamp01(factor))) * buzzGate;
+        }
+        else if (buzz.isPlaying) buzz.Stop();
+    }
+
     private void Update()
     {
         float dt = Time.deltaTime;
+        UpdateBuzzGate(dt);
 
         if (!flickerEnabled)
         {
@@ -139,7 +157,6 @@ public class FlickeringLight : MonoBehaviour
 
         if (buzz != null)
         {
-            buzz.volume = AudioMix.Buzz(buzzVolume * Mathf.Lerp(0.4f, 1f, f));
             buzz.pitch = Mathf.Lerp(0.9f, 1.05f, f);
         }
     }

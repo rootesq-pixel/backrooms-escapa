@@ -412,3 +412,34 @@ el shader VHS (carga, compila, material, `VhsPostKeeper`) y la persistencia de o
 - **Pruebas:** `SmokeTest` (cabina en los 5 niveles, línea de tiempo, bloqueo/liberación, monstruos retenidos, saltar solo tras reinicio,
   colisión, salida alcanzable desde la puerta, audio dentro de la mezcla) y `mp-test.sh` (descenso sincronizado entre anfitrión y
   cliente, avatar remoto dentro de la cabina). Vistas previas: `/workspace/monster-previews/elevator_*.png`.
+
+## Cambios de la v6.5: auditoría de audio («soplo de aire») + intro de arranque
+
+### Auditoría de audio: qué sonaba a «aire»
+Se enumeraron TODAS las fuentes de audio (`AudioCensus`: menú, 5 niveles, reinicios, vuelta al menú; volcado en `/workspace/logs/audio-census-*.txt`)
+y se volcó cada clip a WAV (`AudioDump`) para analizarlo con numpy/scipy (RMS, planitud espectral, bandas, modulación de amplitud).
+- **Culpable principal: el ruido grave del drone ambiental** (niveles 1-4; `droneNoise` 0,28-0,35): 20-25 % de la energía del drone era ruido
+  filtrado (150-1500 Hz, ≈ -37 dBFS efectivo) con una modulación lenta de 0,25 Hz → un «soplo» continuo que sube y baja. Es el único bucle
+  de ruido que suena SIEMPRE. Ahora el drone es solo tonal (parciales de ciclos enteros + parciales desafinados que laten despacio).
+- **Siseo de cinta VHS** (ruido de banda media): en reposo era inaudible (-62 dBFS) pero con un monstruo cerca llegaba a -43 dBFS; ahora el
+  reposo es un zumbido tonal de 50 Hz (-57 dBFS) y el siseo de ruido solo aparece con las interferencias y a ≤ -48 dBFS; se apaga con la
+  nueva opción **«Siseo VHS / ruido»** (Opciones; activada por defecto).
+- **Ascensor (v6.4):** el «aire» y el retumbo eran ruido filtrado (retumbo -24 dBFS, 43 % de su energía bajo 60 Hz con modulación a 3 Hz);
+  ahora son tonales (planitud espectral 0,000).
+- **Zumbidos de fluorescentes:** descartado como culpable (son tonales, 100 Hz + armónicos, planitud 0,000) pero había decenas de bucles 3D
+  sonando a la vez (hasta 16 por nivel, todos fuera de alcance). `AudioBuzzLimiter` deja sonar solo los 3 más cercanos (a < 6 m) con fundido.
+- **Sin acumulación:** el censo muestra 1 drone y 1 siseo/zumbido de cinta en menú, niveles y tras reiniciar; el número de fuentes no crece.
+- Pruebas nuevas: planitud espectral de todos los bucles (un bucle con planitud > 0,02 no puede superar -45 dBFS efectivos), un solo
+  drone / siseo, ≤ 3 zumbidos y ≤ 7 bucles sonando, número de fuentes estable tras reiniciar y en el menú, zumbido junto a una luz,
+  interruptor «Siseo VHS / ruido».
+
+### Intro de arranque
+- Al abrir el juego, antes del menú, se reproduce una intro de ~9,4 s estilo found footage (todo procedural): estática VHS, inserción de
+  cinta con glitch, «● REC» y código de tiempo, aviso («ESTE JUEGO CONTIENE LUCES PARPADEANTES, SUSTOS Y SONIDOS FUERTES»), «PIXEL
+  presenta», título «BACKROOMS: ESCAPA» con parpadeo y zumbido grave, y fundido hacia el menú con el pasillo en vivo.
+- Se puede saltar con cualquier tecla o clic pasados 2 s. Argumento `-nointro` para desactivarla.
+- Fotosensibilidad: sin destellos de pantalla completa, estática suave, parpadeos ≤ 3 por segundo; con «Susto suave» se reducen aún más
+  (sin desplazamiento de color, menos estática, menos volumen).
+- **Pantalla de Unity:** el build pide `PlayerSettings.SplashScreen.show = false`. Con la licencia **Personal** de Unity 2022.3 el logo
+  de Unity puede quedar forzado por la licencia (no se elude); ver el informe de la compilación.
+- Vistas previas: `/workspace/monster-previews/intro_*.png`.
