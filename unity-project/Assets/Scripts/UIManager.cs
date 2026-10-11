@@ -622,6 +622,9 @@ public class UIManager : MonoBehaviour
         sb.AppendLine("Cuerpo del jugador (traje hazmat): «Character Hazmat» — Quaternius — CC0 (Dominio público)");
         sb.AppendLine("   https://poly.pizza/m/z3TSQYx1Kn   (recolor amarillo, armas retiradas, animaciones Idle/Walk/Run/Duck)");
         sb.AppendLine();
+        sb.AppendLine("Ascensor de entrada: «Elevator car interior» + «Elevator door pair» (Backrooms and Liminal Spaces Kit) — 3D Assets — CC0 1.0 (dominio público)");
+        sb.AppendLine("   https://3dassets.dev/assets/liminal-spaces-kit-elevator-car-22251ff7   (indicador de planta, luces, sonidos y animación: procedurales)");
+        sb.AppendLine();
         sb.AppendLine("Los modelos se han convertido a FBX con Blender y retexturizado donde se indica. Detalles en CREDITS.md.");
         Text t = Label(root.transform, sb.ToString(), 21, TextAnchor.UpperLeft, 0f, 10f, 1600f, 760f);
         t.name = "CreditsBody";

@@ -47,6 +47,7 @@ public static class SmokeTest
             TestInventoryData(r);
             TestSettings(r);
             TestAudioMix(r);
+            TestElevatorAssets(r);
             TestV4Assets(r);
             TestNetwork(r);
             TestNatAndRelay(r);
@@ -947,6 +948,55 @@ public static class SmokeTest
         GameSettings.ResetDefaults();
     }
 
+    // v6.4: ascensor de entrada: modelo CC0, línea de tiempo, sonidos y opciones
+    private static void TestElevatorAssets(Report r)
+    {
+        GameObject prefab = Resources.Load<GameObject>(ElevatorCabin.ModelResource);
+        r.Check(prefab != null, "[Ascensor] modelo Resources/Elevator/Elevator.fbx (CC0) importado");
+        if (prefab != null)
+        {
+            var names = new HashSet<string>();
+            foreach (Renderer rr in prefab.GetComponentsInChildren<Renderer>(true)) names.Add(rr.name);
+            r.Check(names.Contains("Door_L") && names.Contains("Door_R") && names.Contains("Car_Metal") && names.Contains("Car_Rubber") && names.Contains("Car_Buttons"),
+                "[Ascensor] el FBX trae las hojas de puerta separadas (Door_L / Door_R) y la carcasa (" + names.Count + " mallas)");
+        }
+        foreach (string tn in new[] { "Elev_concrete", "Elev_wood", "Elev_painted" })
+        {
+            Texture2D t = Resources.Load<Texture2D>("Elevator/" + tn);
+            r.Check(t != null && t.width <= 512 && t.height <= 512, "[Ascensor] textura " + tn + " ≤ 512 px");
+        }
+        r.Check(ElevatorCabin.TotalSeconds >= 6f && ElevatorCabin.TotalSeconds <= 9f && ElevatorCabin.TUnlock < ElevatorCabin.TDoors1 && ElevatorCabin.TUnlock > ElevatorCabin.TDoors0,
+            "[Ascensor] duración total " + ElevatorCabin.TotalSeconds.ToString("F1") + " s (6-9 s) y el jugador sale con las puertas ya a medio abrir");
+        r.Check(ElevatorCabin.Dist01(0f) == 0f && Mathf.Approximately(ElevatorCabin.Dist01(ElevatorCabin.TotalSeconds), 1f) && ElevatorCabin.Dist01(3f) > ElevatorCabin.Dist01(2f)
+            && ElevatorCabin.Speed01(3f) == 1f && ElevatorCabin.Speed01(ElevatorCabin.TStop + 0.1f) == 0f, "[Ascensor] perfil de velocidad: acelera, crucero a máxima velocidad, frena hasta parar");
+        // sonidos: nivel efectivo (RMS × ganancia de la tabla) acorde con la mezcla; sin aire estridente
+        AudioClip rumble = ElevatorAudio.CreateRumble(), mach = ElevatorAudio.CreateMachinery(), air = ElevatorAudio.CreateAir(), jolt = ElevatorAudio.CreateJolt(),
+            ding = ElevatorAudio.CreateDing(), door = ElevatorAudio.CreateDoorSlide(), thud = ElevatorAudio.CreateThud();
+        AudioAudit.Stat sr = AudioAudit.Measure(rumble), sm = AudioAudit.Measure(mach), sa = AudioAudit.Measure(air), sj = AudioAudit.Measure(jolt), sd = AudioAudit.Measure(ding), sdo = AudioAudit.Measure(door), st = AudioAudit.Measure(thud);
+        float eR = AudioMix.Db(sr.rms * ElevatorAudio.RumbleGain), eM = AudioMix.Db(sm.rms * ElevatorAudio.MachineGain), eA = AudioMix.Db(sa.rms * ElevatorAudio.AirGain);
+        r.Check(eR <= -23f, "[Ascensor] retumbo: " + eR.ToString("F1") + " dBFS efectivo (≤ -23)");
+        r.Check(eM <= -26f, "[Ascensor] motor/cables: " + eM.ToString("F1") + " dBFS efectivo (≤ -26)");
+        r.Check(eA <= -38f, "[Ascensor] soplo de aire: " + eA.ToString("F1") + " dBFS efectivo (≤ -38; el aire fue la queja del v6.2)");
+        r.Check(AudioMix.Db(sj.peak * ElevatorAudio.JoltGain) <= -2f && AudioMix.Db(sd.peak * ElevatorAudio.DingGain) <= -6f && AudioMix.Db(sdo.rms * ElevatorAudio.DoorGain) <= -20f && AudioMix.Db(st.peak * ElevatorAudio.ThudGain) <= -3f,
+            "[Ascensor] frenazo/ding/puertas/golpe sin saturar (frenazo " + AudioMix.Db(sj.peak * ElevatorAudio.JoltGain).ToString("F1") + " dB, ding " + AudioMix.Db(sd.peak * ElevatorAudio.DingGain).ToString("F1") + " dB)");
+        r.Check(sa.hf <= 0.06f, "[Ascensor] el soplo de aire no tiene agudos estridentes (hf " + sa.hf.ToString("F3") + ")");
+        r.Check(Mathf.Abs(rumble.samples) > 0 && jolt.length > ElevatorAudio.JoltImpactAt + 0.3f, "[Ascensor] el frenazo dura más que su punto de impacto (chirrido + golpe)");
+        foreach (AudioClip c in new[] { rumble, mach, air, jolt, ding, door, thud }) UnityEngine.Object.DestroyImmediate(c);
+        // la animación es obligatoria: no existe ninguna opción para desactivarla
+        bool optionFound = false;
+        foreach (string f in Directory.GetFiles("Assets/Scripts", "*.cs", SearchOption.AllDirectories))
+        {
+            string txt = File.ReadAllText(f);
+            if (txt.Contains("Animación del ascensor") || txt.Contains("ElevatorEnabled") || txt.Contains("\"elevator\"")) { optionFound = true; r.Info("opción de ascensor en " + f); }
+        }
+        r.Check(!optionFound, "[Ascensor] no hay opción para desactivar el ascensor (siempre se reproduce)");
+        // créditos del modelo
+        string credits = File.ReadAllText("CREDITS.md");
+        r.Check(credits.Contains("Elevator car interior") && credits.Contains("3D Assets") && credits.Contains("CC0") && credits.Contains("3dassets.dev"), "[Ascensor] CREDITS.md cita el modelo del ascensor (nombre, autor, licencia, URL)");
+        string ui = File.ReadAllText("Assets/Scripts/UIManager.cs");
+        r.Check(ui.Contains("Elevator car interior") && ui.Contains("3D Assets"), "[Ascensor] los créditos del juego citan el modelo del ascensor");
+    }
+
     private static void ScanSourcesForExitHints(Report r)
     {
         string[] files = Directory.GetFiles("Assets/Scripts", "*.cs");
@@ -1272,6 +1322,7 @@ public static class SmokePlayRunner
     {
         SmokeTest.Report r = report;
         GameSettings.ResetDefaults();
+        ElevatorCabin.InstantForTests = true;      // las pruebas largas no esperan al ascensor; el bloque «Ascensor» lo reproduce en tiempo real
         yield return Until(() => GameBootstrap.Instance != null && GameBootstrap.Instance.IsLoaded);
         GameBootstrap gb = GameBootstrap.Instance;
         r.Info("Play mode activo. Nivel inicial " + gb.CurrentLevel);
@@ -1517,10 +1568,85 @@ public static class SmokePlayRunner
 
         // Jugar -> nivel 0
         int loads0 = gb.LoadCount;
+        ElevatorCabin.InstantForTests = false;     // primera entrada: el ascensor se reproduce de verdad
         r.Check(ui.ClickButton("Jugar"), "botón Jugar");
         yield return Until(() => GameBootstrap.Instance.LoadCount > loads0 && GameBootstrap.Instance.IsLoaded && GameManager.Instance != null && !GameBootstrap.Instance.InMenu);
         gb = GameBootstrap.Instance;
         r.Check(gb.CurrentLevel == 0, "Jugar empieza en el nivel 0");
+
+        // ---------------- Ascensor de entrada (tiempo real, primera entrada) ----------------
+        {
+            string et = "[Ascensor] ";
+            ElevatorCabin cab = ElevatorCabin.Current;
+            GameManager gmE = GameManager.Instance;
+            FirstPersonController pe = gmE.player;
+            r.Check(cab != null && cab.HasModel && cab.Begun && cab.CurrentPhase == ElevatorCabin.Phase.Descending, et + "al pulsar Jugar empieza el descenso en la cabina (modelo CC0)");
+            r.Check(!cab.Skippable, et + "en la primera entrada NO se puede saltar");
+            cab.Skip();
+            r.Check(cab.Locked && !cab.Released && !cab.Skipped, et + "Skip() se ignora cuando no es un reinicio");
+            r.Check(cab.Locked && !pe.InputEnabled && ElevatorCabin.PlayerLocked, et + "el jugador está bloqueado durante el descenso");
+            r.Check(gmE.TitleHeld, et + "la tarjeta de título espera a que se abran las puertas");
+            bool allHeld = gmE.monsters.Length > 0;
+            foreach (MonsterAI m in gmE.monsters) if (!m.IsStopped) allHeld = false;
+            r.Check(allHeld, et + "los monstruos esperan quietos hasta que se abran las puertas");
+            r.Check(cab.CollidersBlockDoor && cab.ColliderCount >= 9, et + "la cabina tiene colisión (" + cab.ColliderCount + " cajas) y la puerta cerrada bloquea");
+            Vector3 f0 = pe.transform.position;
+            pe.debugInput = true; pe.debugMove = new Vector2(0f, 1f);
+            yield return 0.7f;
+            pe.debugInput = false;
+            r.Check(Vector3.Distance(pe.transform.position, f0) < 0.05f, et + "mover (W) no desplaza al jugador mientras baja");
+            Vector3 flat = pe.transform.position - cab.InteriorCenter; flat.y = 0f;
+            r.Check(flat.magnitude < 0.05f && gmE.generator.PlayerStart == cab.InteriorCenter, et + "el jugador aparece en el interior de la cabina (punto de aparición movido a la cabina)");
+            yield return Until(() => cab.T > 3.2f);
+            int fl; int.TryParse(cab.DisplayNumber, out fl);
+            r.Check(fl < -3 && cab.DisplayLabel == "BAJANDO", et + "el indicador de planta baja contando (" + cab.DisplayNumber + " " + cab.DisplayLabel + ")");
+            r.Check(cab.MaxShake > 0.006f, et + "la cámara tiembla durante el descenso (" + cab.MaxShake.ToString("F3") + " m)");
+            int playing = 0; foreach (AudioSource a in cab.GetComponents<AudioSource>()) if (a.isPlaying && a.loop && a.volume > 0f) playing++;
+            r.Check(playing == 3, et + "retumbo + motor/cables + aire sonando en bucle (" + playing + ")");
+            yield return Until(() => cab.CurrentPhase == ElevatorCabin.Phase.Braking || cab.T > ElevatorCabin.TStop);
+            yield return Until(() => cab.JoltCount >= 1f);
+            r.Check(cab.JoltCount >= 1f && cab.DisplayNumber == cab.FloorEnd.ToString(), et + "frenazo con sacudida y el contador se detiene en " + cab.FloorEnd);
+            r.Check(cab.Locked && !pe.InputEnabled, et + "durante el frenazo el jugador sigue bloqueado");
+            yield return Until(() => cab.Released || cab == null);
+            r.Check(cab.T >= ElevatorCabin.TUnlock - 0.2f && cab.T <= ElevatorCabin.TotalSeconds && cab.T >= 6f, et + "el jugador se libera al abrirse las puertas (T = " + cab.T.ToString("F1") + " s, total " + ElevatorCabin.TotalSeconds + " s)");
+            r.Check(!cab.Locked && pe.InputEnabled && !ElevatorCabin.PlayerLocked && !gmE.TitleHeld, et + "tras abrirse: jugador libre y aparece el título del nivel");
+            bool anyHeld = false; foreach (MonsterAI m in gmE.monsters) if (m.IsStopped) anyHeld = true;
+            r.Check(!anyHeld, et + "los monstruos se liberan cuando se abren las puertas");
+            yield return Until(() => cab.Open01 > 0.98f);
+            r.Check(!cab.CollidersBlockDoor, et + "con las puertas abiertas se puede salir");
+            // salir andando: atraviesa la puerta
+            gmE.monsters[0].Stop(); foreach (MonsterAI m in gmE.monsters) m.Stop();
+            pe.debugInput = true; pe.debugMove = new Vector2(0f, 1f);
+            yield return 2.2f;
+            pe.debugInput = false;
+            float along = Vector3.Dot(pe.transform.position - cab.transform.position, cab.Forward);
+            r.Check(along > 1.7f, et + "el jugador sale de la cabina andando (avance " + along.ToString("F1") + " m)");
+            // la cabina se cierra al alejarse y no se puede volver a entrar
+            pe.Teleport(cab.ExitPoint + cab.Forward * 6f, gmE.generator.PlayerStartYaw);
+            yield return Until(() => cab.CurrentPhase == ElevatorCabin.Phase.Closed || cab.CurrentPhase == ElevatorCabin.Phase.Closing);
+            yield return 1.4f;
+            r.Check(cab.CurrentPhase == ElevatorCabin.Phase.Closed && cab.CollidersBlockDoor, et + "al alejarse, las puertas se cierran y la cabina se queda atrás (con colisión)");
+            pe.Teleport(cab.ExitPoint + cab.Forward * 0.2f, gmE.generator.PlayerStartYaw + 180f);
+            yield return 0.2f;
+            pe.debugInput = true; pe.debugMove = new Vector2(0f, 1f);
+            yield return 1.5f;
+            pe.debugInput = false;
+            float into = Vector3.Dot(pe.transform.position - cab.transform.position, cab.Forward);
+            r.Check(into > 1.35f * 1.07f - 0.3f, et + "no se puede volver a entrar ni atravesar la cabina cerrada (" + into.ToString("F2") + " m)");
+            // reinicio del nivel: ahora sí se puede saltar
+            ElevatorCabin.InstantForTests = false;
+            int ldE = gb.LoadCount;
+            gmE.Restart();
+            yield return Until(() => GameBootstrap.Instance.LoadCount > ldE && GameBootstrap.Instance.IsLoaded && ElevatorCabin.Current != null);
+            ElevatorCabin cab2 = ElevatorCabin.Current;
+            r.Check(cab2 != cab && cab2.Skippable && cab2.Locked && cab2.Begun, et + "tras reiniciar el nivel el ascensor vuelve a bajar y se puede saltar");
+            yield return 1.0f;
+            r.Check(cab2.Locked && !cab2.Released, et + "tras reiniciar sigue bloqueado hasta saltar (no se salta solo)");
+            cab2.Skip();
+            r.Check(cab2.Skipped && cab2.Released && !cab2.Locked && GameManager.Instance.player.InputEnabled && !GameManager.Instance.TitleHeld, et + "saltar el ascensor tras un reinicio libera al jugador al instante");
+            r.Check(cab2.Open01 > 0.99f && !cab2.CollidersBlockDoor, et + "saltar deja las puertas abiertas");
+            ElevatorCabin.InstantForTests = true;
+        }
         r.Check(ui.Current == UIManager.Screen.None && Time.timeScale == 1f && ui.CursorShouldBeLocked, "en juego: sin menús, tiempo normal, cursor bloqueado");
         yield return 0.8f;
 
@@ -1991,6 +2117,7 @@ public static class SmokePlayRunner
 
         HashSet<string> modelIds = new HashSet<string>();
         int prevNote = -1;
+        bool realNext = false;
 
         for (int lv = 0; lv < LevelConfig.Count; lv++)
         {
@@ -1998,12 +2125,59 @@ public static class SmokePlayRunner
             yield return Until(() => GameBootstrap.Instance.IsLoaded && GameManager.Instance != null && GameBootstrap.Instance.CurrentLevel == GameBootstrap.Instance.CurrentLevel);
             gb = GameBootstrap.Instance;
             r.Check(gb.CurrentLevel == lv, tag + "nivel cargado = " + gb.CurrentLevel);
+            if (realNext)
+            {
+                realNext = false;
+                ElevatorCabin ce = ElevatorCabin.Current;
+                r.Check(ce != null && ce.LevelIndex == lv && ce.Locked && !ce.Skippable && ce.Begun, tag + "[ascensor] al pasar de nivel el ascensor vuelve a bajar (bloqueado, sin poder saltarlo)");
+                yield return Until(() => ce == null || ce.Released);
+                r.Check(ce != null && !ce.Locked && ce.T >= 6f, tag + "[ascensor] el siguiente nivel se abre tras el descenso completo (" + (ce != null ? ce.T.ToString("F1") : "-") + " s)");
+                ElevatorCabin.InstantForTests = true;
+            }
             yield return 1.0f;   // unos frames de juego (luces, IA, audio)
 
             GameManager gm = GameManager.Instance;
             LevelConfig cfg = LevelConfig.Get(lv);
             r.Check(gm != null && gm.State == GameManager.GameState.Playing, tag + "estado Playing");
             r.Check(gm.generator != null && gm.exit != null, tag + "generador y puerta presentes");
+            bool titleSeen = false;   // la tarjeta aparece al abrirse las puertas; se comprueba antes de salir andando
+            foreach (Text tt in UnityEngine.Object.FindObjectsOfType<Text>(true)) if (tt.name == "LevelTitle" && tt.text.StartsWith("NIVEL " + lv) && tt.color.a > 0.05f) titleSeen = true;
+            {
+                ElevatorCabin cb = ElevatorCabin.Current;
+                string eg = tag + "[ascensor] ";
+                r.Check(cb != null && cb.LevelIndex == lv && cb.HasModel, eg + "cabina presente en el nivel (modelo CC0)");
+                if (cb != null)
+                {
+                    Vector3 cc = gm.generator.CellCenterWorld(gm.generator.StartCell.x, gm.generator.StartCell.y);
+                    Vector3 off = cb.transform.position - cc; off.y = 0f;
+                    r.Check(off.magnitude < cfg.cellSize * 0.5f && gm.generator.PlayerStart == cb.InteriorCenter && cb.ColliderCount >= 9, eg + "la cabina está en la celda de inicio y es el punto de aparición");
+                    int dirIdx = ((Mathf.RoundToInt(gm.generator.PlayerStartYaw / 90f) % 4) + 4) % 4;
+                    r.Check(gm.generator.IsCellOpen(gm.generator.StartCell.x, gm.generator.StartCell.y, dirIdx), eg + "la puerta mira a la salida abierta de la celda de inicio (dir " + dirIdx + ")");
+                    r.Check(!cb.Locked && cb.Open01 > 0.99f && !cb.CollidersBlockDoor, eg + "(modo prueba) cabina abierta y jugador libre");
+                    // la salida del nivel es alcanzable desde la puerta de la cabina
+                    bool reach;
+                    MonsterAI m0 = gm.monsters.Length > 0 ? gm.monsters[0] : null;
+                    if (m0 != null && m0.UsesNavMesh)
+                    {
+                        UnityEngine.AI.NavMeshPath np = new UnityEngine.AI.NavMeshPath();
+                        UnityEngine.AI.NavMeshHit h1, h2;
+                        bool s1 = UnityEngine.AI.NavMesh.SamplePosition(cb.ExitPoint, out h1, 1.5f, UnityEngine.AI.NavMesh.AllAreas);
+                        bool s2 = UnityEngine.AI.NavMesh.SamplePosition(gm.exit.position, out h2, 3f, UnityEngine.AI.NavMesh.AllAreas);
+                        reach = s1 && s2 && UnityEngine.AI.NavMesh.CalculatePath(h1.position, h2.position, UnityEngine.AI.NavMesh.AllAreas, np) && np.status == UnityEngine.AI.NavMeshPathStatus.PathComplete;
+                    }
+                    else reach = gm.generator.DistanceFromStart(gm.generator.ExitCell.x, gm.generator.ExitCell.y) >= 0;
+                    r.Check(reach, eg + "la salida es alcanzable desde la puerta de la cabina (" + (m0 != null && m0.UsesNavMesh ? "NavMesh" : "celdas") + ")");
+                    // andando hacia delante se atraviesa la puerta abierta
+                    foreach (MonsterAI mm in gm.monsters) mm.Stop();
+                    gm.player.debugInput = true; gm.player.debugMove = new Vector2(0f, 1f);
+                    yield return 2.6f;
+                    gm.player.debugInput = false;
+                    float al = Vector3.Dot(gm.player.transform.position - cb.transform.position, cb.Forward);
+                    r.Check(al > 1.5f, eg + "se sale de la cabina andando (avance " + al.ToString("F1") + " m)");
+                    gm.player.Teleport(gm.generator.PlayerStart, gm.generator.PlayerStartYaw);
+                    yield return 0.3f;
+                }
+            }
             r.Check(gm.monsters != null && gm.monsters.Length == Mathf.Max(1, cfg.monsterCount), tag + "monstruos = " + cfg.monsterCount);
             foreach (MonsterAI m in gm.monsters)
             {
@@ -2030,7 +2204,7 @@ public static class SmokePlayRunner
             r.Check(UnityEngine.Object.FindObjectsOfType<TextMesh>(true).Length == 0, tag + "sin TextMesh en la escena");
             Text title = null;
             foreach (Text t in UnityEngine.Object.FindObjectsOfType<Text>(true)) if (t.name == "LevelTitle") title = t;
-            r.Check(title != null && title.text.StartsWith("NIVEL " + lv) && title.color.a > 0.05f, tag + "tarjeta de título visible: '" + (title != null ? title.text : "") + "'");
+            r.Check(title != null && title.text.StartsWith("NIVEL " + lv) && (titleSeen || title.color.a > 0.05f), tag + "tarjeta de título visible: '" + (title != null ? title.text : "") + "'");
 
             // Luces: solo las N más cercanas
             LightCuller culler = gm.generator.Culler;
@@ -2085,7 +2259,8 @@ public static class SmokePlayRunner
                     r.Check(wv.chunkCount > 0 && wv.GetComponentsInChildren<MeshRenderer>().Length > 0, tag + "superficie de agua: " + wv.chunkCount + " trozos de malla");
                     r.Check(cfg.debrisCount == 0 || wv.debris.Count > 0, tag + "restos flotantes: " + wv.debris.Count);
                     // vadear: profundidad > 0, factor de arrastre < 1
-                    pw.Teleport(gm.generator.PlayerStart, 0f);
+                    ElevatorCabin wc = ElevatorCabin.Current;   // la cabina (suelo algo más alto) no sirve para vadear: fuera, en el pasillo
+                    pw.Teleport(wc != null ? wc.ExitPoint + wc.Forward * 2.5f : gm.generator.PlayerStart, 0f);
                     yield return 0.8f;
                     r.Check(pw.WaterDepth > 0.1f && pw.WaterFactor < 0.97f, tag + "vadeando: profundidad " + pw.WaterDepth.ToString("F2") + " m, factor de arrastre " + pw.WaterFactor.ToString("F2"));
                     r.Check(!pw.IsUnderwater, tag + "de pie en el agua poco profunda: cámara fuera del agua");
@@ -2165,6 +2340,7 @@ public static class SmokePlayRunner
             // (el test de muerte revierte el inventario: solo se comprueba la conservación de lo que sigue en el inventario antes de salir)
             if (prevNote >= 0 && (Inventory.Instance == null || !Inventory.Instance.HasNote(prevNote))) prevNote = -1;
             // Ir a la puerta: teleport delante de la puerta
+            if (lv == 0) { ElevatorCabin.InstantForTests = false; realNext = true; }
             Transform exit = gm.exit;
             Vector3 stand = exit.position + exit.forward * 0.7f;
             gm.player.Teleport(new Vector3(stand.x, 0.1f, stand.z), 0f);

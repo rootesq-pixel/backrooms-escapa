@@ -30,6 +30,19 @@ Cada nivel usa una criatura distinta. Los modelos originales se convirtieron a F
 
 Licencia comprobada el 11-oct-2026 en la página de Poly Pizza (campo «Licence: CC0 1.0», «Public Domain (CC0)»). Cambios: GLB convertido a FBX con Blender; eliminadas las armas y el resto de objetos; conservadas las animaciones Idle, Walk, Run y Duck; color del traje cambiado a amarillo hazmat con guantes/botas negros (materiales de Unity). La linterna de mano, el IK del brazo, las sombras y el efecto de empapado son procedurales.
 
+## Ascensor de entrada (todos los niveles)
+
+Cada nivel empieza dentro de una cabina de ascensor (v6.4). La carcasa y las puertas usan dos modelos estáticos del mismo kit, descargados sin cuenta ni compra desde 3D Assets:
+
+| Archivo en el proyecto | Nombre | Autor | Licencia | Fuente |
+|---|---|---|---|---|
+| `Assets/Resources/Elevator/Elevator.fbx` (cabina: suelo, paredes, pasamanos, panel de botones, techo) | «Elevator car interior (Backrooms and Liminal Spaces Kit)» | 3D Assets (@3dassets) | CC0 1.0 (dominio público; no exige atribución, se cita igualmente) | https://3dassets.dev/assets/liminal-spaces-kit-elevator-car-22251ff7 (GLB: https://cdn.3dassets.dev/assets/25322/v1/model.glb) |
+| `Assets/Resources/Elevator/Elevator.fbx` (dos hojas de puerta + dintel) | «Elevator door pair (Backrooms and Liminal Spaces Kit)» | 3D Assets (@3dassets) | CC0 1.0 (dominio público) | https://3dassets.dev/assets/liminal-spaces-kit-elevator-doors-b1f54075 (GLB: https://cdn.3dassets.dev/assets/25321/v1/model.glb) |
+
+Licencia comprobada el 11-oct-2026 en las propias páginas del recurso (campo «Licence: CC0 1.0 Universal … no attribution required»; la API JSON de cada recurso devuelve `license.slug = cc0-1.0`, `attributionRequired = false`). Nota de transparencia: la página indica que el colaborador declara haber usado IA para generar estos modelos («AI used: yes»); el recurso se publica igualmente bajo CC0.
+
+Cambios: los dos GLB se importaron en Blender, se unieron en un solo FBX (cabina + hojas de puerta, con las hojas como objetos separados `Door_L` / `Door_R`), se eliminó la jerarquía vacía y las tres texturas (256×256 px, `Elev_*.png`) se guardaron aparte. En el juego la cabina se ensancha un 30 % en X/Z para que quepan cuatro jugadores, las hojas se animan por código (se retraen hacia su lado), y el resto es procedural: visera con indicador de planta, panel de luz del techo, luces de los botones, colisiones, luz parpadeante, tintes por nivel y todos los sonidos (retumbo, motor/cables, frenazo, «ding», puertas).
+
 ## Poolrooms (nivel 2)
 
 El nivel de agua (antes «Salas inundadas») se llama ahora Poolrooms. Es totalmente procedural (sin modelos externos). En la v6.3 se eliminó la sala del modelo propio del autor (`PoolHall.fbx`) y el monstruo «El Reptador» (AlienBug) ya no se usa ni se incluye.

@@ -175,6 +175,9 @@ public class GameBootstrap : MonoBehaviour
         LoadLevel(0);
     }
 
+    // Sólo tras REINICIAR un nivel (un solo uso) se puede saltar la animación del ascensor; en el resto de entradas siempre se reproduce
+    public bool NextIntroSkippable;
+
     private IEnumerator LoadRoutine(int index)
     {
         loading = true;
@@ -253,6 +256,11 @@ public class GameBootstrap : MonoBehaviour
         }
         Debug.Log("[GameBootstrap] Nivel " + levelIndex + " (" + cfg.name + ") semilla: " + generator.UsedSeed + " | NavMesh en runtime: " + navBuilt);
 
+        // 2b) Ascensor de entrada: cabina en la celda de inicio (mueve el punto de aparición al interior; no toca el laberinto)
+        ElevatorCabin cabin = ElevatorCabin.Create(generator, cfg, worldRoot.transform);
+        cabin.Skippable = ns == null && NextIntroSkippable;
+        NextIntroSkippable = false;
+
         // 3) Jugador
         GameObject player = BuildPlayer(generator, cfg, ns != null ? ns.SlotOf(NetSession.Instance.LocalId) : 0, out FirstPersonController fpc, out Flashlight flashlight, out Camera cam);
         if (generator.Culler != null) generator.Culler.viewer = cam.transform;
@@ -288,6 +296,20 @@ public class GameBootstrap : MonoBehaviour
         gm.config = cfg;
         BuildHud(gmGo.transform, gm);
         Manager = gm;
+
+        // 7) Ascensor: el jugador queda bloqueado y los monstruos quietos hasta que se abren las puertas
+        cabin.Bind(fpc, cam.transform, gm);
+        if (ns == null)
+        {
+            MonsterAI[] held = monsters.ToArray();
+            foreach (MonsterAI m in held) if (m != null) m.Stop();
+            cabin.DoorsOpened = () => { foreach (MonsterAI m in held) if (m != null) m.Resume(); };
+            cabin.Begin();
+        }
+        else
+        {
+            cabin.DoorsOpened = () => { if (NetSession.Instance != null) NetSession.Instance.OnElevatorOpened(); };
+        }
         if (ns != null && NetSession.Instance != null) NetSession.Instance.OnWorldBuilt(gm, generator, player, fpc, monsters.ToArray(), cfg);
     }
 
@@ -356,7 +378,7 @@ public class GameBootstrap : MonoBehaviour
         GameObject player = new GameObject("Player");
         player.transform.SetParent(worldRoot.transform, false);
         // multijugador: cada jugador aparece en un hueco distinto alrededor del punto de inicio (hueco 0 = el punto exacto)
-        Vector3 spawnOff = slot <= 0 ? Vector3.zero : Quaternion.Euler(0f, generator.PlayerStartYaw, 0f) * new Vector3(slot == 2 ? -0.8f : 0.8f, 0f, slot == 3 ? -0.8f : 0f);
+        Vector3 spawnOff = slot <= 0 ? Vector3.zero : Quaternion.Euler(0f, generator.PlayerStartYaw, 0f) * new Vector3(slot == 3 ? 0f : (slot == 2 ? -0.62f : 0.62f), 0f, slot == 3 ? -0.7f : 0f);
         player.transform.position = generator.PlayerStart + spawnOff;
         player.transform.rotation = Quaternion.Euler(0f, generator.PlayerStartYaw, 0f);
 

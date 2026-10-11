@@ -5,7 +5,7 @@ Cada nivel es un laberinto (o aparcamiento abierto) procedural con su propia est
 entidades que patrullan y te persiguen. La salida es una puerta discreta que **solo se descubre explorando**
 (sin cartel, sin flecha, sin indicador de distancia).
 
-Casi todo se genera **desde código** (mallas, texturas PBR con ruido Perlin/fBm, audio); los únicos assets externos son los modelos de monstruos y el traje hazmat (CC0, ver `CREDITS.md`).
+Casi todo se genera **desde código** (mallas, texturas PBR con ruido Perlin/fBm, audio); los únicos assets externos son los modelos de monstruos, el traje hazmat y la cabina del ascensor (CC0, ver `CREDITS.md`).
 
 ## Niveles
 
@@ -58,6 +58,7 @@ se reinicia solo a los pocos segundos (o al instante con **R**). Cada nivel empi
 | Mirar | Ratón |
 | Correr (stamina limitada; FOV más abierto y respiración más pesada al cansarte) | `Shift` |
 | Agacharse (mantener / alternar) | `Ctrl` / `C` |
+| Saltar el ascensor (solo tras morir y reiniciar el nivel) | `Espacio` / `E` |
 | Asomarse a izquierda / derecha (no atraviesa paredes) | `Q` / `E` |
 | Linterna on/off | `F` |
 | Inventario en rejilla 5×3 + notas (pausa el juego; `I` o `Esc` lo cierra; flechas / clic para elegir, `Tab` cambia Objetos/Notas, botones Usar / Soltar) | `I` |
@@ -390,3 +391,24 @@ el shader VHS (carga, compila, material, `VhsPostKeeper`) y la persistencia de o
 - **Niveles: ahora son 5.** Se eliminó el nivel «Poolrooms» basado en el modelo propio (`PoolHall.fbx`, junto con su código de sala grande/foso/escaleras
   en el generador) y el nivel de agua «Salas inundadas» pasa a llamarse **Poolrooms** (nivel 2, con «El Ahogado»; «El Reptador» ya no se usa y sus
   assets se han quitado del proyecto). Orden: 0 Oficinas · 1 Aparcamiento · 2 Poolrooms · 3 Hotel · 4 Industrial. Notas: 15 (3 por nivel).
+
+## Cambios de la v6.4: entrada en ascensor en cada nivel
+
+- **Cada nivel empieza dentro de un ascensor** (obligatorio, sin opción para desactivarlo, también en multijugador): la cabina baja a toda
+  velocidad durante unos 8 s (sacudidas de cámara, retumbo, motor/cables y soplo de aire procedurales, contador de planta que cae
+  rápido con flecha y etiqueta «BAJANDO», fluorescente parpadeante, frenazo con sacudida, «ding») y las puertas se abren dejando ver el nivel.
+  El jugador está bloqueado durante el descenso y se libera cuando las puertas están a medio abrir (~7,4 s). La tarjeta «NIVEL N — …»
+  aparece al abrirse las puertas. Los monstruos esperan quietos hasta ese momento. Al alejarse, las puertas se cierran y la cabina se
+  queda atrás con colisión (no se puede volver a entrar ni atravesar).
+- **Saltar:** solo al **reiniciar el nivel tras morir** se puede saltar la animación con `Espacio` / `E` (se muestra la indicación «Saltar»).
+  En la primera entrada y al pasar de nivel siempre se reproduce completa.
+- **Modelo:** la carcasa (suelo, paredes, pasamanos, botones, techo) y las dos hojas de puerta con su dintel son CC0 (3D Assets,
+  «Liminal Spaces Kit»; ver `CREDITS.md` y los créditos del juego). Se unieron y convirtieron a FBX con Blender (hojas `Door_L`/`Door_R`
+  separadas, texturas reducidas a 512 px, ~0,6 MB). El indicador de planta, las luces, los botones iluminados, el sonido y la animación
+  de puertas son procedurales. Cada nivel tiñe el indicador y la luz (el complejo industrial usa luz roja de emergencia).
+- **Semilla / multijugador:** la cabina se coloca en la celda de inicio, mirando a su salida abierta, **después** de generar el laberinto
+  (no cambia el hash del mundo). El anfitrión envía `Descend` (protocolo `MP-2`) cuando todos han generado el mundo, y todos arrancan
+  el descenso a la vez dentro de la misma cabina; los monstruos del anfitrión se liberan al abrirse sus puertas.
+- **Pruebas:** `SmokeTest` (cabina en los 5 niveles, línea de tiempo, bloqueo/liberación, monstruos retenidos, saltar solo tras reinicio,
+  colisión, salida alcanzable desde la puerta, audio dentro de la mezcla) y `mp-test.sh` (descenso sincronizado entre anfitrión y
+  cliente, avatar remoto dentro de la cabina). Vistas previas: `/workspace/monster-previews/elevator_*.png`.

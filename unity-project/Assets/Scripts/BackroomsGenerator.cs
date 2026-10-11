@@ -48,6 +48,8 @@ public class BackroomsGenerator : MonoBehaviour
     public Vector3 ExitPosition { get; private set; }
     public Transform ExitTransform { get; private set; }
     public Transform Root { get { return levelRoot; } }
+    // El ascensor (ElevatorCabin) mueve el punto de aparición del jugador al interior de la cabina (no cambia el laberinto)
+    public void OverridePlayerStart(Vector3 p) { PlayerStart = p; }
     public LightCuller Culler { get; private set; }
     public int GridWidth { get { return w; } }
     public int GridHeight { get { return h; } }

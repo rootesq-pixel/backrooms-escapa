@@ -178,6 +178,31 @@ public static class MpPlayRunner
         r.Check(remote.avatar.GetComponentInChildren<Light>(true) != null, "el avatar remoto tiene linterna (luz)");
         r.Check(UIManager.InputBlocked == false, "en partida el input no está bloqueado");
         r.Check(ui.Multiplayer.HudVisible, "HUD multijugador visible");
+        // ---- ascensor de entrada (v6.4): ambos jugadores bajan juntos en la cabina ----
+        {
+            ElevatorCabin hc = ElevatorCabin.Current;
+            r.Check(hc != null && hc.HasModel && hc.LevelIndex == 0, "[Ascensor MP] el anfitrión tiene la cabina del nivel 0");
+            yield return Wait(() => hc.Begun, 20, "descenso del ascensor (anfitrión)");
+            Mark("host_cab_begin");
+            r.Check(hc.Locked && !gm.player.InputEnabled && !hc.Skippable, "[Ascensor MP] el anfitrión está bloqueado durante el descenso y no puede saltarlo");
+            bool held = gm.monsters.Length > 0;
+            foreach (MonsterAI m in gm.monsters) if (!m.IsStopped) held = false;
+            r.Check(held, "[Ascensor MP] los monstruos esperan quietos en el anfitrión mientras baja el ascensor");
+            yield return Wait(() => { Vector3 d = remote.avatar.LatestPos - hc.InteriorCenter; d.y = 0f; return d.magnitude < 1.6f; }, 30, "avatar del cliente dentro de la cabina");
+            r.Check(remote.avatar != null, "[Ascensor MP] el avatar remoto del cliente está dentro de la cabina del anfitrión");
+            yield return Wait(() => hc.Released, 40, "puertas abiertas (anfitrión)");
+            Mark("host_cab_open");
+            r.Check(!hc.Locked && gm.player.InputEnabled, "[Ascensor MP] al abrirse las puertas el anfitrión queda libre");
+            bool freed = true;
+            foreach (MonsterAI m in gm.monsters) if (m.IsStopped) freed = false;
+            r.Check(freed, "[Ascensor MP] los monstruos se liberan en el anfitrión al abrirse las puertas");
+            yield return WaitMark("client_cab_begin", 60);
+            yield return WaitMark("client_cab_open", 60);
+            double dBegin = Math.Abs((DateTime.Parse(File.ReadAllText(MpTest.Dir + "/host_cab_begin")) - DateTime.Parse(File.ReadAllText(MpTest.Dir + "/client_cab_begin"))).TotalSeconds);
+            double dOpen = Math.Abs((DateTime.Parse(File.ReadAllText(MpTest.Dir + "/host_cab_open")) - DateTime.Parse(File.ReadAllText(MpTest.Dir + "/client_cab_open"))).TotalSeconds);
+            r.Check(dBegin < 2.0 && dOpen < 2.0, "[Ascensor MP] el descenso está sincronizado entre anfitrión y cliente (inicio Δ " + dBegin.ToString("F2") + " s, apertura Δ " + dOpen.ToString("F2") + " s)");
+            ElevatorCabin.InstantForTests = true;   // los niveles siguientes del test no esperan al ascensor
+        }
         Mark("host_world0");
         GameObject oldAvatar = remote.avatar.gameObject;
 
@@ -421,6 +446,20 @@ public static class MpPlayRunner
         r.Check(hostP != null && hostP.avatar != null && hostP.avatar.ModelLoaded, "avatar del anfitrión creado en el cliente");
         r.Check(Time.timeScale == 1f && !UIManager.InputBlocked, "mundo en marcha");
         Mark("client_world0");
+        // ---- ascensor de entrada (v6.4): el cliente baja con el anfitrión ----
+        {
+            ElevatorCabin cc = ElevatorCabin.Current;
+            r.Check(cc != null && cc.HasModel && cc.LevelIndex == 0, "[Ascensor MP] el cliente tiene la cabina del nivel 0 (misma posición que el anfitrión por la semilla)");
+            yield return Wait(() => cc.Begun, 30, "descenso del ascensor (cliente, orden del anfitrión)");
+            Mark("client_cab_begin");
+            r.Check(cc.Locked && !gm.player.InputEnabled, "[Ascensor MP] el cliente está bloqueado durante el descenso");
+            Vector3 fl = gm.player.transform.position - cc.InteriorCenter; fl.y = 0f;
+            r.Check(fl.magnitude < 1.6f, "[Ascensor MP] el cliente aparece dentro de la cabina (" + fl.magnitude.ToString("F2") + " m)");
+            yield return Wait(() => cc.Released, 40, "puertas abiertas (cliente)");
+            Mark("client_cab_open");
+            r.Check(!cc.Locked && gm.player.InputEnabled, "[Ascensor MP] al abrirse las puertas el cliente queda libre");
+            ElevatorCabin.InstantForTests = true;
+        }
         yield return WaitMark("host_world0", 240);
         int pickupsBefore = NetSession.PickupCount;
         r.Check(pickupsBefore >= 5 && NetSession.PickupExists(0) && NetSession.PickupExists(1), "pilas y objetos registrados con identificadores comunes (" + pickupsBefore + ")");

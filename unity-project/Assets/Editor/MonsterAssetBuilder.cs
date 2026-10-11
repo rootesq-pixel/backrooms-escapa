@@ -10,6 +10,20 @@ public class MonsterModelPostprocessor : AssetPostprocessor
 {
     private void OnPreprocessModel()
     {
+        if (assetPath.StartsWith("Assets/Resources/Elevator/"))
+        {
+            // Cabina del ascensor (modelo estático CC0 convertido a FBX): sin animación ni cámaras/luces
+            ModelImporter em = (ModelImporter)assetImporter;
+            em.animationType = ModelImporterAnimationType.None;
+            em.importAnimation = false;
+            em.importCameras = false;
+            em.importLights = false;
+            em.isReadable = false;
+            em.meshCompression = ModelImporterMeshCompression.Off;
+            em.materialImportMode = ModelImporterMaterialImportMode.ImportStandard;
+            em.materialLocation = ModelImporterMaterialLocation.InPrefab;
+            return;
+        }
         if (!assetPath.StartsWith("Assets/Monsters/Models/")) return;
         ModelImporter mi = (ModelImporter)assetImporter;
         mi.animationType = ModelImporterAnimationType.Generic;

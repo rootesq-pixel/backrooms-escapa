@@ -256,6 +256,7 @@ public class MonsterAI : MonoBehaviour
     }
 
     public void Resume() { stopped = false; }
+    public bool IsStopped { get { return stopped; } }
 
     // ---- cliente: estado recibido del anfitrión, interpolado ----
     private struct NetSample { public float t; public Vector3 pos; public float yaw, speed; public int state; }

@@ -101,13 +101,13 @@
         <h1 class="glitch" id="hero-title" data-title data-text="BACKROOMS: ESCAPA">BACKROOMS: ESCAPA</h1>
         <p class="hero-tagline">Has atravesado la pared equivocada. Zumbido de fluorescentes, moqueta húmeda y kilómetros de pasillos amarillos. Algo te sigue. <strong>Encuentra la salida.</strong></p>
         <div class="hero-actions">
-          <a class="btn btn-primary" href="https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v6.3.0/BackroomsEscape_v6_3_Windows.zip" download>
+          <a class="btn btn-primary" href="https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v6.4.0/BackroomsEscape_v6_4_Windows.zip" download>
             <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 5.5 10.5 4.4v7.1H3V5.5Zm0 13 7.5 1.1v-7H3v5.9Zm8.4 1.2L21 21v-8.4h-9.6v7.1Zm0-15.4v7.2H21V3l-9.6 1.3Z"/></svg>
             Descargar para Windows
           </a>
           <a class="btn btn-ghost" href="#trailer">Ver gameplay</a>
         </div>
-        <p class="hero-note">Build temprana v6.3.0 (multijugador por Internet) · Windows 64 bits · ≈ 46 MB (zip). <a href="https://github.com/rootesq-pixel/backrooms-escapa/releases" target="_blank" rel="noopener">Código y versiones<span class="sr-only"> (se abre en una pestaña nueva)</span></a></p>
+        <p class="hero-note">Build temprana v6.4.0 (multijugador por Internet) · Windows 64 bits · ≈ 46 MB (zip). <a href="https://github.com/rootesq-pixel/backrooms-escapa/releases" target="_blank" rel="noopener">Código y versiones<span class="sr-only"> (se abre en una pestaña nueva)</span></a></p>
         <ul class="hero-facts" aria-label="Datos rápidos">
           <li><strong>5</strong> niveles</li>
           <li><strong>5</strong> criaturas</li>
@@ -145,7 +145,7 @@
         <header class="section-head">
           <p class="section-tag">// 02</p>
           <h2 id="niveles-title">Niveles</h2>
-          <p class="section-lead">Cinco niveles encadenados, cada uno con su estética, su iluminación, su niebla y su propia criatura. La puerta de salida no tiene cartel ni flecha: solo la encontrarás explorando.</p>
+          <p class="section-lead">Cinco niveles encadenados, cada uno con su estética, su iluminación, su niebla y su propia criatura. Cada nivel empieza con un descenso en ascensor. La puerta de salida no tiene cartel ni flecha: solo la encontrarás explorando.</p>
         </header>
         <ol class="level-grid">
           <li class="level-card">
@@ -294,6 +294,11 @@
             <p>Pilas para la linterna, agua de almendras para recuperar resistencia y cordura, barras luminosas para marcar el camino y notas por descubrir.</p>
           </li>
           <li class="feature">
+            <span class="feature-icon" aria-hidden="true">⇩</span>
+            <h3>Descenso en ascensor</h3>
+            <p>Cada nivel empieza dentro de un ascensor que cae a toda velocidad unos 8 s: sacudidas, contador de planta, frenazo, «ding» y puertas que se abren al nivel. Es obligatorio (solo se puede saltar tras morir y reiniciar el nivel) y en multijugador todos bajan juntos en la misma cabina.</p>
+          </li>
+          <li class="feature">
             <span class="feature-icon" aria-hidden="true">☍</span>
             <h3>Multijugador cooperativo <span class="badge">Prueba temprana</span></h3>
             <p>De 2 a 4 jugadores. Aloja con un <strong>código de sala</strong> y tus amigos se unen con él: sin abrir puertos, con el servidor oficial incluido. También por IP y puerto TCP 7777 (con UPnP automático) o por VPN. Reanimación, monstruos y objetos sincronizados y chat con <kbd>Enter</kbd>. <a href="#multijugador">Cómo jugar →</a></p>
@@ -344,7 +349,7 @@
             <h3>Cómo jugar con amigos</h3>
             <p class="mp-opt"><strong>Opción A · Con código</strong> (recomendada: sin abrir puertos, funciona incluso con CGNAT)</p>
             <ol class="steps">
-              <li><strong>Misma versión.</strong> Todos necesitáis la v6.3; el juego rechaza versiones distintas.</li>
+              <li><strong>Misma versión.</strong> Todos necesitáis la v6.4; el protocolo es ahora <strong>MP-2</strong> y las versiones anteriores (v6.3 y anteriores) no pueden unirse. El juego rechaza versiones distintas.</li>
               <li><strong>Anfitrión:</strong> menú principal → <em>Multijugador</em> → escribe tu nombre → <em>Alojar con código</em>. La sala muestra un código de 6 caracteres: pásaselo a tus amigos.</li>
               <li><strong>Clientes:</strong> <em>Multijugador</em> → nombre → <em>Unirse con código</em> → escribe el código. Entraréis en la sala de espera.</li>
               <li>El anfitrión elige el nivel con ◄ ► y pulsa <em>Empezar</em>. No se puede entrar en una partida ya empezada.</li>
@@ -407,6 +412,7 @@
           <div class="control"><dt><span class="keys"><kbd class="key-wide">Esc</kbd></span></dt><dd>Pausa</dd></div>
           <div class="control"><dt><span class="keys"><kbd class="key-wide">Enter</kbd></span></dt><dd>Chat <span class="tbd">(solo multijugador)</span></dd></div>
           <div class="control"><dt><span class="keys"><kbd>R</kbd></span></dt><dd>Reiniciar nivel</dd></div>
+          <div class="control"><dt><span class="keys"><kbd class="key-wide">Espacio</kbd><span class="key-sep">/</span><kbd>E</kbd></span></dt><dd>Saltar el ascensor <span class="tbd">(solo tras morir y reiniciar)</span></dd></div>
         </dl>
       </div>
     </section>
@@ -417,9 +423,21 @@
         <header class="section-head">
           <p class="section-tag">// 07</p>
           <h2 id="capturas-title">Capturas</h2>
-          <p class="section-lead">Renders de previsualización del desarrollo (modelos, traje del jugador y texturas). No son el aspecto final con niebla e iluminación del juego.</p>
+          <p class="section-lead">Renders y capturas de previsualización del desarrollo (modelos, traje del jugador, ascensor y texturas). No son el aspecto final con niebla e iluminación del juego.</p>
         </header>
         <ul class="gallery">
+          <li class="gallery-item">
+            <button type="button" class="gallery-btn" data-full="assets/img/ascensor-interior.jpg" data-caption="Interior del ascensor durante el descenso, con contador de planta (vista previa de desarrollo con cámara externa; no es la vista del jugador).">
+              <img src="assets/img/ascensor-interior.jpg" alt="Interior de la cabina del ascensor con un personaje con traje hazmat visto de espaldas, linterna encendida y un indicador de planta que muestra -5 y «BAJANDO»." width="960" height="540" loading="lazy">
+            </button>
+            <p class="gallery-caption">Ascensor · descenso · vista previa de desarrollo</p>
+          </li>
+          <li class="gallery-item">
+            <button type="button" class="gallery-btn" data-full="assets/img/ascensor-puertas.jpg" data-caption="Las puertas del ascensor se abren al Nivel 0 (vista previa de desarrollo).">
+              <img src="assets/img/ascensor-puertas.jpg" alt="Primera persona: las puertas del ascensor abiertas al Nivel 0, Oficinas amarillas, con el indicador de planta -24 y la tarjeta de título del nivel." width="960" height="540" loading="lazy">
+            </button>
+            <p class="gallery-caption">Ascensor · llegada al nivel · vista previa de desarrollo</p>
+          </li>
           <li class="gallery-item gallery-tall">
             <button type="button" class="gallery-btn" data-full="assets/img/texturas-contact-sheet.jpg" data-caption="Hoja de texturas procedurales: pared, suelo y techo de cada estilo de nivel.">
               <img src="assets/img/texturas-contact-sheet.jpg" alt="Hoja de contactos con 15 texturas procedurales: papel amarillo, hormigón, azulejos de piscina, papel de hotel y chapa oxidada." width="740" height="1230" loading="lazy">
@@ -454,7 +472,7 @@
         <header class="section-head">
           <p class="section-tag">// 08</p>
           <h2 id="creditos-title">Créditos</h2>
-          <p class="section-lead">Mallas del nivel, texturas, audio, shader VHS e interfaz son procedurales / código del proyecto (sin assets externos). Los modelos de monstruos y el traje del jugador son CC0 (dominio público); se acreditan por cortesía y trazabilidad.</p>
+          <p class="section-lead">Mallas del nivel, texturas, audio, shader VHS e interfaz son procedurales / código del proyecto (sin assets externos). Los modelos de monstruos, el traje del jugador y la cabina del ascensor son CC0 (dominio público); se acreditan por cortesía y trazabilidad.</p>
         </header>
 
         <h3 class="credits-sub">Modelos de monstruos <span class="badge">CC0 / dominio público</span></h3>
@@ -482,6 +500,18 @@
             <li><strong>SootHorror</strong> (El Hollín): malla decimada (~45 %) y estirada/encorvada; textura reteñida a negro hollín grasiento; animaciones de zombi (Mixamo) reasignadas con Blender; ojos pálidos, temblor y sonidos procedurales. Licencia CC0 comprobada en la página del autor el 11-oct-2026.</li>
           </ul>
         </details>
+
+        <h3 class="credits-sub">Ascensor de entrada (todos los niveles) <span class="badge">CC0 / dominio público</span></h3>
+        <div class="table-wrap">
+          <table class="credits-table">
+            <thead><tr><th scope="col">Parte</th><th scope="col">Nombre</th><th scope="col">Autor</th><th scope="col">Licencia</th><th scope="col">Fuente</th></tr></thead>
+            <tbody>
+              <tr><td data-label="Parte">Cabina (suelo, paredes, pasamanos, botones, techo)</td><td data-label="Nombre">«Elevator car interior» (Backrooms and Liminal Spaces Kit)</td><td data-label="Autor">3D Assets</td><td data-label="Licencia">CC0 1.0 (dominio público)</td><td data-label="Fuente"><a href="https://3dassets.dev/assets/liminal-spaces-kit-elevator-car-22251ff7" rel="noopener" target="_blank">3dassets.dev<span class="sr-only"> (se abre en una pestaña nueva)</span></a></td></tr>
+              <tr><td data-label="Parte">Puertas (dos hojas + dintel)</td><td data-label="Nombre">«Elevator door pair» (Backrooms and Liminal Spaces Kit)</td><td data-label="Autor">3D Assets</td><td data-label="Licencia">CC0 1.0 (dominio público)</td><td data-label="Fuente"><a href="https://3dassets.dev/assets/liminal-spaces-kit-elevator-doors-b1f54075" rel="noopener" target="_blank">3dassets.dev<span class="sr-only"> (se abre en una pestaña nueva)</span></a></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="credits-note">Licencia comprobada el 11-oct-2026 en las páginas del recurso (CC0 1.0, no exige atribución; se cita igualmente). Transparencia: la página indica que el colaborador declara haber usado IA para generar estos modelos; se publican igualmente bajo CC0. Cambios: unidos en un solo FBX con Blender, texturas reducidas, cabina ensanchada un 30 % para cuatro jugadores. El indicador de planta, las luces, el sonido y la animación de las puertas son procedurales.</p>
 
         <h3 class="credits-sub">Cuerpo del jugador (traje hazmat)</h3>
         <div class="table-wrap">
@@ -520,11 +550,11 @@
         <div class="download-box">
           <div class="download-main">
             <p class="download-platform">Windows PC · 64 bits</p>
-            <a class="btn btn-primary" href="https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v6.3.0/BackroomsEscape_v6_3_Windows.zip" download>
+            <a class="btn btn-primary" href="https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v6.4.0/BackroomsEscape_v6_4_Windows.zip" download>
               <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 5.5 10.5 4.4v7.1H3V5.5Zm0 13 7.5 1.1v-7H3v5.9Zm8.4 1.2L21 21v-8.4h-9.6v7.1Zm0-15.4v7.2H21V3l-9.6 1.3Z"/></svg>
               Descargar para Windows
             </a>
-            <p class="download-note"><strong>v6.3.0 · Multijugador por Internet</strong> · ZIP de ≈ 46 MB <span class="tbd">(aprox.)</span>. Descomprime y ejecuta <code>BackroomsEscape.exe</code>.</p>
+            <p class="download-note"><strong>v6.4.0 · El ascensor</strong> · ZIP de ≈ 46 MB <span class="tbd">(aprox.)</span>. Descomprime y ejecuta <code>BackroomsEscape.exe</code>.</p>
             <p class="download-note download-smartscreen"><strong>Aviso de Windows SmartScreen:</strong> el ejecutable no está firmado digitalmente, por lo que Windows puede mostrar «Windows protegió su PC». Pulsa <em>Más información</em> → <em>Ejecutar de todas formas</em> si confías en la descarga. Es una build temprana.</p>
             <p class="download-note"><a href="https://github.com/rootesq-pixel/backrooms-escapa/releases" target="_blank" rel="noopener">Código y versiones<span class="sr-only"> (se abre en una pestaña nueva)</span></a> · <a href="https://github.com/rootesq-pixel/backrooms-escapa" target="_blank" rel="noopener">Repositorio en GitHub<span class="sr-only"> (se abre en una pestaña nueva)</span></a></p>
           </div>
@@ -539,7 +569,7 @@
                 <tr><th scope="row">Procesador</th><td class="tbd">Por determinar</td><td class="tbd">Por determinar</td></tr>
                 <tr><th scope="row">Memoria</th><td class="tbd">Por determinar</td><td class="tbd">Por determinar</td></tr>
                 <tr><th scope="row">Gráficos</th><td class="tbd">Por determinar</td><td class="tbd">Por determinar</td></tr>
-                <tr><th scope="row">Almacenamiento</th><td colspan="2">≈ 46 MB comprimido / ≈ 102 MB descomprimido <span class="tbd">(aproximado; puede cambiar)</span></td></tr>
+                <tr><th scope="row">Almacenamiento</th><td colspan="2">≈ 46 MB comprimido / ≈ 103 MB descomprimido <span class="tbd">(aproximado; puede cambiar)</span></td></tr>
               </tbody>
             </table>
           </div>

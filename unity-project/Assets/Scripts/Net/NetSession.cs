@@ -11,7 +11,7 @@ public static class NetMsg
     public const byte Hello = 1, State = 2, PickupReq = 3, Chat = 4, Glow = 5, DropItem = 6, Ready = 7, Ping = 8, Bye = 9, DbgMonsters = 20;
     // anfitrión -> cliente
     public const byte Welcome = 101, Reject = 102, Lobby = 103, StartLevel = 104, Snapshot = 105, PickupTaken = 106, ItemSpawned = 107,
-        Downed = 108, Revived = 109, AllDown = 110, LevelComplete = 111, ChatFrom = 112, GlowFrom = 113, PlayerLeft = 114, HostLeft = 115, Resync = 117;
+        Downed = 108, Revived = 109, AllDown = 110, LevelComplete = 111, ChatFrom = 112, GlowFrom = 113, PlayerLeft = 114, HostLeft = 115, Resync = 117, Descend = 118;
 }
 
 public class NetPlayer
@@ -42,7 +42,7 @@ public class NetStart
 // Los clientes generan el mismo mundo a partir de la semilla que envía el anfitrión. Transporte: TCP propio (NetTransport).
 public class NetSession : MonoBehaviour
 {
-    public const string Protocol = "BackroomsEscape-MP-1";
+    public const string Protocol = "BackroomsEscape-MP-2";
     public const int MaxPlayers = 4;
     public const int DefaultPort = 7777;
     public const float TickRate = 20f;
@@ -72,6 +72,7 @@ public class NetSession : MonoBehaviour
     public string RoomCode { get { return listener != null ? listener.RoomCode : ""; } }
     public string TransportStatus { get { return listener != null ? listener.Status : ""; } }
     public string TransportError { get { return listener != null ? listener.Error : null; } }
+    private int descendEpoch;                           // época para la que ya se ha ordenado bajar en el ascensor
     public int Epoch { get; private set; }               // nº de nivel en curso (lo decide el anfitrión)
     public int WorldEpoch { get; private set; }          // época del mundo construido (0 = ninguno)
     public ulong LocalWorldHash { get; private set; }
@@ -164,7 +165,7 @@ public class NetSession : MonoBehaviour
         LocalId = 0;
         Players.Clear();
         Players.Add(new NetPlayer { id = 0, name = LocalName, isLocal = true });
-        nextPlayerId = 1; Epoch = 0; WorldEpoch = 0;
+        nextPlayerId = 1; Epoch = 0; WorldEpoch = 0; descendEpoch = 0;
         taken.Clear(); takenBy.Clear(); drops.Clear();
         LastNotice = ""; LastError = "";
         if (!relay && AutoUpnp)
@@ -207,7 +208,7 @@ public class NetSession : MonoBehaviour
         Role = NetRole.Client;       // provisional: Update gestiona la fase de conexión
         InGame = false;
         Players.Clear();
-        Epoch = 0; WorldEpoch = 0;
+        Epoch = 0; WorldEpoch = 0; descendEpoch = 0;
     }
 
     public static string CleanName(string n)
@@ -248,7 +249,7 @@ public class NetSession : MonoBehaviour
         connector = null;
         Connecting = false; ConnectStatus = "";
         Role = NetRole.None; InGame = false;
-        Epoch = 0; WorldEpoch = 0; pendingStart = null; CurrentStart = null;
+        Epoch = 0; WorldEpoch = 0; descendEpoch = 0; pendingStart = null; CurrentStart = null;
         LocalDowned = false; LocalRevive01 = 0f;
         pickups.Clear(); taken.Clear(); takenBy.Clear(); drops.Clear();
         mons = new MonsterAI[0]; gm = null; fpc = null; localPlayer = null; gen = null;
@@ -519,7 +520,15 @@ public class NetSession : MonoBehaviour
         {
             bool all = true;
             foreach (NetPlayer p in Players) if (!p.ready) all = false;
-            if (all || now > gateUntil) { gateOpen = true; foreach (MonsterAI m in mons) if (m != null) m.Resume(); }
+            if (all || now > gateUntil)
+            {
+                gateOpen = true;
+                // todos están listos: el anfitrión da la orden de bajar (los monstruos esperan a que se abran las puertas del ascensor)
+                descendEpoch = Epoch;
+                Broadcast(new NetWriter(NetMsg.Descend).Int(Epoch).ToArray());
+                if (ElevatorCabin.Current != null) ElevatorCabin.Current.Begin();
+                else foreach (MonsterAI m in mons) if (m != null) m.Resume();
+            }
         }
         if (WorldEpoch != Epoch || WorldEpoch == 0 || gm == null) return;
         if (gm.State != GameManager.GameState.Playing) return;
@@ -733,6 +742,13 @@ public class NetSession : MonoBehaviour
                     LocalDowned = false;
                     break;
                 }
+                case NetMsg.Descend:
+                {
+                    int ep = r.Int();
+                    descendEpoch = ep;
+                    if (ep == WorldEpoch && WorldEpoch != 0 && ElevatorCabin.Current != null) ElevatorCabin.Current.Begin();
+                    break;
+                }
                 case NetMsg.Snapshot: ApplySnapshot(r); break;
                 case NetMsg.PickupTaken:
                 {
@@ -891,6 +907,7 @@ public class NetSession : MonoBehaviour
         {
             serverConn.Send(new NetWriter(NetMsg.Ready).Int(WorldEpoch).Long((long)LocalWorldHash).ToArray());
         }
+        if (descendEpoch == WorldEpoch && WorldEpoch != 0 && ElevatorCabin.Current != null) ElevatorCabin.Current.Begin();   // la orden llegó antes que el mundo
         Debug.Log("[NetSession] Mundo listo (época " + WorldEpoch + ", nivel " + cfg.index + ", semilla " + generator.UsedSeed + ", huella " + LocalWorldHash.ToString("x16") + ")");
     }
 
@@ -904,6 +921,13 @@ public class NetSession : MonoBehaviour
             Debug.LogWarning("[NetSession] " + msg);
             if (SystemMessage != null) SystemMessage(msg);
         }
+    }
+
+    // El ascensor local abrió las puertas: el anfitrión libera a los monstruos
+    public void OnElevatorOpened()
+    {
+        if (Role != NetRole.Host) return;
+        foreach (MonsterAI m in mons) if (m != null) m.Resume();
     }
 
     public bool AllReady()

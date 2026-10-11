@@ -52,6 +52,8 @@ public class GameManager : MonoBehaviour
     private float elapsed;
     private float stateTimer;
     private float introTimer;
+    private float titleClock;
+    private bool titleHold;
     private float toastTimer;
     private Transform killerTransform;
     private MonsterVisual killerVisual;
@@ -128,10 +130,16 @@ public class GameManager : MonoBehaviour
         UpdateHud();
     }
 
+    // El ascensor retiene la tarjeta de título hasta que se abren las puertas (ShowTitle)
+    public void HoldTitle(bool hold) { titleHold = hold; if (hold) titleClock = 0f; }
+    public void ShowTitle() { titleHold = false; titleClock = 0.4f; }
+    public bool TitleHeld { get { return titleHold; } }
+
     // Fundido de entrada y tarjeta de título "Nivel N — Nombre" durante unos segundos
     private void UpdateIntro(float dt)
     {
         introTimer += dt;
+        if (!titleHold) titleClock += dt;
         if (State == GameState.Playing && fadeImage != null)
         {
             float a = 1f - Mathf.Clamp01(introTimer / 1.5f);
@@ -141,10 +149,10 @@ public class GameManager : MonoBehaviour
         if (titleText != null && subtitleText != null)
         {
             float alpha = 0f;
-            if (introTimer > 0.4f && introTimer < titleSeconds)
+            if (!titleHold && titleClock > 0.4f && titleClock < titleSeconds)
             {
-                float fin = Mathf.Clamp01((introTimer - 0.4f) / 0.8f);
-                float fout = Mathf.Clamp01((titleSeconds - introTimer) / 1f);
+                float fin = Mathf.Clamp01((titleClock - 0.4f) / 0.8f);
+                float fout = Mathf.Clamp01((titleSeconds - titleClock) / 1f);
                 alpha = Mathf.Min(fin, fout);
             }
             Color c = titleText.color; c.a = alpha; titleText.color = c;
@@ -220,6 +228,7 @@ public class GameManager : MonoBehaviour
         else
         {
             State = GameState.LevelComplete;
+            if (playerCamera != null) ElevatorCabin.PlayExitCue(playerCamera.position);   // ding + puertas: «entras» en el ascensor mientras funde a negro
             if (messageText != null)
             {
                 messageText.text = "NIVEL SUPERADO";
@@ -294,6 +303,7 @@ public class GameManager : MonoBehaviour
 
         if (bootstrap != null)
         {
+            bootstrap.NextIntroSkippable = true;      // tras reiniciar el nivel el ascensor se puede saltar
             bootstrap.LoadLevel(levelIndex);
         }
         else
