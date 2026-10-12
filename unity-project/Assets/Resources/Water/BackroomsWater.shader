@@ -40,7 +40,8 @@ Shader "Hidden/BackroomsWater"
             sampler2D _NormalMap, _NoiseTex, _WaterGrab;
             UNITY_DECLARE_DEPTH_TEXTURE(_CameraDepthTexture);
             half _Absorb, _Refract;
-            float4 _PoolRoomRect;   // sala de piscina de Blender (xz min/max mundo): agua más clara
+            float4 _PoolRoomRect;
+            sampler2D _PoolPlanarTex; float _PoolPlanarOn;   // reflexión planar de la sala (Medio/Alto)   // sala de piscina de Blender (xz min/max mundo): agua más clara
             float _WDepthOn;
             fixed4 _Color, _Deep, _FoamCol, _UnderCol;
             half _Smooth, _WaveAmp;
@@ -114,7 +115,9 @@ Shader "Hidden/BackroomsWater"
                 float2 uv2 = i.wpos.xz * 0.87 + _WTime * float2(-0.022, 0.036);
                 float3 n1 = UnpackNormal(tex2D(_NormalMap, uv1));
                 float3 n2 = UnpackNormal(tex2D(_NormalMap, uv2));
-                N = normalize(N + float3(n1.x + n2.x, 0, n1.y + n2.y) * 0.32);
+                // las normales se suavizan con la distancia (menos distorsión/aliasing lejos)
+                float nFade = saturate(1.2 - length(_WorldSpaceCameraPos - i.wpos) / 28.0);
+                N = normalize(N + float3(n1.x + n2.x, 0, n1.y + n2.y) * 0.32 * nFade);
 
                 // ondas circulares (pisadas, chapoteos, objetos)
                 float crest = 0;
@@ -151,7 +154,7 @@ Shader "Hidden/BackroomsWater"
                     float3 L = Lv / max(dl, 0.001);
                     diff += saturate(dot(N, L)) * at * _WLCol[k].rgb * 0.45;
                     float3 H = normalize(L + V);
-                    spec += pow(saturate(dot(N, H)), 260.0) * at * _WLCol[k].rgb * 3.0;
+                    spec += pow(saturate(dot(N, H)), 520.0) * at * _WLCol[k].rgb * 2.6;
                 }
 
                 fixed4 res;
@@ -186,9 +189,9 @@ Shader "Hidden/BackroomsWater"
                 float3 refr = tex2D(_WaterGrab, guv).rgb;
                 // absorción azul-verdosa por profundidad (el rojo se pierde antes) + dispersión hacia el color profundo
                 float inRoom = (i.wpos.x > _PoolRoomRect.x && i.wpos.x < _PoolRoomRect.z && i.wpos.z > _PoolRoomRect.y && i.wpos.z < _PoolRoomRect.w) ? 1.0 : 0.0;
-                thick *= lerp(1.0, 0.5, inRoom);
+                thick *= lerp(1.0, 0.32, inRoom);
                 float3 trans = exp(-thick * float3(1.10, 0.36, 0.30) * _Absorb);
-                float3 scatter = lerp(lerp(_Color.rgb, float3(0.55, 0.86, 0.88), inRoom), lerp(_Deep.rgb, float3(0.16, 0.56, 0.66), inRoom), saturate(thick / 2.0)) * diff;
+                float3 scatter = lerp(lerp(_Color.rgb, float3(0.62, 0.92, 0.93), inRoom), lerp(_Deep.rgb, float3(0.22, 0.66, 0.74), inRoom), saturate(thick / 2.0)) * diff;
                 float3 baseCol = refr * trans * lerp(float3(1,1,1), _Color.rgb * 1.6, 0.35) + scatter * (1.0 - trans);
                 float alpha = 1.0;
 
@@ -196,6 +199,16 @@ Shader "Hidden/BackroomsWater"
                 float3 R = reflect(-V, N);
                 half4 pr = UNITY_SAMPLE_TEXCUBE_LOD(unity_SpecCube0, R, 1.0);
                 float3 env = DecodeHDR(pr, unity_SpecCube0_HDR);
+                if (inRoom > 0.5)
+                {
+                    if (_PoolPlanarOn > 0.5)
+                    {
+                        float2 puv = i.scrPos.xy / i.scrPos.w + N.xz * 0.035;
+                        env = lerp(env, tex2D(_PoolPlanarTex, puv).rgb, 0.9);
+                    }
+                    f = max(f, 0.05);
+                    baseCol *= 1.12;   // agua de piscina iluminada por los tragaluces
+                }
                 float3 col = lerp(baseCol, env, saturate(f * _Smooth));
                 col += spec;
 

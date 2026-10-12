@@ -44,7 +44,11 @@ Shader "Hidden/BackroomsCaustics"
                 if (under <= 0.0) return 0;
                 float3 n = abs(normalize(i.wn));
                 float3 w = pow(n, 4.0); w /= (w.x + w.y + w.z);
-                float c = Samp(i.wpos.xz * _Scale) * w.y + Samp(i.wpos.zy * _Scale) * w.x + Samp(i.wpos.xy * _Scale) * w.z;
+                // suelo: separación cromática (R/G/B desplazados, más con la profundidad), paredes: monocromo
+                float2 fu = i.wpos.xz * _Scale; float so = 0.004 + under * 0.003;
+                float3 cf = float3(Samp(fu + float2(so, so)), Samp(fu), Samp(fu - float2(so, so)));
+                float cw = Samp(i.wpos.zy * _Scale) * w.x + Samp(i.wpos.xy * _Scale) * w.z;
+                float3 c = cf * w.y + cw;
                 float fade = saturate(under * 6.0) * exp(-under * 0.35);
                 fixed4 col = fixed4(_CausticCol.rgb * c * fade, 0);
                 UNITY_APPLY_FOG_COLOR(i.fogCoord, col, fixed4(0, 0, 0, 0));

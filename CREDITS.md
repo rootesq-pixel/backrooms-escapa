@@ -80,3 +80,10 @@ Relay oficial integrado cifrado (AES/HMAC con System.Security.Cryptography) y to
 ## v6.7
 - **Fuentes** (`Assets/Resources/Fonts/`): «Escapa Mono» y «Escapa Sans Condensed» son versiones renombradas de **IBM Plex Mono / IBM Plex Sans Condensed** (© IBM Corp., SIL Open Font License 1.1) con glifos de **DejaVu** (licencia libre de Bitstream Vera/DejaVu) fusionados para símbolos; **Courier Prime** (© Quote-Unquote Apps, SIL OFL 1.1) para el texto en papel.
 - **Iconos 3D del inventario** y **cáusticas del agua** (flipbook de 64 fotogramas) renderizados con Blender a partir de escenas propias; sin activos de terceros.
+
+## Técnicas de agua (v6.7.2)
+
+Implementación propia inspirada en proyectos con licencia MIT (no se ha copiado código):
+- Optically-Realistic-Water (port de Unity del shader de Martins Upitis), MIT — reflexión planar con plano de recorte oblicuo, refracción enmascarada por profundidad, atenuación de normales con la distancia.
+- WebGL Water de Evan Wallace (2011), MIT — cáusticas proyectadas y reflexión planar en piscinas.
+- water-shader-unity (leonjovanovic) — separación cromática de cáusticas.
