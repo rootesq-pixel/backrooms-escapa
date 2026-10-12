@@ -27,8 +27,7 @@ public class VhsOverlay : MonoBehaviour
     private Font MonoFont()
     {
         if (mono != null) return mono;
-        try { mono = Font.CreateDynamicFontFromOSFont(new[] { "Consolas", "Courier New", "Lucida Console", "DejaVu Sans Mono", "Liberation Mono" }, 28); }
-        catch (Exception) { mono = null; }
+        mono = UiStyle.Mono();   // fuente incluida (acentos y ñ garantizados)
         if (mono == null) mono = ProceduralAssets.GetDefaultFont();
         return mono;
     }

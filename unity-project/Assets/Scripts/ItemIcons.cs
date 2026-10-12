@@ -9,6 +9,19 @@ public static class ItemIcons
     private static readonly Dictionary<string, Sprite> cache = new Dictionary<string, Sprite>();
 
     public static Sprite Get(ItemType t) { return GetNamed(t.ToString(), t); }
+    // Icono dibujado por código (respaldo si falta el render de Blender)
+    public static Sprite Procedural(ItemType t)
+    {
+        string key = "proc_" + t;
+        Sprite s;
+        if (cache.TryGetValue(key, out s) && s != null) return s;
+        Texture2D tex = Draw(t.ToString(), t);
+        tex.name = "Icon_" + key;
+        s = Sprite.Create(tex, new Rect(0, 0, Size, Size), new Vector2(0.5f, 0.5f), 100f);
+        s.name = "Icon_" + key;
+        cache[key] = s;
+        return s;
+    }
     public static Sprite Note() { return GetNamed("Note", ItemType.None); }
     public static Sprite Lock() { return GetNamed("Lock", ItemType.None); }
 
@@ -16,6 +29,15 @@ public static class ItemIcons
     {
         Sprite s;
         if (cache.TryGetValue(key, out s) && s != null) return s;
+        // Iconos renderizados en Blender (Tools/blender/item_icons.py) si existen
+        Texture2D rendered = Resources.Load<Texture2D>("Icons/" + key);
+        if (rendered != null)
+        {
+            s = Sprite.Create(rendered, new Rect(0, 0, rendered.width, rendered.height), new Vector2(0.5f, 0.5f), 100f);
+            s.name = "Icon_" + key;
+            cache[key] = s;
+            return s;
+        }
         Texture2D tex = Draw(key, t);
         tex.name = "Icon_" + key;
         s = Sprite.Create(tex, new Rect(0, 0, Size, Size), new Vector2(0.5f, 0.5f), 100f);
@@ -31,7 +53,7 @@ public static class ItemIcons
             if (kv.Value == null) continue;
             Texture2D tex = kv.Value.texture;
             ProceduralAssets.SafeDestroy(kv.Value);
-            ProceduralAssets.SafeDestroy(tex);
+            if (tex != null && tex.name.StartsWith("Icon_")) ProceduralAssets.SafeDestroy(tex);   // no destruir texturas de Resources
         }
         cache.Clear();
     }

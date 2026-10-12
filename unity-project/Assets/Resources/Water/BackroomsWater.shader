@@ -15,10 +15,14 @@ Shader "Hidden/BackroomsWater"
         _NoiseTex ("Noise", 2D) = "gray" {}
         _Smooth ("Reflectivity", Range(0,1)) = 0.9
         _WaveAmp ("Wave amplitude", Range(0,2)) = 1
+        _Absorb ("Absorption", Range(0,4)) = 1
+        _Refract ("Refraction strength", Range(0,0.2)) = 0.05
     }
     SubShader
     {
         Tags { "Queue"="Transparent" "RenderType"="Transparent" "IgnoreProjector"="True" }
+        // v6.7: refracción del fondo (una sola copia de pantalla por frame, compartida)
+        GrabPass { "_WaterGrab" }
         Pass
         {
             Tags { "LightMode"="ForwardBase" }
@@ -33,7 +37,10 @@ Shader "Hidden/BackroomsWater"
             #pragma multi_compile_fog
             #include "UnityCG.cginc"
 
-            sampler2D _NormalMap, _NoiseTex;
+            sampler2D _NormalMap, _NoiseTex, _WaterGrab;
+            UNITY_DECLARE_DEPTH_TEXTURE(_CameraDepthTexture);
+            half _Absorb, _Refract;
+            float _WDepthOn;
             fixed4 _Color, _Deep, _FoamCol, _UnderCol;
             half _Smooth, _WaveAmp;
             float4 _WRip[16];       // x, z, t0, amplitud
@@ -49,6 +56,8 @@ Shader "Hidden/BackroomsWater"
                 float3 nrm : TEXCOORD1;
                 fixed4 col : COLOR;
                 UNITY_FOG_COORDS(2)
+                float4 grabPos : TEXCOORD3;
+                float4 scrPos : TEXCOORD4;
             };
 
             // 3 olas: dirección, longitud de onda, amplitud
@@ -87,6 +96,9 @@ Shader "Hidden/BackroomsWater"
                 o.nrm = n;
                 o.col = v.color;
                 o.pos = UnityWorldToClipPos(wp);
+                o.grabPos = ComputeGrabScreenPos(o.pos);
+                o.scrPos = ComputeScreenPos(o.pos);
+                COMPUTE_EYEDEPTH(o.scrPos.z);
                 UNITY_TRANSFER_FOG(o, o.pos);
                 return o;
             }
@@ -153,16 +165,36 @@ Shader "Hidden/BackroomsWater"
                     return res;
                 }
 
-                float3 baseCol = lerp(_Color.rgb, _Deep.rgb, depth01) * diff;
-                float alpha = lerp(_Color.a, _Deep.a, depth01);
+                // grosor de agua hasta el fondo (textura de profundidad de la cámara; si no hay, color de vértice)
+                float surfZ = i.scrPos.z;
+                float thick = depth01 * 2.3;
+                if (_WDepthOn > 0.5)
+                {
+                    float sceneZ = LinearEyeDepth(SAMPLE_DEPTH_TEXTURE_PROJ(_CameraDepthTexture, UNITY_PROJ_COORD(i.scrPos)));
+                    thick = max(0.0, sceneZ - surfZ) * saturate(dot(V, float3(0, 1, 0)) + 0.25);
+                }
+                // refracción: el fondo desplazado por la normal de las ondas (menos en aguas muy someras)
+                float2 off = N.xz * _Refract * saturate(thick * 3.0 + 0.15);
+                float2 guv = i.grabPos.xy / i.grabPos.w + off;
+                if (_WDepthOn > 0.5)
+                {
+                    // no refractar objetos por delante del agua
+                    float zOff = LinearEyeDepth(SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, i.scrPos.xy / i.scrPos.w + off));
+                    if (zOff < surfZ) guv = i.grabPos.xy / i.grabPos.w;
+                }
+                float3 refr = tex2D(_WaterGrab, guv).rgb;
+                // absorción azul-verdosa por profundidad (el rojo se pierde antes) + dispersión hacia el color profundo
+                float3 trans = exp(-thick * float3(1.10, 0.36, 0.30) * _Absorb);
+                float3 scatter = lerp(_Color.rgb, _Deep.rgb, saturate(thick / 2.0)) * diff;
+                float3 baseCol = refr * trans * lerp(float3(1,1,1), _Color.rgb * 1.6, 0.35) + scatter * (1.0 - trans);
+                float alpha = 1.0;
 
-                float f = 0.03 + 0.97 * pow(1.0 - saturate(dot(N, V)), 5.0);
+                float f = 0.02 + 0.98 * pow(1.0 - saturate(dot(N, V)), 5.0);
                 float3 R = reflect(-V, N);
                 half4 pr = UNITY_SAMPLE_TEXCUBE_LOD(unity_SpecCube0, R, 1.0);
                 float3 env = DecodeHDR(pr, unity_SpecCube0_HDR);
                 float3 col = lerp(baseCol, env, saturate(f * _Smooth));
                 col += spec;
-                alpha = saturate(alpha + f * 0.55 + dot(spec, float3(0.33, 0.33, 0.33)));
 
                 // espuma: junto a paredes + crestas de ondas circulares
                 float nz = tex2D(_NoiseTex, i.wpos.xz * 0.7 + _WTime * float2(0.015, -0.01)).r;

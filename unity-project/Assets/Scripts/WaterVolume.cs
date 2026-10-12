@@ -228,6 +228,8 @@ public class WaterVolume : MonoBehaviour
             splashSources[i] = a;
         }
 
+        BuildCaustics(cfg);
+
         // sonda de reflexión en tiempo real (reflejos de las luces del techo)
         GameObject pg = new GameObject("WaterReflectionProbe");
         pg.transform.SetParent(transform, false);
@@ -248,6 +250,51 @@ public class WaterVolume : MonoBehaviour
         probe.clearFlags = ReflectionProbeClearFlags.SolidColor;
         probe.backgroundColor = RenderSettings.fogColor;
         probeTimer = 0.2f;
+    }
+
+    // ---------------- Cáusticas (Projector aditivo con flipbook de 64 fotogramas de Blender) ----------------
+    public const string CausticShaderResource = "Water/BackroomsCaustics";
+    public const int CausticFrames = 64;
+    public Projector caustics;
+    private Material causticMat;
+    private Texture2D[] causticTex;
+
+    private void BuildCaustics(LevelConfig cfg)
+    {
+        Shader cs = Resources.Load<Shader>(CausticShaderResource);
+        if (cs == null || !cs.isSupported) return;
+        causticTex = new Texture2D[CausticFrames];
+        for (int i = 0; i < CausticFrames; i++) causticTex[i] = Resources.Load<Texture2D>("Water/Caustics/caustics_" + i.ToString("000"));
+        if (causticTex[0] == null) return;
+        causticMat = Own(new Material(cs));
+        causticMat.SetFloat("_WaterY", surfaceY);
+        Color lc = cfg.lightColor;
+        causticMat.SetColor("_CausticCol", new Color(0.30f + lc.r * 0.15f, 0.42f + lc.g * 0.2f, 0.45f + lc.b * 0.2f, 1f) * 0.75f);
+        float totalW = Mathf.Max(3, cfg.gridW) * cfg.cellSize, totalH = Mathf.Max(3, cfg.gridH) * cfg.cellSize;
+        GameObject g = new GameObject("WaterCaustics");
+        g.transform.SetParent(transform, false);
+        g.transform.position = generator.Root.TransformPoint(new Vector3(totalW * 0.5f, cfg.waterLevel + 0.6f, totalH * 0.5f));
+        g.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+        caustics = g.AddComponent<Projector>();
+        caustics.orthographic = true;
+        caustics.orthographicSize = totalH * 0.5f + 1f;
+        caustics.aspectRatio = (totalW + 2f) / (totalH + 2f);
+        caustics.nearClipPlane = 0.05f;
+        caustics.farClipPlane = 3.6f;   // hasta el fondo más hondo
+        caustics.material = causticMat;
+        caustics.ignoreLayers = (1 << WaterLayer) | (1 << 8) | (1 << 5) | (1 << 2);
+    }
+
+    private void UpdateCaustics()
+    {
+        if (causticMat == null) return;
+        float ft = Time.time * 20f;
+        int f0 = Mathf.FloorToInt(ft) % CausticFrames, f1 = (f0 + 1) % CausticFrames;
+        causticMat.SetTexture("_CausticTex", causticTex[f0]);
+        causticMat.SetTexture("_CausticTex2", causticTex[f1]);
+        causticMat.SetFloat("_Blend", ft - Mathf.Floor(ft));
+        // Bajo: sin cáusticas (el Projector vuelve a dibujar el suelo y las paredes)
+        if (caustics != null) caustics.enabled = GameSettings.Quality >= 1;
     }
 
     private static Texture2D MakeDropTexture(int n)
@@ -345,6 +392,11 @@ public class WaterVolume : MonoBehaviour
         Shader.SetGlobalVectorArray("_WRip", ripples);
 
         UpdateSpecularLights();
+        UpdateCaustics();
+        // profundidad de escena para el grosor del agua (refracción/absorción)
+        Camera mc = Camera.main;
+        if (mc != null && !usingFallback && (mc.depthTextureMode & DepthTextureMode.Depth) == 0) mc.depthTextureMode |= DepthTextureMode.Depth;
+        Shader.SetGlobalFloat("_WDepthOn", mc != null && (mc.depthTextureMode & DepthTextureMode.Depth) != 0 ? 1f : 0f);
 
         // reflexión: se refresca cada ~2 s (suficiente para el parpadeo de las luces y barato: 64 px)
         // (sin dispositivo gráfico — -nographics — no hay nada que renderizar y el motor puede fallar al dibujar la sonda)

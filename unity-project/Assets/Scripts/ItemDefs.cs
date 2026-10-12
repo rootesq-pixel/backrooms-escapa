@@ -14,21 +14,23 @@ public static class ItemDefs
         public int maxStack;
         public bool usable, droppable;
         public int preferredSlot;     // casilla preferida (0-4 = barra rápida)
+        public float weight;          // kg por unidad (solo informativo)
+        public string condition;      // estado mostrado en la etiqueta del inventario
     }
 
     private static readonly Def[] defs =
     {
         new Def { type = ItemType.None, name = "", description = "", maxStack = 0 },
-        new Def { type = ItemType.Flashlight, name = "Linterna", useLabel = "Encender / apagar", maxStack = 1, usable = true, droppable = false, preferredSlot = 0,
+        new Def { type = ItemType.Flashlight, name = "Linterna", weight = 0.35f, condition = "Usada, abollada", useLabel = "Encender / apagar", maxStack = 1, usable = true, droppable = false, preferredSlot = 0,
             description = "Tu única compañera. Se gasta con el uso y parpadea cuando se queda sin batería. Recárgala con pilas. (F: encender/apagar)" },
-        new Def { type = ItemType.Battery, name = "Pila", useLabel = "Recargar linterna", maxStack = 9, usable = true, droppable = true, preferredSlot = 1,
-            description = "Pila alcalina que recarga la linterna. Se conservan al pasar de nivel. (B: usar una)" },
-        new Def { type = ItemType.AlmondWater, name = "Agua de almendras", useLabel = "Beber", maxStack = 5, usable = true, droppable = true, preferredSlot = 2,
+        new Def { type = ItemType.Battery, name = "Pila", weight = 0.023f, condition = "Nueva", useLabel = "Recargar linterna", maxStack = 9, usable = true, droppable = true, preferredSlot = 1,
+            description = "Pila alcalina AA que recarga la linterna. Las pilas se conservan al pasar de nivel. (B: usar una)" },
+        new Def { type = ItemType.AlmondWater, name = "Agua de almendras", weight = 0.5f, condition = "Precintada", useLabel = "Beber", maxStack = 5, usable = true, droppable = true, preferredSlot = 2,
             description = "El clásico de las Backrooms. Dulce y tibia: recupera toda la resistencia y devuelve algo de cordura." },
-        new Def { type = ItemType.Glowstick, name = "Barra luminosa", useLabel = "Lanzar", maxStack = 5, usable = true, droppable = true, preferredSlot = 3,
+        new Def { type = ItemType.Glowstick, name = "Barra luminosa", weight = 0.03f, condition = "Sin activar", useLabel = "Lanzar", maxStack = 5, usable = true, droppable = true, preferredSlot = 3,
             description = "Ilumina una zona pequeña con luz verde durante unos 2 minutos. Usar: la lanzas hacia delante. Soltar: la dejas en el suelo." },
-        new Def { type = ItemType.VhsTape, name = "Cinta de vídeo", useLabel = "Guardar", maxStack = 9, usable = false, droppable = true, preferredSlot = 4,
-            description = "Una cinta VHS sin etiqueta. Alguien grabó aquí antes que tú... Solo es un recuerdo inquietante: no sirve para nada, pero no la tires." },
+        new Def { type = ItemType.VhsTape, name = "Cinta de vídeo", weight = 0.25f, condition = "Desgastada", useLabel = "Guardar", maxStack = 9, usable = false, droppable = true, preferredSlot = 4,
+            description = "Una cinta VHS con una etiqueta escrita a mano: «NO ABRIR - 1994». Alguien grabó aquí antes que tú. No sirve para nada, pero no la tires." },
     };
 
     public static readonly ItemType[] All = { ItemType.Flashlight, ItemType.Battery, ItemType.AlmondWater, ItemType.Glowstick, ItemType.VhsTape };

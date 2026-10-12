@@ -14,14 +14,14 @@ using UnityEngine;
 public static class AudioMix
 {
     // ---- tabla de ganancias
-    public const float DroneMaster = 0.24f;      // × LevelConfig.droneVolume
+    public const float DroneMaster = 0.17f;      // × LevelConfig.droneVolume (v6.7: -3 dB para equilibrar con los pasos más bajos)
     public const float BuzzMaster = 0.50f;       // × volumen de zumbido de cada luz
     public const float EventMaster = 0.75f;      // gotas / crujidos / golpes aleatorios
-    public const float BreathMax = 0.16f;        // volumen máximo de una respiración (agotado)
-    public const float BreathMin = 0.04f;        // volumen de la respiración más suave
+    public const float BreathMax = 0.064f;      // v6.7: -8 dB, igual que los pasos;        // volumen máximo de una respiración (agotado)
+    public const float BreathMin = 0.016f;      // v6.7: -8 dB;        // volumen de la respiración más suave
     public const float HissIdle = 0.010f;        // zumbido VHS (tonal, sin ruido) en reposo (× intensidad VHS)
-    public const float HissGlitch = 0.050f;      // siseo VHS (ruido): SOLO por interferencia (× glitch); se puede apagar en Opciones
-    public const float StepMaster = 1f;          // pasos (ya normalizados a ≈ -23 dBFS)
+    public const float HissGlitch = 0.040f;      // siseo VHS (ruido): SOLO por interferencia (× glitch); se puede apagar en Opciones
+    public const float StepMaster = 0.40f;       // pasos: -8 dB (v6.7, antes 1.0; clips normalizados a ≈ -23 dBFS)
 
     private static int frame = -1;
     private static float sfx = 1f, amb = 1f;

@@ -720,7 +720,9 @@ public static class SmokeTest
         {
             ItemDefs.Def d = ItemDefs.Get(t);
             r.Check(!string.IsNullOrEmpty(d.name) && d.description.Length > 20 && d.maxStack >= 1, "objeto " + t + ": nombre '" + d.name + "', descripción y pila máxima " + d.maxStack);
-            Sprite sp = ItemIcons.Get(t);
+            Sprite rendered = ItemIcons.Get(t);
+            r.Check(rendered != null && rendered.texture != null && rendered.texture.width >= ItemIcons.Size, "icono de " + t + " (" + (rendered != null && rendered.texture != null ? rendered.texture.name + " " + rendered.texture.width + " px" : "nulo") + ")");
+            Sprite sp = ItemIcons.Procedural(t);
             bool ok = sp != null && sp.texture != null && sp.texture.width == ItemIcons.Size;
             int opaque = 0;
             if (ok) foreach (Color c in sp.texture.GetPixels()) if (c.a > 0.5f) opaque++;
@@ -929,7 +931,7 @@ public static class SmokeTest
         {
             AudioClip c = ProceduralAudio.CreateFootstep(k);
             AudioAudit.Stat st = AudioAudit.Measure(c);
-            stepDb = Mathf.Max(stepDb, AudioMix.Db(st.rms * 0.45f));    // volumen base de FootstepAudio
+            stepDb = Mathf.Max(stepDb, AudioMix.Db(st.rms * 0.45f * AudioMix.StepMaster));    // volumen base de FootstepAudio × StepMaster
             r.Check(st.peak <= 0.65f && st.rms <= 0.12f, "[Audio] paso " + k + ": pico " + st.peak.ToString("F2") + " / rms " + st.rms.ToString("F3"));
             UnityEngine.Object.DestroyImmediate(c);
         }
@@ -963,7 +965,7 @@ public static class SmokeTest
             AudioClip c = ProceduralAudio.CreateDrone(cfg.droneHz, cfg.droneNoise, 1000 + i * 17);
             AudioAudit.Stat st = AudioAudit.Measure(c);
             float eff = AudioMix.Db(st.rms * AudioMix.Drone(cfg.droneVolume));
-            r.Check(st.peak <= 0.85f && eff <= -27f && eff < stepDb - 3f, "[Audio] drone del nivel " + i + ": " + eff.ToString("F1") + " dB (≤ -27 y por debajo de los pasos)");
+            r.Check(st.peak <= 0.85f && eff <= -30f && eff <= stepDb + 3f, "[Audio] drone del nivel " + i + ": " + eff.ToString("F1") + " dB (≤ -30 y como mucho 3 dB sobre los pasos " + stepDb.ToString("F1") + " dB)");
             UnityEngine.Object.DestroyImmediate(c);
         }
         {
@@ -1882,6 +1884,15 @@ public static class SmokePlayRunner
             r.Check(inv.GetSlot(14).Empty && !iui.UseEnabled && !iui.DropEnabled && iui.DetailName == "Casilla vacía", "inventario: casilla vacía -> Usar/Soltar desactivados");
             iui.Select(0);
             r.Check(iui.UseEnabled && !iui.DropEnabled, "inventario: la linterna se puede usar pero no soltar");
+            {
+                int batCount = inv.GetSlot(batSlot).count;
+                bool moved = iui.DebugDrag(batSlot, 14);
+                bool ok = moved && inv.GetSlot(14).type == ItemType.Battery && inv.GetSlot(14).count == batCount && inv.GetSlot(batSlot).Empty;
+                bool back = iui.DebugDrag(14, batSlot) && inv.GetSlot(batSlot).type == ItemType.Battery;
+                bool flashFixed = !iui.DebugDrag(0, 13) && inv.GetSlot(0).type == ItemType.Flashlight;
+                r.Check(ok && back && flashFixed, "inventario: arrastrar y soltar mueve objetos entre casillas (la linterna queda fija)");
+                r.Check(Resources.Load<Texture2D>("Icons/Battery") != null && UiStyle.Mono() != null && UiStyle.Mono().name.Contains("Escapa"), "inventario: iconos renderizados y fuente incluida cargados");
+            }
             // pestaña de notas
             iui.SetTab(true);
             r.Check(iui.NotesTabOpen && iui.VisibleNoteRows == inv.NotesFound, "inventario: pestaña de notas (" + iui.VisibleNoteRows + " leídas)");

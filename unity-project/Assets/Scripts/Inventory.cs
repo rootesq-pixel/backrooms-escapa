@@ -95,6 +95,16 @@ public class Inventory : MonoBehaviour
 
     public Slot GetSlot(int i) { return i >= 0 && i < slots.Length ? slots[i] : default(Slot); }
 
+    // Arrastrar y soltar en el inventario: intercambia dos casillas (la linterna se queda en la casilla 1)
+    public bool Swap(int a, int b)
+    {
+        if (a == b || a < 1 || b < 1 || a >= slots.Length || b >= slots.Length) return false;
+        if (slots[a].Empty && slots[b].Empty) return false;
+        Slot t = slots[a]; slots[a] = slots[b]; slots[b] = t;
+        Notify();
+        return true;
+    }
+
     public int UsedSlots { get { int n = 0; for (int i = 0; i < slots.Length; i++) if (!slots[i].Empty) n++; return n; } }
 
     // ------------------------------------------------------------------

@@ -209,7 +209,8 @@ public class MultiplayerUI : MonoBehaviour
         lobbyTitle = ui.Label(r, "SALA", 80, TextAnchor.MiddleCenter, 0f, 400f, 1500f, 110f, Gold);
         lobbyInfo = ui.Label(r, "", 24, TextAnchor.MiddleCenter, 0f, 320f, 1600f, 70f, Dim);
         Image frame = UiStyle.Framed(r, "PlayersFrame", 0f, 120f, 900f, 300f, new Color(0.04f, 0.035f, 0.02f, 0.9f), UiStyle.Border, 2f);
-        lobbyPlayers = UiStyle.Label(frame.transform, "", 34, TextAnchor.UpperLeft, 0f, 0f, 840f, 260f, UiStyle.Text);
+        lobbyPlayers = UiStyle.Label(frame.transform, "", 32, TextAnchor.MiddleLeft, 0f, 0f, 840f, 250f, UiStyle.Text);
+        lobbyPlayers.lineSpacing = 1.25f;   // 4 filas caben en el marco con cualquier fuente
         lobbyLevelText = ui.Label(r, "", 32, TextAnchor.MiddleCenter, 0f, -70f, 800f, 50f, UiStyle.Text);
         btnPrev = ui.MakeButton(r, "◄", -470f, -70f, 80f, 56f, () => { ui.PlayClick(); LobbyLevel = (LobbyLevel + LevelConfig.Count - 1) % LevelConfig.Count; lobbyDirty = true; }, 30);
         btnNext = ui.MakeButton(r, "►", 470f, -70f, 80f, 56f, () => { ui.PlayClick(); LobbyLevel = (LobbyLevel + 1) % LevelConfig.Count; lobbyDirty = true; }, 30);
@@ -528,7 +529,6 @@ public class MultiplayerUI : MonoBehaviour
                 sb.AppendLine((i + 1) + ". " + p.name + (p.id == 0 ? "  [anfitrión]" : "") + (p.isLocal ? "  (tú)" : ""));
             }
             else sb.AppendLine((i + 1) + ". — esperando jugador —");
-            sb.AppendLine();
         }
         lobbyPlayers.text = sb.ToString();
         lobbyLevelText.gameObject.SetActive(host);

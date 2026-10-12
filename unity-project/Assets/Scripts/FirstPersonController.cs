@@ -90,6 +90,7 @@ public class FirstPersonController : MonoBehaviour
     public float CurrentNoiseRadius { get; private set; }
     public float Lean { get { return leanValue; } }
     public float Pitch { get { return pitch; } }
+    public void SetPitch(float p) { pitch = Mathf.Clamp(p, -maxPitch, maxPitch); }   // tráiler / cámara guionizada
 
     // --- Agua (WaterVolume) ---
     [Header("Agua")]

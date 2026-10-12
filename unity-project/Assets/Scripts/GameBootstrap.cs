@@ -370,6 +370,10 @@ public class GameBootstrap : MonoBehaviour
         RenderSettings.fogMode = FogMode.Exponential;
         RenderSettings.fogColor = cfg.fog;
         RenderSettings.fogDensity = cfg.fogDensity;
+        Shader.SetGlobalFloat("_GradeAmt", cfg.grade);
+        Shader.SetGlobalFloat("_GradeWarm", 1f);
+        Shader.SetGlobalFloat("_GradeContrast", 1.4f);
+        Shader.SetGlobalFloat("_GradeExposure", 0.85f);
     }
 
     // ------------------------------------------------------------------

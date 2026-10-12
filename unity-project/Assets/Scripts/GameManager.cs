@@ -366,7 +366,8 @@ public class GameManager : MonoBehaviour
         {
             batteryFill.anchorMax = new Vector2(Mathf.Clamp01(flashlight.Battery01), 1f);
         }
-        if (infoText != null)
+        if (infoText != null && HideControlsHint) { if (infoText.text.Length > 0) infoText.text = ""; }
+        else if (infoText != null)
         {
             float total = (bootstrap != null ? bootstrap.RunElapsed : 0f) + elapsed;
             string name = config != null ? config.name : string.Empty;
@@ -375,6 +376,9 @@ public class GameManager : MonoBehaviour
                 + "\nWASD mover · Shift correr · Ctrl/C agacharse · Q/E asomarse · F linterna · B usar pila · I inventario · V VHS · R reiniciar · Esc pausa";
         }
     }
+
+    // Grabación del tráiler: oculta el texto de nivel/controles de la esquina superior
+    public static bool HideControlsHint;
 
     private void SetOverlayColor(Color c)
     {

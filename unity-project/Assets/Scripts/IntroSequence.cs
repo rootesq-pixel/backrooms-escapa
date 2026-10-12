@@ -13,6 +13,7 @@ public class IntroSequence : MonoBehaviour
     public static IntroSequence Current { get; private set; }
     public static bool Active { get { return Current != null; } }
     public static bool Completed { get; private set; }
+    public static float FixedStep = 0f;   // solo grabación del tráiler: paso fijo por fotograma
     public static int PlayedCount { get; private set; }
     public static event Action Finished;
 
@@ -173,7 +174,7 @@ public class IntroSequence : MonoBehaviour
     // ------------------------------------------------------------------ bucle
     private void Update()
     {
-        float dt = Mathf.Min(Time.unscaledDeltaTime, 0.05f);   // los tirones de carga del menú no se comen la intro
+        float dt = FixedStep > 0f ? FixedStep : Mathf.Min(Time.unscaledDeltaTime, 0.05f);   // los tirones de carga del menú no se comen la intro
         Soft = GameSettings.SoftScare;
         if (!fading)
         {

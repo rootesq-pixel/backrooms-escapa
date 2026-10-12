@@ -147,7 +147,7 @@ public class VhsEffect : MonoBehaviour
     private void OnRenderImage(RenderTexture src, RenderTexture dst)
     {
         float I = Mathf.Max(CurrentIntensity, ScreamLevel * 0.9f);
-        if (material == null || UsingFallback || I <= 0.001f)
+        if (material == null || UsingFallback || (I <= 0.001f && Shader.GetGlobalFloat("_GradeAmt") <= 0.001f))
         {
             Graphics.Blit(src, dst);
             return;

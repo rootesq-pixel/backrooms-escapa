@@ -3,15 +3,15 @@
 Juego de terror en primera persona para PC (Windows 64 bits) hecho con **Unity**: escapa de las Backrooms a través de **5 niveles** encadenados. Cada nivel es un laberinto (o aparcamiento abierto) procedural con su propia estética, luces, dificultad y criaturas que patrullan y te persiguen. La salida es una puerta discreta que **solo se descubre explorando**: sin cartel, sin flecha, sin indicador de distancia.
 
 - 🌐 **Web:** https://rootesq-pixel.github.io/backrooms-escapa/
-- ⬇️ **Descarga directa v6.6 (Windows, ZIP ≈ 57 MB):** [BackroomsEscape_v6_6_Windows.zip](https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v6.6.0/BackroomsEscape_v6_6_Windows.zip)
-- 📦 **Release v6.6.0:** https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.6.0
+- ⬇️ **Descarga directa v6.7 (Windows, ZIP ≈ 60 MB):** [BackroomsEscape_v6_7_Windows.zip](https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v6.7.0/BackroomsEscape_v6_7_Windows.zip)
+- 📦 **Release v6.7.0:** https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.7.0
 - 🕓 Versiones anteriores: [v6.5.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.5.0) (audio e intro) · [v6.4.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.4.0) (ascensor) · [v6.3.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.3.0) (5 niveles, sin ascensor) · [v6.2.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.2.0) (multijugador por Internet, 6 niveles) · [v6.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.0.0) (multijugador por IP y puerto) · [v5.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v5.0.0) (un jugador)
 
 > ⚠️ **Build temprana.** Puede haber errores. El **multijugador** se ha probado en local y con un servidor intermedio real; **las pruebas con amigos por Internet están pendientes**. El ejecutable **no está firmado**, así que Windows SmartScreen puede avisar al abrirlo (*Más información → Ejecutar de todas formas*).
 
 ## Cómo jugar
 
-1. Descarga `BackroomsEscape_v6_6_Windows.zip` desde la [release v6.6.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.6.0).
+1. Descarga `BackroomsEscape_v6_7_Windows.zip` desde la [release v6.7.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.7.0).
 2. Descomprime el ZIP (≈ 113 MB descomprimido).
 3. Ejecuta `BackroomsEscape.exe`.
 
@@ -26,6 +26,15 @@ Juego de terror en primera persona para PC (Windows 64 bits) hecho con **Unity**
 | 4 | Complejo industrial | Chapa oxidada, tuberías y luces de emergencia rojas | 2 × El Hollín (más rápidos) |
 
 Al llegar a la puerta de salida se carga el siguiente nivel; tras el nivel 4 aparece la pantalla de victoria (tiempo total e intentos fallidos). Si te atrapan, el nivel se reinicia.
+
+## Novedades de la v6.7
+
+- **Inventario realista:** maletín metálico con espuma, iconos 3D de cada objeto, peso y estado, y arrastrar y soltar entre huecos.
+- **Textos y fuentes con tildes:** fuentes incluidas con todos los acentos y símbolos; textos revisados (notas, sala multijugador, descripciones).
+- **Objetivo dentro del recuadro:** el objetivo ya no se sale de su caja en ninguna resolución (ultrapanorámica y 5:4 incluidas).
+- **Pasos −8 dB:** pasos (también de los demás jugadores), respiración y zumbido más suaves.
+- **Luz del Nivel 0:** luz más cálida y suave, panel del techo menos quemado y caída de luz más inquietante.
+- **Agua realista en Poolrooms:** refracción del fondo, absorción azul verdosa por profundidad, reflejos con Fresnel, brillos y cáusticas animadas en el fondo y las paredes.
 
 ## Novedades de la v6.6: susto de muerte visible y texturas realistas
 
@@ -74,7 +83,7 @@ Modo **cooperativo de 2 a 4 jugadores**. El modo de un jugador no cambia: la red
 
 **Opción A: con código (recomendada, sin abrir puertos)**
 
-1. Todos necesitáis la **misma versión** (v6.6). El protocolo sigue siendo **MP-2** (el de la v6.4): la v6.3 y anteriores **no pueden unirse**; v6.4, v6.5 y v6.6 comparten protocolo, pero lo más seguro es que todos uséis la misma versión.
+1. Todos necesitáis la **misma versión** (v6.7). El protocolo sigue siendo **MP-2** (el de la v6.4): la v6.3 y anteriores **no pueden unirse**; v6.4, v6.5 y v6.6 comparten protocolo, pero lo más seguro es que todos uséis la misma versión.
 2. **Anfitrión:** menú principal → **Multijugador** → tu nombre → **Alojar con código**. Pasa a tus amigos el código de la sala.
 3. **Clientes:** Multijugador → tu nombre → **Unirse con código** → escribe el código → entras en la sala de espera.
 4. El anfitrión elige el nivel con ◄ ► y pulsa **Empezar**. No se puede entrar en una partida ya empezada.

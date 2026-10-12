@@ -28,6 +28,8 @@ Shader "Hidden/BackroomsVHS"
             float _Glitch;
             float _Scream;
             float _VhsTime;
+            // grading por nivel (global): 0 = sin cambios. Tonemap filmico suave (no quema el panel), calidez y contraste
+            float _GradeAmt, _GradeWarm, _GradeContrast, _GradeExposure;
 
             float hash11(float p)
             {
@@ -143,6 +145,16 @@ Shader "Hidden/BackroomsVHS"
                 col *= inside.x * inside.y;
 
                 col = lerp(orig.rgb, col, saturate(I * 1.35));
+                if (_GradeAmt > 0.001)
+                {
+                    float3 x = max(col * _GradeExposure, 0);
+                    float3 tm = (x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14);   // ACES (Narkowicz)
+                    float l = dot(tm, float3(0.299, 0.587, 0.114));
+                    tm = lerp(l.xxx, tm, 1.0 + 0.08 * _GradeContrast);
+                    tm = saturate((tm - 0.5) * (1.0 + 0.18 * _GradeContrast) + 0.5 + 0.02);
+                    tm *= float3(1.0 + 0.06 * _GradeWarm, 1.0 + 0.01 * _GradeWarm, 1.0 - 0.10 * _GradeWarm);
+                    col = lerp(col, tm, _GradeAmt);
+                }
                 return fixed4(col, 1);
             }
             ENDCG

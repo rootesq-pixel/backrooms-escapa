@@ -44,6 +44,7 @@ public class LevelConfig
     // --- Atmósfera ---
     public Color ambient = new Color(0.12f, 0.10f, 0.05f);
     public Color fog = new Color(0.20f, 0.17f, 0.07f);
+    public float grade;   // grading/tonemap del VHS (0 = ninguno)
     public float fogDensity = 0.04f;
     public float reflectionIntensity = 0.1f;
 
@@ -132,12 +133,13 @@ public class LevelConfig
         c.loopChance = 0.12f; c.roomCount = 8;
         c.wallStyle = SurfaceStyle.WallpaperYellow; c.floorStyle = SurfaceStyle.CarpetBrown; c.ceilingStyle = SurfaceStyle.CeilingBeige;
         c.wallTileU = 2.4f; c.wallTileV = 0f; c.floorTileU = c.floorTileV = 2f; c.ceilTileU = c.ceilTileV = 2.4f;
-        c.ambient = new Color(0.17f, 0.145f, 0.075f);
-        c.fog = new Color(0.30f, 0.25f, 0.10f);
+        c.ambient = new Color(0.105f, 0.08f, 0.037f);   // v6.7: look más cálido y suave (inspirado en la prueba HDRP)
+        c.fog = new Color(0.29f, 0.22f, 0.085f);
+        c.grade = 1f;
         c.fogDensity = 0.035f;
         c.fixture = FixtureKind.Panel; c.lightSpacing = 2; c.deadChance = 0.08f; c.flickerChance = 0.3f;
-        c.lightColor = new Color(1f, 0.95f, 0.70f); c.emissionColor = new Color(1.5f, 1.4f, 0.9f);
-        c.lightIntensity = 1.1f; c.lightRange = 9f; c.maxRealtimeLights = 10;
+        c.lightColor = new Color(1f, 0.87f, 0.60f); c.emissionColor = new Color(1.05f, 0.93f, 0.56f);
+        c.lightIntensity = 1.3f; c.lightRange = 7.0f; c.maxRealtimeLights = 10;
         c.flashlightDrain = 0.5f; c.flashlightRecharge = 0.15f; c.batteries = 4; c.batteryAmount = 35f;
         c.monsterCount = 1; c.patrolSpeed = 1.8f; c.chaseSpeed = 4.0f; c.sightRange = 18f; c.hearingScale = 1f;
         c.droneHz = 60f; c.droneNoise = 0.12f; c.droneVolume = 0.30f; c.ambientEvent = AmbientEvent.Creak;

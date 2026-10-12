@@ -216,7 +216,7 @@ public class Screamer : MonoBehaviour
 
     private void BuildUi()
     {
-        try { mono = Font.CreateDynamicFontFromOSFont(new[] { "Consolas", "Courier New", "Lucida Console", "DejaVu Sans Mono", "Liberation Mono" }, 40); } catch { mono = null; }
+        mono = UiStyle.MonoBold();
         if (mono == null) mono = ProceduralAssets.GetDefaultFont();
 
         GameObject cg = new GameObject("ScreamerCanvas");

@@ -13,14 +13,43 @@ public static class UiStyle
     public static readonly Color BorderHi = new Color(0.98f, 0.82f, 0.30f, 1f);
     public static readonly Color Good = new Color(0.45f, 0.85f, 0.5f);
 
-    private static Font mono;
-    public static Font Mono()
+    // Fuentes incluidas en el proyecto (Resources/Fonts, licencia OFL): cubren acentos, ñ, ¿ ¡ « » y comillas tipográficas
+    // en cualquier sistema. Si faltaran, se recurre a fuentes del sistema.
+    private static Font mono, monoBold, sans, sansBold, type, typeBold;
+    private static Font Load(ref Font cache, string res)
     {
-        if (mono != null) return mono;
-        try { mono = Font.CreateDynamicFontFromOSFont(new[] { "Consolas", "Courier New", "Lucida Console", "DejaVu Sans Mono", "Liberation Mono" }, 28); }
-        catch (System.Exception) { mono = null; }
-        if (mono == null) mono = ProceduralAssets.GetDefaultFont();
-        return mono;
+        if (cache != null) return cache;
+        cache = Resources.Load<Font>("Fonts/" + res);
+        if (cache == null)
+        {
+            try { cache = Font.CreateDynamicFontFromOSFont(new[] { "Consolas", "Courier New", "Lucida Console", "DejaVu Sans Mono", "Liberation Mono" }, 28); }
+            catch (System.Exception) { cache = null; }
+            if (cache == null) cache = ProceduralAssets.GetDefaultFont();
+        }
+        return cache;
+    }
+    public static Font Mono() { return Load(ref mono, "EscapaMono-Regular"); }
+    public static Font MonoBold() { return Load(ref monoBold, "EscapaMono-Bold"); }
+    public static Font Sans() { return Load(ref sans, "EscapaSansCondensed-Regular"); }
+    public static Font SansBold() { return Load(ref sansBold, "EscapaSansCondensed-SemiBold"); }
+    public static Font Typewriter() { return Load(ref type, "CourierPrime-Regular"); }
+    public static Font TypewriterBold() { return Load(ref typeBold, "CourierPrime-Bold"); }
+
+    // Cambia la fuente de un texto; "negrita" usa el archivo Bold real en vez de la negrita sintética
+    public static Text SetFont(Text t, Font f) { t.font = f; t.fontStyle = FontStyle.Normal; return t; }
+
+    // Sprite de una textura en Resources/UI (cacheado)
+    private static readonly System.Collections.Generic.Dictionary<string, Sprite> sprites = new System.Collections.Generic.Dictionary<string, Sprite>();
+    public static Sprite UiSprite(string name, float border = 0f)
+    {
+        Sprite s;
+        if (sprites.TryGetValue(name, out s) && s != null) return s;
+        Texture2D tex = Resources.Load<Texture2D>("UI/" + name);
+        if (tex == null) return null;
+        s = Sprite.Create(tex, new UnityEngine.Rect(0, 0, tex.width, tex.height), new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect, new Vector4(border, border, border, border));
+        s.name = "UI_" + name;
+        sprites[name] = s;
+        return s;
     }
 
     // Rectángulo centrado con el ancla en el centro del padre
@@ -52,7 +81,7 @@ public static class UiStyle
         GameObject go = new GameObject("Text", typeof(RectTransform));
         go.transform.SetParent(parent, false);
         Text t = go.AddComponent<Text>();
-        t.font = Mono(); t.fontSize = size; t.alignment = anchor; t.fontStyle = style;
+        t.font = style == FontStyle.Bold ? MonoBold() : Mono(); t.fontSize = size; t.alignment = anchor; t.fontStyle = style == FontStyle.Bold ? FontStyle.Normal : style;
         t.color = color ?? Text; t.text = content;
         t.horizontalOverflow = HorizontalWrapMode.Wrap; t.verticalOverflow = VerticalWrapMode.Overflow;
         t.raycastTarget = false;

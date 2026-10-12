@@ -54,7 +54,7 @@ public class UIManager : MonoBehaviour
     private void Awake()
     {
         Instance = this;
-        font = ProceduralAssets.GetDefaultFont();
+        font = UiStyle.Sans();   // Escapa Sans Condensed (IBM Plex) incluida en Resources/Fonts
         EnsureEventSystem();
         BuildCanvas();
         clickClip = ProceduralAudio.CreateUiClick();
