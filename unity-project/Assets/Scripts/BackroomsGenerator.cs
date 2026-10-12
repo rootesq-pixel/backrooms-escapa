@@ -68,6 +68,19 @@ public class BackroomsGenerator : MonoBehaviour
     private int w;
     private int h;
     // wallsV[i, j]: muro vertical en la línea x=i, fila j (entre celda i-1 e i)
+    // v6.7.1: sala de piscina de Blender (Poolrooms) en un bloque de celdas abierto
+    public bool HasPoolRoom { get; private set; }
+    public RectInt PoolBlock { get; private set; }          // celdas
+    public Rect PoolRectLocal { get; private set; }         // vaso de la piscina (XZ local)
+    public const float PoolDeckY = 0.28f, PoolDepth = 1.4f;
+    public const int PoolBlockW = 4, PoolBlockH = 3;
+    public bool InPoolBlock(int x, int z) { return HasPoolRoom && PoolBlock.Contains(new Vector2Int(x, z)); }
+    public bool IsPoolCell(int x, int z)
+    {
+        if (!InPoolBlock(x, z)) return false;
+        Vector3 c = CellCenterLocal(x, z);
+        return PoolRectLocal.Contains(new Vector2(c.x, c.z));
+    }
     private bool[,] wallsV;
     // wallsH[i, j]: muro horizontal en la línea z=j, columna i (entre celda j-1 y j)
     private bool[,] wallsH;
@@ -195,6 +208,12 @@ public class BackroomsGenerator : MonoBehaviour
     // Altura del suelo analítica (el suelo es plano); coordenadas locales
     public float FloorHeightLocal(float x, float z)
     {
+        if (HasPoolRoom)
+        {
+            float cs = cellSize;
+            if (x >= PoolBlock.x * cs && x <= PoolBlock.xMax * cs && z >= PoolBlock.y * cs && z <= PoolBlock.yMax * cs)
+                return PoolRectLocal.Contains(new Vector2(x, z)) ? PoolDeckY - PoolDepth : PoolDeckY;
+        }
         return 0f;
     }
 
@@ -282,6 +301,7 @@ public class BackroomsGenerator : MonoBehaviour
                 Vector2Int n = c + Dirs[d];
                 int ni = n.y * w + n.x;
                 if (parent[ni] != -2) continue;
+                if (ni != bi && IsPoolCell(n.x, n.y)) continue;   // no cruzar el vaso de la piscina
                 parent[ni] = cur;
                 queue.Enqueue(ni);
             }
@@ -378,6 +398,25 @@ public class BackroomsGenerator : MonoBehaviour
                     wallsH[i, j] = false;
         }
 
+        ChoosePoolBlock();
+    }
+
+    private void ChoosePoolBlock()
+    {
+        HasPoolRoom = false;
+        Shader.SetGlobalVector("_PoolRoomRect", new Vector4(1e6f, 1e6f, -1e6f, -1e6f));
+        if (config == null || !config.water || config.index != 2 || w < PoolBlockW + 2 || h < PoolBlockH + 2) return;
+        System.Random pr = new System.Random(UsedSeed * 131 + 17);
+        int bx = 1 + pr.Next(w - PoolBlockW - 1), bz = 1 + pr.Next(h - PoolBlockH - 1);
+        PoolBlock = new RectInt(bx, bz, PoolBlockW, PoolBlockH);
+        for (int i = bx + 1; i < bx + PoolBlockW; i++) for (int j = bz; j < bz + PoolBlockH; j++) wallsV[i, j] = false;
+        for (int i = bx; i < bx + PoolBlockW; i++) for (int j = bz + 1; j < bz + PoolBlockH; j++) wallsH[i, j] = false;
+        float cs = cellSize;
+        Vector2 ctr = new Vector2((bx + PoolBlockW * 0.5f) * cs, (bz + PoolBlockH * 0.5f) * cs);
+        // vaso 8x4 de Blender escalado como la sala (14x10 -> interior del bloque)
+        float sx = (PoolBlockW * cs - wallThickness) / 14f, sz = (PoolBlockH * cs - wallThickness) / 10f;
+        PoolRectLocal = new Rect(ctr.x - 4f * sx, ctr.y - 2f * sz, 8f * sx, 4f * sz);
+        HasPoolRoom = true;
     }
 
     private bool InBounds(Vector2Int c)
@@ -445,6 +484,7 @@ public class BackroomsGenerator : MonoBehaviour
             for (int j = 0; j < h; j++)
             {
                 if (distFromStart[i, j] < minExit) continue;
+                if (InPoolBlock(i, j)) continue;
                 Vector2Int c = new Vector2Int(i, j);
                 bool hasWall = false;
                 for (int d = 0; d < 4; d++) if (!IsOpen(c, d)) hasWall = true;
@@ -464,7 +504,7 @@ public class BackroomsGenerator : MonoBehaviour
         {
             for (int j = 0; j < h; j++)
             {
-                if (distFromStart[i, j] >= minDist && !(i == exitCell.x && j == exitCell.y))
+                if (distFromStart[i, j] >= minDist && !(i == exitCell.x && j == exitCell.y) && !InPoolBlock(i, j))
                 {
                     candidates.Add(new Vector2Int(i, j));
                 }
@@ -561,12 +601,14 @@ public class BackroomsGenerator : MonoBehaviour
             {
                 float x0 = cx * chunkCells * cs, x1 = Mathf.Min(w, (cx + 1) * chunkCells) * cs;
                 float z0 = cz * chunkCells * cs, z1 = Mathf.Min(h, (cz + 1) * chunkCells) * cs;
-                flatB[cx, cz].AddQuad(SlotFloor, new Vector3(x0, 0f, z0), new Vector3(x1, 0f, z0), new Vector3(x1, 0f, z1), new Vector3(x0, 0f, z1),
-                    Vector3.up, Vector3.right, Vector3.forward, cfg.floorTileU, cfg.floorTileV, 0f, 0f);
+                foreach (Rect fr in FloorRectsMinusPool(x0, z0, x1, z1))
+                    flatB[cx, cz].AddQuad(SlotFloor, new Vector3(fr.xMin, 0f, fr.yMin), new Vector3(fr.xMax, 0f, fr.yMin), new Vector3(fr.xMax, 0f, fr.yMax), new Vector3(fr.xMin, 0f, fr.yMax),
+                        Vector3.up, Vector3.right, Vector3.forward, cfg.floorTileU, cfg.floorTileV, 0f, 0f);
                 flatB[cx, cz].AddQuad(SlotCeiling, new Vector3(x0, wh, z0), new Vector3(x1, wh, z0), new Vector3(x1, wh, z1), new Vector3(x0, wh, z1),
                     Vector3.down, Vector3.right, Vector3.forward, cfg.ceilTileU, cfg.ceilTileV, 0f, 0f);
             }
         }
+        MeshBuilder poolWallB = new MeshBuilder(1);
         // Paredes verticales (a lo largo de Z) y horizontales (a lo largo de X)
         // Se acortan 2 mm en cada extremo para que los extremos no queden coplanares con otras paredes (z-fighting)
         float segLen = cs + t - 0.004f;
@@ -579,7 +621,8 @@ public class BackroomsGenerator : MonoBehaviour
                 int cx = Mathf.Min(i, w - 1) / chunkCells, cz = j / chunkCells;
                 float sh = wh;
                 Vector3 center = new Vector3(i * cs, sh * 0.5f, (j + 0.5f) * cs);
-                wallsB[cx, cz].AddWallBox(SlotWall, center, new Vector3(t, sh, segLen), cfg.wallTileU, cfg.wallTileV, (float)rng.NextDouble());
+                bool poolSideV = HasPoolRoom && j >= PoolBlock.y && j < PoolBlock.yMax && (i == PoolBlock.x || i == PoolBlock.xMax);
+                (poolSideV ? poolWallB : wallsB[cx, cz]).AddWallBox(SlotWall, center, new Vector3(t, sh, segLen), cfg.wallTileU, cfg.wallTileV, (float)rng.NextDouble());
                 wallSegments++;
                 if (cfg.pipes && rng.NextDouble() < 0.35)
                 {
@@ -598,7 +641,8 @@ public class BackroomsGenerator : MonoBehaviour
                 int cx = i / chunkCells, cz = Mathf.Min(j, h - 1) / chunkCells;
                 float sh = wh;
                 Vector3 center = new Vector3((i + 0.5f) * cs, sh * 0.5f, j * cs);
-                wallsB[cx, cz].AddWallBox(SlotWall, center, new Vector3(segLen, sh, t), cfg.wallTileU, cfg.wallTileV, (float)rng.NextDouble());
+                bool poolSideH = HasPoolRoom && i >= PoolBlock.x && i < PoolBlock.xMax && (j == PoolBlock.y || j == PoolBlock.yMax);
+                (poolSideH ? poolWallB : wallsB[cx, cz]).AddWallBox(SlotWall, center, new Vector3(segLen, sh, t), cfg.wallTileU, cfg.wallTileV, (float)rng.NextDouble());
                 wallSegments++;
                 if (cfg.pipes && rng.NextDouble() < 0.35)
                 {
@@ -675,7 +719,14 @@ public class BackroomsGenerator : MonoBehaviour
         }
 
         // Colliders planos de suelo y techo (cajas grandes: sin costuras)
-        AddBox("FloorCollider", new Vector3(totalW * 0.5f, -0.1f, totalH * 0.5f), new Vector3(totalW + 2f * t, 0.2f, totalH + 2f * t));
+        if (!HasPoolRoom) AddBox("FloorCollider", new Vector3(totalW * 0.5f, -0.1f, totalH * 0.5f), new Vector3(totalW + 2f * t, 0.2f, totalH + 2f * t));
+        else
+        {
+            int k = 0;
+            foreach (Rect fr in FloorRectsMinusPool(-t, -t, totalW + t, totalH + t))
+                AddBox("FloorCollider" + (k++ == 0 ? "" : k.ToString()), new Vector3(fr.center.x, -0.1f, fr.center.y), new Vector3(fr.width, 0.2f, fr.height));
+            PoolRoomSetPiece.Build(this, cfg, levelRoot, poolWallB.IsEmpty ? null : Track(poolWallB.ToMesh("PoolRoomWalls")));
+        }
         AddBox("CeilingCollider", new Vector3(totalW * 0.5f, wh + 0.1f, totalH * 0.5f), new Vector3(totalW + 2f * t, 0.2f, totalH + 2f * t));
 
         // Luces
@@ -700,6 +751,22 @@ public class BackroomsGenerator : MonoBehaviour
         {
             Water = WaterVolume.Create(this, cfg, decorRoot, rippleSet);
         }
+    }
+
+    // Rectángulo (x0,z0)-(x1,z1) menos el bloque de la piscina (hasta 4 trozos)
+    private List<Rect> FloorRectsMinusPool(float x0, float z0, float x1, float z1)
+    {
+        List<Rect> r = new List<Rect>();
+        if (!HasPoolRoom) { r.Add(Rect.MinMaxRect(x0, z0, x1, z1)); return r; }
+        float cs = cellSize;
+        float bx0 = PoolBlock.x * cs, bx1 = PoolBlock.xMax * cs, bz0 = PoolBlock.y * cs, bz1 = PoolBlock.yMax * cs;
+        if (bx1 <= x0 || bx0 >= x1 || bz1 <= z0 || bz0 >= z1) { r.Add(Rect.MinMaxRect(x0, z0, x1, z1)); return r; }
+        float ix0 = Mathf.Max(x0, bx0), ix1 = Mathf.Min(x1, bx1), iz0 = Mathf.Max(z0, bz0), iz1 = Mathf.Min(z1, bz1);
+        if (z0 < iz0) r.Add(Rect.MinMaxRect(x0, z0, x1, iz0));
+        if (iz1 < z1) r.Add(Rect.MinMaxRect(x0, iz1, x1, z1));
+        if (x0 < ix0) r.Add(Rect.MinMaxRect(x0, iz0, ix0, iz1));
+        if (ix1 < x1) r.Add(Rect.MinMaxRect(ix1, iz0, x1, iz1));
+        return r;
     }
 
     private BoxCollider AddBox(string name, Vector3 center, Vector3 size)
@@ -772,6 +839,7 @@ public class BackroomsGenerator : MonoBehaviour
                 }
 
                 if (x % spacing != 0 || z % spacing != 0) continue;
+                if (InPoolBlock(x, z)) continue;   // la sala de piscina tiene su propia luz (tragaluces/ventanas)
                 bool deadFix = rng.NextDouble() < cfg.deadChance;
                 CreateCeilingFixture(lightsRoot, c, deadFix, emissive, dead, housing, rng, buzzClip);
                 fixtures++;
@@ -900,6 +968,7 @@ public class BackroomsGenerator : MonoBehaviour
             Vector2Int c = new Vector2Int(rng.Next(w), rng.Next(h));
             if (c == startCell || c == exitCell) continue;
             if (distFromStart[c.x, c.y] < 2) continue;
+            if (InPoolBlock(c.x, c.y)) continue;
             bool ok = true;
             int minSep = guard < 250 ? 3 : 1;
             for (int i = 0; i < picked.Count; i++)
@@ -925,6 +994,7 @@ public class BackroomsGenerator : MonoBehaviour
             Vector2Int c = new Vector2Int(rng.Next(w), rng.Next(h));
             if (c == startCell || c == exitCell) continue;
             if (distFromStart[c.x, c.y] < 2) continue;
+            if (InPoolBlock(c.x, c.y)) continue;
             int minSep = guard < 600 ? 2 : 1;
             bool ok = true;
             for (int i = 0; i < picked.Count; i++)

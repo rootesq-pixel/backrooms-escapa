@@ -40,6 +40,7 @@ Shader "Hidden/BackroomsWater"
             sampler2D _NormalMap, _NoiseTex, _WaterGrab;
             UNITY_DECLARE_DEPTH_TEXTURE(_CameraDepthTexture);
             half _Absorb, _Refract;
+            float4 _PoolRoomRect;   // sala de piscina de Blender (xz min/max mundo): agua más clara
             float _WDepthOn;
             fixed4 _Color, _Deep, _FoamCol, _UnderCol;
             half _Smooth, _WaveAmp;
@@ -184,8 +185,10 @@ Shader "Hidden/BackroomsWater"
                 }
                 float3 refr = tex2D(_WaterGrab, guv).rgb;
                 // absorción azul-verdosa por profundidad (el rojo se pierde antes) + dispersión hacia el color profundo
+                float inRoom = (i.wpos.x > _PoolRoomRect.x && i.wpos.x < _PoolRoomRect.z && i.wpos.z > _PoolRoomRect.y && i.wpos.z < _PoolRoomRect.w) ? 1.0 : 0.0;
+                thick *= lerp(1.0, 0.5, inRoom);
                 float3 trans = exp(-thick * float3(1.10, 0.36, 0.30) * _Absorb);
-                float3 scatter = lerp(_Color.rgb, _Deep.rgb, saturate(thick / 2.0)) * diff;
+                float3 scatter = lerp(lerp(_Color.rgb, float3(0.55, 0.86, 0.88), inRoom), lerp(_Deep.rgb, float3(0.16, 0.56, 0.66), inRoom), saturate(thick / 2.0)) * diff;
                 float3 baseCol = refr * trans * lerp(float3(1,1,1), _Color.rgb * 1.6, 0.35) + scatter * (1.0 - trans);
                 float alpha = 1.0;
 
@@ -201,6 +204,7 @@ Shader "Hidden/BackroomsWater"
                 float nz2 = tex2D(_NoiseTex, i.wpos.xz * 1.9 - _WTime * 0.02).r;
                 float foam = saturate(foamZone * (0.35 + 1.1 * nz * nz2 * 2.0) - 0.18) + saturate(crest) * 0.7;
                 foam = saturate(foam);
+                foam *= 1.0 - 0.85 * inRoom;
                 float3 foamCol = _FoamCol.rgb * saturate(diff * 0.9 + 0.12);
                 col = lerp(col, foamCol, foam);
                 alpha = max(alpha, foam * 0.85);

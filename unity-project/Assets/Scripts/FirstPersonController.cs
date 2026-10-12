@@ -108,6 +108,31 @@ public class FirstPersonController : MonoBehaviour
     public event System.Action<float> Landed;
 
     private CharacterController controller;
+    private float climbCooldown;
+    public int ClimbOutCount { get; private set; }
+
+    private void TryClimbOut(Vector3 dir)
+    {
+        climbCooldown -= Time.deltaTime;
+        if (climbCooldown > 0f) return;
+        dir.y = 0f; if (dir.sqrMagnitude < 0.01f) return;
+        dir.Normalize();
+        Vector3 p = transform.position;
+        int mask = ~((1 << 2) | (1 << WaterVolume.WaterLayer) | (1 << 8));
+        // pared del vaso delante, a la altura del pecho
+        if (!Physics.Raycast(p + Vector3.up * 0.9f, dir, controller.radius + 0.45f, mask, QueryTriggerInteraction.Ignore)) return;
+        // suelo arriba al otro lado, a menos de 1,7 m sobre los pies y con hueco libre encima
+        Vector3 top = p + dir * (controller.radius + 0.55f) + Vector3.up * 2.4f;
+        RaycastHit hit;
+        if (!Physics.Raycast(top, Vector3.down, out hit, 2.6f, mask, QueryTriggerInteraction.Ignore)) return;
+        float rise = hit.point.y - p.y;
+        if (rise < 0.3f || rise > 1.9f || hit.normal.y < 0.8f) return;
+        if (Physics.CheckCapsule(hit.point + Vector3.up * (controller.radius + 0.05f), hit.point + Vector3.up * (controller.height - controller.radius), controller.radius * 0.9f, mask, QueryTriggerInteraction.Ignore)) return;
+        controller.enabled = false;
+        transform.position = hit.point + Vector3.up * 0.02f;
+        controller.enabled = true;
+        verticalVelocity = 0f; IsSwimming = false; climbCooldown = 0.6f; ClimbOutCount++;
+    }
     private Camera cam;
     private float baseFov = 70f;
     private float stamina;
@@ -347,6 +372,9 @@ public class FirstPersonController : MonoBehaviour
         Vector3 move = moveVel;
         move.y = verticalVelocity;
         controller.Move(move * dt);
+
+        // v6.7.1: salir de la piscina nadando hacia el borde (sin escalada: se sube a la playa si el borde está a mano)
+        if (IsSwimming && !IsDiving && moveVel.sqrMagnitude > 0.5f) TryClimbOut(moveVel.normalized);
 
         // Aterrizaje
         bool nowGrounded = controller.isGrounded;

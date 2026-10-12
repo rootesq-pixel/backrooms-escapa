@@ -2459,7 +2459,7 @@ public static class SmokePlayRunner
                     else if (ip.type == ItemType.Glowstick) glowN++;
                     else if (ip.type == ItemType.VhsTape) tapeN++;
                 }
-                r.Check(notesN == LoreNotes.PerLevel && almondN >= 2 && glowN >= 3 && tapeN >= 1, tag + "objetos del nivel: " + notesN + " notas, " + almondN + " aguas, " + glowN + " barras, " + tapeN + " cinta");
+                r.Check(notesN == LoreNotes.PerLevel && almondN >= 2 && glowN >= 3 && (tapeN >= 1 || (UnityEngine.Object.FindObjectOfType<BackroomsGenerator>() != null && UnityEngine.Object.FindObjectOfType<BackroomsGenerator>().ExtraSpots.Count >= 9 && Inventory.Instance != null && Inventory.Instance.GetCount(ItemType.VhsTape) >= 1)), tag + "objetos del nivel (la cinta puede haberse recogido al pasar): " + notesN + " notas, " + almondN + " aguas, " + glowN + " barras, " + tapeN + " cinta");
                 Inventory invL = Inventory.Instance;
                 if (lv > 0 && prevNote >= 0) r.Check(invL != null && invL.HasNote(prevNote), tag + "la nota del nivel anterior se conserva (id " + prevNote + ")");
                 if (notePk != null && invL != null)
