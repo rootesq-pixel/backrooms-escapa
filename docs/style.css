@@ -240,6 +240,15 @@ body.is-tracking main { animation: tracking-shift .45s steps(6); }
 .vp-osd { position: absolute; left: 0; right: 0; z-index: 2; display: flex; justify-content: space-between; padding: 1rem 1.3rem; font-family: var(--mono); color: #fff; font-size: clamp(.8rem, 1.6vw, 1.05rem); text-shadow: 0 0 4px #000; letter-spacing: .08em; }
 .vp-top { top: 0; } .vp-bottom { bottom: 0; }
 
+/* ---------- Tráiler (marco VHS) ---------- */
+.video-frame { margin: 0; border-radius: var(--radius); overflow: hidden; background: #050505; border: 1px solid var(--line); box-shadow: 0 20px 60px rgba(0,0,0,.6), 0 0 0 4px #111 inset; }
+.trailer-video { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; background: #000; }
+.vf-osd { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .55rem 1rem; font-family: var(--mono); color: #eee; font-size: clamp(.75rem, 1.5vw, .95rem); letter-spacing: .08em; background: repeating-linear-gradient(0deg, #0b0b0b 0 2px, #121212 2px 4px); }
+.vf-rec { color: #ff3b30; }
+.vf-bottom { color: #d6d0bb; flex-wrap: wrap; }
+.vf-bottom a { color: var(--yellow); text-decoration: none; }
+.vf-bottom a:hover, .vf-bottom a:focus-visible { text-decoration: underline; }
+
 /* ---------- Niveles ---------- */
 .level-grid { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.4rem; counter-reset: lv; }
 .level-card {

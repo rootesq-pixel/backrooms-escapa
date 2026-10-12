@@ -126,16 +126,14 @@
           <p class="section-tag">// 01</p>
           <h2 id="trailer-title">Tráiler y gameplay</h2>
         </header>
-        <div class="video-placeholder" role="img" aria-label="Espacio reservado para el tráiler. Todavía no hay vídeo publicado.">
-          <canvas class="static-canvas" width="256" height="144" aria-hidden="true"></canvas>
-          <div class="vp-osd vp-top" aria-hidden="true"><span>▶ PLAY</span><span>SP</span></div>
-          <div class="vp-center">
-            <p class="vp-signal">SIN SEÑAL</p>
-            <p class="vp-text">Tráiler en preparación</p>
-            <p class="vp-sub">Aquí irá el tráiler o un vídeo de gameplay cuando esté disponible.</p>
-          </div>
-          <div class="vp-osd vp-bottom" aria-hidden="true"><span>CH 03</span><span>--:--:--</span></div>
-        </div>
+        <figure class="video-frame">
+          <div class="vf-osd" aria-hidden="true"><span class="vf-rec">● REC</span><span>PLAY ►</span></div>
+          <video class="trailer-video" controls preload="metadata" playsinline poster="assets/video/trailer_poster.jpg" width="1280" height="720" aria-label="Tráiler beta de Backrooms: Escapa">
+            <source src="assets/video/BackroomsEscapa_trailer_beta.mp4" type="video/mp4">
+            Tu navegador no puede reproducir vídeo HTML5. <a href="assets/video/BackroomsEscapa_trailer_beta.mp4">Descarga el tráiler (MP4)</a>.
+          </video>
+          <figcaption class="vf-osd vf-bottom"><span>TRÁILER BETA · 1:12 · contiene destellos y sustos</span><a href="https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v6.6.0/BackroomsEscapa_trailer_beta_1080p.mp4">Ver en 1080p ↗</a></figcaption>
+        </figure>
       </div>
     </section>
 
