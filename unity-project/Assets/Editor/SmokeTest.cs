@@ -1191,6 +1191,37 @@ public static class SmokeTest
         r.Check(reach == total, tag + "todas las celdas alcanzables desde el inicio (" + reach + "/" + total + ")");
         r.Check(gen.DistanceFromStart(gen.ExitCell.x, gen.ExitCell.y) >= 0, tag + "celda de salida alcanzable (dist " + gen.DistanceFromStart(gen.ExitCell.x, gen.ExitCell.y) + ")");
 
+        // v6.8: sala de piscina fija horneada (Poolrooms)
+        if (cfg.index == 2)
+        {
+            r.Check(gen.HasPoolRoom && gen.PoolFixed, tag + "sala de piscina fija (horneada en Cycles) colocada");
+            if (gen.PoolFixed)
+            {
+                RectInt pb = gen.PoolBlock; int doors = 0, closed = 0;
+                for (int i = pb.x; i < pb.xMax; i++)
+                {
+                    if (gen.IsCellOpen(i, pb.y, 2)) { doors++; r.Check(i == pb.x + 1, tag + "puerta sur de la piscina en su sitio fijo"); } else closed++;
+                    if (gen.IsCellOpen(i, pb.yMax - 1, 0)) { doors++; r.Check(i == pb.x + 2, tag + "puerta norte de la piscina en su sitio fijo"); } else closed++;
+                }
+                for (int j = pb.y; j < pb.yMax; j++)
+                {
+                    if (gen.IsCellOpen(pb.x, j, 3)) { doors++; r.Check(j == pb.y + 1, tag + "puerta oeste de la piscina en su sitio fijo"); } else closed++;
+                    if (gen.IsCellOpen(pb.xMax - 1, j, 1)) { doors++; r.Check(j == pb.y + 1, tag + "puerta este de la piscina en su sitio fijo"); } else closed++;
+                }
+                r.Check(doors == 4 && closed == 2 * (pb.width + pb.height) - 4, tag + "perímetro de la piscina: 4 puertas fijas, resto cerrado (" + doors + "/" + closed + ")");
+                r.Check(!gen.InPoolBlock(gen.ExitCell.x, gen.ExitCell.y), tag + "la salida no está en la sala de piscina");
+                GameObject baked = GameObject.Find("PoolRoomBaked");
+                MeshRenderer bmr = baked != null ? baked.GetComponent<MeshRenderer>() : null;
+                r.Check(bmr != null && bmr.sharedMaterials.Length == 5 && bmr.sharedMaterial.shader.name == "Backrooms/PoolBaked" && bmr.sharedMaterial.GetTexture("_LightMap") != null,
+                    tag + "malla horneada con shader PoolBaked + lightmap EXR");
+                r.Check(baked != null && baked.GetComponent<MeshCollider>() != null, tag + "colisión de la sala horneada");
+                PoolRoomProbes pr = UnityEngine.Object.FindObjectOfType<PoolRoomProbes>();
+                r.Check(pr != null && pr.positions != null && pr.positions.Length == 6, tag + "6 sondas de luz horneadas en la sala");
+                int rtLights = 0; foreach (Light l in GameObject.Find("PoolRoom").GetComponentsInChildren<Light>(true)) rtLights++;
+                r.Check(rtLights == 0, tag + "la sala horneada no usa luces en tiempo real (" + rtLights + ")");
+            }
+        }
+
         List<Vector3> path = new List<Vector3>();
         bool hasPath = gen.TryGetPath(gen.PlayerStart, gen.ExitPosition, path);
         r.Check(hasPath && path.Count > 0, tag + "camino BFS inicio -> salida (" + path.Count + " puntos)");

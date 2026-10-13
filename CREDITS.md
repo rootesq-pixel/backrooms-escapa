@@ -87,3 +87,6 @@ Implementación propia inspirada en proyectos con licencia MIT (no se ha copiado
 - Optically-Realistic-Water (port de Unity del shader de Martins Upitis), MIT — reflexión planar con plano de recorte oblicuo, refracción enmascarada por profundidad, atenuación de normales con la distancia.
 - WebGL Water de Evan Wallace (2011), MIT — cáusticas proyectadas y reflexión planar en piscinas.
 - water-shader-unity (leonjovanovic) — separación cromática de cáusticas.
+
+## Sala de piscina horneada (v6.8.0)
+- Geometría, UV de lightmap y horneado de luz con **Blender Cycles** (escena propia, `unity-project/Tools/pool-bake/`); eliminación de ruido con **Intel Open Image Denoise** (filtro RT_LIGHTMAP, Apache 2.0) vía `pyoidn` solo como herramienta (no se distribuye con el juego).
