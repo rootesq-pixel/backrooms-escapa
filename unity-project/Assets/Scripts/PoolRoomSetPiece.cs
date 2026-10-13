@@ -122,6 +122,19 @@ public static class PoolRoomSetPiece
         pl.waterY = levelRoot.TransformPoint(new Vector3(0f, cfg.waterLevel, 0f)).y;
         pl.center = levelRoot.TransformPoint(ctr);
 
+        // v6.8.1: datos para salir de la piscina (borde, escalera, rescate)
+        {
+            Rect pr = gen.PoolRectLocal;
+            Vector3 a = levelRoot.TransformPoint(new Vector3(pr.xMin, 0f, pr.yMin)), c = levelRoot.TransformPoint(new Vector3(pr.xMax, 0f, pr.yMax));
+            Bounds lb = new Bounds(); bool any = false;
+            Transform lad = root.transform.Find("PoolLadder");
+            if (lad != null)
+                foreach (MeshRenderer r in lad.GetComponentsInChildren<MeshRenderer>(false))
+                { if (!any) { lb = r.bounds; any = true; } else lb.Encapsulate(r.bounds); }
+            PoolExit.Set(Rect.MinMaxRect(Mathf.Min(a.x, c.x), Mathf.Min(a.z, c.z), Mathf.Max(a.x, c.x), Mathf.Max(a.z, c.z)),
+                levelRoot.TransformPoint(new Vector3(0f, BackroomsGenerator.PoolDeckY, 0f)).y, any, lb, root);
+        }
+
         // sondas de luz horneadas (Cycles) para jugador, cuerpos remotos y monstruos
         PoolRoomProbes probes = root.AddComponent<PoolRoomProbes>();
         probes.Init(levelRoot, ctr, new Bounds(levelRoot.TransformPoint(ctr + new Vector3(0f, wh * 0.5f, 0f)), new Vector3(b.width * cs, wh + 2f, b.height * cs)));
@@ -432,5 +445,67 @@ public class PoolRoomProbes : MonoBehaviour
     {
         foreach (var kv in orig) if (kv.Key != null) kv.Key.lightProbeUsage = kv.Value;
         orig.Clear();
+    }
+}
+
+// v6.8.1: salida de la piscina de la sala fija. El vaso tiene 1,4 m de profundidad y la playa queda a 0,28 m sobre el pasillo.
+public static class PoolExit
+{
+    public const float RescueSeconds = 4f;
+    public static bool Active { get { return owner != null; } }
+    public static Rect PoolXZ { get; private set; }
+    public static float DeckY { get; private set; }
+    public static bool HasLadder { get; private set; }
+    public static Vector3 LadderPos { get; private set; }     // al pie de la escalera, dentro del agua
+    public static Vector3 LadderOut { get; private set; }     // dirección hacia la playa
+    public static Vector3 LadderTop { get; private set; }     // punto de la playa donde se acaba
+    private static GameObject owner;
+
+    public static void Set(Rect xz, float deckY, bool hasLadder, Bounds ladder, GameObject o)
+    {
+        PoolXZ = xz; DeckY = deckY; owner = o; HasLadder = hasLadder;
+        if (hasLadder)
+        {
+            Vector3 c = ladder.center;
+            Vector3 n; Vector3 edge = NearestEdge(c, out n);
+            LadderOut = n;
+            LadderPos = new Vector3(edge.x, deckY - 1.4f, edge.z) - n * 0.45f;
+            LadderTop = new Vector3(edge.x, deckY + 0.03f, edge.z) + n * 0.7f;
+        }
+    }
+
+    // punto del borde más cercano y normal hacia fuera (XZ)
+    public static Vector3 NearestEdge(Vector3 p, out Vector3 outDir)
+    {
+        Rect r = PoolXZ;
+        float x = Mathf.Clamp(p.x, r.xMin, r.xMax), z = Mathf.Clamp(p.z, r.yMin, r.yMax);
+        float dl = x - r.xMin, dr = r.xMax - x, db = z - r.yMin, dt = r.yMax - z;
+        float m = Mathf.Min(Mathf.Min(dl, dr), Mathf.Min(db, dt));
+        if (m == dl) { outDir = Vector3.left; return new Vector3(r.xMin, p.y, z); }
+        if (m == dr) { outDir = Vector3.right; return new Vector3(r.xMax, p.y, z); }
+        if (m == db) { outDir = Vector3.back; return new Vector3(x, p.y, r.yMin); }
+        outDir = Vector3.forward; return new Vector3(x, p.y, r.yMax);
+    }
+
+    // ¿pies dentro del vaso (por debajo de la playa)?
+    public static bool InPool(Vector3 feet)
+    {
+        if (owner == null) return false;
+        Rect r = PoolXZ;
+        return feet.y < DeckY - 0.35f && feet.x > r.xMin - 0.05f && feet.x < r.xMax + 0.05f && feet.z > r.yMin - 0.05f && feet.z < r.yMax + 0.05f;
+    }
+
+    public static bool NearLadder(Vector3 feet)
+    {
+        if (!HasLadder || !InPool(feet)) return false;
+        Vector3 d = feet - LadderPos; d.y = 0f;
+        return d.magnitude < 1.0f;
+    }
+
+    // punto seguro en la playa frente al borde más cercano (rescate)
+    public static Vector3 RescuePoint(Vector3 feet)
+    {
+        Vector3 n; Vector3 e = NearestEdge(feet, out n);
+        return new Vector3(e.x, DeckY + 0.03f, e.z) + n * 0.7f;
     }
 }

@@ -111,27 +111,117 @@ public class FirstPersonController : MonoBehaviour
     private float climbCooldown;
     public int ClimbOutCount { get; private set; }
 
-    private void TryClimbOut(Vector3 dir)
+    // v6.8.1: salir de la piscina. Borde (en cualquier punto), escalera y rescate si se queda atascado.
+    [HideInInspector] public bool debugJump;
+    public int LadderClimbCount { get; private set; }
+    public int PoolRescueCount { get; private set; }
+    public bool IsClimbingLadder { get { return ladderT >= 0f; } }
+    public float PoolStuckTime { get { return poolStuckT; } }
+    private float ladderT = -1f, poolStuckT;
+    private Vector3 ladderFrom, ladderMid, ladderTo;
+
+    private bool ClearAt(Vector3 feet)
+    {
+        int mask = ~((1 << 2) | (1 << WaterVolume.WaterLayer) | (1 << 8));
+        Collider[] hits = Physics.OverlapCapsule(feet + Vector3.up * (controller.radius + 0.08f), feet + Vector3.up * (controller.height - controller.radius),
+            controller.radius * 0.9f, mask, QueryTriggerInteraction.Ignore);
+        foreach (Collider c in hits) if (c != controller && !c.transform.IsChildOf(transform)) return false;
+        return true;
+    }
+
+    private void PlaceAt(Vector3 feet)
+    {
+        controller.enabled = false;
+        transform.position = feet;
+        controller.enabled = true;
+        verticalVelocity = 0f; moveVel = Vector3.zero; IsSwimming = false; poolStuckT = 0f;
+    }
+
+    private bool TryClimbOut(Vector3 dir)
     {
         climbCooldown -= Time.deltaTime;
-        if (climbCooldown > 0f) return;
-        dir.y = 0f; if (dir.sqrMagnitude < 0.01f) return;
+        if (climbCooldown > 0f) return false;
+        dir.y = 0f; if (dir.sqrMagnitude < 0.01f) return false;
         dir.Normalize();
         Vector3 p = transform.position;
         int mask = ~((1 << 2) | (1 << WaterVolume.WaterLayer) | (1 << 8));
-        // pared del vaso delante, a la altura del pecho
-        if (!Physics.Raycast(p + Vector3.up * 0.9f, dir, controller.radius + 0.45f, mask, QueryTriggerInteraction.Ignore)) return;
-        // suelo arriba al otro lado, a menos de 1,7 m sobre los pies y con hueco libre encima
-        Vector3 top = p + dir * (controller.radius + 0.55f) + Vector3.up * 2.4f;
+        // pared del vaso delante (a la altura de la cintura o del pecho)
+        float reach = controller.radius + 0.5f;
+        if (!Physics.Raycast(p + Vector3.up * 0.9f, dir, reach, mask, QueryTriggerInteraction.Ignore)
+            && !Physics.Raycast(p + Vector3.up * 0.5f, dir, reach, mask, QueryTriggerInteraction.Ignore)) return false;
+        // suelo arriba al otro lado, a menos de 1,9 m sobre los pies y con hueco libre encima
+        Vector3 top = p + dir * (controller.radius + 0.75f) + Vector3.up * 2.4f;
         RaycastHit hit;
-        if (!Physics.Raycast(top, Vector3.down, out hit, 2.6f, mask, QueryTriggerInteraction.Ignore)) return;
+        if (!Physics.Raycast(top, Vector3.down, out hit, 2.8f, mask, QueryTriggerInteraction.Ignore)) return false;
         float rise = hit.point.y - p.y;
-        if (rise < 0.3f || rise > 1.9f || hit.normal.y < 0.8f) return;
-        if (Physics.CheckCapsule(hit.point + Vector3.up * (controller.radius + 0.05f), hit.point + Vector3.up * (controller.height - controller.radius), controller.radius * 0.9f, mask, QueryTriggerInteraction.Ignore)) return;
+        if (rise < 0.3f || rise > 1.9f || hit.normal.y < 0.8f) return false;
+        if (!ClearAt(hit.point)) return false;
+        PlaceAt(hit.point + Vector3.up * 0.02f);
+        climbCooldown = 0.6f; ClimbOutCount++;
+        return true;
+    }
+
+    private void StartLadder()
+    {
+        ladderFrom = transform.position;
+        Vector3 foot = PoolExit.LadderPos;
+        ladderMid = new Vector3(foot.x, PoolExit.DeckY + 0.25f, foot.z);
+        ladderTo = PoolExit.LadderTop;
+        ladderT = 0f; moveVel = Vector3.zero; verticalVelocity = 0f;
         controller.enabled = false;
-        transform.position = hit.point + Vector3.up * 0.02f;
-        controller.enabled = true;
-        verticalVelocity = 0f; IsSwimming = false; climbCooldown = 0.6f; ClimbOutCount++;
+    }
+
+    // subir por la escalera: 0..0.7 sube pegado a la escalera, 0.7..1 pasa a la playa
+    private void StepLadder(float dt)
+    {
+        ladderT = Mathf.Min(1f, ladderT + dt / 1.3f);
+        Vector3 pos;
+        if (ladderT < 0.7f)
+        {
+            float k = ladderT / 0.7f;
+            Vector3 start = new Vector3(Mathf.Lerp(ladderFrom.x, ladderMid.x, Mathf.Clamp01(k * 3f)), ladderFrom.y, Mathf.Lerp(ladderFrom.z, ladderMid.z, Mathf.Clamp01(k * 3f)));
+            pos = new Vector3(start.x, Mathf.Lerp(ladderFrom.y, ladderMid.y, Mathf.SmoothStep(0f, 1f, k)), start.z);
+        }
+        else
+        {
+            float k = (ladderT - 0.7f) / 0.3f;
+            pos = Vector3.Lerp(ladderMid, ladderTo, Mathf.SmoothStep(0f, 1f, k));
+        }
+        transform.position = pos;
+        if (ladderT >= 1f)
+        {
+            ladderT = -1f;
+            PlaceAt(ladderTo);
+            LadderClimbCount++;
+        }
+    }
+
+    private void UpdatePoolExit(Vector3 input, bool jump, float dt)
+    {
+        Vector3 feet = transform.position;
+        if (!PoolExit.InPool(feet)) { poolStuckT = 0f; return; }
+        poolStuckT += dt;
+        if (IsDiving) return;
+        Vector3 wish = transform.TransformDirection(input); wish.y = 0f;
+        bool pushing = wish.sqrMagnitude > 0.01f;
+        if (pushing) wish.Normalize();
+        // escalera: cerca de ella, empujando hacia la playa o pulsando saltar
+        if (PoolExit.NearLadder(feet) && (jump || (pushing && Vector3.Dot(wish, PoolExit.LadderOut) > 0.3f))) { StartLadder(); return; }
+        Vector3 outDir; Vector3 edge = PoolExit.NearestEdge(feet, out outDir);
+        if (!pushing && !jump) return;
+        // borde: en cualquier punto, empujando contra él (o saltar junto al borde)
+        Vector3 d = pushing ? wish : outDir;
+        if (TryClimbOut(d)) return;
+        // esquinas: probar la normal del borde más cercano si se empuja más o menos hacia él
+        if (pushing && Vector3.Dot(wish, outDir) > 0.35f && TryClimbOut(outDir)) return;
+        // rescate: lleva un rato en el vaso y sigue pulsando saltar / empujando hacia el borde
+        Vector3 toEdge = edge - feet; toEdge.y = 0f;
+        bool atWall = toEdge.magnitude < controller.radius + 0.6f;
+        if (poolStuckT > PoolExit.RescueSeconds && (jump || (atWall && pushing && Vector3.Dot(wish, outDir) > 0.3f)))
+        {
+            PlaceAt(PoolExit.RescuePoint(feet));
+            PoolRescueCount++;
+        }
     }
     private Camera cam;
     private float baseFov = 70f;
@@ -280,6 +370,8 @@ public class FirstPersonController : MonoBehaviour
         Vector3 input = debugInput ? new Vector3(debugMove.x, 0f, debugMove.y) : new Vector3(Input.GetAxisRaw("Horizontal"), 0f, Input.GetAxisRaw("Vertical"));
         input = Vector3.ClampMagnitude(input, 1f);
         bool hasInput = input.sqrMagnitude > 0.01f;
+        if (ladderT >= 0f) { StepLadder(dt); return; }
+        bool wantsJump = debugJump || Input.GetKey(KeyCode.Space);
 
         // --- Agua: profundidad, vadeo y natación ---
         WaterVolume wv = WaterVolume.Active;
@@ -373,8 +465,9 @@ public class FirstPersonController : MonoBehaviour
         move.y = verticalVelocity;
         controller.Move(move * dt);
 
-        // v6.7.1: salir de la piscina nadando hacia el borde (sin escalada: se sube a la playa si el borde está a mano)
-        if (IsSwimming && !IsDiving && moveVel.sqrMagnitude > 0.5f) TryClimbOut(moveVel.normalized);
+        // salir del agua: en la sala fija (v6.8.1) borde/escalera/rescate; en el resto, nadando hacia un borde (v6.7.1)
+        if (PoolExit.Active) UpdatePoolExit(input, wantsJump, dt);
+        else if (IsSwimming && !IsDiving && moveVel.sqrMagnitude > 0.5f) TryClimbOut(moveVel.normalized);
 
         // Aterrizaje
         bool nowGrounded = controller.isGrounded;
@@ -572,6 +665,7 @@ public class FirstPersonController : MonoBehaviour
     public void Teleport(Vector3 position, float yaw)
     {
         if (controller == null) controller = GetComponent<CharacterController>();
+        ladderT = -1f; poolStuckT = 0f;
         controller.enabled = false;
         transform.position = position;
         transform.rotation = Quaternion.Euler(0f, yaw, 0f);

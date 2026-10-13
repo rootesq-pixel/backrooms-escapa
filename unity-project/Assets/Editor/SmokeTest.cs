@@ -2563,6 +2563,80 @@ public static class SmokePlayRunner
                         yield return 1.2f;
                         r.Check(!pw.IsUnderwater, tag + "al volver al nivel normal deja de estar bajo el agua");
                     }
+                    // v6.8.1: salir de la piscina de la sala fija (borde por los 4 lados, escalera, rescate)
+                    if (gm.generator.PoolFixed)
+                    {
+                        string pt = tag + "[Piscina] ";
+                        foreach (MonsterAI m in gm.monsters) m.Stop();
+                        r.Check(PoolExit.Active, pt + "datos de salida de la piscina registrados");
+                        r.Check(PoolExit.HasLadder, pt + "la escalera de la piscina está registrada");
+                        Rect pr = PoolExit.PoolXZ; float floorY = PoolExit.DeckY - 1.4f;
+                        Vector3 pc0 = new Vector3(pr.center.x, floorY + 0.05f, pr.center.y);
+                        Vector3[] sides = { Vector3.forward, Vector3.back, Vector3.left, Vector3.right };
+                        string[] names = { "norte", "sur", "oeste", "este" };
+                        for (int si = 0; si < 4; si++)
+                        {
+                            Vector3 d = sides[si];
+                            float half = Mathf.Abs(d.x) > 0.5f ? pr.width * 0.5f : pr.height * 0.5f;
+                            Vector3 along = new Vector3(d.z, 0f, d.x);
+                            Vector3 basePt = pc0 + d * (half - 1.0f);
+                            Vector3 s1 = basePt + along * 1.5f, s2 = basePt - along * 1.5f;
+                            Vector3 start = PoolExit.HasLadder && (s1 - PoolExit.LadderPos).sqrMagnitude < (s2 - PoolExit.LadderPos).sqrMagnitude ? s2 : s1;
+                            pw.Teleport(start, Quaternion.LookRotation(d).eulerAngles.y);
+                            yield return 0.8f;
+                            bool inPool = PoolExit.InPool(pw.transform.position);
+                            r.Check(inPool && (pw.IsSwimming || pw.WaterDepth > 1f), pt + "lado " + names[si] + ": el jugador está dentro del vaso (profundidad " + pw.WaterDepth.ToString("F2") + ", nada=" + pw.IsSwimming + ")");
+                            int c0 = pw.ClimbOutCount, l0 = pw.LadderClimbCount;
+                            pw.debugInput = true; pw.debugMove = new Vector2(0f, 1f);
+                            float tt = 0f;
+                            while (tt < 3f && PoolExit.InPool(pw.transform.position)) { yield return 0.1f; tt += 0.1f; }
+                            yield return 0.3f;
+                            pw.debugMove = Vector2.zero; pw.debugInput = false;
+                            Vector3 fp = pw.transform.position;
+                            r.Check(!PoolExit.InPool(fp) && fp.y > PoolExit.DeckY - 0.1f && pw.ClimbOutCount > c0 && pw.LadderClimbCount == l0,
+                                pt + "lado " + names[si] + ": sale por el borde a la playa en " + tt.ToString("F1") + " s (y " + fp.y.ToString("F2") + ")");
+                        }
+                        if (PoolExit.HasLadder)
+                        {
+                            // escalera empujando hacia delante
+                            pw.Teleport(PoolExit.LadderPos - PoolExit.LadderOut * 0.5f + Vector3.up * 0.05f, Quaternion.LookRotation(PoolExit.LadderOut).eulerAngles.y);
+                            yield return 0.8f;
+                            int l0 = pw.LadderClimbCount;
+                            pw.debugInput = true; pw.debugMove = new Vector2(0f, 1f);
+                            float tt = 0f;
+                            while (tt < 4f && pw.LadderClimbCount == l0) { yield return 0.1f; tt += 0.1f; }
+                            pw.debugMove = Vector2.zero; pw.debugInput = false;
+                            yield return 0.3f;
+                            Vector3 fp = pw.transform.position;
+                            r.Check(pw.LadderClimbCount == l0 + 1 && !PoolExit.InPool(fp) && fp.y > PoolExit.DeckY - 0.1f, pt + "sube por la escalera (adelante) y pisa la playa (" + tt.ToString("F1") + " s)");
+                            // escalera con saltar, sin moverse
+                            pw.Teleport(PoolExit.LadderPos + Vector3.up * 0.05f, Quaternion.LookRotation(-PoolExit.LadderOut).eulerAngles.y);
+                            yield return 0.8f;
+                            l0 = pw.LadderClimbCount;
+                            pw.debugInput = true; pw.debugJump = true;
+                            tt = 0f;
+                            while (tt < 4f && pw.LadderClimbCount == l0) { yield return 0.1f; tt += 0.1f; }
+                            pw.debugJump = false; pw.debugInput = false;
+                            yield return 0.3f;
+                            fp = pw.transform.position;
+                            r.Check(pw.LadderClimbCount == l0 + 1 && !PoolExit.InPool(fp) && fp.y > PoolExit.DeckY - 0.1f, pt + "sube por la escalera con «saltar» y pisa la playa");
+                            r.Check(!pw.IsClimbingLadder && !pw.IsSwimming, pt + "tras la escalera: andando normal, sin nadar");
+                        }
+                        // rescate: en el centro, lejos de bordes y escalera, pulsando saltar
+                        pw.Teleport(pc0, 0f);
+                        yield return 0.5f;
+                        int rs0 = pw.PoolRescueCount;
+                        pw.debugInput = true; pw.debugJump = true;
+                        float tr = 0f;
+                        while (tr < 8f && pw.PoolRescueCount == rs0) { yield return 0.1f; tr += 0.1f; }
+                        pw.debugJump = false; pw.debugInput = false;
+                        yield return 0.3f;
+                        Vector3 rp = pw.transform.position;
+                        r.Check(pw.PoolRescueCount == rs0 + 1 && tr >= PoolExit.RescueSeconds - 0.6f && !PoolExit.InPool(rp) && rp.y > PoolExit.DeckY - 0.1f,
+                            pt + "rescate: atascado y pulsando saltar, a los " + tr.ToString("F1") + " s se le saca a la playa");
+                        pw.Teleport(gm.generator.PlayerStart, 0f);
+                        yield return 0.5f;
+                    }
                 }
             }
             picks = UnityEngine.Object.FindObjectsOfType<BatteryPickup>();   // (por si se recogió alguna pila)

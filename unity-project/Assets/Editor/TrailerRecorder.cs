@@ -317,8 +317,39 @@ public static class TrailerRecorder
             yield return Frames(10);
             float d; float y = BestDir(gm, out d);
             yield return Walk(gm, names[lv] + "_walk", 120, y, 2f, 6f, lv % 2 == 0 ? 18f : -18f, 0.5f);
+            if (lv == 2 && gm.generator != null && gm.generator.PoolFixed) yield return PoolShot(gm);
             yield return Chase(gm, names[lv] + "_monster", 70, lv == 1 ? 3.6f : 4.4f);
         }
+    }
+
+    // v6.8: plano de la sala de piscina fija horneada (agua, cáusticas, ventanas), sin linterna, travelling por la playa
+    static IEnumerator PoolShot(GameManager gm)
+    {
+        BackroomsGenerator g = gm.generator; Rect pr = g.PoolRectLocal; Transform gt = g.transform; float deck = BackroomsGenerator.PoolDeckY;
+        FirstPersonController f = gm.player; f.debugInput = true; f.debugMove = Vector2.zero;
+        List<Behaviour> off = new List<Behaviour>();
+        foreach (Light l in f.GetComponentsInChildren<Light>(true)) if (l.enabled) { l.enabled = false; off.Add(l); }
+        List<Renderer> roff = new List<Renderer>();
+        Camera cam = Camera.main;
+        if (cam != null) foreach (Renderer r in cam.GetComponentsInChildren<Renderer>(true)) if (r.enabled) { r.enabled = false; roff.Add(r); }
+        Vector3 a = gt.TransformPoint(new Vector3(pr.xMin - 1.7f, deck, pr.yMin - 1.0f));
+        Vector3 b = gt.TransformPoint(new Vector3(pr.center.x - 1.0f, deck, pr.yMin - 1.4f));
+        Vector3 look = gt.TransformPoint(new Vector3(pr.xMax - 1.0f, deck - 0.4f, pr.center.y + 1.5f));
+        Place(gm, a, Quaternion.LookRotation(new Vector3(look.x - a.x, 0f, look.z - a.z)).eulerAngles.y, 14f);
+        yield return 1.5f;
+        Begin("l2_pool");
+        for (int i = 0; i < 150; i++)
+        {
+            float u = Mathf.SmoothStep(0f, 1f, i / 149f);
+            Vector3 p = Vector3.Lerp(a, b, u);
+            Vector3 dir = look - p; dir.y = 0f;
+            Place(gm, p, Quaternion.LookRotation(dir).eulerAngles.y + Mathf.Lerp(-8f, 10f, u), Mathf.Lerp(16f, 22f, u));
+            yield return null;
+        }
+        End();
+        foreach (Behaviour l in off) if (l != null) l.enabled = true;
+        foreach (Renderer r in roff) if (r != null) r.enabled = true;
+        f.debugInput = false;
     }
 
     // Solo el plano del inventario (TRAILER_ONLY=inv)
