@@ -618,7 +618,7 @@ public class PlayerBody : MonoBehaviour
 
         // luz y brillo de la lente
         bool on = flashlight != null && flashlight.spot != null && flashlight.spot.enabled;
-        float inten = on && flashlight.maxIntensity > 0f ? Mathf.Clamp01(flashlight.spot.intensity / flashlight.maxIntensity) : 0f;
+        float inten = on && flashlight.maxIntensity > 0f ? Mathf.Clamp01(flashlight.spot.intensity / Mathf.Max(0.05f, flashlight.NearDim) / flashlight.maxIntensity) : 0f;
         lensK = Mathf.MoveTowards(lensK, inten, dt * 14f);
         LensGlow = lensK;
         if (lensMat != null) lensMat.SetColor("_EmissionColor", new Color(1.9f, 1.7f, 1.25f) * Mathf.Lerp(0.04f, 1f, lensK));

@@ -83,6 +83,7 @@ public class FirstPersonController : MonoBehaviour
 
     // Estado público (para HUD, IA y audio)
     public void RestoreStamina(float fraction) { stamina = Mathf.Clamp(stamina + maxStamina * fraction, 0f, maxStamina); if (stamina >= minStaminaToSprint) exhausted = false; }
+    public void SetStaminaForTests(float v) { stamina = Mathf.Clamp(v, 0f, maxStamina); exhausted = false; }
     public float Stamina01 { get { return maxStamina > 0f ? stamina / maxStamina : 0f; } }
     public bool IsSprinting { get; private set; }
     public bool IsMoving { get; private set; }
@@ -115,6 +116,25 @@ public class FirstPersonController : MonoBehaviour
 
     // v6.8.1: salir de la piscina. Borde (en cualquier punto), escalera y rescate si se queda atascado.
     [HideInInspector] public bool debugJump;
+    [Header("Salto (v7.0.1)")]
+    public float jumpHeight = 0.95f;
+    public float jumpStaminaCost = 8f;
+    public float coyoteTime = 0.12f, jumpBuffer = 0.15f;
+    public int JumpCount { get; private set; }
+    public bool IsJumping { get; private set; }
+    public event System.Action Jumped;
+    private float sinceGrounded, jumpBufT = -1f, jumpCooldown;
+    private bool prevJumpHeld;
+    // suelo robusto: isGrounded del CharacterController más una sonda corta (pendientes, bordes de colinas)
+    public bool GroundProbe()
+    {
+        if (controller == null) return false;
+        if (controller.isGrounded) return true;
+        if (verticalVelocity > 0.5f) return false;
+        float r = controller.radius * 0.9f;
+        Vector3 o = transform.position + controller.center - Vector3.up * (controller.height * 0.5f - controller.radius);
+        return Physics.SphereCast(o + Vector3.up * 0.05f, r, Vector3.down, out RaycastHit h, 0.2f + controller.skinWidth, ~0, QueryTriggerInteraction.Ignore) && h.normal.y > 0.55f;
+    }
     public int LadderClimbCount { get; private set; }
     public int PoolRescueCount { get; private set; }
     public bool IsClimbingLadder { get { return ladderT >= 0f; } }
@@ -376,6 +396,8 @@ public class FirstPersonController : MonoBehaviour
         bool hasInput = input.sqrMagnitude > 0.01f;
         if (ladderT >= 0f) { StepLadder(dt); return; }
         bool wantsJump = debugJump || Input.GetKey(KeyCode.Space);
+        bool jumpPressed = wantsJump && !prevJumpHeld; prevJumpHeld = wantsJump;
+        if (jumpPressed) jumpBufT = jumpBuffer; else if (jumpBufT >= 0f) jumpBufT -= dt;
 
         // --- Agua: profundidad, vadeo y natación ---
         WaterVolume wv = WaterVolume.Active;
@@ -442,9 +464,22 @@ public class FirstPersonController : MonoBehaviour
         CurrentNoiseRadius = noise * Mathf.Clamp01(FlatSpeed / Mathf.Max(0.1f, walkSpeed * speedFactor));
 
         // --- Gravedad y caída ---
+        bool probe = GroundProbe();
+        if (probe) sinceGrounded = 0f; else sinceGrounded += dt;
+        if (jumpCooldown > 0f) jumpCooldown -= dt;
         if (grounded && verticalVelocity < 0f)
         {
             verticalVelocity = -2f; // pequeño empuje para mantenerse pegado al suelo
+            IsJumping = false;
+        }
+        // --- Salto: con margen (coyote) y búfer de pulsación; no agachado, nadando ni agotado ---
+        if (jumpBufT >= 0f && sinceGrounded <= coyoteTime && jumpCooldown <= 0f && !IsSwimming && !IsCrouching && !(PoolExit.Active && PoolExit.InPool(transform.position)) && stamina >= jumpStaminaCost * 0.5f)
+        {
+            verticalVelocity = Mathf.Sqrt(2f * Mathf.Abs(gravity) * jumpHeight);
+            stamina = Mathf.Max(0f, stamina - jumpStaminaCost); regenTimer = staminaRegenDelay;
+            jumpBufT = -1f; sinceGrounded = 99f; jumpCooldown = 0.25f; IsJumping = true; JumpCount++;
+            grounded = false;
+            if (Jumped != null) Jumped();
         }
         if (IsSwimming)
         {

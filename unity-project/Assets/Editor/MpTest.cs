@@ -311,6 +311,17 @@ public static class MpPlayRunner
         remote = ns.Players.Find(p => !p.isLocal);
         r.Check(remote != null && remote.avatar != null && !remote.downed && !ns.LocalDowned, "tras el reinicio todos están en pie y con avatar");
         Mark("host_restarted");
+        // v7.0.1: salto del anfitrión y salto del cliente visto en su copia remota
+        {
+            IEnumerator je = SmokeTest.JumpCheck(r, "[MP anfitrión] ", GameManager.Instance.player, "en multijugador");
+            while (je.MoveNext()) yield return je.Current;
+            yield return WaitMark("client_jump_start", 40);
+            Mark("host_jump_watch");
+            RemotePlayer rpj = RemotePlayer.All.Count > 0 ? RemotePlayer.All[0] : null;
+            float y0 = rpj != null ? rpj.transform.position.y : 0f, ym = y0;
+            for (float tj = 0f; tj < 3.5f; tj += Time.deltaTime) { if (rpj != null) ym = Mathf.Max(ym, rpj.transform.position.y); yield return null; }
+            r.Check(rpj != null && ym - y0 > 0.4f, "[MP anfitrión] [salto] el salto del cliente se ve en su copia remota (sube " + (ym - y0).ToString("F2") + " m)");
+        }
         yield return Wait(() => Marked("client_restarted"), 120, "el cliente confirma el reinicio");
 
         // ---- salida: ambos van a la puerta -> siguiente nivel ----
@@ -605,6 +616,15 @@ public static class MpPlayRunner
         gm = GameManager.Instance; gen = gb.Generator;
         Mark("client_restarted");
         yield return WaitMark("host_restarted", 120);
+        // v7.0.1: el cliente salta (y el anfitrión lo ve subir)
+        {
+            GameManager gmj = GameManager.Instance;
+            Mark("client_jump_start");
+            yield return WaitMark("host_jump_watch", 40);
+            yield return 0.3f;
+            IEnumerator je = SmokeTest.JumpCheck(r, "[MP cliente] ", gmj.player, "en multijugador");
+            while (je.MoveNext()) yield return je.Current;
+        }
         Vector3 ex = gen.ExitPosition;
         int epoch0 = ns.Epoch;
         gm.player.Teleport(new Vector3(ex.x, gen.PlayerStart.y, ex.z), 0f);

@@ -71,6 +71,23 @@ public class RemotePlayer : MonoBehaviour
         return rp;
     }
 
+    // v7.0.1: copia del imitador (no cuenta como jugador: fuera de All, sin pisadas, linterna sin luz, etiqueta con fallos)
+    public bool IsMimic { get; private set; }
+    public bool ShowTag = true;
+    public void RestartAnimator()
+    {
+        if (animator == null) return;
+        animator.Rebind(); animator.Play(hIdle, 0, 0f); animator.Update(0f); CurrentState = "Idle";
+    }
+    public static RemotePlayer CreateMimic(Transform parent, int id, string name, StepKind step)
+    {
+        RemotePlayer rp = Create(parent, id, name, step);
+        rp.IsMimic = true; All.Remove(rp); rp.gameObject.name = "MimicPuppet";
+        foreach (Collider c in rp.GetComponentsInChildren<Collider>(true)) Object.DestroyImmediate(c);
+        if (rp.lampLight != null) { rp.lampLight.enabled = false; Destroy(rp.lampLight); rp.lampLight = null; }
+        return rp;
+    }
+
     private void Build()
     {
         GameObject prefab = Resources.Load<GameObject>(PlayerBody.PrefabResource);
@@ -306,6 +323,7 @@ public class RemotePlayer : MonoBehaviour
         else if (CurrentState == "Run") speed = Mathf.Clamp(v / (2f * 2.2f) * runLen, 0.4f, 2.5f);
         else if (CurrentState == "Duck") speed = Downed ? 0f : 0.6f + Mathf.Clamp01(v / 1.7f) * 0.5f;
         animator.speed = speed * (swim ? 0.5f : 1f);
+        if (IsMimic) animator.speed *= 0.55f + Mathf.PerlinNoise(Time.time * 4f, 1.7f) * 1.2f;   // animación a tirones
     }
 
     // Derribado: el cuerpo se tumba en el suelo
@@ -327,11 +345,13 @@ public class RemotePlayer : MonoBehaviour
         lamp.localRotation = Quaternion.Euler(lampPitch, 0f, 0f);
         float yAdj = Downed ? 0.35f : (Crouching ? 0.85f : 1.22f);
         lamp.localPosition = Vector3.Lerp(lamp.localPosition, new Vector3(0.24f, yAdj, 0.32f), 1f - Mathf.Exp(-10f * dt));
+        if (IsMimic) { if (!lensOn && on) { SetLens(true); lensOn = true; } return; }   // la lente brilla pero no ilumina
         if (lampLight != null && lampLight.enabled != on) { lampLight.enabled = on; SetLens(on); }
     }
 
     private void Footsteps(float dt)
     {
+        if (IsMimic) return;   // el imitador no hace ruido al pisar
         Rustle(dt);
         Vector3 d = transform.position - lastPos; d.y = 0f;
         lastPos = transform.position;
@@ -361,9 +381,13 @@ public class RemotePlayer : MonoBehaviour
         }
     }
 
+    private bool lensOn;
+    private static readonly string Glyphs = "#%&@$?!/\\|_";
+    public int TagGlitches { get; private set; }
     private void UpdateTag()
     {
         if (tagRoot == null) return;
+        if (IsMimic && !ShowTag) { tagRoot.gameObject.SetActive(false); return; }
         Camera cam = Camera.main;
         if (cam != null)
         {
@@ -374,11 +398,23 @@ public class RemotePlayer : MonoBehaviour
             tagRoot.gameObject.SetActive(dist < 40f);
         }
         string t = playerName;
+        if (IsMimic)
+        {
+            // etiqueta que falla: letras cambiadas, parpadeo y algún desplazamiento
+            float g = Mathf.PerlinNoise(Time.time * 2.3f, playerId * 0.7f);
+            if (g > 0.62f && t.Length > 0)
+            {
+                char[] cs = t.ToCharArray(); int k = (int)(Time.time * 13f) % cs.Length;
+                cs[k] = Glyphs[(int)(Time.time * 31f) % Glyphs.Length]; t = new string(cs); TagGlitches++;
+            }
+            tagText.enabled = Mathf.PerlinNoise(Time.time * 6f, 3.1f) > 0.18f;
+            tagRoot.localPosition = new Vector3(g > 0.75f ? 0.06f : 0f, 2.4f, 0f);
+        }
         if (Downed) t += "\n<color=#ff6a5a>DERRIBADO" + (Revive01 > 0.01f ? " · reanimando " + Mathf.RoundToInt(Revive01 * 100f) + "%" : "") + "</color>";
         if (tagText.text != t) { tagText.supportRichText = true; tagText.text = t; }
     }
 
-    private void OnEnable() { if (!All.Contains(this)) All.Add(this); }
+    private void OnEnable() { if (!IsMimic && !All.Contains(this)) All.Add(this); }
     private void OnDisable() { All.Remove(this); }
 
     private void OnDestroy()

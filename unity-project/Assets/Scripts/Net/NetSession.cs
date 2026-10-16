@@ -42,7 +42,7 @@ public class NetStart
 // Los clientes generan el mismo mundo a partir de la semilla que envía el anfitrión. Transporte: TCP propio (NetTransport).
 public class NetSession : MonoBehaviour
 {
-    public const string Protocol = "BackroomsEscape-MP-2";
+    public const string Protocol = "BackroomsEscape-MP-3";   // v7.0.1: imitador (bit de disfraz en el estado del monstruo)
     public const int MaxPlayers = 4;
     public const int DefaultPort = 7777;
     public const float TickRate = 20f;
@@ -601,7 +601,7 @@ public class NetSession : MonoBehaviour
         {
             MonsterAI m = mons[i];
             if (m == null) { w.Byte(i).Vec3(Vector3.zero).Float(0f).Byte(0).Float(0f); continue; }
-            w.Byte(i).Vec3(m.transform.position).Float(m.transform.eulerAngles.y).Byte((int)m.CurrentState).Float(m.VisSpeed);
+            w.Byte(i).Vec3(m.transform.position).Float(m.transform.eulerAngles.y).Byte(m.NetStateByte).Float(m.VisSpeed);
         }
         Broadcast(w.ToArray());
     }

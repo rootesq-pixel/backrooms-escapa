@@ -32,6 +32,7 @@ Shader "Backrooms/FieldGrass"
             sampler2D _MainTex, _WindNoise;
             float _Cutoff, _MaxH, _WTime;
             float4 _DryCol, _Tint, _WindDir;
+            float4 _LodBand;   // v7.0.1: x = inicio, y = fin, z = ancho del fundido (m). Las matas encogen en los bordes: sin saltos de LOD ni de radio
             float4 _GrassPush[8];
 
             struct appdata { float4 vertex : POSITION; float3 normal : NORMAL; float2 uv : TEXCOORD0; };
@@ -47,7 +48,9 @@ Shader "Backrooms/FieldGrass"
             v2f vert(appdata v, uint iid : SV_InstanceID)
             {
                 Inst I = _Inst[iid];
-                float s = I.pos.w, c = cos(I.prm.x), sn = sin(I.prm.x);
+                float dc = distance(I.pos.xz, _WorldSpaceCameraPos.xz);
+                float fade = smoothstep(_LodBand.x - _LodBand.z, _LodBand.x + _LodBand.z, dc) * (1.0 - smoothstep(_LodBand.y - _LodBand.z, _LodBand.y + _LodBand.z, dc));
+                float s = I.pos.w * fade, c = cos(I.prm.x), sn = sin(I.prm.x);
                 float3 lp = v.vertex.xyz; lp.y *= I.prm.w;
                 float h01 = saturate(v.vertex.y / _MaxH);
                 float3 p = float3(lp.x * c - lp.z * sn, lp.y, lp.x * sn + lp.z * c) * s;

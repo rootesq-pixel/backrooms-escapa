@@ -57,6 +57,9 @@ public class MonsterAI : MonoBehaviour
     [Header("Multijugador")]
     [Tooltip("Cliente: este monstruo solo se muestra; su posición y estado llegan del anfitrión.")]
     public bool netProxy;
+    public MimicDisguise mimic;   // v7.0.1
+    public bool Disguised { get { return mimic != null && mimic.Disguised; } }
+    public int NetStateByte { get { return (int)CurrentState | (Disguised ? MimicDisguise.NetBit : 0); } }
     public float VisSpeed { get { return visSpeed; } }
 
     public State CurrentState { get; private set; }
@@ -291,7 +294,8 @@ public class MonsterAI : MonoBehaviour
         NetSample last = nbuf[(nhead + ncount - 1) % nbuf.Length];
         transform.position = res.pos;
         transform.rotation = Quaternion.Euler(0f, res.yaw, 0f);
-        State st = (State)Mathf.Clamp(last.state, 0, 3);
+        if (mimic != null) mimic.SetDisguised((last.state & MimicDisguise.NetBit) != 0);
+        State st = (State)Mathf.Clamp(last.state & 3, 0, 3);
         if (st == State.Chase && CurrentState != State.Chase && visual != null) visual.OnChaseStart();
         if (st == State.Kill && CurrentState != State.Kill && visual != null) { visual.OnKill(); }
         CurrentState = st;
@@ -323,6 +327,11 @@ public class MonsterAI : MonoBehaviour
         Vector3 toTarget = target.position - transform.position;
         float distance = toTarget.magnitude;
         float flatDistance = new Vector2(toTarget.x, toTarget.z).magnitude;
+        if (mimic != null && mimic.Disguised)
+        {
+            if (!mimic.Tick(target, dt)) { UpdateDisguised(dt, flatDistance, toTarget); return; }
+            EnterChase();   // se ha descubierto: ataca
+        }
 
         bool lineOfSight = HasLineOfSight();
         bool sees = CanSee(toTarget, distance, lineOfSight);
@@ -351,6 +360,26 @@ public class MonsterAI : MonoBehaviour
         if (!useNav)
         {
             UpdateFallbackMovement(dt);
+        }
+        UpdateVisual(dt);
+    }
+
+    // v7.0.1 imitador disfrazado: se acerca despacio hasta unos metros y se queda mirando
+    private void UpdateDisguised(float dt, float flatDistance, Vector3 toTarget)
+    {
+        if (flatDistance > MimicDisguise.HoldDistance)
+        {
+            SetSpeed(patrolSpeed * 0.8f);
+            repathTimer -= dt;
+            if (repathTimer <= 0f || !hasDestination) { repathTimer = repathInterval; SetDestination(target.position); }
+            if (!useNav) UpdateFallbackMovement(dt);
+        }
+        else
+        {
+            StopMoving();
+            if (useNav && agent != null && agent.enabled && agent.isOnNavMesh) agent.ResetPath();
+            Vector3 l = toTarget; l.y = 0f;
+            if (l.sqrMagnitude > 0.01f) transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(l), 1f - Mathf.Exp(-3f * dt));
         }
         UpdateVisual(dt);
     }

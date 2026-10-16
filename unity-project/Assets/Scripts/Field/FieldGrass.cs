@@ -164,6 +164,15 @@ public class FieldGrass : MonoBehaviour
     private static bool Heavy(Kind k) { return k.mesh.GetIndexCount(0) / 3 > 400; }   // Bajo: solo matas de <=400 triángulos
 
     public static int LodFor(float d) { return d < 14f ? 0 : (d < 30f ? 1 : 2); }
+    // v7.0.1: bandas de LOD solapadas con fundido (encogido) de FadeW m a cada lado; el último LOD se apaga antes del radio
+    public const float FadeW = 3f;
+    public static Vector2 Band(int lod, float radius)
+    {
+        float lo = lod == 0 ? -100f : (lod == 1 ? 14f : 30f);
+        float hi = lod == 0 ? 14f : (lod == 1 ? 30f : 1000f);
+        return new Vector2(lo, Mathf.Min(hi, radius - FadeW));
+    }
+    public float CurrentRadius { get { return Radius; } }
     private static readonly float[] LodDensity = { 10.0f, 4.5f, 1.8f };   // matas / m²
     private static readonly float[] LodScale = { 1f, 1.3f, 1.7f };
 
@@ -186,26 +195,36 @@ public class FieldGrass : MonoBehaviour
         Vector3 c = levelRoot.InverseTransformPoint(cam.transform.position);
         GeometryUtility.CalculateFrustumPlanes(cam, planes);
         UpdatePushers();
-        int cx0 = Mathf.FloorToInt((c.x - radius) / CS), cx1 = Mathf.FloorToInt((c.x + radius) / CS);
-        int cz0 = Mathf.FloorToInt((c.z - radius) / CS), cz1 = Mathf.FloorToInt((c.z + radius) / CS);
+        float pr = radius + CS * 1.5f;   // radio de precarga
+        int cx0 = Mathf.FloorToInt((c.x - pr) / CS), cx1 = Mathf.FloorToInt((c.x + pr) / CS);
+        int cz0 = Mathf.FloorToInt((c.z - pr) / CS), cz1 = Mathf.FloorToInt((c.z + pr) / CS);
         float now = Time.unscaledTime;
         int vis = 0, tris = 0, calls = 0;
         for (int cx = cx0; cx <= cx1; cx++)
             for (int cz = cz0; cz <= cz1; cz++)
             {
                 float mx = (cx + 0.5f) * CS - c.x, mz = (cz + 0.5f) * CS - c.z;
-                float d = Mathf.Sqrt(mx * mx + mz * mz) - CS * 0.7f;
-                if (d > radius) continue;
-                int lod = LodFor(Mathf.Max(0f, d));
+                float dcen = Mathf.Sqrt(mx * mx + mz * mz);
+                float dmin = Mathf.Max(0f, dcen - CS * 0.71f), dmax = dcen + CS * 0.71f;
+                if (dmin > radius + CS) continue;
+                for (int lod = 0; lod < 3; lod++)
+                {
+                Vector2 band = Band(lod, radius);
+                if (band.y <= band.x) continue;
+                bool draw = dmax >= band.x - FadeW && dmin <= band.y + FadeW;
+                // precarga: el trozo se crea un paso antes de entrar en su banda (sin tirones ni huecos al caminar)
+                bool keep = draw || (dmax >= band.x - FadeW - CS && dmin <= band.y + FadeW + CS);
+                if (!keep) continue;
                 long key = ((long)(cx + 100000) << 24) ^ ((long)(cz + 100000) << 2) ^ lod;
                 if (!chunks.TryGetValue(key, out Chunk ch))
                 {
                     ch = MakeChunk(cx, cz, lod, density);
+                    for (int k = 0; k < kinds.Count; k++) if (ch.mpb[k] != null) ch.mpb[k].SetVector("_LodBand", new Vector4(band.x, band.y, FadeW, 0f));
                     chunks[key] = ch;
                 }
                 ch.lastUsed = now;
                 Bounds wb = ch.bounds; wb.center = levelRoot.TransformPoint(wb.center);
-                if (!GeometryUtility.TestPlanesAABB(planes, wb)) continue;
+                if (!draw || !GeometryUtility.TestPlanesAABB(planes, wb)) continue;
                 for (int k = 0; k < kinds.Count; k++)
                 {
                     if (ch.counts[k] == 0) continue;
@@ -214,10 +233,12 @@ public class FieldGrass : MonoBehaviour
                         Graphics.DrawMeshInstancedIndirect(kinds[k].mesh, 0, kinds[k].mat, wb, ch.args[k], 0, ch.mpb[k], ShadowCastingMode.Off, false, 0, null);
                 }
             }
+            }
+
         VisibleInstances = vis; VisibleTriangles = tris; DrawCalls = calls;
         // reciclar trozos lejanos o con otro detalle (se liberan los buffers)
         evict.Clear();
-        foreach (KeyValuePair<long, Chunk> kv in chunks) if (now - kv.Value.lastUsed > 1.5f) evict.Add(kv.Key);
+        foreach (KeyValuePair<long, Chunk> kv in chunks) if (now - kv.Value.lastUsed > 3.0f) evict.Add(kv.Key);
         foreach (long k in evict) { Release(chunks[k]); chunks.Remove(k); }
     }
 

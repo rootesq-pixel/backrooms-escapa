@@ -41,6 +41,7 @@ public class FieldWorld : MonoBehaviour
         fw.rnd = new System.Random(gen.UsedSeed * 13 + 1);
         fw.BuildTerrain(track);
         fw.BuildHouses(cfg, track);
+        foreach (GameObject hg in fw.houseGos) foreach (Transform ch in hg.transform) fw.GhostTree(ch);   // zócalos y escalones también al otro lado del borde
         fw.BuildProps(cfg, track);
         Active = fw;
         return fw;
@@ -110,6 +111,48 @@ public class FieldWorld : MonoBehaviour
             }
     }
 
+    // v7.0.1: copias del otro lado del borde también para postes, árboles, puertas, cables y la salida
+    // (antes solo terreno y casas: cerca del borde los accesorios desaparecían y reaparecían al dar la vuelta)
+    public int GhostTree(Transform root)
+    {
+        if (root == null || levelRoot == null) return 0;
+        int n = 0; Matrix4x4 inv = levelRoot.worldToLocalMatrix;
+        foreach (MeshRenderer r in root.GetComponentsInChildren<MeshRenderer>(true))
+        {
+            if (r.name.EndsWith("_LOD0") || r.name.EndsWith("_LOD2")) continue;   // en las copias basta el LOD medio
+            MeshFilter mf = r.GetComponent<MeshFilter>(); if (mf == null || mf.sharedMesh == null) continue;
+            if (r.GetComponent<Light>() != null || !r.enabled) continue;
+            Bounds b = r.bounds; Vector3 c = levelRoot.InverseTransformPoint(b.center);
+            AddGhost(mf.sharedMesh, inv * r.transform.localToWorldMatrix, r.sharedMaterials, c, b.extents.magnitude + 1f); n++;
+        }
+        return n;
+    }
+    public int GhostCount { get { return ghosts.Count; } }
+    public static float GhostRange { get { return FieldAtmosphere.FarClip + 10f; } }
+    public static bool GhostInRange(Vector3 camLocal, Vector3 center, float radius, Vector3 off, float range)
+    {
+        Vector3 p = center + off;
+        return Mathf.Abs(p.x - camLocal.x) <= range + radius && Mathf.Abs(p.z - camLocal.z) <= range + radius;
+    }
+    // pruebas: copias (real o desplazada) a menos de 'dist' de la cámara que NO se dibujarían
+    public int MissingCopies(Vector3 camLocal, float dist)
+    {
+        int miss = 0; float range = GhostRange;
+        for (int i = 0; i < ghosts.Count; i++)
+            for (int ox = -1; ox <= 1; ox++)
+                for (int oz = -1; oz <= 1; oz++)
+                {
+                    if (ox == 0 && oz == 0) continue;
+                    Vector3 off = new Vector3(ox * L, 0f, oz * L);
+                    Vector3 p = ghosts[i].center + off;
+                    float d = new Vector2(p.x - camLocal.x, p.z - camLocal.z).magnitude - ghosts[i].radius;
+                    if (d > dist) continue;
+                    bool region = !(Mathf.Abs(camLocal.x - (L * 0.5f + off.x)) > L * 0.5f + range || Mathf.Abs(camLocal.z - (L * 0.5f + off.z)) > L * 0.5f + range);
+                    if (!region || !GhostInRange(camLocal, ghosts[i].center, ghosts[i].radius, off, range)) miss++;
+                }
+        return miss;
+    }
+
     private void AddGhost(Mesh m, Matrix4x4 local, Material[] mats, Vector3 center, float radius)
     {
         ghosts.Add(new Ghost { mesh = m, local = local, mats = mats, center = center, radius = radius });
@@ -118,6 +161,7 @@ public class FieldWorld : MonoBehaviour
     // ------------------------------------------------------------------ casas
     private static readonly Color[] Tints = { new Color(0.86f, 0.82f, 0.70f), new Color(0.78f, 0.79f, 0.76f), new Color(0.84f, 0.76f, 0.62f) };
 
+    private readonly List<GameObject> houseGos = new List<GameObject>();
     private void BuildHouses(LevelConfig cfg, System.Action<Object> track)
     {
         Material[] walls = new Material[3];
@@ -153,6 +197,7 @@ public class FieldWorld : MonoBehaviour
             mr.sharedMaterials = mats; mr.shadowCastingMode = ShadowCastingMode.Off; mr.receiveShadows = false;
             go.AddComponent<MeshCollider>().sharedMesh = mesh;
             AddGhost(mesh, Matrix4x4.TRS(pos, rot, Vector3.one), mats, pos, 8f);
+            houseGos.Add(go);
             // zócalo de hormigón hasta el terreno más bajo
             float plinth = pos.y - lo + 0.4f;
             GameObject pl = ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "Plinth", go.transform, new Vector3(0f, 0.02f - plinth * 0.5f, 0f),
@@ -217,6 +262,15 @@ public class FieldWorld : MonoBehaviour
             Vector3 d = -nrm * 0.08f;
             fm.Quad(0, e0 + d, e1 + d, r1 + d, r0 + d, -nrm, Vector3.right, vAx);
         }
+        // v7.0.1: carpintería (marcos de ventanas con alféizar, marco de puerta, esquineras y tabla de alero): menos aspecto de caja
+        const float tw = 0.09f, tp = 0.05f;
+        foreach (Vector4 hv in front) FrameX(fm, hv, D / 2, 1f, tw, tp, hv.z > y0 + 0.01f);
+        foreach (Vector4 hv in back) FrameX(fm, hv, -D / 2, -1f, tw, tp, true);
+        foreach (Vector4 hv in side) { FrameZ(fm, hv, -W / 2, -1f, tw, tp); FrameZ(fm, hv, W / 2, 1f, tw, tp); }
+        foreach (float sx in new[] { -1f, 1f }) foreach (float sz2 in new[] { -1f, 1f })
+        { float cx = sx * (W / 2 + 0.01f), cz = sz2 * (D / 2 + 0.01f); fm.Box(3, new Vector3(cx - 0.07f, y0, cz - 0.07f), new Vector3(cx + 0.07f, y1, cz + 0.07f)); }
+        foreach (float sz2 in new[] { -1f, 1f })
+            fm.Box(3, new Vector3(-W / 2 - o, y1 - 0.34f, sz2 * (D / 2 + o) - 0.03f), new Vector3(W / 2 + o, y1 - 0.18f, sz2 * (D / 2 + o) + 0.03f));
         // casas cerradas: puerta de madera y ventanas tapiadas con tablas
         if (!enterable)
         {
@@ -229,6 +283,25 @@ public class FieldWorld : MonoBehaviour
                 }
         }
         return fm.ToMesh(enterable ? "HouseOpen_" + tpl : "HouseClosed_" + tpl);
+    }
+
+    // marco de hueco (x0, x1, ya, yb) en una fachada perpendicular a Z (cara exterior en zf, hacia 'dir')
+    private static void FrameX(FieldMesh fm, Vector4 h, float zf, float dir, float tw, float tp, bool sill)
+    {
+        float za = dir > 0 ? zf : zf - tp, zb = dir > 0 ? zf + tp : zf;
+        fm.Box(3, new Vector3(h.x - tw, h.z, za), new Vector3(h.x, h.w, zb));
+        fm.Box(3, new Vector3(h.y, h.z, za), new Vector3(h.y + tw, h.w, zb));
+        fm.Box(3, new Vector3(h.x - tw, h.w, za), new Vector3(h.y + tw, h.w + tw * 1.2f, zb));
+        if (sill) fm.Box(3, new Vector3(h.x - tw * 1.6f, h.z - 0.06f, dir > 0 ? zf : zf - tp * 2.2f), new Vector3(h.y + tw * 1.6f, h.z, dir > 0 ? zf + tp * 2.2f : zf));
+    }
+    // igual para fachadas perpendiculares a X (hueco en coordenadas z)
+    private static void FrameZ(FieldMesh fm, Vector4 h, float xf, float dir, float tw, float tp)
+    {
+        float xa = dir > 0 ? xf : xf - tp, xb = dir > 0 ? xf + tp : xf;
+        fm.Box(3, new Vector3(xa, h.z, h.x - tw), new Vector3(xb, h.w, h.x));
+        fm.Box(3, new Vector3(xa, h.z, h.y), new Vector3(xb, h.w, h.y + tw));
+        fm.Box(3, new Vector3(xa, h.w, h.x - tw), new Vector3(xb, h.w + tw * 1.2f, h.y + tw));
+        fm.Box(3, new Vector3(dir > 0 ? xf : xf - tp * 2.2f, h.z - 0.06f, h.x - tw * 1.6f), new Vector3(dir > 0 ? xf + tp * 2.2f : xf, h.z, h.y + tw * 1.6f));
     }
 
     // pared a lo largo de X (grosor en Z de z0 a z1) con huecos (x0, x1, ya, yb)
@@ -260,14 +333,61 @@ public class FieldWorld : MonoBehaviour
     }
 
     // ------------------------------------------------------------------ postes, puertas sueltas, árboles
+    // v7.0.1: modelos de Blender (Tools/field/field_props.py) con LOD0-2 y corteza/madera triplanar PBR CC0
+    public static Material BarkMat(string name, Color tint, float scale, float stretch, float gloss, System.Action<Object> track)
+    {
+        Shader sh = Shader.Find("Backrooms/FieldBark");
+        if (sh == null) return ProceduralAssets.CreateMaterial(tint * 0.5f, null, Vector2.one, 0.1f);
+        Material m = new Material(sh); track(m);
+        m.SetColor("_Color", tint);
+        m.SetTexture("_MainTex", Resources.Load<Texture2D>("Field/Props/" + name + "_diff"));
+        m.SetTexture("_BumpMap", Resources.Load<Texture2D>("Field/Props/" + name + "_nor"));
+        m.SetTexture("_Mask", Resources.Load<Texture2D>("Field/Props/" + name + "_mask"));
+        m.SetFloat("_Scale", scale); m.SetFloat("_Stretch", stretch); m.SetFloat("_Gloss", gloss);
+        return m;
+    }
+
+    static GameObject SpawnModel(string res, Transform parent, Material[] byName, string[] names, System.Action<Object> track)
+    {
+        GameObject src = Resources.Load<GameObject>("Field/Props/" + res);
+        if (src == null) return null;
+        GameObject g = Object.Instantiate(src, parent, false); g.name = res;
+        foreach (MeshRenderer r in g.GetComponentsInChildren<MeshRenderer>(true))
+        {
+            Material[] ms = r.sharedMaterials;
+            for (int i = 0; i < ms.Length; i++)
+            {
+                Material pick = byName[0];
+                for (int k = 0; k < names.Length; k++) if (ms[i] != null && ms[i].name.StartsWith(names[k])) pick = byName[k];
+                ms[i] = pick;
+            }
+            r.sharedMaterials = ms; r.shadowCastingMode = ShadowCastingMode.On;
+        }
+        // LOD: cambios dentro de la niebla y sin desaparecer nunca (el último LOD no se recorta)
+        LODGroup lg = g.GetComponent<LODGroup>();
+        if (lg != null)
+        {
+            LOD[] l = lg.GetLODs();
+            float[] t = { 0.11f, 0.045f, 0.0001f };
+            for (int i = 0; i < l.Length; i++) l[i].screenRelativeTransitionHeight = t[Mathf.Min(i, 2)];
+            lg.SetLODs(l); lg.fadeMode = LODFadeMode.None;
+        }
+        return g;
+    }
+
+    public int ModelProps { get; private set; }
+
     private void BuildProps(LevelConfig cfg, System.Action<Object> track)
     {
-        Material wood = ProceduralAssets.CreateMaterial(new Color(0.30f, 0.25f, 0.21f), Tex("house_floor_a"), Vector2.one, 0.08f); track(wood);
-        Material bark = ProceduralAssets.CreateMaterial(new Color(0.26f, 0.24f, 0.22f), null, Vector2.one, 0.05f); track(bark);
+        Material bark = BarkMat("prop_bark", new Color(0.95f, 0.92f, 0.88f), 0.9f, 0.45f, 0.35f, track);
+        Material poleWood = BarkMat("prop_pole", new Color(0.62f, 0.52f, 0.44f), 0.7f, 0.3f, 0.35f, track);
+        Material dirtM = BarkMat("prop_bark", new Color(0.25f, 0.21f, 0.15f), 1.6f, 1f, 0.1f, track);
+        Material metal = ProceduralAssets.CreateMaterial(new Color(0.22f, 0.21f, 0.20f), null, Vector2.one, 0.35f); track(metal); metal.SetFloat("_Metallic", 0.75f);
+        Material ceramic = ProceduralAssets.CreateMaterial(new Color(0.42f, 0.36f, 0.30f), null, Vector2.one, 0.75f); track(ceramic);
         Material wire = ProceduralAssets.CreateMaterial(new Color(0.05f, 0.05f, 0.05f), null, Vector2.one, 0.1f); track(wire);
         Transform proot = new GameObject("Props").transform;
         proot.SetParent(transform, false);
-        Vector3 prevTop = Vector3.zero; bool hasPrev = false;
+        Vector3 prevA = Vector3.zero, prevB = Vector3.zero; bool hasPrev = false;
         foreach (FieldPlan.Prop p in plan.props)
         {
             float gy = FieldHeight.H(p.pos.x, p.pos.y);
@@ -275,59 +395,156 @@ public class FieldWorld : MonoBehaviour
             go.transform.SetParent(proot, false);
             go.transform.localPosition = new Vector3(p.pos.x, gy, p.pos.y);
             go.transform.localRotation = Quaternion.Euler(0f, p.yaw, 0f);
+            System.Random r = new System.Random(Mathf.RoundToInt(p.pos.x * 31 + p.pos.y * 17));
             if (p.kind == FieldPlan.PropPole)
             {
-                ProceduralAssets.CreatePrimitive(PrimitiveType.Cylinder, "Post", go.transform, new Vector3(0f, 3.8f, 0f), new Vector3(0.26f, 4.2f, 0.26f), wood, true);
-                ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "Bar", go.transform, new Vector3(0f, 7.3f, 0f), new Vector3(0.14f, 0.12f, 1.8f), wood, false);
-                Vector3 top = go.transform.TransformPoint(new Vector3(0f, 7.42f, 0.75f));
-                if (hasPrev && (top - prevTop).magnitude < 40f) Wire(proot, prevTop, top, wire);
-                prevTop = top; hasPrev = true;
+                go.transform.localRotation = Quaternion.Euler((float)r.NextDouble() * 3f - 1.5f, p.yaw, (float)r.NextDouble() * 3f - 1.5f);
+                GameObject m = SpawnModel("UtilityPole", go.transform, new[] { poleWood, metal, ceramic, dirtM }, new[] { "PoleWood", "PoleMetal", "PoleCeramic", "PoleDirt" }, track);
+                CapsuleCollider cc = go.AddComponent<CapsuleCollider>(); cc.radius = 0.16f; cc.height = 8.2f; cc.center = new Vector3(0f, 4.1f, 0f);
+                // cables desde los aisladores exteriores (eje de la cruceta = eje horizontal más largo del modelo)
+                Vector3 axis = Vector3.forward; float topY = 7.84f;
+                if (m != null) { MeshFilter mf = m.GetComponentInChildren<MeshFilter>(); if (mf != null) { Bounds mb = mf.sharedMesh.bounds; axis = mb.extents.x > mb.extents.z ? Vector3.right : Vector3.forward; topY = mb.max.y; } }
+                Vector3 a = go.transform.TransformPoint(new Vector3(0f, topY - 0.02f, 0f) + axis * 0.85f), b = go.transform.TransformPoint(new Vector3(0f, topY - 0.02f, 0f) - axis * 0.85f);
+                if (hasPrev && (a - prevA).magnitude < 40f)
+                {
+                    bool swap = (a - prevA).sqrMagnitude + (b - prevB).sqrMagnitude > (a - prevB).sqrMagnitude + (b - prevA).sqrMagnitude;
+                    Wire(proot, prevA, swap ? b : a, wire); Wire(proot, prevB, swap ? a : b, wire);
+                }
+                prevA = a; prevB = b; hasPrev = true;
+                if (m != null) ModelProps++;
             }
             else if (p.kind == FieldPlan.PropDoor) BuildLoneDoor(go.transform, cfg, track);
             else
             {
-                System.Random r = new System.Random(Mathf.RoundToInt(p.pos.x * 31 + p.pos.y * 17));
-                go.transform.localRotation = Quaternion.Euler((float)r.NextDouble() * 6f - 3f, p.yaw, (float)r.NextDouble() * 6f - 3f);
-                ProceduralAssets.CreatePrimitive(PrimitiveType.Cylinder, "Trunk", go.transform, new Vector3(0f, 2.6f, 0f), new Vector3(0.5f, 2.8f, 0.5f), bark, true);
-                for (int b = 0; b < 6; b++)
-                {
-                    float a = b * 60f + (float)r.NextDouble() * 30f, up = 3.0f + b * 0.55f, len = 1.6f + (float)r.NextDouble() * 1.4f;
-                    GameObject br = ProceduralAssets.CreatePrimitive(PrimitiveType.Cylinder, "Branch" + b, go.transform, Vector3.zero, new Vector3(0.16f, len * 0.5f, 0.16f), bark, false);
-                    br.transform.localRotation = Quaternion.Euler(0f, a, 0f) * Quaternion.Euler(50f + (float)r.NextDouble() * 20f, 0f, 0f);
-                    br.transform.localPosition = new Vector3(0f, up, 0f) + br.transform.localRotation * new Vector3(0f, len * 0.5f, 0f);
-                }
+                go.transform.localRotation = Quaternion.Euler((float)r.NextDouble() * 4f - 2f, p.yaw, (float)r.NextDouble() * 4f - 2f);
+                float sc = 0.85f + (float)r.NextDouble() * 0.4f;
+                go.transform.localScale = Vector3.one * sc;
+                GameObject m = SpawnModel("DeadTree" + r.Next(3), go.transform, new[] { bark }, new[] { "Bark" }, track);
+                CapsuleCollider cc = go.AddComponent<CapsuleCollider>(); cc.radius = 0.28f; cc.height = 3.2f; cc.center = new Vector3(0f, 1.6f, 0f);
+                if (m != null) ModelProps++;
             }
             propCount++;
         }
+        GhostTree(proot);
     }
 
+    // cable combado como malla de tubo (4 caras): sin depender de la cámara y con copia en el borde
     private void Wire(Transform parent, Vector3 a, Vector3 b, Material m)
     {
+        const int N = 14; const float R = 0.012f;
         GameObject go = new GameObject("Wire");
-        go.transform.SetParent(parent, true);
-        LineRenderer lr = go.AddComponent<LineRenderer>();
-        lr.useWorldSpace = false; lr.positionCount = 12; lr.widthMultiplier = 0.03f; lr.sharedMaterial = m;
-        lr.shadowCastingMode = ShadowCastingMode.Off; lr.receiveShadows = false;
-        Vector3 la = go.transform.InverseTransformPoint(a), lb = go.transform.InverseTransformPoint(b);
-        for (int i = 0; i < 12; i++) { float t = i / 11f; lr.SetPosition(i, Vector3.Lerp(la, lb, t) + Vector3.down * (Mathf.Sin(t * Mathf.PI) * 0.9f)); }
+        go.transform.SetParent(parent, false);
+        Vector3 la = parent.InverseTransformPoint(a), lb = parent.InverseTransformPoint(b);
+        Vector3[] pts = new Vector3[N];
+        for (int i = 0; i < N; i++) { float t = i / (N - 1f); pts[i] = Vector3.Lerp(la, lb, t) + Vector3.down * (Mathf.Sin(t * Mathf.PI) * 0.9f); }
+        List<Vector3> v = new List<Vector3>(); List<Vector3> n = new List<Vector3>(); List<int> tri = new List<int>();
+        for (int i = 0; i < N; i++)
+        {
+            Vector3 f = (pts[Mathf.Min(i + 1, N - 1)] - pts[Mathf.Max(i - 1, 0)]).normalized;
+            Vector3 r = Vector3.Cross(Vector3.up, f).normalized, u = Vector3.Cross(f, r);
+            for (int k = 0; k < 4; k++) { float ang = k * Mathf.PI * 0.5f; Vector3 d = r * Mathf.Cos(ang) + u * Mathf.Sin(ang); v.Add(pts[i] + d * R); n.Add(d); }
+            if (i > 0) for (int k = 0; k < 4; k++) { int a0 = (i - 1) * 4 + k, a1 = (i - 1) * 4 + (k + 1) % 4, b0 = i * 4 + k, b1 = i * 4 + (k + 1) % 4; tri.Add(a0); tri.Add(a1); tri.Add(b0); tri.Add(a1); tri.Add(b1); tri.Add(b0); }
+        }
+        Mesh mesh = new Mesh { name = "Wire" }; mesh.SetVertices(v); mesh.SetNormals(n); mesh.SetTriangles(tri, 0); mesh.RecalculateBounds(); owned.Add(mesh);
+        go.AddComponent<MeshFilter>().sharedMesh = mesh;
+        MeshRenderer mr = go.AddComponent<MeshRenderer>(); mr.sharedMaterial = m; mr.shadowCastingMode = ShadowCastingMode.Off;
     }
 
-    // puerta suelta (señuelo): igual que la de salida pero sin LED ni luz
+    // v7.0.1: materiales PBR CC0 (Poly Haven) desde Resources/Field/<dir>/<name>_diff|_nor|_mask (mask: G=AO, A=suavidad)
+    public static Material PbrMat(string dir, string name, Color tint, Vector2 tiling, float normalScale, float glossScale, System.Action<Object> track)
+    {
+        Texture2D d = Resources.Load<Texture2D>("Field/" + dir + "/" + name + "_diff");
+        Material m = ProceduralAssets.CreateMaterial(tint, d, tiling, 0.3f); track(m);
+        Texture2D n = Resources.Load<Texture2D>("Field/" + dir + "/" + name + "_nor"), k = Resources.Load<Texture2D>("Field/" + dir + "/" + name + "_mask");
+        if (n != null && m.HasProperty("_BumpMap")) { m.SetTexture("_BumpMap", n); m.SetTextureScale("_BumpMap", tiling); m.SetFloat("_BumpScale", normalScale); m.EnableKeyword("_NORMALMAP"); }
+        if (k != null && m.HasProperty("_MetallicGlossMap")) { m.SetTexture("_MetallicGlossMap", k); m.SetFloat("_GlossMapScale", glossScale); m.EnableKeyword("_METALLICGLOSSMAP"); }
+        if (k != null && m.HasProperty("_OcclusionMap")) { m.SetTexture("_OcclusionMap", k); m.SetFloat("_OcclusionStrength", 1f); }
+        m.SetFloat("_SpecularHighlights", 1f);
+        return m;
+    }
+
+    // material con transparencia (Standard en modo Fade) para la sombra de contacto y el barro
+    public static Material FadeMat(string res, Color tint, System.Action<Object> track)
+    {
+        Material m = ProceduralAssets.CreateMaterial(tint, Resources.Load<Texture2D>(res), Vector2.one, 0f); track(m);
+        m.SetFloat("_Mode", 2f); m.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha); m.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha); m.SetInt("_ZWrite", 0);
+        m.DisableKeyword("_ALPHATEST_ON"); m.EnableKeyword("_ALPHABLEND_ON"); m.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+        m.SetFloat("_Glossiness", 0f); m.renderQueue = 3000;
+        return m;
+    }
+
+    static GameObject Part(PrimitiveType t, string n, Transform p, Vector3 pos, Vector3 size, Material m, bool col)
+    {
+        GameObject g = ProceduralAssets.CreatePrimitive(t, n, p, pos, size, m, col);
+        Renderer r = g.GetComponent<Renderer>(); if (r != null) { r.shadowCastingMode = ShadowCastingMode.On; r.receiveShadows = true; }
+        return g;
+    }
+
+    // Puerta suelta (señuelo y salida, idénticas salvo las pistas de la salida):
+    // hoja de madera pintada y desgastada con plafones en relieve, marco con profundidad, umbral, pomo y escudo de latón,
+    // tres bisagras, barro en la base y sombra de contacto en el suelo. Albedo medio (sin blancos quemados con bloom/exposición).
     public static void BuildLoneDoor(Transform parent, LevelConfig cfg, System.Action<Object> track)
     {
-        Material doorMat = ProceduralAssets.CreateMaterial(cfg.doorColor, null, Vector2.one, 0.25f); track(doorMat);
-        Material panelMat = ProceduralAssets.CreateMaterial(cfg.doorColor * 0.82f, null, Vector2.one, 0.2f); track(panelMat);
-        Material frameMat = ProceduralAssets.CreateMaterial(cfg.doorFrameColor, null, Vector2.one, 0.3f); track(frameMat);
-        float doorH = 2.15f;
-        ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "DoorSlab", parent, new Vector3(0f, doorH * 0.5f, 0f), new Vector3(1.0f, doorH, 0.07f), doorMat, true);
+        const float doorH = 2.15f, doorW = 0.92f, th = 0.045f, jamb = 0.10f, depth = 0.16f;
+        Color paint = new Color(0.58f, 0.60f, 0.55f);   // multiplica la textura (gris verdoso desgastado): albedo ~0.3, no se quema con la linterna
+        Material slabMat = PbrMat("Door", "door_paint", paint, new Vector2(0.9f, 2.1f), 1.0f, 0.3f, track);
+        Material moldMat = PbrMat("Door", "door_paint", paint * 0.93f, new Vector2(0.25f, 0.6f), 1.0f, 0.3f, track);
+        Material frameMat = PbrMat("Door", "door_frame", new Color(0.82f, 0.76f, 0.68f), new Vector2(0.18f, 2.2f), 1.2f, 0.5f, track);
+        Material sillMat = PbrMat("Door", "door_frame", new Color(0.6f, 0.55f, 0.5f), new Vector2(1.2f, 0.25f), 1.2f, 0.4f, track);
+        Material brass = ProceduralAssets.CreateMaterial(new Color(0.52f, 0.42f, 0.24f), null, Vector2.one, 0.55f); track(brass); brass.SetFloat("_Metallic", 0.9f);
+        Material iron = ProceduralAssets.CreateMaterial(new Color(0.16f, 0.14f, 0.12f), null, Vector2.one, 0.3f); track(iron); iron.SetFloat("_Metallic", 0.7f);
+
+        // hoja (colisión) y plafones en relieve: 4 largueros + 3 travesaños por cara; los plafones quedan rehundidos
+        Part(PrimitiveType.Cube, "DoorSlab", parent, new Vector3(0f, doorH * 0.5f + 0.01f, 0f), new Vector3(doorW, doorH - 0.02f, th), slabMat, true);
         foreach (float side in new[] { 1f, -1f })
         {
-            ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "PanelU", parent, new Vector3(0f, doorH * 0.72f, side * 0.038f), new Vector3(0.7f, doorH * 0.28f, 0.006f), panelMat, false);
-            ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "PanelL", parent, new Vector3(0f, doorH * 0.30f, side * 0.038f), new Vector3(0.7f, doorH * 0.36f, 0.006f), panelMat, false);
+            float z = side * (th * 0.5f + 0.006f);
+            Part(PrimitiveType.Cube, "StileL", parent, new Vector3(-doorW * 0.5f + 0.06f, doorH * 0.5f, z), new Vector3(0.12f, doorH - 0.04f, 0.012f), moldMat, false);
+            Part(PrimitiveType.Cube, "StileR", parent, new Vector3(doorW * 0.5f - 0.06f, doorH * 0.5f, z), new Vector3(0.12f, doorH - 0.04f, 0.012f), moldMat, false);
+            Part(PrimitiveType.Cube, "StileM", parent, new Vector3(0f, doorH * 0.5f, z), new Vector3(0.08f, doorH - 0.1f, 0.012f), moldMat, false);
+            foreach (float y in new[] { 0.10f, 1.02f, doorH - 0.08f })
+                Part(PrimitiveType.Cube, "Rail", parent, new Vector3(0f, y, z), new Vector3(doorW - 0.02f, y < 0.5f ? 0.2f : 0.14f, 0.012f), moldMat, false);
+            // pomo + escudo con bocallave
+            float hx = doorW * 0.5f - 0.11f;
+            Part(PrimitiveType.Cube, "Escutcheon", parent, new Vector3(hx, 0.98f, side * (th * 0.5f + 0.004f)), new Vector3(0.045f, 0.16f, 0.008f), brass, false);
+            Part(PrimitiveType.Cylinder, "Spindle", parent, new Vector3(hx, 1.0f, side * (th * 0.5f + 0.03f)), new Vector3(0.018f, 0.025f, 0.018f), brass, false).transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            Part(PrimitiveType.Sphere, "Knob", parent, new Vector3(hx, 1.0f, side * (th * 0.5f + 0.062f)), new Vector3(0.058f, 0.058f, 0.042f), brass, false);
+            Part(PrimitiveType.Cube, "Keyhole", parent, new Vector3(hx, 0.93f, side * (th * 0.5f + 0.0085f)), new Vector3(0.008f, 0.022f, 0.002f), iron, false);
         }
-        ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "FrameL", parent, new Vector3(-0.56f, doorH * 0.5f + 0.05f, 0f), new Vector3(0.12f, doorH + 0.1f, 0.12f), frameMat, true);
-        ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "FrameR", parent, new Vector3(0.56f, doorH * 0.5f + 0.05f, 0f), new Vector3(0.12f, doorH + 0.1f, 0.12f), frameMat, true);
-        ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "FrameTop", parent, new Vector3(0f, doorH + 0.05f, 0f), new Vector3(1.24f, 0.12f, 0.12f), frameMat, false);
+        // bisagras (lado izquierdo, visibles en el canto)
+        foreach (float y in new[] { 0.25f, 1.08f, doorH - 0.25f })
+        {
+            Part(PrimitiveType.Cylinder, "Hinge", parent, new Vector3(-doorW * 0.5f - 0.004f, y, th * 0.5f), new Vector3(0.016f, 0.05f, 0.016f), iron, false);
+            Part(PrimitiveType.Cube, "HingeLeaf", parent, new Vector3(-doorW * 0.5f + 0.02f, y, th * 0.5f + 0.002f), new Vector3(0.045f, 0.09f, 0.003f), iron, false);
+        }
+        // marco con profundidad (jambas más anchas que la hoja, tapajuntas en ambas caras) + umbral
+        float fx = doorW * 0.5f + jamb * 0.5f;
+        Part(PrimitiveType.Cube, "FrameL", parent, new Vector3(-fx, (doorH + jamb) * 0.5f, 0f), new Vector3(jamb, doorH + jamb, depth), frameMat, true);
+        Part(PrimitiveType.Cube, "FrameR", parent, new Vector3(fx, (doorH + jamb) * 0.5f, 0f), new Vector3(jamb, doorH + jamb, depth), frameMat, true);
+        Part(PrimitiveType.Cube, "FrameTop", parent, new Vector3(0f, doorH + jamb * 0.5f, 0f), new Vector3(doorW + jamb * 2f, jamb, depth), frameMat, false);
+        foreach (float side in new[] { 1f, -1f })
+        {
+            float z = side * (depth * 0.5f + 0.008f), cx = fx + 0.025f;
+            Part(PrimitiveType.Cube, "CasingL", parent, new Vector3(-cx, (doorH + jamb + 0.06f) * 0.5f, z), new Vector3(0.07f, doorH + jamb + 0.06f, 0.016f), frameMat, false);
+            Part(PrimitiveType.Cube, "CasingR", parent, new Vector3(cx, (doorH + jamb + 0.06f) * 0.5f, z), new Vector3(0.07f, doorH + jamb + 0.06f, 0.016f), frameMat, false);
+            Part(PrimitiveType.Cube, "CasingTop", parent, new Vector3(0f, doorH + jamb + 0.03f, z), new Vector3(doorW + jamb * 2f + 0.19f, 0.08f, 0.016f), frameMat, false);
+        }
+        Part(PrimitiveType.Cube, "Sill", parent, new Vector3(0f, -0.02f, 0f), new Vector3(doorW + jamb * 2f + 0.1f, 0.06f, depth + 0.12f), sillMat, false);
+        // barro salpicado en la base de la hoja y las jambas (ambas caras)
+        Material dirt = FadeMat("Field/Door/door_dirt", new Color(1f, 1f, 1f, 0.9f), track);
+        foreach (float side in new[] { 1f, -1f })
+        {
+            GameObject q = ProceduralAssets.CreatePrimitive(PrimitiveType.Quad, "Dirt", parent, new Vector3(0f, 0.2f, side * (depth * 0.5f + 0.018f)), new Vector3(doorW + jamb * 2f + 0.2f, 0.42f, 1f), dirt, false);
+            q.transform.localRotation = Quaternion.Euler(0f, side > 0 ? 180f : 0f, 0f);
+            q.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
+            GameObject q2 = ProceduralAssets.CreatePrimitive(PrimitiveType.Quad, "DirtSlab", parent, new Vector3(0f, 0.2f, side * (th * 0.5f + 0.014f)), new Vector3(doorW - 0.02f, 0.42f, 1f), dirt, false);
+            q2.transform.localRotation = q.transform.localRotation; q2.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
+        }
+        // sombra de contacto / oclusión en el suelo (proyectada por encima de la hierba baja)
+        Material blob = FadeMat("Field/Door/door_contact", new Color(0.05f, 0.05f, 0.04f, 0.75f), track);
+        GameObject sh = ProceduralAssets.CreatePrimitive(PrimitiveType.Quad, "ContactShadow", parent, new Vector3(0f, 0.025f, 0f), new Vector3(doorW + 1.1f, 1.3f, 1f), blob, false);
+        sh.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+        sh.GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off;
     }
 
     // ------------------------------------------------------------------ ejecución
@@ -392,7 +609,7 @@ public class FieldWorld : MonoBehaviour
         Camera cam = Camera.main;
         if (cam == null || levelRoot == null) return;
         Vector3 c = levelRoot.InverseTransformPoint(cam.transform.position);
-        float range = GameSettings.Quality == 0 ? 110f : 170f;
+        float range = GhostRange;   // v7.0.1: hasta el plano lejano (antes 110/170 m: saltos visibles entre la niebla)
         Matrix4x4 lw = levelRoot.localToWorldMatrix;
         for (int ox = -1; ox <= 1; ox++)
             for (int oz = -1; oz <= 1; oz++)
@@ -406,7 +623,7 @@ public class FieldWorld : MonoBehaviour
                 {
                     Ghost gh = ghosts[i];
                     Vector3 p = gh.center + off;
-                    if (Mathf.Abs(p.x - c.x) > range + gh.radius || Mathf.Abs(p.z - c.z) > range + gh.radius) continue;
+                    if (!GhostInRange(c, gh.center, gh.radius, off, range)) continue;
                     Matrix4x4 m = sh * gh.local;
                     for (int s = 0; s < gh.mats.Length && s < gh.mesh.subMeshCount; s++)
                         Graphics.DrawMesh(gh.mesh, m, gh.mats[s], 0, null, s, null, ShadowCastingMode.Off, false);

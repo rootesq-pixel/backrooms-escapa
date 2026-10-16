@@ -278,6 +278,9 @@ public class GameBootstrap : MonoBehaviour
             {
                 monsters.Add(BuildMonster(generator, cfg, player.transform, generator.MonsterSpawns[i], i, netClient));
             }
+            // v7.0.1: a veces el primer monstruo es un imitador (misma decisión en todos los equipos: depende de la semilla)
+            if (monsters.Count > 0 && MimicDisguise.LevelHasMimic(generator.UsedSeed, cfg.index))
+                MimicDisguise.Attach(monsters[0], generator.UsedSeed, cfg.index, cfg.step);
         }
 
         // 5) Pilas
@@ -647,10 +650,13 @@ public class GameBootstrap : MonoBehaviour
         // Texto de información arriba a la izquierda
         Text info = CreateText(canvasGo.transform, "Info", string.Empty, 22, TextAnchor.UpperLeft);
         info.rectTransform.anchorMin = new Vector2(0f, 1f);
-        info.rectTransform.anchorMax = new Vector2(0f, 1f);
+        info.rectTransform.anchorMax = new Vector2(1f, 1f);
         info.rectTransform.pivot = new Vector2(0f, 1f);
-        info.rectTransform.sizeDelta = new Vector2(1800f, 110f);
-        info.rectTransform.anchoredPosition = new Vector2(24f, -20f);
+        // v7.0.1: ancho = pantalla menos márgenes, con ajuste de línea y tamaño automático (no se corta en 4:3, 5:4 ni ventanas estrechas)
+        info.rectTransform.offsetMin = new Vector2(24f, -160f);
+        info.rectTransform.offsetMax = new Vector2(-24f, -20f);
+        info.horizontalOverflow = HorizontalWrapMode.Wrap; info.verticalOverflow = VerticalWrapMode.Truncate;
+        info.resizeTextForBestFit = true; info.resizeTextMinSize = 11; info.resizeTextMaxSize = 22;
 
         // Barras de resistencia y batería abajo a la izquierda
         gm.staminaFill = CreateBar(canvasGo.transform, "Stamina", new Vector2(24f, 24f), new Color(0.9f, 0.85f, 0.3f), "RESISTENCIA");

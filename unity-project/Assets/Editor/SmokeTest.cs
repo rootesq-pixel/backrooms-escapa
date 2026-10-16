@@ -1411,6 +1411,55 @@ public static class SmokeTest
     // Modo Play
     // ------------------------------------------------------------------
     // v7.0 Campo infinito en juego: hierba en GPU por calidad (rendimiento), pasos/roce, vuelta al campo, ambiente, El Vigía
+    internal static int FaceIslands(Mesh m)
+    {
+        int[] tri = m.triangles; Vector3[] v = m.vertices; int n = v.Length;
+        // soldar vértices duplicados (costuras de normales/UV) antes de contar islas
+        Dictionary<Vector3Int, int> weld = new Dictionary<Vector3Int, int>(); int[] id = new int[n];
+        for (int i = 0; i < n; i++) { Vector3Int k = Vector3Int.RoundToInt(v[i] * 1000f); if (!weld.TryGetValue(k, out int w)) { w = weld.Count; weld[k] = w; } id[i] = w; }
+        int[] par = new int[weld.Count]; for (int i = 0; i < par.Length; i++) par[i] = i;
+        System.Func<int, int> find = null; find = x => { while (par[x] != x) { par[x] = par[par[x]]; x = par[x]; } return x; };
+        for (int i = 0; i < tri.Length; i += 3) { int a = find(id[tri[i]]), b = find(id[tri[i + 1]]), c = find(id[tri[i + 2]]); par[b] = a; par[find(c)] = a; }
+        HashSet<int> roots = new HashSet<int>(); for (int i = 0; i < tri.Length; i++) roots.Add(find(id[tri[i]]));
+        return roots.Count;
+    }
+
+    // v7.0.1: salto real (CharacterController + gravedad): sube, cuenta y vuelve a tocar suelo
+    internal static IEnumerator JumpCheck(Report r, string tag, FirstPersonController pw, string where, System.Action<bool> done = null)
+    {
+        float t = 0f;
+        while (t < 2f && !pw.GroundProbe()) { yield return 0.05f; t += 0.05f; }
+        // techo bajo (cabina del ascensor, etc.): buscar cerca un sitio con hueco para el salto
+        if (Physics.Raycast(pw.transform.position + Vector3.up * 1.7f, Vector3.up, 1.0f, ~0, QueryTriggerInteraction.Ignore))
+        {
+            Vector3 p0 = pw.transform.position; bool moved = false;
+            for (int ring = 1; ring <= 12 && !moved; ring++)
+                for (int k = 0; k < 8 && !moved; k++)
+                {
+                    float a = k * Mathf.PI / 4f; Vector3 c = p0 + new Vector3(Mathf.Cos(a), 0f, Mathf.Sin(a)) * ring * 1.0f;
+                    if (!Physics.Raycast(c + Vector3.up * 2.5f, Vector3.down, out RaycastHit gh, 4f, ~0, QueryTriggerInteraction.Ignore)) continue;
+                    Vector3 f = gh.point;
+                    if (Mathf.Abs(f.y - p0.y) > 0.3f || Physics.Raycast(f + Vector3.up * 0.2f, Vector3.up, 2.7f, ~0, QueryTriggerInteraction.Ignore)) continue;
+                    if (Physics.Linecast(p0 + Vector3.up, f + Vector3.up, ~0, QueryTriggerInteraction.Ignore)) continue;
+                    if (Physics.CheckCapsule(f + Vector3.up * 0.45f, f + Vector3.up * 1.6f, 0.4f, ~0, QueryTriggerInteraction.Ignore)) continue;
+                    pw.Teleport(f + Vector3.up * 0.05f, pw.transform.eulerAngles.y); moved = true;
+                }
+            t = 0f; while (t < 1f && !pw.GroundProbe()) { yield return 0.05f; t += 0.05f; }
+        }
+        pw.SetStaminaForTests(100f);
+        float y0 = pw.transform.position.y, ymax = y0; int j0 = pw.JumpCount;
+        bool wasEnabled = pw.enabled; pw.enabled = true;
+        pw.debugInput = true; pw.debugMove = Vector2.zero; pw.debugJump = true;
+        yield return 0.1f;
+        pw.debugJump = false;
+        t = 0f; bool landed = false;
+        while (t < 1.6f) { ymax = Mathf.Max(ymax, pw.transform.position.y); yield return null; t += Time.deltaTime; if (t > 0.3f && pw.IsGrounded) { landed = true; break; } }
+        pw.debugInput = false; pw.enabled = wasEnabled;
+        bool ok = pw.JumpCount == j0 + 1 && ymax - y0 > 0.55f && landed;
+        r.Check(ok, tag + "[salto] " + where + ": salta y vuelve al suelo (sube " + (ymax - y0).ToString("F2") + " m, saltos " + (pw.JumpCount - j0) + ", aterriza " + landed + ")");
+        if (done != null) done(ok);
+    }
+
     internal static IEnumerator FieldPlayChecks(Report r, string tag, GameManager gm, FirstPersonController pw)
     {
         string ft = tag + "[Campo] ";
@@ -1478,6 +1527,126 @@ public static class SmokeTest
         pw.debugMove = Vector2.zero; pw.debugInput = false;
         Vector3 after = gm.generator.Root.InverseTransformPoint(pw.transform.position);
         r.Check(fw.WrapCount > w0 && after.x < 20f && Mathf.Abs(after.y - FieldHeight.H(after.x, after.z)) < 0.6f, ft + "cruzar el borde lleva al otro lado sin costura (x " + after.x.ToString("F1") + ", vueltas " + fw.WrapCount + (edgeFree ? "" : ", borde con obstáculo") + ")");
+        // ---- v7.0.1 ----
+        string vt = tag + "[v7.0.1] ";
+        // salto en una ladera (la pendiente más fuerte que se pueda pisar) y dentro de una casa
+        {
+            float bestN = 1f; Vector3 hill = lp;
+            for (int i = 0; i < 400; i++)
+            {
+                float x = (i % 20) * L / 20f + 3f, z = (i / 20) * L / 20f + 5f;
+                if (fw.plan.NoGrass(x, z)) continue;
+                float ny = FieldHeight.Normal(x, z).y;
+                if (ny < bestN && ny > 0.8f) { bestN = ny; hill = new Vector3(x, FieldHeight.H(x, z) + 0.15f, z); }
+            }
+            pw.Teleport(gm.generator.Root.TransformPoint(hill), yaw);
+            yield return 0.6f;
+            IEnumerator j1 = JumpCheck(r, vt, pw, "en ladera (pendiente " + Mathf.RoundToInt(Mathf.Acos(bestN) * Mathf.Rad2Deg) + "°)");
+            while (j1.MoveNext()) yield return j1.Current;
+            foreach (FieldPlan.House h in fw.plan.houses)
+            {
+                if (!h.enterable) continue;
+                Vector3 hp = new Vector3(h.pos.x, FieldHeight.H(h.pos.x, h.pos.y) + 0.45f, h.pos.y);
+                pw.Teleport(gm.generator.Root.TransformPoint(hp), yaw);
+                yield return 0.6f;
+                IEnumerator j2 = JumpCheck(r, vt, pw, "dentro de una casa");
+                while (j2.MoveNext()) yield return j2.Current;
+                break;
+            }
+        }
+        // puertas, árboles y postes reales (sin primitivas sueltas, LOD, PBR)
+        {
+            Transform props = fw.transform.Find("Props");
+            int trees = 0, treesLod = 0, poles = 0, polesLod = 0, doors = 0, doorsOk = 0, branchPrims = 0;
+            foreach (Transform t in props)
+            {
+                if (t.name == "DeadTree") { trees++; if (t.GetComponentInChildren<LODGroup>() != null && t.GetComponentInChildren<LODGroup>().lodCount >= 3) treesLod++; foreach (Transform c in t.GetComponentsInChildren<Transform>()) if (c.name.StartsWith("Branch") || c.name == "Trunk") branchPrims++; }
+                if (t.name == "Pole") { poles++; if (t.GetComponentInChildren<LODGroup>() != null) polesLod++; }
+                if (t.name == "LoneDoor")
+                {
+                    doors++;
+                    Renderer sr = t.Find("DoorSlab") != null ? t.Find("DoorSlab").GetComponent<Renderer>() : null;
+                    Material dm = sr != null ? sr.sharedMaterial : null;
+                    bool tex = dm != null && dm.mainTexture != null && dm.IsKeywordEnabled("_NORMALMAP");
+                    bool emissive = dm != null && dm.IsKeywordEnabled("_EMISSION");
+                    float lum = dm != null ? dm.color.grayscale : 1f;
+                    if (tex && !emissive && lum < 0.9f && t.Find("Knob") != null && t.Find("Hinge") != null && t.Find("ContactShadow") != null && t.Find("Dirt") != null && t.Find("Sill") != null) doorsOk++;
+                }
+            }
+            r.Check(trees > 0 && treesLod == trees && branchPrims == 0, vt + "árboles muertos modelados con LOD0-2, sin cilindros sueltos (" + treesLod + "/" + trees + ")");
+            r.Check(poles > 0 && polesLod == poles, vt + "postes modelados con LOD (" + polesLod + "/" + poles + ")");
+            r.Check(doors > 0 && doorsOk == doors, vt + "puertas sueltas con madera PBR, pomo, bisagras, umbral, barro y sombra de contacto, sin emisión (" + doorsOk + "/" + doors + ")");
+            Transform ed = gm.generator.ExitTransform != null ? gm.generator.ExitTransform.parent : null;
+            r.Check(ed != null && ed.Find("Knob") != null && ed.Find("ContactShadow") != null && ed.Find("DoorSlab").GetComponent<Renderer>().sharedMaterial.mainTexture != null, vt + "la salida usa la misma puerta que los señuelos");
+            // malla de árbol: sin piezas flotantes (una sola isla con caras)
+            MeshFilter tmf = null; foreach (MeshFilter mf in props.GetComponentsInChildren<MeshFilter>()) if (mf.name.Contains("DeadTree") && mf.name.EndsWith("_LOD0")) { tmf = mf; break; }
+            int islands = tmf != null ? FaceIslands(tmf.sharedMesh) : -1;
+            r.Check(islands == 1, vt + "árbol muerto: una sola pieza (islas " + islands + ")");
+        }
+        // sin parpadeos: al andar (y al cruzar el borde) toda copia a la vista se dibuja; la hierba no da saltos
+        {
+            r.Check(fw.GhostCount >= fw.houseCount + fw.propCount + fw.chunkCount, vt + "copias del borde también para accesorios (" + fw.GhostCount + ")");
+            float vis = FieldAtmosphere.FarClip * 0.9f;
+            int miss = 0, samples = 0; float maxJump = 0f; int prevInst = -1;
+            Vector3 a = new Vector3(L - 30f, 0f, lp.z), b = new Vector3(L + 30f, 0f, lp.z + 8f);
+            for (int i = 0; i <= 60; i++)
+            {
+                Vector3 q = Vector3.Lerp(a, b, i / 60f); float xq = FieldHeight.Mod(q.x), zq = FieldHeight.Mod(q.z);
+                pw.Teleport(gm.generator.Root.TransformPoint(new Vector3(xq, FieldHeight.H(xq, zq) + 0.05f, zq)), 90f);
+                yield return null;
+                Vector3 camL = gm.generator.Root.InverseTransformPoint(Camera.main.transform.position);
+                miss += fw.MissingCopies(camL, vis); samples++;
+                FieldGrass fgq = FieldGrass.Active;
+                if (fgq != null) { fgq.Submit(); int n = fgq.VisibleInstances; if (prevInst > 0 && i > 2) maxJump = Mathf.Max(maxJump, Mathf.Abs(n - prevInst) / (float)prevInst); prevInst = n; }
+            }
+            r.Check(miss == 0, vt + "andando y cruzando el borde no desaparece nada a la vista (" + samples + " pasos, " + miss + " fallos)");
+            Vector2 b0 = FieldGrass.Band(0, 56f), b1 = FieldGrass.Band(1, 56f), b2 = FieldGrass.Band(2, 56f), bq = FieldGrass.Band(2, 22f);
+            r.Check(b0.y == b1.x && b1.y == b2.x && b2.y <= 56f - FieldGrass.FadeW && bq.y <= 22f - FieldGrass.FadeW, vt + "hierba: bandas de LOD contiguas con fundido y apagado antes del radio");
+            r.Check(maxJump < 0.35f, vt + "hierba: sin saltos bruscos de matas al moverse (máx " + (maxJump * 100f).ToString("F0") + "%)");
+        }
+        // imitador: disfraz, pistas y transformación
+        {
+            MonsterAI m = gm.monsters.Length > 0 ? gm.monsters[0] : null;
+            if (m != null)
+            {
+                MimicDisguise md = m.mimic != null ? m.mimic : MimicDisguise.Attach(m, gm.generator.UsedSeed, 5, StepKind.Grass);
+                md.SetDisguised(true);
+                bool hidden = true; foreach (Renderer rr in m.visual.GetComponentsInChildren<Renderer>(true)) if (!rr.transform.IsChildOf(md.puppet.transform) && rr.enabled) hidden = false;
+                r.Check(md.Disguised && md.puppet != null && md.puppet.gameObject.activeInHierarchy && hidden && md.puppet.ModelLoaded, vt + "imitador: aparece con el modelo del jugador y el monstruo oculto");
+                r.Check(!RemotePlayer.All.Contains(md.puppet) && md.puppet.GetComponentInChildren<Collider>() == null, vt + "imitador: no cuenta como jugador (fuera de la lista, sin colisión)");
+                r.Check((m.NetStateByte & MimicDisguise.NetBit) != 0, vt + "imitador: el estado de red lleva el bit de disfraz");
+                // lo mira fijamente desde 12 m
+                Vector3 pl = new Vector3(lp.x, 0f, lp.z); Vector3 dir = Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
+                Vector3 mpos = pl + dir * 12f;
+                UnityEngine.AI.NavMeshAgent ag = m.GetComponent<UnityEngine.AI.NavMeshAgent>(); if (ag != null && ag.enabled) ag.Warp(gm.generator.Root.TransformPoint(new Vector3(mpos.x, FieldHeight.H(mpos.x, mpos.z), mpos.z))); else m.transform.position = gm.generator.Root.TransformPoint(new Vector3(mpos.x, FieldHeight.H(mpos.x, mpos.z), mpos.z));
+                pw.Teleport(gm.generator.Root.TransformPoint(new Vector3(pl.x, FieldHeight.H(pl.x, pl.z) + 0.05f, pl.z)), yaw);
+                yield return 0.3f;
+                Camera cam = Camera.main; Vector3 look = m.transform.position + Vector3.up * 1.5f - cam.transform.position;
+                pw.SetPitch(-Mathf.Asin(look.normalized.y) * Mathf.Rad2Deg);
+                pw.transform.rotation = Quaternion.Euler(0f, Quaternion.LookRotation(new Vector3(look.x, 0f, look.z)).eulerAngles.y, 0f);
+                int ps0 = md.puppet.StepsPlayed; int rv0 = md.Reveals;
+                m.Resume();
+                float t = 0f; while (t < 1.2f) { yield return 0.1f; t += 0.1f; }
+                bool still = md.Disguised;
+                r.Check(still && md.puppet.lampLight == null && md.puppet.StepsPlayed == ps0, vt + "imitador: sin pisadas y su linterna no ilumina (pisadas " + (md.puppet.StepsPlayed - ps0) + ")");
+                while (t < 5f && md.Disguised) { yield return 0.1f; t += 0.1f; }
+                r.Check(!md.Disguised && md.Reveals == rv0 + 1 && t >= MimicDisguise.StareSeconds - 0.3f && m.CurrentState == MonsterAI.State.Chase, vt + "imitador: mirarlo fijamente lo transforma y ataca (" + t.ToString("F1") + " s, " + m.CurrentState + ")");
+                m.Stop();
+                // acercarse también lo descubre
+                md.SetDisguised(true);
+                Vector3 near = mpos - dir * 2.4f;
+                if (ag != null && ag.enabled) ag.Warp(gm.generator.Root.TransformPoint(new Vector3(mpos.x, FieldHeight.H(mpos.x, mpos.z), mpos.z))); else m.transform.position = gm.generator.Root.TransformPoint(new Vector3(mpos.x, FieldHeight.H(mpos.x, mpos.z), mpos.z));
+                pw.Teleport(gm.generator.Root.TransformPoint(new Vector3(near.x, FieldHeight.H(near.x, near.z) + 0.05f, near.z)), yaw + 180f);
+                m.Resume(); yield return 0.3f;
+                r.Check(!md.Disguised && md.Reveals == rv0 + 2, vt + "imitador: al acercarse se transforma");
+                m.Stop(); m.transform.position = gm.generator.Root.TransformPoint(new Vector3(pl.x + 90f, 0f, pl.z));
+                md.SetDisguised(false);
+            }
+            // determinista y poco frecuente
+            int hits = 0; bool same = true, lv0 = false;
+            for (int sd = 1; sd <= 1000; sd++) { bool hh = MimicDisguise.LevelHasMimic(sd, 3); if (hh) hits++; same &= hh == MimicDisguise.LevelHasMimic(sd, 3); lv0 |= MimicDisguise.LevelHasMimic(sd, 0); }
+            r.Check(same && !lv0 && hits > 220 && hits < 380, vt + "imitador: decidido por la semilla, raro (" + hits / 10f + "% de niveles) y nunca en el nivel 0");
+        }
         pw.Teleport(gm.generator.Root.TransformPoint(lp), yaw);
         yield return 0.5f;
     }
@@ -2685,6 +2854,26 @@ public static class SmokePlayRunner
 
             // Cuerpo del jugador en cada nivel
             r.Check(gm.player.GetComponentInChildren<PlayerBody>() != null && gm.player.GetComponentInChildren<PlayerBody>().Loaded, tag + "cuerpo del jugador cargado");
+
+            // v7.0.1: se puede saltar en todos los niveles
+            {
+                IEnumerator je = SmokeTest.JumpCheck(r, tag, gm.player, "nivel " + lv);
+                while (je.MoveNext()) yield return je.Current;
+                bool crouchBlock; gm.player.debugInput = true; gm.player.debugCrouch = true; yield return 0.4f;
+                int jc = gm.player.JumpCount; gm.player.debugJump = true; yield return 0.15f; gm.player.debugJump = false; yield return 0.3f;
+                crouchBlock = gm.player.JumpCount == jc; gm.player.debugCrouch = false; gm.player.debugInput = false; yield return 0.6f;
+                r.Check(crouchBlock, tag + "[salto] agachado no se salta");
+                if (lv == 0 && gm.infoText != null)
+                {
+                    RectTransform it = gm.infoText.rectTransform;
+                    bool fit = it.anchorMin.x == 0f && it.anchorMax.x == 1f && it.offsetMin.x > 0f && it.offsetMax.x < 0f && gm.infoText.horizontalOverflow == HorizontalWrapMode.Wrap && gm.infoText.resizeTextForBestFit;
+                    Canvas.ForceUpdateCanvases();
+                    Vector3[] wc = new Vector3[4]; it.GetWorldCorners(wc);
+                    RectTransform cr = gm.infoText.canvas.GetComponent<RectTransform>(); Vector3[] cc = new Vector3[4]; cr.GetWorldCorners(cc);
+                    r.Check(fit && wc[0].x >= cc[0].x - 0.5f && wc[2].x <= cc[2].x + 0.5f, tag + "[HUD] el texto de controles cabe en pantalla (ancho flexible con ajuste de línea, sin corte a la izquierda)");
+                    r.Check(gm.infoText.text.Contains("Espacio saltar") || GameManager.HideControlsHint, tag + "[HUD] los controles incluyen «Espacio saltar»");
+                }
+            }
 
             // v7.0: Campo infinito
             if (cfg.layout == LayoutKind.Field)

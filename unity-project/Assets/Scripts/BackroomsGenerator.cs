@@ -1171,6 +1171,7 @@ public class BackroomsGenerator : MonoBehaviour
         doorRoot.transform.localPosition = c;
         doorRoot.transform.localRotation = Quaternion.Euler(0f, (float)rng.NextDouble() * 360f, 0f);
         FieldWorld.BuildLoneDoor(doorRoot.transform, cfg, o => Track(o));
+        if (FieldWorld.Active != null) FieldWorld.Active.GhostTree(doorRoot.transform);
         Transform slab = doorRoot.transform.Find("DoorSlab");
 
         Material ledMat = Track(ProceduralAssets.CreateMaterial(new Color(0.05f, 0.15f, 0.06f), null, Vector2.one, 0.3f));

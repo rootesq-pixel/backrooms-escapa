@@ -33,7 +33,9 @@ public class Flashlight : MonoBehaviour
     private Vector3 lastCamPos;
 
     [Header("Inercia")]
-    public float intensityMultiplier = 1f;   // p. ej. compensa el cookie de cáusticas
+    public float intensityMultiplier = 1f;
+    private float nearT, nearHit = 99f, nearK = 1f;
+    public float NearDim { get { return nearK; } }   // p. ej. compensa el cookie de cáusticas
     public float lagSpeed = 11f;
     public float swayAmount = 0.35f;
 
@@ -52,6 +54,7 @@ public class Flashlight : MonoBehaviour
         return IsOn;
     }
 
+    public void SetOn(bool on) { IsOn = on && battery > 0f; }   // pruebas / capturas
     public void SetBattery(float value) { battery = Mathf.Clamp(value, 0f, batteryMax); }   // pruebas
     public float Battery100 { get { return battery; } }
 
@@ -169,6 +172,15 @@ public class Flashlight : MonoBehaviour
         }
 
         spot.enabled = blackoutTimer <= 0f;
-        spot.intensity = intensity * intensityMultiplier;
+        // v7.0.1: a muy poca distancia (puertas, paredes a 1-3 m) la linterna se atenúa como una exposición automática: sin blancos quemados
+        nearT -= dt;
+        if (nearT <= 0f)
+        {
+            nearT = 0.1f;
+            RaycastHit nh;
+            nearHit = Physics.Raycast(spot.transform.position, spot.transform.forward, out nh, 4.5f, ~0, QueryTriggerInteraction.Ignore) ? nh.distance : 99f;
+        }
+        nearK = Mathf.Lerp(nearK, Mathf.Lerp(0.42f, 1f, Mathf.InverseLerp(0.6f, 4.5f, nearHit)), 1f - Mathf.Exp(-8f * dt));
+        spot.intensity = intensity * intensityMultiplier * nearK;
     }
 }
