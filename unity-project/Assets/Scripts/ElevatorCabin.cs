@@ -37,7 +37,8 @@ public class ElevatorCabin : MonoBehaviour
         new Color(0.80f, 0.95f, 0.86f),   // 1 aparcamiento: verdoso
         new Color(0.60f, 0.90f, 1.00f),   // 2 Poolrooms: cian
         new Color(1.00f, 0.68f, 0.32f),   // 3 hotel: ámbar
-        new Color(1.00f, 0.14f, 0.07f)    // 4 industrial: luz de emergencia roja
+        new Color(1.00f, 0.14f, 0.07f),   // 4 industrial: luz de emergencia roja
+        new Color(0.92f, 0.96f, 1.00f)    // 5 campo infinito: luz de día fría
     };
 
     public Phase CurrentPhase { get; private set; }
@@ -129,7 +130,8 @@ public class ElevatorCabin : MonoBehaviour
         transform.SetPositionAndRotation(pos, rot);
 
         BuildModel();
-        BuildColliders(config.cellSize, frontExtent);
+        if (config.layout == LayoutKind.Field) BuildFieldShell(frontExtent);
+        BuildColliders(config.layout == LayoutKind.Field ? 0f : config.cellSize, frontExtent);
         BuildFixtures();
         BuildAudio();
 
@@ -258,8 +260,17 @@ public class ElevatorCabin : MonoBehaviour
         float zBack = -1.01f * sz, zFront = frontExtent;
         float fx = Mathf.Max(0.05f, half - 1.0f * sx);
         float cx = 1.0f * sx + fx * 0.5f;
-        AddCol("FillL", new Vector3(-cx, 1.4f, (zBack + zFront) * 0.5f), new Vector3(fx, 2.8f, zFront - zBack), true);
-        AddCol("FillR", new Vector3(cx, 1.4f, (zBack + zFront) * 0.5f), new Vector3(fx, 2.8f, zFront - zBack), true);
+        if (cellSize > 0f)   // v7.0: en el campo no hay paredes de celda que rellenar (la cabina está sola en la hierba)
+        {
+            AddCol("FillL", new Vector3(-cx, 1.4f, (zBack + zFront) * 0.5f), new Vector3(fx, 2.8f, zFront - zBack), true);
+            AddCol("FillR", new Vector3(cx, 1.4f, (zBack + zFront) * 0.5f), new Vector3(fx, 2.8f, zFront - zBack), true);
+        }
+        else
+        {
+            AddCol("ShellL", new Vector3(-1.12f * sx, 1.5f, (zBack + zFront) * 0.5f), new Vector3(0.24f, 3.0f, zFront - zBack + 0.3f), true);
+            AddCol("ShellR", new Vector3(1.12f * sx, 1.5f, (zBack + zFront) * 0.5f), new Vector3(0.24f, 3.0f, zFront - zBack + 0.3f), true);
+            AddCol("ShellB", new Vector3(0f, 1.5f, zBack - 0.12f), new Vector3(2.48f * sx, 3.0f, 0.24f), true);
+        }
         // el laberinto no debe atravesar la cabina
         GameObject nb = new GameObject("NavBlock");
         nb.transform.SetParent(transform, false);
@@ -270,6 +281,26 @@ public class ElevatorCabin : MonoBehaviour
         ob.carving = true;
     }
     private const float wallPad = 0.1f;
+
+    // v7.0 Campo infinito: caja exterior de hormigón viejo alrededor de la cabina (en los demás niveles la tapan las paredes)
+    private void BuildFieldShell(float frontExtent)
+    {
+        float sx = ScaleX, sz = ScaleZ;
+        Material m = Mat(new Color(0.78f, 0.76f, 0.72f), Resources.Load<Texture2D>("Field/house_wall_a"), 0.08f, 0f);
+        m.mainTextureScale = new Vector2(1.5f, 1.5f);
+        Texture2D n = Resources.Load<Texture2D>("Field/house_wall_n");
+        if (n != null) { m.SetTexture("_BumpMap", n); m.EnableKeyword("_NORMALMAP"); }
+        Material roof = Mat(new Color(0.3f, 0.3f, 0.3f), null, 0.2f, 0.3f);
+        float zBack = -1.01f * sz, zFront = frontExtent + 0.02f, len = zFront - zBack + 0.3f, zc = (zBack + zFront) * 0.5f - 0.12f;
+        GameObject shell = new GameObject("FieldShell");
+        shell.transform.SetParent(transform, false);
+        ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "ShellL", shell.transform, new Vector3(-1.12f * sx, 1.45f, zc), new Vector3(0.24f, 3.2f, len), m, false);
+        ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "ShellR", shell.transform, new Vector3(1.12f * sx, 1.45f, zc), new Vector3(0.24f, 3.2f, len), m, false);
+        ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "ShellB", shell.transform, new Vector3(0f, 1.45f, zBack - 0.15f), new Vector3(2.48f * sx, 3.2f, 0.24f), m, false);
+        ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "ShellTop", shell.transform, new Vector3(0f, 3.1f, zc), new Vector3(2.5f * sx, 0.24f, len), roof, false);
+        ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "ShellHeader", shell.transform, new Vector3(0f, 2.65f, zFront + 0.02f), new Vector3(2.48f * sx, 0.7f, 0.1f), m, false);
+        ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "ShellBase", shell.transform, new Vector3(0f, -0.08f, zc), new Vector3(2.6f * sx, 0.3f, len + 0.2f), m, false);
+    }
 
     private void BuildFixtures()
     {

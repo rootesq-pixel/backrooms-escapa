@@ -1,9 +1,9 @@
 using UnityEngine;
 
-public enum LayoutKind { Maze, OpenPillars }
+public enum LayoutKind { Maze, OpenPillars, Field }
 public enum FixtureKind { Panel, Tube, Sconce, Emergency }
 public enum AmbientEvent { None, Drip, Creak, Clank }
-public enum StepKind { Carpet, Concrete, Water, Metal }
+public enum StepKind { Carpet, Concrete, Water, Metal, Grass }
 
 // Parámetros de un nivel: tema visual, tamaño, luces, monstruo, batería y audio.
 // Los niveles se definen en código (LevelConfig.Get) para no necesitar assets.
@@ -94,7 +94,7 @@ public class LevelConfig
     public Color doorColor = new Color(0.55f, 0.52f, 0.38f);
     public Color doorFrameColor = new Color(0.30f, 0.24f, 0.14f);
 
-    public const int Count = 5;
+    public const int Count = 6;
     private static LevelConfig[] cache;
 
     public static LevelConfig Get(int index)
@@ -116,7 +116,8 @@ public class LevelConfig
             case 1: c = Level1(); break;
             case 2: c = Level2(); break;
             case 3: c = Level3(); break;
-            default: c = Level4(); break;
+            case 4: c = Level4(); break;
+            default: c = Level5(); break;
         }
         c.monsterModel = MonsterProfile.ForLevel(i).id;   // un monstruo distinto por nivel
         return c;
@@ -260,6 +261,35 @@ public class LevelConfig
         c.eventInterval = new Vector2(4f, 10f);
         c.step = StepKind.Metal;
         c.doorColor = new Color(0.30f, 0.32f, 0.30f); c.doorFrameColor = new Color(0.18f, 0.14f, 0.08f);
+        return c;
+    }
+
+    // Nivel 5 (v7.0): Campo infinito — hierba alta bajo un cielo nublado, colinas suaves, casas vacías y algo en el horizonte
+    private static LevelConfig Level5()
+    {
+        LevelConfig c = new LevelConfig();
+        c.index = 5;
+        c.name = "Campo infinito";
+        c.subtitle = "Hierba hasta las rodillas, un cielo blanco que no cambia y casas donde no vive nadie. El campo no se acaba.";
+        c.layout = LayoutKind.Field;
+        c.gridW = 22; c.gridH = 22; c.cellSize = 12f; c.wallHeight = 3f;
+        c.loopChance = 1f; c.roomCount = 0;
+        c.wallStyle = SurfaceStyle.ConcreteWall; c.floorStyle = SurfaceStyle.ConcreteFloor; c.ceilingStyle = SurfaceStyle.ConcreteCeiling;
+        c.ambient = new Color(0.50f, 0.53f, 0.55f);
+        c.fog = new Color(0.66f, 0.69f, 0.69f);
+        c.fogDensity = 0.016f;
+        c.grade = 0.25f;
+        c.reflectionIntensity = 0.5f;
+        c.fixture = FixtureKind.Panel; c.lightSpacing = 99; c.deadChance = 0f; c.flickerChance = 0f;
+        c.lightColor = new Color(1f, 0.97f, 0.9f); c.emissionColor = Color.white;
+        c.lightIntensity = 0.55f; c.lightRange = 0f; c.maxRealtimeLights = 4; c.buzzChance = 0f;
+        c.flashlightDrain = 0.35f; c.flashlightRecharge = 0.2f; c.batteries = 3; c.batteryAmount = 35f;
+        c.monsterCount = 1; c.patrolSpeed = 1.9f; c.chaseSpeed = 4.7f; c.sightRange = 26f; c.fieldOfView = 110f; c.darkSightFactor = 1f;
+        c.hearingScale = 0.9f; c.loseSightTime = 5f; c.killDistance = 1.6f;
+        c.droneHz = 33f; c.droneNoise = 0.1f; c.droneVolume = 0.12f; c.ambientEvent = AmbientEvent.None;
+        c.eventInterval = new Vector2(20f, 40f);
+        c.step = StepKind.Grass;
+        c.doorColor = new Color(0.62f, 0.58f, 0.50f); c.doorFrameColor = new Color(0.34f, 0.30f, 0.25f);
         return c;
     }
 }

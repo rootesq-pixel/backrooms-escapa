@@ -149,6 +149,8 @@ public static class MonsterAssetBuilder
                 return MakeMat("DrownedZombie_Body", Tex("Drowned_Body_Albedo"), Tex("City_Body_Normal"), null, Tex("City_Body_AO"), p.tint, p.smoothness, Color.black);
             case "HorrorStalker":
                 return MakeMat("HorrorStalker", Tex("Stalker_Albedo"), Tex("Stalker_Normal"), null, null, p.tint, p.smoothness, Color.black);
+            case "FieldWatcher":
+                return MakeMat("FieldWatcher", Tex("Watcher_Albedo"), Tex("Stalker_Normal"), null, null, p.tint, p.smoothness, Color.black);
             case "GiantMutant":
                 return MakeMat("GiantMutant", Tex("Giant_Albedo"), null, null, null, p.tint, p.smoothness, Color.black);
             case "SootHorror":

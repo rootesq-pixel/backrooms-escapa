@@ -77,6 +77,11 @@ public static class LoreNotes
             "Parte de turno|Caldera 3 sin presión. Turno de noche cancelado. Se oyen golpes dentro de las tuberías, a un ritmo constante. Parece que alguien cuenta.",
             "Etiqueta de seguridad|PELIGRO: no apagar las luces de emergencia. Lo que trabaja en la oscuridad nunca ha cobrado. Nunca ha cobrado.",
             "Última nota|Queda poco. La salida final está cerca, lo noto en el aire. Si lees esto, no corras donde ELLOS puedan oírte. Corre donde no." },
+        // Nivel 5 — Campo infinito
+        new[] {
+            "Mapa dibujado a mano|He caminado recto tres horas. He vuelto a pasar junto a la misma casa. Misma ventana rota, mismo tablón suelto. Ya no dibujo, solo cuento casas.",
+            "Hoja de cuaderno mojada|Hay algo alto y blanco a lo lejos, entre la hierba. Si lo miras, ya no está. Si dejas de mirarlo, está más cerca. No lo mires mucho. No dejes de mirarlo.",
+            "Nota clavada en un poste|Las puertas sueltas no llevan a ninguna parte. Todas menos una. Esa zumba como una radio vieja y tiene una luz cansada al lado. Escucha el viento… y lo que no es viento." },
     };
 
     public static int Total { get { return data.Length * PerLevel; } }

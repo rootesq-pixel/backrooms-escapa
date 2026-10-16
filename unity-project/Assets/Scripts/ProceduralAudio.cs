@@ -156,6 +156,7 @@ public static class ProceduralAudio
             case StepKind.Carpet: alpha = 0.07f; decay = 20f; gain = 0.9f; break;
             case StepKind.Concrete: alpha = 0.35f; decay = 28f; break;
             case StepKind.Water: alpha = 0.18f; decay = 10f; break;
+            case StepKind.Grass: alpha = 0.25f; decay = 24f; gain = 0.8f; break;   // suelo de madera de las casas (fuera suenan pasos de hierba reales)
             default: alpha = 0.4f; decay = 32f; break;
         }
         float lp = 0f, lp2 = 0f;

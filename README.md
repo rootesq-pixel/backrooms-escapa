@@ -1,17 +1,17 @@
 # BACKROOMS: ESCAPA
 
-Juego de terror en primera persona para PC (Windows 64 bits) hecho con **Unity**: escapa de las Backrooms a través de **5 niveles** encadenados. Cada nivel es un laberinto (o aparcamiento abierto) procedural con su propia estética, luces, dificultad y criaturas que patrullan y te persiguen. La salida es una puerta discreta que **solo se descubre explorando**: sin cartel, sin flecha, sin indicador de distancia.
+Juego de terror en primera persona para PC (Windows 64 bits) hecho con **Unity**: escapa de las Backrooms a través de **6 niveles** encadenados. Cada nivel es un laberinto (o aparcamiento abierto) procedural con su propia estética, luces, dificultad y criaturas que patrullan y te persiguen. La salida es una puerta discreta que **solo se descubre explorando**: sin cartel, sin flecha, sin indicador de distancia.
 
 - 🌐 **Web:** https://rootesq-pixel.github.io/backrooms-escapa/
-- ⬇️ **Descarga directa v6.9.0 (Windows, ZIP ≈ 67 MB):** [BackroomsEscape_v6_9_0_Windows.zip](https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v6.9.0/BackroomsEscape_v6_9_0_Windows.zip)
-- 📦 **Release v6.9.0:** https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.9.0
-- 🕓 Versiones anteriores: [v6.5.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.5.0) (audio e intro) · [v6.4.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.4.0) (ascensor) · [v6.3.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.3.0) (5 niveles, sin ascensor) · [v6.2.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.2.0) (multijugador por Internet, 6 niveles) · [v6.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.0.0) (multijugador por IP y puerto) · [v5.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v5.0.0) (un jugador)
+- ⬇️ **Descarga directa v7.0.0 (Windows, ZIP ≈ 82 MB):** [BackroomsEscape_v7_0_0_Windows.zip](https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v7.0.0/BackroomsEscape_v7_0_0_Windows.zip)
+- 📦 **Release v7.0.0:** https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.0
+- 🕓 Versiones anteriores: [v6.9.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.9.0) (Poolrooms estilo POOLS) · [v6.5.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.5.0) (audio e intro) · [v6.4.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.4.0) (ascensor) · [v6.3.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.3.0) (5 niveles, sin ascensor) · [v6.2.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.2.0) (multijugador por Internet, 6 niveles) · [v6.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.0.0) (multijugador por IP y puerto) · [v5.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v5.0.0) (un jugador)
 
 > ⚠️ **Build temprana.** Puede haber errores. El **multijugador** se ha probado en local y con un servidor intermedio real; **las pruebas con amigos por Internet están pendientes**. El ejecutable **no está firmado**, así que Windows SmartScreen puede avisar al abrirlo (*Más información → Ejecutar de todas formas*).
 
 ## Cómo jugar
 
-1. Descarga `BackroomsEscape_v6_9_0_Windows.zip` desde la [release v6.9.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.9.0).
+1. Descarga `BackroomsEscape_v7_0_0_Windows.zip` desde la [release v7.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.0).
 2. Descomprime el ZIP (≈ 113 MB descomprimido).
 3. Ejecuta `BackroomsEscape.exe`.
 
@@ -25,7 +25,17 @@ Juego de terror en primera persona para PC (Windows 64 bits) hecho con **Unity**
 | 3 | Hotel abandonado | Pasillos estrechos con moqueta roja, lámparas casi muertas y niebla densa | 2 × El Huésped |
 | 4 | Complejo industrial | Chapa oxidada, tuberías y luces de emergencia rojas | 2 × El Hollín (más rápidos) |
 
-Al llegar a la puerta de salida se carga el siguiente nivel; tras el nivel 4 aparece la pantalla de victoria (tiempo total e intentos fallidos). Si te atrapan, el nivel se reinicia.
+Al llegar a la puerta de salida se carga el siguiente nivel; tras el nivel 5 (Campo infinito) aparece la pantalla de victoria (tiempo total e intentos fallidos). Si te atrapan, el nivel se reinicia.
+
+## Novedades de la v7.0.0 — nuevo nivel 5: «Campo infinito»
+- **Nuevo nivel tras el complejo industrial:** una pradera sin fin bajo un cielo nublado, con colinas suaves, niebla y bruma en el horizonte. Al cruzar el borde apareces al otro lado sin costura: el campo no se acaba.
+- **Hierba realista:** matas reales escaneadas (Poly Haven, CC0) dibujadas por la GPU por miles, con alturas y colores variados, puntas secas, brillo a contraluz y bases más oscuras. Se mueve con el viento y las ráfagas, y se aparta al pasar jugadores y monstruos. Según la distancia hay menos detalle, y a lo lejos el suelo pasa al color de la hierba.
+- **Casas abandonadas para despistar:** una docena por partida, muchas casi idénticas, la mitad visitables y vacías. Ninguna es la salida ni da pistas sobre ella. Hay también puertas sueltas que no llevan a ningún sitio, una línea de postes de la luz y árboles secos.
+- **Salida escondida lejos** (cambia con cada semilla): es una puerta suelta, idéntica a las de engaño, pero con un farol que parpadea débilmente y una radio que zumba a lo lejos (se oye desde unos 80 m).
+- **Nuevo monstruo, El Vigía:** alto, delgado y pálido, caza entre la hierba alta. A veces aparece inmóvil al borde de la niebla y desaparece si lo miras fijamente o te acercas.
+- **Sonido:** pisadas reales sobre hierba (Kenney, CC0) al mismo volumen que el resto de pasos y roce de la hierba al moverte (más fuerte corriendo, casi nada agachado), también para los demás jugadores. Viento con ráfagas.
+- **Rendimiento:** en **Bajo** la hierba se dibuja más cerca, con menos densidad y matas más ligeras (~0,8 M triángulos frente a ~4,6 M en Alto).
+- **Multijugador:** el campo, las casas y la salida salen de la semilla compartida, así que todos veis el mismo mundo. Protocolo MP-2, pero el mapa cambia (6 niveles): **todos debéis usar la v7.0.0**.
 
 ## Novedades de la v6.9.0
 - **Sala de piscina más bonita (estilo POOLS):** luz horneada de nuevo en Blender Cycles con mejor calidad (1024 muestras, eliminación de ruido de alta calidad, mejor reparto del lightmap y bordes más limpios) y 33 sondas de luz en lugar de 6 (también bajo el agua).
@@ -115,7 +125,7 @@ Modo **cooperativo de 2 a 4 jugadores**. El modo de un jugador no cambia: la red
 
 **Opción A: con código (recomendada, sin abrir puertos)**
 
-1. Todos necesitáis la **misma versión** (v6.9.0). El protocolo sigue siendo **MP-2** (el de la v6.4): la v6.3 y anteriores **no pueden unirse**; v6.4, v6.5 y v6.6 comparten protocolo, pero lo más seguro es que todos uséis la misma versión.
+1. Todos necesitáis la **misma versión** (v7.0.0). El protocolo sigue siendo **MP-2** (el de la v6.4): la v6.3 y anteriores **no pueden unirse**; v6.4, v6.5 y v6.6 comparten protocolo, pero lo más seguro es que todos uséis la misma versión.
 2. **Anfitrión:** menú principal → **Multijugador** → tu nombre → **Alojar con código**. Pasa a tus amigos el código de la sala.
 3. **Clientes:** Multijugador → tu nombre → **Unirse con código** → escribe el código → entras en la sala de espera.
 4. El anfitrión elige el nivel con ◄ ► y pulsa **Empezar**. No se puede entrar en una partida ya empezada.

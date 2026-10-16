@@ -39,6 +39,8 @@ public class BackroomsGenerator : MonoBehaviour
     public bool IsGenerated { get; private set; }
     public bool HasLevel { get { return IsGenerated && levelRoot != null; } }
     public int UsedSeed { get; private set; }
+    public FieldPlan FieldPlan { get; private set; }   // v7.0: casas/postes/puertas del Campo infinito (null en otros niveles)
+    public bool IsField { get { return config != null && config.layout == LayoutKind.Field; } }
     public Vector3 PlayerStart { get; private set; }
     public float PlayerStartYaw { get; private set; }
     public Vector3 MonsterSpawn { get; private set; }
@@ -53,6 +55,7 @@ public class BackroomsGenerator : MonoBehaviour
     public LightCuller Culler { get; private set; }
     public int GridWidth { get { return w; } }
     public int GridHeight { get { return h; } }
+    public float CellSize { get { return cellSize; } }
     public Vector2Int StartCell { get { return startCell; } }
     public Vector2Int ExitCell { get { return exitCell; } }
     public int FixtureCount { get; private set; }
@@ -136,6 +139,7 @@ public class BackroomsGenerator : MonoBehaviour
         roomCount = config.roomCount;
         roomSizeRange = config.roomSize;
 
+        FieldHeight.Reset(); FieldPlan = null;
         UsedSeed = useRandomSeed ? System.Environment.TickCount : seed;
         System.Random rng = new System.Random(UsedSeed);
 
@@ -217,6 +221,7 @@ public class BackroomsGenerator : MonoBehaviour
     // Altura del suelo analítica (el suelo es plano); coordenadas locales
     public float FloorHeightLocal(float x, float z)
     {
+        if (FieldHeight.Active) return FieldHeight.H(x, z);
         if (HasPoolRoom)
         {
             float cs = cellSize;
@@ -311,6 +316,7 @@ public class BackroomsGenerator : MonoBehaviour
                 int ni = n.y * w + n.x;
                 if (parent[ni] != -2) continue;
                 if (ni != bi && IsPoolCell(n.x, n.y)) continue;   // no cruzar el vaso de la piscina
+                if (ni != bi && FieldBlocked(n.x, n.y)) continue; // v7.0: rodear las casas del campo
                 parent[ni] = cur;
                 queue.Enqueue(ni);
             }
@@ -407,6 +413,15 @@ public class BackroomsGenerator : MonoBehaviour
                     wallsH[i, j] = false;
         }
 
+        // v7.0 Campo infinito: sin muros (ni siquiera el borde: el campo se repite), salida desde el centro
+        if (config.layout == LayoutKind.Field)
+        {
+            for (int i = 0; i <= w; i++) for (int j = 0; j < h; j++) wallsV[i, j] = false;
+            for (int i = 0; i < w; i++) for (int j = 0; j <= h; j++) wallsH[i, j] = false;
+            startCell = new Vector2Int(w / 2, h / 2);
+            FieldHeight.Init(UsedSeed, w * cellSize, new Vector2((startCell.x + 0.5f) * cellSize, (startCell.y + 0.5f) * cellSize));
+        }
+
         ChoosePoolBlock();
     }
 
@@ -490,6 +505,7 @@ public class BackroomsGenerator : MonoBehaviour
     // ¿Se puede pasar desde la celda c en la dirección dir?
     private bool IsOpen(Vector2Int c, int dir)
     {
+        if (!InBounds(c + Dirs[dir])) return false;   // v7.0: el campo no tiene muro exterior (los bordes no llevan fuera de la rejilla)
         switch (dir)
         {
             case 0: return !wallsH[c.x, c.y + 1];
@@ -543,10 +559,31 @@ public class BackroomsGenerator : MonoBehaviour
                 Vector2Int c = new Vector2Int(i, j);
                 bool hasWall = false;
                 for (int d = 0; d < 4; d++) if (!IsOpen(c, d)) hasWall = true;
-                if (hasWall) exits.Add(c);
+                if (hasWall || config.layout == LayoutKind.Field) exits.Add(c);
             }
         }
         exitCell = exits.Count > 0 ? exits[rng.Next(exits.Count)] : new Vector2Int(w - 1, h - 1);
+        if (config.layout == LayoutKind.Field)
+        {
+            FieldPlan = FieldPlan.Make(UsedSeed, w, h, cellSize, startCell, exitCell);
+            // distancias de nuevo rodeando las casas (las celdas con casa quedan a -1: no son sitio para objetos ni monstruos)
+            for (int i = 0; i < w; i++) for (int j = 0; j < h; j++) distFromStart[i, j] = -1;
+            distFromStart[startCell.x, startCell.y] = 0; queue.Enqueue(startCell);
+            while (queue.Count > 0)
+            {
+                Vector2Int c = queue.Dequeue();
+                for (int d = 0; d < 4; d++)
+                {
+                    if (!IsOpen(c, d)) continue;
+                    Vector2Int n = c + Dirs[d];
+                    if (distFromStart[n.x, n.y] != -1 || FieldBlocked(n.x, n.y)) continue;
+                    distFromStart[n.x, n.y] = distFromStart[c.x, c.y] + 1;
+                    queue.Enqueue(n);
+                }
+            }
+            // celdas encerradas entre casas: se marcan ocupadas (no reciben objetos, monstruos ni salida)
+            for (int i = 0; i < w; i++) for (int j = 0; j < h; j++) if (distFromStart[i, j] < 0) FieldPlan.blocked.Add(new Vector2Int(i, j));
+        }
     }
 
     // Elige celdas de aparición de monstruos: lejos del inicio y separadas entre sí
@@ -559,7 +596,7 @@ public class BackroomsGenerator : MonoBehaviour
         {
             for (int j = 0; j < h; j++)
             {
-                if (distFromStart[i, j] >= minDist && !(i == exitCell.x && j == exitCell.y) && !InPoolBlock(i, j))
+                if (distFromStart[i, j] >= minDist && !(i == exitCell.x && j == exitCell.y) && !InPoolBlock(i, j) && !FieldBlocked(i, j))
                 {
                     candidates.Add(new Vector2Int(i, j));
                 }
@@ -604,6 +641,8 @@ public class BackroomsGenerator : MonoBehaviour
         GameObject decorGo = new GameObject("BackroomsDecor");
         decorGo.transform.SetParent(transform, false);
         decorRoot = decorGo.transform;
+
+        if (cfg.layout == LayoutKind.Field) { BuildFieldGeometry(rng); return; }
 
         float cs = cellSize;
         float totalW = w * cs;
@@ -1048,7 +1087,7 @@ public class BackroomsGenerator : MonoBehaviour
             Vector2Int c = new Vector2Int(rng.Next(w), rng.Next(h));
             if (c == startCell || c == exitCell) continue;
             if (distFromStart[c.x, c.y] < 2) continue;
-            if (InPoolBlock(c.x, c.y)) continue;
+            if (InPoolBlock(c.x, c.y) || FieldBlocked(c.x, c.y)) continue;
             bool ok = true;
             int minSep = guard < 250 ? 3 : 1;
             for (int i = 0; i < picked.Count; i++)
@@ -1074,7 +1113,7 @@ public class BackroomsGenerator : MonoBehaviour
             Vector2Int c = new Vector2Int(rng.Next(w), rng.Next(h));
             if (c == startCell || c == exitCell) continue;
             if (distFromStart[c.x, c.y] < 2) continue;
-            if (InPoolBlock(c.x, c.y)) continue;
+            if (InPoolBlock(c.x, c.y) || FieldBlocked(c.x, c.y)) continue;
             int minSep = guard < 600 ? 2 : 1;
             bool ok = true;
             for (int i = 0; i < picked.Count; i++)
@@ -1098,6 +1137,62 @@ public class BackroomsGenerator : MonoBehaviour
     // ------------------------------------------------------------------
     // Puerta de salida: discreta (marco distinto, LED verde tenue visible solo de cerca)
     // ------------------------------------------------------------------
+
+    // v7.0 Campo infinito: terreno, casas y accesorios (FieldWorld); sin muros, techo ni luces de techo
+    private void BuildFieldGeometry(System.Random rng)
+    {
+        LevelConfig cfg = config;
+        TextureLibrary.ReleaseAllExcept(new HashSet<string>());
+        WallSegmentCount = 0; PillarCount = 0;
+        FieldWorld.Build(this, cfg, levelRoot, FieldPlan, o => Track(o));
+
+        Vector3 startLocal = CellCenterLocal(startCell.x, startCell.y);
+        PlayerStart = levelRoot.TransformPoint(startLocal + new Vector3(0f, 0.1f, 0f));
+        PlayerStartYaw = 0f;
+        MonsterSpawns = new List<Vector3>();
+        List<Vector2Int> mc = PickMonsterCells(rng, Mathf.Max(1, cfg.monsterCount) + Mathf.Max(0, extraMonsters));
+        for (int i = 0; i < mc.Count; i++) MonsterSpawns.Add(levelRoot.TransformPoint(CellCenterLocal(mc[i].x, mc[i].y)));
+        MonsterSpawn = MonsterSpawns[0];
+        PickBatterySpots(rng, mc);
+        PickExtraSpots(new System.Random(UsedSeed * 31 + 7), 9);
+        BuildFieldExit(rng);
+    }
+
+    // Salida del campo: una puerta suelta idéntica a los señuelos, lejos y en una celda al azar (según la semilla).
+    // Pistas sutiles que los señuelos no tienen: un farol que parpadea débilmente y un zumbido de radio lejano (FieldExitBeacon).
+    private void BuildFieldExit(System.Random rng)
+    {
+        LevelConfig cfg = config;
+        Vector3 c = CellCenterLocal(exitCell.x, exitCell.y);
+        float ox = ((float)rng.NextDouble() - 0.5f) * cellSize * 0.4f, oz = ((float)rng.NextDouble() - 0.5f) * cellSize * 0.4f;
+        c.x += ox; c.z += oz; c.y = FieldHeight.H(c.x, c.z) - 0.03f;
+        GameObject doorRoot = new GameObject("ExitDoor");
+        doorRoot.transform.SetParent(levelRoot, false);
+        doorRoot.transform.localPosition = c;
+        doorRoot.transform.localRotation = Quaternion.Euler(0f, (float)rng.NextDouble() * 360f, 0f);
+        FieldWorld.BuildLoneDoor(doorRoot.transform, cfg, o => Track(o));
+        Transform slab = doorRoot.transform.Find("DoorSlab");
+
+        Material ledMat = Track(ProceduralAssets.CreateMaterial(new Color(0.05f, 0.15f, 0.06f), null, Vector2.one, 0.3f));
+        ProceduralAssets.SetEmission(ledMat, new Color(0.15f, 1.3f, 0.3f));
+        GameObject led = ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "ExitLed", doorRoot.transform,
+            new Vector3(0f, 2.15f + 0.19f, 0.065f), new Vector3(0.09f, 0.035f, 0.03f), ledMat, false);
+        GameObject glow = new GameObject("ExitGlow");
+        glow.transform.SetParent(doorRoot.transform, false);
+        glow.transform.localPosition = new Vector3(0f, 2.3f, 0.5f);
+        Light gl = glow.AddComponent<Light>();
+        gl.type = LightType.Point; gl.color = new Color(0.25f, 1f, 0.4f); gl.range = 8f; gl.intensity = 0.45f; gl.shadows = LightShadows.None;
+        ExitDoorCue cue = doorRoot.AddComponent<ExitDoorCue>();
+        cue.ledRenderer = led.GetComponent<Renderer>(); cue.glow = gl; cue.visibleDistance = 8f; cue.glowIntensity = 0.45f;
+        led.GetComponent<Renderer>().enabled = false; gl.enabled = false;
+
+        FieldExitBeacon.Build(this, doorRoot.transform, cfg, UsedSeed, o => Track(o));
+
+        ExitTransform = slab;
+        ExitPosition = slab.position;
+    }
+
+    private bool FieldBlocked(int x, int z) { return FieldPlan != null && FieldPlan.blocked.Contains(new Vector2Int(x, z)); }
 
     private void BuildExitDoor(System.Random rng)
     {
@@ -1195,7 +1290,8 @@ public class BackroomsGenerator : MonoBehaviour
 
     private Vector3 CellCenterLocal(int x, int z)
     {
-        return new Vector3((x + 0.5f) * cellSize, 0f, (z + 0.5f) * cellSize);
+        float px = (x + 0.5f) * cellSize, pz = (z + 0.5f) * cellSize;
+        return new Vector3(px, FieldHeight.Active ? FieldHeight.H(px, pz) : 0f, pz);
     }
 
     private Vector2Int WorldToCell(Vector3 world)

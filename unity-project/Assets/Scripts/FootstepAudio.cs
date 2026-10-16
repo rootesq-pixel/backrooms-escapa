@@ -13,6 +13,10 @@ public class FootstepAudio : MonoBehaviour
     private AudioClip splash;
     private FirstPersonController fpc;
     private bool left;
+    private int lastGrass = -1;
+    private AudioSource rustleSrc;
+    public float RustleLevel { get; private set; }   // v7.0: volumen actual del roce (tests)
+    public int GrassStepsPlayed { get; private set; }
 
     public void Setup(StepKind k)
     {
@@ -21,6 +25,26 @@ public class FootstepAudio : MonoBehaviour
         ProceduralAssets.SafeDestroy(splash);
         clip = ProceduralAudio.CreateFootstep(k);
         splash = k == StepKind.Water ? ProceduralAudio.CreateSplash() : null;
+        if (k == StepKind.Grass && rustleSrc == null) rustleSrc = GrassAudio.MakeRustleSource(gameObject, false);
+    }
+
+    // v7.0: roce continuo de la hierba según la velocidad (más al correr, casi nada agachado)
+    private void Update()
+    {
+        if (rustleSrc == null || fpc == null) return;
+        bool grass = kind == StepKind.Grass && fpc.IsGrounded && GrassAudio.OnGrass(fpc.transform.position) && fpc.InputEnabled;
+        float target = grass ? GrassAudio.RustleTarget(fpc.FlatSpeed, fpc.IsSprinting, fpc.IsCrouching) : 0f;
+        RustleLevel = Mathf.MoveTowards(RustleLevel, target, Time.deltaTime * (target > RustleLevel ? 3f : 1.6f));
+        rustleSrc.volume = RustleLevel * GrassAudio.RustleMax * Vol / Mathf.Max(volume, 1e-3f) * 0.45f;
+        rustleSrc.pitch = Mathf.Lerp(0.9f, 1.12f, Mathf.Clamp01(fpc.FlatSpeed / 6f));
+    }
+
+    // clip de la pisada actual: hierba real fuera de las casas en el Campo infinito
+    private AudioClip StepClip(out bool grass)
+    {
+        grass = kind == StepKind.Grass && fpc != null && GrassAudio.OnGrass(fpc.transform.position);
+        if (grass) { AudioClip g = GrassAudio.RandomStep(ref lastGrass); if (g != null) { GrassStepsPlayed++; return g; } grass = false; }
+        return clip;
     }
 
     private void Awake()
@@ -58,7 +82,10 @@ public class FootstepAudio : MonoBehaviour
         float depth = fpc.WaterDepth;
         bool inWater = wv != null && depth > 0.03f;
         // pisada sobre suelo mojado (charco): clip del nivel con menos graves + chapoteo; en agua profunda solo chapoteo
-        source.PlayOneShot(clip, Vol * intensity * (inWater ? Mathf.Lerp(0.8f, 0.3f, Mathf.Clamp01(depth / 0.5f)) : 1f));
+        bool grassStep;
+        AudioClip sc = StepClip(out grassStep);
+        if (grassStep) source.pitch = Random.Range(0.92f, 1.08f) * (fpc.IsCrouching ? 1.06f : 1f);
+        source.PlayOneShot(sc, Vol * intensity * (inWater ? Mathf.Lerp(0.8f, 0.3f, Mathf.Clamp01(depth / 0.5f)) : 1f));
         if (inWater)
         {
             if (splash == null) splash = ProceduralAudio.CreateSplash();
@@ -77,7 +104,8 @@ public class FootstepAudio : MonoBehaviour
     {
         if (clip == null) return;
         source.pitch = 0.8f;
-        source.PlayOneShot(clip, Mathf.Min(1f, Vol * intensity * 1.4f));
+        bool grassStep;
+        source.PlayOneShot(StepClip(out grassStep), Mathf.Min(1f, Vol * intensity * 1.4f));
         WaterVolume wv = WaterVolume.Active;
         if (wv != null && fpc != null && fpc.WaterDepth > 0.03f)
         {

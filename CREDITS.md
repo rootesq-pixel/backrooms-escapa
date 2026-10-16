@@ -77,16 +77,29 @@ UPnP/NAT-PMP, detección de IP pública y el cliente del relay son código propi
 ## v6.2
 Relay oficial integrado cifrado (AES/HMAC con System.Security.Cryptography) y token compartido: código propio, sin paquetes de terceros nuevos.
 
-## v6.7
-- **Fuentes** (`Assets/Resources/Fonts/`): «Escapa Mono» y «Escapa Sans Condensed» son versiones renombradas de **IBM Plex Mono / IBM Plex Sans Condensed** (© IBM Corp., SIL Open Font License 1.1) con glifos de **DejaVu** (licencia libre de Bitstream Vera/DejaVu) fusionados para símbolos; **Courier Prime** (© Quote-Unquote Apps, SIL OFL 1.1) para el texto en papel.
-- **Iconos 3D del inventario** y **cáusticas del agua** (flipbook de 64 fotogramas) renderizados con Blender a partir de escenas propias; sin activos de terceros.
+## Tipografías (Assets/Resources/Fonts)
 
-## Técnicas de agua (v6.7.2)
+| Archivo | Familia | Autor | Licencia |
+|---|---|---|---|
+| EscapaMono-Regular/Bold.ttf | versión modificada de IBM Plex Mono | IBM Corp. (original) | SIL Open Font License 1.1 |
+| EscapaSansCondensed-Regular/SemiBold.ttf | versión modificada de IBM Plex Sans Condensed | IBM Corp. (original) | SIL Open Font License 1.1 |
+| CourierPrime-Regular/Bold.ttf | Courier Prime (sin modificar) | Alan Dague-Greene | SIL Open Font License 1.1 |
 
-Implementación propia inspirada en proyectos con licencia MIT (no se ha copiado código):
-- Optically-Realistic-Water (port de Unity del shader de Martins Upitis), MIT — reflexión planar con plano de recorte oblicuo, refracción enmascarada por profundidad, atenuación de normales con la distancia.
-- WebGL Water de Evan Wallace (2011), MIT — cáusticas proyectadas y reflexión planar en piscinas.
-- water-shader-unity (leonjovanovic) — separación cromática de cáusticas.
+Las fuentes «Escapa» son IBM Plex (Copyright © 2017 IBM Corp., Reserved Font Name «Plex») con los símbolos ► ◄ ● ⚠ ✖ ✔ ▲ ▼ ■ □ de DejaVu Sans (licencia Bitstream Vera) añadidos con fontTools, para que la interfaz no dependa de las fuentes del sistema. Al ser versiones modificadas se han renombrado, como exige la OFL para nombres reservados; se distribuyen bajo la misma OFL 1.1.
 
-## Sala de piscina horneada (v6.8.0)
-- Geometría, UV de lightmap y horneado de luz con **Blender Cycles** (escena propia, `unity-project/Tools/pool-bake/`); eliminación de ruido con **Intel Open Image Denoise** (filtro RT_LIGHTMAP, Apache 2.0) vía `pyoidn` solo como herramienta (no se distribuye con el juego).
+## Iconos del inventario
+
+`Assets/Resources/Icons/*.png`: renderizados en Blender (Cycles) a partir de modelos 3D creados con `Tools/blender/item_icons.py`. Texturas del maletín, espuma, papel y cinta (`Assets/Resources/UI`): generadas con `Tools/inventory_textures.py`. Obra propia del proyecto.
+
+## v7.0 — Campo infinito (Assets/Resources/Field)
+
+| Recurso | Uso | Autor / fuente | Licencia |
+|---|---|---|---|
+| grass_medium_01, grass_medium_02, grass_bermuda_01, dandelion_01 (modelos y texturas escaneados) | matas de hierba instanciadas (decimadas con Blender a ≤700 triángulos, alfa dilatado) | Poly Haven — https://polyhaven.com/models | CC0 |
+| sparse_grass (texturas PBR) | suelo del campo | Poly Haven — https://polyhaven.com/a/sparse_grass | CC0 |
+| damaged_plaster, grey_roof_01, oak_wood_planks (texturas PBR 1k) | paredes, tejados y suelos de las casas | Poly Haven | CC0 |
+| kloofendal_overcast_puresky (HDRI 2k) | cielo nublado | Poly Haven (Greg Zaal) | CC0 |
+| footstep_grass_000–004 («Impact Sounds») | pisadas en hierba (normalizadas a pico 0,6) | Kenney — https://kenney.nl/assets/impact-sounds | CC0 |
+
+El roce de la hierba, el viento, el zumbido de radio de la salida, el terreno, las casas, los postes y las puertas sueltas se generan por código.
+«El Vigía (Nivel 5)» (FieldWatcher) reutiliza el modelo CC0 de El Alto (HorrorGameMaker.com) con una textura reteñida con Pillow.

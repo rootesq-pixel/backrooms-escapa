@@ -7,6 +7,8 @@ using UnityEngine;
 [RequireComponent(typeof(CharacterController))]
 public class FirstPersonController : MonoBehaviour
 {
+    public static FirstPersonController LocalInstance;   // v7.0: jugador local (solo hay uno por proceso)
+
     [Header("Referencias")]
     [Tooltip("Transform de la cámara (se inclina arriba/abajo). Si está vacío se busca una Camera hija.")]
     public Transform cameraPivot;
@@ -258,6 +260,7 @@ public class FirstPersonController : MonoBehaviour
 
     private void Awake()
     {
+        LocalInstance = this;
         controller = GetComponent<CharacterController>();
         stamina = maxStamina;
         eyeHeightCurrent = standEyeHeight;
@@ -296,6 +299,7 @@ public class FirstPersonController : MonoBehaviour
 
     private void OnDestroy()
     {
+        if (LocalInstance == this) LocalInstance = null;
         ProceduralAssets.SafeDestroy(breathIn);
         ProceduralAssets.SafeDestroy(breathOut);
     }

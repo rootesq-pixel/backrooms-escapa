@@ -8,6 +8,7 @@ public class RemotePlayer : MonoBehaviour
 {
     public const int FlagCrouch = 1, FlagSprint = 2, FlagFlash = 4, FlagExit = 8, FlagSwim = 16, FlagDowned = 32;
 
+    public static readonly System.Collections.Generic.List<RemotePlayer> All = new System.Collections.Generic.List<RemotePlayer>();   // v7.0
     public int playerId;
     public string playerName = "Jugador";
     public bool Downed { get; private set; }
@@ -129,6 +130,21 @@ public class RemotePlayer : MonoBehaviour
         stepClip = ProceduralAudio.CreateFootstep(stepKind);
         splashClip = ProceduralAudio.CreateSplash();
         owned.Add(stepClip); owned.Add(splashClip);
+        if (stepKind == StepKind.Grass) rustleSrc = GrassAudio.MakeRustleSource(gameObject, true);
+    }
+
+    // v7.0: pasos de hierba y roce también para los jugadores remotos (mismo volumen relativo que los locales)
+    private AudioSource rustleSrc;
+    private int lastGrass = -1;
+    public float RustleLevel { get; private set; }
+    public int GrassStepsPlayed { get; private set; }
+    private void Rustle(float dt)
+    {
+        if (rustleSrc == null) return;
+        bool grass = !Downed && GrassAudio.OnGrass(transform.position);
+        float target = grass ? GrassAudio.RustleTarget(FlatSpeed, Sprinting, Crouching) : 0f;
+        RustleLevel = Mathf.MoveTowards(RustleLevel, target, dt * (target > RustleLevel ? 3f : 1.6f));
+        rustleSrc.volume = RustleLevel * GrassAudio.RustleMax * AudioMix.Sfx * AudioMix.StepMaster * 0.45f;
     }
 
     private static Transform Find(Transform root, string name)
@@ -316,6 +332,7 @@ public class RemotePlayer : MonoBehaviour
 
     private void Footsteps(float dt)
     {
+        Rustle(dt);
         Vector3 d = transform.position - lastPos; d.y = 0f;
         lastPos = transform.position;
         if (Downed || FlatSpeed < 0.3f) return;
@@ -329,7 +346,13 @@ public class RemotePlayer : MonoBehaviour
         bool inWater = wv != null && depth > 0.03f;
         float vol = (Sprinting ? 0.6f : (Crouching ? 0.22f : 0.42f)) * AudioMix.Sfx * AudioMix.StepMaster;
         stepSrc.pitch = Random.Range(0.88f, 1.1f) * (Crouching ? 1.1f : 1f);
-        if (stepClip != null) stepSrc.PlayOneShot(stepClip, vol * (inWater ? 0.5f : 1f));
+        AudioClip sc = stepClip;
+        if (stepKind == StepKind.Grass && GrassAudio.OnGrass(transform.position))
+        {
+            AudioClip g = GrassAudio.RandomStep(ref lastGrass);
+            if (g != null) { sc = g; GrassStepsPlayed++; }
+        }
+        if (sc != null) stepSrc.PlayOneShot(sc, vol * (inWater ? 0.5f : 1f));
         if (inWater && splashClip != null)
         {
             stepSrc.pitch = Random.Range(0.9f, 1.25f);
@@ -354,6 +377,9 @@ public class RemotePlayer : MonoBehaviour
         if (Downed) t += "\n<color=#ff6a5a>DERRIBADO" + (Revive01 > 0.01f ? " · reanimando " + Mathf.RoundToInt(Revive01 * 100f) + "%" : "") + "</color>";
         if (tagText.text != t) { tagText.supportRichText = true; tagText.text = t; }
     }
+
+    private void OnEnable() { if (!All.Contains(this)) All.Add(this); }
+    private void OnDisable() { All.Remove(this); }
 
     private void OnDestroy()
     {

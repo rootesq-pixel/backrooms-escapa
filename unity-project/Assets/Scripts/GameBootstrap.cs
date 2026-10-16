@@ -284,6 +284,13 @@ public class GameBootstrap : MonoBehaviour
         BuildBatteries(generator, cfg, player.transform, flashlight, ns != null);
         BuildExtraPickups(generator, cfg, ns != null);
 
+        // 5b) v7.0 Campo infinito: hierba instanciada en GPU (fuera de levelRoot: no entra en la huella MP ni en el NavMesh) y El Vigía en el horizonte
+        if (cfg.layout == LayoutKind.Field)
+        {
+            FieldGrass.Create(worldRoot.transform, generator);
+            FieldWatcherApparition.Create(worldRoot.transform, generator);
+        }
+
         // 6) UI + GameManager
         GameObject gmGo = new GameObject("GameManager");
         gmGo.transform.SetParent(worldRoot.transform, false);
@@ -371,10 +378,11 @@ public class GameBootstrap : MonoBehaviour
         RenderSettings.fogColor = cfg.fog;
         RenderSettings.fogDensity = cfg.fogDensity;
         Shader.SetGlobalFloat("_GradeAmt", cfg.grade);
-        PostStack.LevelActive = cfg.index == 2;   // v6.9: post-procesado tipo POOLS en las Poolrooms
+        PostStack.LevelActive = cfg.index == 2 || cfg.layout == LayoutKind.Field;   // v6.9: post-procesado tipo POOLS (Poolrooms; v7.0 también el campo)
         Shader.SetGlobalFloat("_GradeWarm", 1f);
         Shader.SetGlobalFloat("_GradeContrast", 1.4f);
         Shader.SetGlobalFloat("_GradeExposure", 0.85f);
+        if (cfg.layout == LayoutKind.Field && worldRoot != null) FieldAtmosphere.Apply(cfg, worldRoot.transform, worldAssets);
     }
 
     // ------------------------------------------------------------------
@@ -410,6 +418,7 @@ public class GameBootstrap : MonoBehaviour
         cam.clearFlags = CameraClearFlags.SolidColor;
         cam.backgroundColor = cfg.fog;
         cam.allowHDR = true;
+        if (cfg.layout == LayoutKind.Field) FieldAtmosphere.SetupCamera(cam);
         camGo.AddComponent<AudioListener>();
         camGo.AddComponent<VhsEffect>();
 

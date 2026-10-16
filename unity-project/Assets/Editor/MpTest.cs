@@ -357,6 +357,32 @@ public static class MpPlayRunner
             remote1 = remote2;
         }
 
+        // ---- v7.0: nivel 5 (Campo infinito) — misma semilla = mismas casas/colinas; pasos de hierba y roce del cliente audibles ----
+        {
+            yield return WaitMark("client_pool_ack", 60);
+            int epoch5 = ns.Epoch;
+            ns.HostLoadLevel(5, false, false);
+            yield return Wait(() => WorldReady(gb, ns, 5) && ns.Epoch > epoch5, 240, "nivel 5 cargado (anfitrión)");
+            yield return Wait(() => ns.AllReady(), 180, "todos listos en el nivel 5");
+            r.Check(gb.CurrentLevel == 5 && ns.HashesMatch() && ns.HashMismatches == 0, "[Campo MP] nivel 5 cargado y con la misma huella (terreno, casas y accesorios deterministas)");
+            FieldWorld fw = FieldWorld.Active;
+            r.Check(fw != null && fw.houseCount >= 6 && FieldGrass.Active != null, "[Campo MP] campo con casas (" + (fw != null ? fw.houseCount : 0) + ") y hierba en el anfitrión");
+            File.WriteAllText(MpTest.Dir + "/field_host.txt", gb.Generator.UsedSeed + ";" + (fw != null ? fw.houseCount : 0) + ";" + gb.Generator.ExitPosition.x.ToString("F2") + ";" + gb.Generator.ExitPosition.z.ToString("F2"));
+            foreach (MonsterAI m in MonsterAI.Instances) m.Stop();
+            Mark("host_level5");
+            yield return Wait(() => { NetPlayer q = ns.Players.Find(p => !p.isLocal); return q != null && q.avatar != null; }, 60, "avatar remoto en el nivel 5");
+            NetPlayer remote5 = ns.Players.Find(p => !p.isLocal);
+            yield return WaitMark("client_field_walk", 120);
+            int gs0 = remote5.avatar != null ? remote5.avatar.GrassStepsPlayed : 0;
+            float rmax = 0f;
+            for (float tt = 0f; tt < 5f; tt += 0.1f) { if (remote5.avatar != null) rmax = Mathf.Max(rmax, remote5.avatar.RustleLevel); yield return 0.1f; }
+            int gs1 = remote5.avatar != null ? remote5.avatar.GrassStepsPlayed : 0;
+            r.Check(gs1 > gs0, "[Campo MP] el anfitrión oye las pisadas de hierba del cliente (" + (gs1 - gs0) + " pasos)");
+            r.Check(rmax > 0.1f, "[Campo MP] el anfitrión oye el roce de la hierba del cliente al moverse (nivel " + rmax.ToString("F2") + ")");
+            yield return WaitMark("client_field_done", 120);
+            Mark("host_field_done");
+        }
+
         // ---- desconexión del cliente ----
         GameObject av1 = remote1.avatar.gameObject;
         yield return WaitMark("client_left", 120);
@@ -628,6 +654,40 @@ public static class MpPlayRunner
                 Mark("client_pool_" + steps[si] + "_out");
             }
             yield return WaitMark("host_pool_done", 120);
+        }
+
+        // ---- v7.0: nivel 5 (Campo infinito): mismo mundo; el cliente camina y corre por la hierba ----
+        {
+            int epochP = ns.Epoch;
+            Mark("client_pool_ack");
+            yield return Wait(() => WorldReady(gb, ns, 5) && ns.Epoch > epochP, 240, "nivel 5 cargado (cliente)");
+            yield return WaitMark("host_level5", 240);
+            string[] hf = File.Exists(MpTest.Dir + "/field_host.txt") ? File.ReadAllText(MpTest.Dir + "/field_host.txt").Split(';') : new string[0];
+            FieldWorld fw = FieldWorld.Active;
+            r.Check(hf.Length == 4 && hf[0] == gb.Generator.UsedSeed.ToString() && fw != null && hf[1] == fw.houseCount.ToString()
+                && hf[2] == gb.Generator.ExitPosition.x.ToString("F2") && hf[3] == gb.Generator.ExitPosition.z.ToString("F2"),
+                "[Campo MP] el cliente tiene la misma semilla, las mismas casas y la salida en el mismo sitio que el anfitrión");
+            ElevatorCabin cab = ElevatorCabin.Current;
+            yield return Wait(() => cab == null || cab.Released, 40, "puertas del ascensor abiertas (campo)");
+            gm = GameManager.Instance; FirstPersonController pf = gm.player;
+            Vector3 fwd = cab != null ? cab.Forward : Vector3.forward;
+            Vector3 sp = (cab != null ? cab.ExitPoint : gb.Generator.PlayerStart) + fwd * 4f;
+            Vector3 lp = gb.Generator.Root.InverseTransformPoint(sp); lp.y = FieldHeight.H(lp.x, lp.z) + 0.15f;
+            pf.Teleport(gb.Generator.Root.TransformPoint(lp), Mathf.Atan2(fwd.x, fwd.z) * Mathf.Rad2Deg);
+            yield return 0.8f;
+            FootstepAudio fa = pf.GetComponent<FootstepAudio>();
+            r.Check(GrassAudio.OnGrass(pf.transform.position), "[Campo MP] el cliente está sobre la hierba");
+            int gst0 = fa != null ? fa.GrassStepsPlayed : 0;
+            Mark("client_field_walk");
+            pf.debugInput = true; pf.debugMove = new Vector2(0f, 1f); pf.debugSprint = true;
+            float rmax = 0f;
+            for (float tt = 0f; tt < 5f; tt += 0.1f) { if (fa != null) rmax = Mathf.Max(rmax, fa.RustleLevel); yield return 0.1f; }
+            pf.debugMove = Vector2.zero; pf.debugSprint = false; pf.debugInput = false;
+            int gst1 = fa != null ? fa.GrassStepsPlayed : 0;
+            r.Check(gst1 > gst0, "[Campo MP] el cliente oye sus propias pisadas de hierba (" + (gst1 - gst0) + ")");
+            r.Check(rmax > 0.3f, "[Campo MP] el cliente oye el roce de la hierba al correr (" + rmax.ToString("F2") + ")");
+            Mark("client_field_done");
+            yield return WaitMark("host_field_done", 60);
         }
 
         // ---- salir, reintentar con la partida en marcha, reunirse y ver el cierre del anfitrión ----

@@ -823,13 +823,13 @@ public static class SmokeTest
     private static void TestV4Assets(Report r)
     {
         // Niveles
-        r.Check(LevelConfig.Count == 5, "hay 5 niveles (" + LevelConfig.Count + ")");
+        r.Check(LevelConfig.Count == 6 && LevelConfig.Get(5).name == "Campo infinito" && LevelConfig.Get(5).layout == LayoutKind.Field, "hay 6 niveles; el 5 es el Campo infinito (" + LevelConfig.Count + ")");
         r.Check(LevelConfig.Get(2).water && LevelConfig.Get(2).name == "Poolrooms", "nivel 2 = Poolrooms (antes «Salas inundadas»: agua realista)");
         bool onlyOneWater = true; for (int i = 0; i < LevelConfig.Count; i++) if (i != 2 && LevelConfig.Get(i).water) onlyOneWater = false;
         r.Check(onlyOneWater && LevelConfig.Get(3).name == "Hotel abandonado" && LevelConfig.Get(4).name == "Complejo industrial", "sin otro nivel de agua; nivel 3 = hotel, nivel 4 = industrial");
         r.Check(MonsterProfile.ForLevel(2).id == "DrownedZombie", "el Ahogado es el monstruo del nivel de agua (Poolrooms)");
         r.Check(Resources.Load<GameObject>("Poolrooms/PoolHall") == null && MonsterProfile.ById("AlienBug") == null, "el modelo PoolHall y El Reptador ya no existen");
-        r.Check(LoreNotes.Total == 15 && !LoreNotes.Valid(50) && LoreNotes.Valid(42), "15 notas de ambiente (3 por nivel, 5 niveles)");
+        r.Check(LoreNotes.Total == 18 && !LoreNotes.Valid(60) && LoreNotes.Valid(52) && LoreNotes.Valid(42), "18 notas de ambiente (3 por nivel, 6 niveles)");
         var seenMonsters = new HashSet<string>();
         for (int i = 0; i < LevelConfig.Count; i++)
         {
@@ -1119,7 +1119,8 @@ public static class SmokeTest
         r.Check(gen.ExitTransform != null, tag + "existe la puerta de salida");
         r.Check(gen.MonsterSpawns != null && gen.MonsterSpawns.Count == Mathf.Max(1, cfg.monsterCount), tag + "apariciones de monstruo = " + cfg.monsterCount);
         r.Check(gen.BatterySpots != null && gen.BatterySpots.Count == cfg.batteries, tag + "pilas colocadas = " + cfg.batteries + " (hay " + (gen.BatterySpots != null ? gen.BatterySpots.Count : 0) + ")");
-        r.Check(gen.FixtureCount > 0, tag + "hay accesorios de luz");
+        if (cfg.layout != LayoutKind.Field) r.Check(gen.FixtureCount > 0, tag + "hay accesorios de luz");
+        else r.Check(gen.Root.GetComponentInChildren<FieldExitBeacon>(true) != null, tag + "campo: la salida tiene su farol/radio (pistas sutiles)");
         if (cfg.layout == LayoutKind.OpenPillars) r.Check(gen.PillarCount > 0, tag + "hay pilares");
 
         // Sin cartel / TextMesh / objetos "Sign" / "Salida" / flechas
@@ -1188,7 +1189,8 @@ public static class SmokeTest
         // Alcanzabilidad: BFS por cuadrícula
         int total = gen.GridWidth * gen.GridHeight, reach = 0;
         for (int x = 0; x < gen.GridWidth; x++) for (int z = 0; z < gen.GridHeight; z++) if (gen.DistanceFromStart(x, z) >= 0) reach++;
-        r.Check(reach == total, tag + "todas las celdas alcanzables desde el inicio (" + reach + "/" + total + ")");
+        int blockedCells = gen.FieldPlan != null ? gen.FieldPlan.blocked.Count : 0;
+        r.Check(reach == total - blockedCells, tag + "todas las celdas alcanzables desde el inicio (" + reach + "/" + (total - blockedCells) + (blockedCells > 0 ? ", " + blockedCells + " ocupadas por casas/accesorios" : "") + ")");
         r.Check(gen.DistanceFromStart(gen.ExitCell.x, gen.ExitCell.y) >= 0, tag + "celda de salida alcanzable (dist " + gen.DistanceFromStart(gen.ExitCell.x, gen.ExitCell.y) + ")");
 
         // v6.8: sala de piscina fija horneada (Poolrooms)
@@ -1250,7 +1252,28 @@ public static class SmokeTest
         r.Check(!Physics.CheckSphere(head, 0.34f), tag + "el punto de inicio no está dentro de una pared");
         bool pathFree = true;
         Vector3 prev = gen.PlayerStart;
-        for (int i = 0; i < path.Count - 1; i++)
+        if (cfg.layout == LayoutKind.Field)
+        {
+            // campo: se recorre el camino a pasos de 0,5 m siguiendo el terreno (colinas) comprobando que no hay casas/postes/puertas
+            Vector3 q0 = gen.PlayerStart;
+            for (int i = 1; i < path.Count - 1 && pathFree; i++)
+            {
+                Vector3 q1 = path[i];
+                int steps = Mathf.CeilToInt(Vector3.Distance(q0, q1) / 0.5f);
+                for (int k = 1; k <= steps; k++)
+                {
+                    Vector3 pp = gen.Root.InverseTransformPoint(Vector3.Lerp(q0, q1, k / (float)steps));
+                    pp.y = FieldHeight.H(pp.x, pp.z) + 0.95f;
+                    Collider[] hits = Physics.OverlapSphere(gen.Root.TransformPoint(pp), 0.34f);
+                    foreach (Collider hc in hits)
+                        if (!hc.name.StartsWith("FieldTerrain")) { pathFree = false; r.Info(tag + "colisión en el camino del campo: " + hc.name + " en " + pp); break; }
+                    if (!pathFree) break;
+                }
+                q0 = q1;
+            }
+            path = new List<Vector3>(path);
+        }
+        for (int i = 0; i < path.Count - 1 && cfg.layout != LayoutKind.Field; i++)
         {
             Vector3 a = prev + Vector3.up * 0.9f, bpt = path[i] + Vector3.up * 0.9f;
             if (i == 0) { prev = path[i]; continue; }
@@ -1270,9 +1293,11 @@ public static class SmokeTest
             r.Check(Vector3.Distance(new Vector3(gen.ExitPosition.x, 0, gen.ExitPosition.z), new Vector3(last.x, 0, last.z)) < 0.01f, tag + "el camino termina en la puerta");
         }
         // Se puede llegar a < 1.6 m de la puerta (radio de victoria) pegándose a su pared
-        Vector3 doorFloor = new Vector3(gen.ExitPosition.x, 0f, gen.ExitPosition.z);
+        Vector3 doorFloor = new Vector3(gen.ExitPosition.x, gen.FloorHeightLocal(gen.ExitPosition.x, gen.ExitPosition.z), gen.ExitPosition.z);
         Vector3 toCell = gen.CellCenterWorld(gen.ExitCell.x, gen.ExitCell.y) - doorFloor; toCell.y = 0;
+        if (cfg.layout == LayoutKind.Field) toCell = gen.ExitTransform.forward;   // campo: la puerta está suelta, se llega por delante
         Vector3 standPos = doorFloor + toCell.normalized * 0.8f;
+        if (cfg.layout == LayoutKind.Field) standPos.y = gen.FloorHeightLocal(standPos.x, standPos.z) + 0.05f;
         bool standFree = !Physics.CheckSphere(standPos + Vector3.up * 0.9f, 0.34f);
         r.Check(standFree && Vector3.Distance(standPos, doorFloor) < 1.6f, tag + "se puede estar a <1.6 m de la puerta sin atravesar nada");
 
@@ -1283,7 +1308,7 @@ public static class SmokeTest
             NavMeshPath np = new NavMeshPath();
             NavMeshHit h1, h2;
             bool s1 = NavMesh.SamplePosition(gen.PlayerStart, out h1, 2f, NavMesh.AllAreas);
-            bool s2 = NavMesh.SamplePosition(new Vector3(standPos.x, 0f, standPos.z), out h2, 2.5f, NavMesh.AllAreas);
+            bool s2 = NavMesh.SamplePosition(new Vector3(standPos.x, standPos.y, standPos.z), out h2, 2.5f, NavMesh.AllAreas);
             bool ok = s1 && s2 && NavMesh.CalculatePath(h1.position, h2.position, NavMesh.AllAreas, np) && np.status == NavMeshPathStatus.PathComplete;
             r.Check(ok, tag + "NavMesh: camino completo inicio -> puerta (" + np.status + ")");
             foreach (Vector3 spawn in gen.MonsterSpawns)
@@ -1301,12 +1326,162 @@ public static class SmokeTest
             r.Info(tag + "AVISO: no se pudo hornear la NavMesh en modo edición");
         }
 
+        if (cfg.layout == LayoutKind.Field) TestFieldLevel(r, tag, gen, seed);
+
         UnityEngine.Object.DestroyImmediate(go);
+    }
+
+    // v7.0 Campo infinito: casas, salida, determinismo, periodicidad, hierba y sonido
+    private static void TestFieldLevel(Report r, string tag, BackroomsGenerator gen, int seed)
+    {
+        FieldWorld fw = FieldWorld.Active;
+        FieldPlan plan = gen.FieldPlan;
+        r.Check(fw != null && plan != null && fw.plan == plan, tag + "campo: FieldWorld + plan creados");
+        if (fw == null || plan == null) return;
+        r.Check(plan.houses.Count >= 6 && fw.houseCount == plan.houses.Count, tag + "campo: casas dispersas (" + plan.houses.Count + ")");
+        // casas casi idénticas (mismo modelo, giro y tinte) y algunas visitables
+        var groups = new Dictionary<int, int>(); int enter = 0;
+        foreach (FieldPlan.House h in plan.houses) { int k = h.template * 100 + h.rot * 10 + h.tint; groups[k] = groups.TryGetValue(k, out int v) ? v + 1 : 1; if (h.enterable) enter++; }
+        int maxTwin = 0; foreach (int v in groups.Values) maxTwin = Mathf.Max(maxTwin, v);
+        r.Check(maxTwin >= 3, tag + "campo: varias casas repetidas casi idénticas (" + maxTwin + " iguales)");
+        r.Check(enter >= 1 && enter < plan.houses.Count, tag + "campo: algunas casas visitables (" + enter + "/" + plan.houses.Count + ")");
+        // ninguna casa en la salida ni cerca; la salida no está en una celda ocupada
+        int minHouseExit = 99; foreach (FieldPlan.House h in plan.houses) minHouseExit = Mathf.Min(minHouseExit, FieldPlan.Cheb(h.cell, gen.ExitCell, gen.GridWidth, gen.GridHeight));
+        r.Check(minHouseExit >= 2 && !plan.blocked.Contains(gen.ExitCell), tag + "campo: ninguna casa es ni está junto a la salida (dist mín " + minHouseExit + " celdas)");
+        r.Check(gen.ExitTransform != null && gen.ExitTransform.GetComponentInParent<FieldExitBeacon>() == null && gen.ExitTransform.parent.GetComponentInChildren<FieldExitBeacon>() != null, tag + "campo: farol de la salida junto a la puerta real");
+        int beacons = gen.Root.GetComponentsInChildren<FieldExitBeacon>(true).Length;
+        r.Check(beacons == 1, tag + "campo: solo la salida tiene pistas (balizas " + beacons + ")");
+        // salida lejos (distancia con vuelta)
+        Vector3 sl = gen.Root.InverseTransformPoint(gen.PlayerStart), el = gen.Root.InverseTransformPoint(gen.ExitPosition);
+        float ed = FieldHeight.WrappedDist(sl.x, sl.z, el.x, el.z);
+        r.Check(ed > 90f, tag + "campo: salida lejos del inicio (" + ed.ToString("F0") + " m)");
+        // colisiones de casas: cada casa tiene MeshCollider y una visitable deja entrar
+        int houseCols = 0;
+        foreach (Transform t in gen.Root.GetComponentsInChildren<Transform>(true)) if (t.name.StartsWith("House_") && t.GetComponent<MeshCollider>() != null) houseCols++;
+        r.Check(houseCols == plan.houses.Count, tag + "campo: colisión en todas las casas (" + houseCols + ")");
+        Physics.SyncTransforms();
+        int insideFree = 0, closedBlocked = 0, enterTested = 0, closedTested = 0;
+        foreach (FieldPlan.House h in plan.houses)
+        {
+            Vector3 c = gen.Root.TransformPoint(new Vector3(h.pos.x, FieldHeight.H(h.pos.x, h.pos.y) + 1.4f, h.pos.y));
+            bool free = !Physics.CheckSphere(c, 0.3f);
+            if (h.enterable) { enterTested++; if (free) insideFree++; }
+            else
+            {
+                closedTested++;
+                // desde fuera hacia el centro de una casa cerrada: algo bloquea (pared/puerta)
+                Vector3 o = c + new Vector3(9f, 0f, 0.3f);
+                if (Physics.SphereCast(o, 0.3f, (c - o).normalized, out RaycastHit hit, 9f)) closedBlocked++;
+            }
+        }
+        r.Check(insideFree == enterTested, tag + "campo: interior libre en casas visitables (" + insideFree + "/" + enterTested + ")");
+        r.Check(closedBlocked == closedTested, tag + "campo: casas cerradas sin hueco transitable (" + closedBlocked + "/" + closedTested + ")");
+        // determinismo: misma semilla -> mismo plan y misma huella; terreno periódico
+        ulong h1 = gen.WorldHash();
+        FieldPlan p2 = FieldPlan.Make(gen.UsedSeed, gen.GridWidth, gen.GridHeight, gen.CellSize, gen.StartCell, gen.ExitCell);
+        bool same = p2.houses.Count == plan.houses.Count && p2.props.Count == plan.props.Count;
+        for (int i = 0; same && i < p2.houses.Count; i++) same = p2.houses[i].pos == plan.houses[i].pos && p2.houses[i].template == plan.houses[i].template && p2.houses[i].enterable == plan.houses[i].enterable;
+        r.Check(same, tag + "campo: plan de casas/accesorios determinista por semilla");
+        float L = FieldHeight.L, maxErr = 0f, maxH = 0f;
+        for (int i = 0; i < 40; i++) { float x = i * 6.3f, z = i * 4.1f + 3f; maxErr = Mathf.Max(maxErr, Mathf.Abs(FieldHeight.H(x, z) - FieldHeight.H(x + L, z - L))); maxH = Mathf.Max(maxH, Mathf.Abs(FieldHeight.H(x, z))); }
+        r.Check(maxErr < 1e-3f && maxH > 0.5f && maxH < 8f, tag + "campo: colinas suaves y periódicas (vuelta sin costura; altura máx " + maxH.ToString("F1") + " m)");
+        r.Check(Mathf.Abs(L - gen.GridWidth * gen.CellSize) < 0.01f, tag + "campo: periodo = tamaño de la rejilla (" + L + " m)");
+        // terreno con colisión: rayo hacia abajo en puntos al azar
+        int hitsOk = 0; System.Random rr = new System.Random(seed);
+        for (int i = 0; i < 20; i++)
+        {
+            float x = (float)rr.NextDouble() * L, z = (float)rr.NextDouble() * L;
+            if (plan.NoGrass(x, z)) { hitsOk++; continue; }
+            Vector3 o = gen.Root.TransformPoint(new Vector3(x, 30f, z));
+            if (Physics.Raycast(o, Vector3.down, out RaycastHit hit, 60f) && Mathf.Abs(gen.Root.InverseTransformPoint(hit.point).y - FieldHeight.H(x, z)) < 0.15f) hitsOk++;
+        }
+        r.Check(hitsOk == 20, tag + "campo: el suelo con colisión sigue las colinas (" + hitsOk + "/20)");
+        // sonido de hierba
+        r.Check(GrassAudio.StepClipCount == 5 && GrassAudio.Rustle != null, tag + "campo: 5 pisadas de hierba CC0 + bucle de roce");
+        float rs = GrassAudio.RustleTarget(6f, true, false), rw = GrassAudio.RustleTarget(3f, false, false), rc = GrassAudio.RustleTarget(1.5f, false, true), r0 = GrassAudio.RustleTarget(0f, false, false);
+        r.Check(rs > rw && rw > rc && rc > 0f && r0 == 0f, tag + "campo: roce más fuerte corriendo que andando y que agachado; nada parado (" + rs.ToString("F2") + "/" + rw.ToString("F2") + "/" + rc.ToString("F2") + ")");
+        Vector3 grassPt = Vector3.zero; bool found = false;
+        for (int i = 0; i < 200 && !found; i++) { float x = (float)rr.NextDouble() * L, z = (float)rr.NextDouble() * L; if (!plan.NoGrass(x, z)) { grassPt = gen.Root.TransformPoint(new Vector3(x, FieldHeight.H(x, z), z)); found = true; } }
+        r.Check(found && GrassAudio.OnGrass(grassPt), tag + "campo: se detecta hierba bajo los pies fuera de las casas");
+        if (plan.houses.Count > 0) { FieldPlan.House h0 = plan.houses[0]; r.Check(!GrassAudio.OnGrass(gen.Root.TransformPoint(new Vector3(h0.pos.x, FieldHeight.H(h0.pos.x, h0.pos.y) + 0.5f, h0.pos.y))), tag + "campo: dentro de una casa no suena hierba"); }
+        r.Info(tag + "campo: " + plan.houses.Count + " casas, " + plan.props.Count + " accesorios, trozos de terreno " + fw.chunkCount + ", salida a " + ed.ToString("F0") + " m, huella " + h1.ToString("x"));
     }
 
     // ------------------------------------------------------------------
     // Modo Play
     // ------------------------------------------------------------------
+    // v7.0 Campo infinito en juego: hierba en GPU por calidad (rendimiento), pasos/roce, vuelta al campo, ambiente, El Vigía
+    internal static IEnumerator FieldPlayChecks(Report r, string tag, GameManager gm, FirstPersonController pw)
+    {
+        string ft = tag + "[Campo] ";
+        foreach (MonsterAI m in gm.monsters) m.Stop();
+        FieldGrass fg = FieldGrass.Active; FieldWorld fw = FieldWorld.Active;
+        r.Check(fg != null && fw != null && fg.KindCount >= 10, ft + "hierba instanciada (" + (fg != null ? fg.KindCount : 0) + " especies de matas escaneadas)");
+        r.Check(RenderSettings.skybox != null && RenderSettings.skybox.shader.name == "Backrooms/FieldSky" && RenderSettings.fog && Camera.main.clearFlags == CameraClearFlags.Skybox, ft + "cielo nublado HDRI + niebla");
+        r.Check(Camera.main.farClipPlane >= 150f, ft + "distancia de dibujo ampliada (" + Camera.main.farClipPlane + " m)");
+        r.Check(FieldWatcherApparition.Active != null && FieldWatcherApparition.Active.model != null, ft + "El Vigía (aparición en el horizonte) preparado");
+        r.Check(FieldExitBeacon.Active != null && FieldExitBeacon.Active.hum != null && FieldExitBeacon.Active.hum.isPlaying && FieldExitBeacon.Active.hum.maxDistance >= 60f, ft + "la salida emite su zumbido de radio lejano (3D, " + (FieldExitBeacon.Active != null ? FieldExitBeacon.Active.hum.maxDistance : 0f) + " m)");
+        // sobre la hierba, delante de la cabina
+        ElevatorCabin cab = ElevatorCabin.Current;
+        Vector3 fwd = cab != null ? cab.Forward : Vector3.forward;
+        Vector3 sp = (cab != null ? cab.ExitPoint : gm.generator.PlayerStart) + fwd * 4f;
+        Vector3 lp = gm.generator.Root.InverseTransformPoint(sp); lp.y = FieldHeight.H(lp.x, lp.z) + 0.1f;
+        float yaw = Mathf.Atan2(fwd.x, fwd.z) * Mathf.Rad2Deg;
+        pw.Teleport(gm.generator.Root.TransformPoint(lp), yaw);
+        yield return 1.0f;
+        // rendimiento por calidad
+        int q0 = GameSettings.Quality;
+        int[] inst = new int[3], tris = new int[3]; float[] ms = new float[3];
+        for (int q = 2; q >= 0; q--)
+        {
+            GameSettings.Quality = q;
+            yield return 1.2f;
+            inst[q] = fg.VisibleInstances; tris[q] = fg.VisibleTriangles;
+            float t0 = Time.realtimeSinceStartup; int f0 = Time.frameCount;
+            yield return 1.0f;
+            ms[q] = (Time.realtimeSinceStartup - t0) * 1000f / Mathf.Max(1, Time.frameCount - f0);
+            r.Info(ft + "calidad " + q + ": " + inst[q] + " matas visibles, " + (tris[q] / 1000) + "k triángulos, " + fg.DrawCalls + " llamadas, radio " + fg.Radius + " m, " + ms[q].ToString("F0") + " ms/fotograma (render por software)");
+        }
+        GameSettings.Quality = q0;
+        r.Check(inst[2] > 3000 && inst[0] > 300, ft + "hierba visible en Alto y en Bajo (" + inst[2] + " / " + inst[0] + ")");
+        r.Check(inst[0] < inst[1] && inst[1] < inst[2] && tris[0] * 3 < tris[2], ft + "Bajo reduce densidad y distancia de la hierba (" + tris[0] / 1000 + "k vs " + tris[2] / 1000 + "k tris)");
+        r.Check(tris[2] < 9000000 && tris[0] < 2000000, ft + "presupuesto de triángulos de hierba (Alto < 9M, Bajo < 2M)");
+        r.Check(fg.ChunkCount < 400, ft + "trozos de hierba reciclados (" + fg.ChunkCount + " en memoria)");
+        // pisadas de hierba y roce: corriendo > andando > agachado; parado nada
+        FootstepAudio fa = pw.GetComponent<FootstepAudio>();
+        r.Check(fa != null && fa.kind == StepKind.Grass, ft + "pasos del jugador en modo hierba");
+        float[] lvl = new float[3]; int st0 = fa.GrassStepsPlayed;
+        for (int mode = 0; mode < 3; mode++)
+        {
+            pw.Teleport(gm.generator.Root.TransformPoint(lp), yaw + mode * 120f);
+            yield return 0.3f;
+            pw.debugInput = true; pw.debugMove = new Vector2(0f, 1f); pw.debugSprint = mode == 0; pw.debugCrouch = mode == 2;
+            float mx = 0f;
+            for (float tt = 0f; tt < 2.2f; tt += 0.1f) { mx = Mathf.Max(mx, fa.RustleLevel); yield return 0.1f; }
+            lvl[mode] = mx;
+            pw.debugMove = Vector2.zero; pw.debugSprint = false; pw.debugCrouch = false;
+            yield return 0.6f;
+        }
+        yield return 1.8f;
+        pw.debugInput = false;
+        r.Check(fa.GrassStepsPlayed > st0, ft + "suenan pisadas de hierba reales (" + (fa.GrassStepsPlayed - st0) + ")");
+        r.Check(lvl[0] > lvl[1] && lvl[1] > lvl[2] && lvl[2] > 0.02f, ft + "roce de la hierba: corriendo " + lvl[0].ToString("F2") + " > andando " + lvl[1].ToString("F2") + " > agachado " + lvl[2].ToString("F2"));
+        r.Check(fa.RustleLevel < 0.05f, ft + "parado no hay roce (" + fa.RustleLevel.ToString("F2") + ")");
+        // el campo no se acaba: al cruzar el borde se vuelve al otro lado (mismo terreno)
+        float L = FieldHeight.L; int w0 = fw.WrapCount;
+        Vector3 edge = new Vector3(L - 0.6f, 0f, lp.z); edge.y = FieldHeight.H(edge.x, edge.z) + 0.1f;
+        bool edgeFree = !fw.plan.NoGrass(edge.x, edge.z);
+        pw.Teleport(gm.generator.Root.TransformPoint(edge), 90f);
+        yield return 0.3f;
+        pw.debugInput = true; pw.debugMove = new Vector2(0f, 1f);
+        yield return 1.2f;
+        pw.debugMove = Vector2.zero; pw.debugInput = false;
+        Vector3 after = gm.generator.Root.InverseTransformPoint(pw.transform.position);
+        r.Check(fw.WrapCount > w0 && after.x < 20f && Mathf.Abs(after.y - FieldHeight.H(after.x, after.z)) < 0.6f, ft + "cruzar el borde lleva al otro lado sin costura (x " + after.x.ToString("F1") + ", vueltas " + fw.WrapCount + (edgeFree ? "" : ", borde con obstáculo") + ")");
+        pw.Teleport(gm.generator.Root.TransformPoint(lp), yaw);
+        yield return 0.5f;
+    }
+
     public static void RunPlayMode()
     {
         Directory.CreateDirectory("/workspace/logs");
@@ -2448,7 +2623,8 @@ public static class SmokePlayRunner
 
             // Atmósfera
             r.Check(RenderSettings.fog && RenderSettings.fogMode == FogMode.Exponential && RenderSettings.fogDensity > 0.01f, tag + "niebla exponencial activa");
-            r.Check(RenderSettings.ambientLight.maxColorComponent < 0.25f, tag + "luz ambiente baja");
+            if (cfg.layout == LayoutKind.Field) r.Check(RenderSettings.ambientMode == UnityEngine.Rendering.AmbientMode.Trilight, tag + "campo: luz ambiente de cielo nublado (trilight)");
+            else r.Check(RenderSettings.ambientLight.maxColorComponent < 0.25f, tag + "luz ambiente baja");
 
             // Sin pistas de la salida en HUD / escena
             bool hint = false;
@@ -2468,8 +2644,12 @@ public static class SmokePlayRunner
             // Luces: solo las N más cercanas
             LightCuller culler = gm.generator.Culler;
             yield return 1.0f;
-            int active = culler.ActiveCount;
-            r.Check(active <= cfg.maxRealtimeLights, tag + "luces de accesorios activas " + active + " <= " + cfg.maxRealtimeLights + " (de " + culler.FixtureCount + ")");
+            if (culler != null)
+            {
+                int active = culler.ActiveCount;
+                r.Check(active <= cfg.maxRealtimeLights, tag + "luces de accesorios activas " + active + " <= " + cfg.maxRealtimeLights + " (de " + culler.FixtureCount + ")");
+            }
+            else r.Check(cfg.layout == LayoutKind.Field, tag + "sin accesorios de techo solo en el campo (exterior)");
             int allLights = 0;
             foreach (Light l in UnityEngine.Object.FindObjectsOfType<Light>()) if (l.enabled) allLights++;
             r.Info(tag + "luces habilitadas en total: " + allLights);
@@ -2505,6 +2685,13 @@ public static class SmokePlayRunner
 
             // Cuerpo del jugador en cada nivel
             r.Check(gm.player.GetComponentInChildren<PlayerBody>() != null && gm.player.GetComponentInChildren<PlayerBody>().Loaded, tag + "cuerpo del jugador cargado");
+
+            // v7.0: Campo infinito
+            if (cfg.layout == LayoutKind.Field)
+            {
+                IEnumerator fe = SmokeTest.FieldPlayChecks(r, tag, gm, gm.player);
+                while (fe.MoveNext()) yield return fe.Current;
+            }
 
             // Agua (niveles 2 y 3)
             if (cfg.water)

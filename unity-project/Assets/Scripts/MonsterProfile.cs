@@ -153,6 +153,22 @@ public class MonsterProfile
             walkAnimSpeed = 0.8f, runAnimSpeed = 0.95f, stridePatrol = 1.4f, strideChase = 2.2f,
             tint = new Color(0.85f, 0.95f, 1f), smoothness = 0.55f, lightReactive = true, stutterChance = 0.12f, jitter = 0.08f,
         };
-        return new[] { stalker, giant, drowned, zombie, bot };
+        MonsterProfile watcher = new MonsterProfile
+        {
+            id = "FieldWatcher", modelFile = "HorrorStalker", displayName = "El Vigía (Nivel 5)",
+            modelAuthor = "HorrorGameMaker.com (City Building Game Art)",
+            modelSource = "https://opengameart.org/content/3d-horror-game-monster",
+            licence = "CC0 (dominio público)",
+            note = "Mismo rig que El Alto, reteñido con Pillow (hueso blanqueado con tierra y verdín), mucho más alto y delgado; se agazapa en la hierba y aparece inmóvil en el horizonte; ojos y sonidos procedurales.",
+            fit = FitMode.Height, size = 3.3f, stretch = new Vector3(0.7f, 1f, 0.7f), yaw = 0f,
+            ai_eyeHeight = 2.8f, killDistance = 1.7f, screamUp = -0.02f,
+            eyes = true, eyePos = new Vector3(0f, 0.95f, 0.05f), eyeSpacing = 0.02f, eyeSize = 0.008f,
+            eyeColor = new Color(0.9f, 0.9f, 0.8f), eyeLightIntensity = 0.3f, eyeLightRange = 3f,
+            jitter = 0.2f, stutterChance = 0.15f, lightReactive = false,
+            growl = GrowlKind.Hiss, growlPitch = 0.7f, footstepPitch = 0.75f, footstepVolume = 0.3f,
+            walkAnimSpeed = 0.6f, runAnimSpeed = 1.2f, stridePatrol = 2.4f, strideChase = 3.2f,
+            tint = new Color(1f, 1f, 1f), smoothness = 0.2f,
+        };
+        return new[] { stalker, giant, drowned, zombie, bot, watcher };
     }
 }
