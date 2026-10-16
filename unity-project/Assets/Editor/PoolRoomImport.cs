@@ -33,5 +33,16 @@ public class PoolRoomLightmapImport : AssetPostprocessor
         ti.maxTextureSize = 4096;
         ti.textureCompression = TextureImporterCompression.CompressedHQ;
         ti.isReadable = false;
+        if (assetPath.Contains("PoolRoom_Cube"))
+        {
+            // v6.9: cubemap de reflexión de Cycles (tira horizontal de 6 caras)
+            ti.textureShape = TextureImporterShape.TextureCube;
+            TextureImporterSettings st = new TextureImporterSettings(); ti.ReadTextureSettings(st);
+            st.generateCubemap = TextureImporterGenerateCubemap.AutoCubemap;
+            st.cubemapConvolution = TextureImporterCubemapConvolution.Specular;
+            st.seamlessCubemap = true;
+            ti.SetTextureSettings(st);
+            ti.maxTextureSize = 1024;
+        }
     }
 }

@@ -4,7 +4,7 @@ using UnityEngine;
 public static class GameSettings
 {
     private const string KVolume = "opt_volume", KSens = "opt_sens", KFull = "opt_fullscreen", KQuality = "opt_quality",
-        KInvert = "opt_invertY", KBob = "opt_headbob", KSmooth = "opt_smooth", KVhs = "opt_vhs", KVhsInt = "opt_vhsIntensity", KSoft = "opt_softScare", KBody = "opt_showBody", KSfx = "opt_sfx", KAmb = "opt_ambience", KBreath = "opt_breath", KNoise = "opt_noise";
+        KInvert = "opt_invertY", KBob = "opt_headbob", KSmooth = "opt_smooth", KVhs = "opt_vhs", KVhsInt = "opt_vhsIntensity", KSoft = "opt_softScare", KBody = "opt_showBody", KSfx = "opt_sfx", KAmb = "opt_ambience", KBreath = "opt_breath", KNoise = "opt_noise", KPost = "opt_postfx";
 
     public static event System.Action Changed;
 
@@ -20,6 +20,7 @@ public static class GameSettings
     public static bool Fullscreen { get { return PlayerPrefs.GetInt(KFull, 1) != 0; } set { PlayerPrefs.SetInt(KFull, value ? 1 : 0); ApplyScreen(); Notify(); } }
     // 0 = Bajo, 1 = Medio, 2 = Alto
     public static int Quality { get { return Mathf.Clamp(PlayerPrefs.GetInt(KQuality, 2), 0, 2); } set { PlayerPrefs.SetInt(KQuality, Mathf.Clamp(value, 0, 2)); ApplyQuality(); Notify(); } }
+    public static bool PostFx { get { return PlayerPrefs.GetInt(KPost, 1) != 0; } set { PlayerPrefs.SetInt(KPost, value ? 1 : 0); Notify(); } }   // v6.9: post-procesado (Medio/Alto)
     public static bool InvertY { get { return PlayerPrefs.GetInt(KInvert, 0) != 0; } set { PlayerPrefs.SetInt(KInvert, value ? 1 : 0); Notify(); } }
     public static bool HeadBob { get { return PlayerPrefs.GetInt(KBob, 1) != 0; } set { PlayerPrefs.SetInt(KBob, value ? 1 : 0); Notify(); } }
     public static bool SmoothLook { get { return PlayerPrefs.GetInt(KSmooth, 0) != 0; } set { PlayerPrefs.SetInt(KSmooth, value ? 1 : 0); Notify(); } }
@@ -46,7 +47,7 @@ public static class GameSettings
     public static void ResetDefaults()
     {
         PlayerPrefs.DeleteKey(KVolume); PlayerPrefs.DeleteKey(KSens); PlayerPrefs.DeleteKey(KFull); PlayerPrefs.DeleteKey(KQuality);
-        PlayerPrefs.DeleteKey(KNoise); PlayerPrefs.DeleteKey(KInvert); PlayerPrefs.DeleteKey(KBob); PlayerPrefs.DeleteKey(KSmooth); PlayerPrefs.DeleteKey(KVhs); PlayerPrefs.DeleteKey(KVhsInt); PlayerPrefs.DeleteKey(KSoft); PlayerPrefs.DeleteKey(KBody); PlayerPrefs.DeleteKey(KSfx); PlayerPrefs.DeleteKey(KAmb); PlayerPrefs.DeleteKey(KBreath);
+        PlayerPrefs.DeleteKey(KNoise); PlayerPrefs.DeleteKey(KInvert); PlayerPrefs.DeleteKey(KBob); PlayerPrefs.DeleteKey(KSmooth); PlayerPrefs.DeleteKey(KVhs); PlayerPrefs.DeleteKey(KVhsInt); PlayerPrefs.DeleteKey(KSoft); PlayerPrefs.DeleteKey(KBody); PlayerPrefs.DeleteKey(KSfx); PlayerPrefs.DeleteKey(KAmb); PlayerPrefs.DeleteKey(KBreath); PlayerPrefs.DeleteKey(KPost);
         ApplyAll();
         Notify();
     }

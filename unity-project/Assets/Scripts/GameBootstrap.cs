@@ -371,6 +371,7 @@ public class GameBootstrap : MonoBehaviour
         RenderSettings.fogColor = cfg.fog;
         RenderSettings.fogDensity = cfg.fogDensity;
         Shader.SetGlobalFloat("_GradeAmt", cfg.grade);
+        PostStack.LevelActive = cfg.index == 2;   // v6.9: post-procesado tipo POOLS en las Poolrooms
         Shader.SetGlobalFloat("_GradeWarm", 1f);
         Shader.SetGlobalFloat("_GradeContrast", 1.4f);
         Shader.SetGlobalFloat("_GradeExposure", 0.85f);

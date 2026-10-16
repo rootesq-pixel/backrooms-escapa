@@ -150,7 +150,13 @@ public static class PoolRoomSetPiece
             rp.size = new Vector3(b.width * cs, wh + 1.6f, b.height * cs);
             rp.cullingMask = ~((1 << WaterVolume.WaterLayer) | (1 << 2) | (1 << 5) | (1 << 8));
             rp.clearFlags = ReflectionProbeClearFlags.SolidColor; rp.backgroundColor = new Color(0.6f, 0.7f, 0.75f);
-            root.AddComponent<PoolRoomProbeRefresher>().probe = rp;
+            // v6.9: cubemap renderizado con Cycles desde este mismo punto (caja proyectada); si falta, sonda en tiempo real
+            Cubemap cyc = Resources.Load<Cubemap>("PoolRoom/PoolRoom_Cube");
+            if (cyc != null)
+            {
+                rp.mode = ReflectionProbeMode.Custom; rp.customBakedTexture = cyc; rp.intensity = BakeExposure;
+            }
+            else root.AddComponent<PoolRoomProbeRefresher>().probe = rp;
         }
     }
 
@@ -464,6 +470,9 @@ public static class PoolExit
     public static void Set(Rect xz, float deckY, bool hasLadder, Bounds ladder, GameObject o)
     {
         PoolXZ = xz; DeckY = deckY; owner = o; HasLadder = hasLadder;
+        Shader.SetGlobalVector("_PoolWaterRect", new Vector4(xz.xMin, xz.yMin, xz.xMax, xz.yMax));
+        Shader.SetGlobalFloat("_PoolWaterY", deckY - 0.06f);
+        Shader.SetGlobalFloat("_PoolCausticsUp", 1f);
         if (hasLadder)
         {
             Vector3 c = ladder.center;

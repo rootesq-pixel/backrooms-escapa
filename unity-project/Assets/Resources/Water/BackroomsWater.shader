@@ -118,6 +118,12 @@ Shader "Hidden/BackroomsWater"
                 // las normales se suavizan con la distancia (menos distorsión/aliasing lejos)
                 float nFade = saturate(1.2 - length(_WorldSpaceCameraPos - i.wpos) / 28.0);
                 N = normalize(N + float3(n1.x + n2.x, 0, n1.y + n2.y) * 0.32 * nFade);
+                // v6.9: movimiento suave constante en la sala de piscina (ondas lentas largas)
+                if (i.wpos.x > _PoolRoomRect.x && i.wpos.x < _PoolRoomRect.z && i.wpos.z > _PoolRoomRect.y && i.wpos.z < _PoolRoomRect.w)
+                {
+                    float3 n3 = UnpackNormal(tex2D(_NormalMap, i.wpos.xz * 0.12 + _WTime * float2(0.011, -0.008)));
+                    N = normalize(N + float3(n3.x, 0, n3.y) * 0.22);
+                }
 
                 // ondas circulares (pisadas, chapoteos, objetos)
                 float crest = 0;
@@ -189,9 +195,10 @@ Shader "Hidden/BackroomsWater"
                 float3 refr = tex2D(_WaterGrab, guv).rgb;
                 // absorción azul-verdosa por profundidad (el rojo se pierde antes) + dispersión hacia el color profundo
                 float inRoom = (i.wpos.x > _PoolRoomRect.x && i.wpos.x < _PoolRoomRect.z && i.wpos.z > _PoolRoomRect.y && i.wpos.z < _PoolRoomRect.w) ? 1.0 : 0.0;
-                thick *= lerp(1.0, 0.32, inRoom);
+                float rawThick = thick;
+                thick *= lerp(1.0, 0.24, inRoom);   // v6.9: agua de la sala más clara (como pool_1..3 de Cycles)
                 float3 trans = exp(-thick * float3(1.10, 0.36, 0.30) * _Absorb);
-                float3 scatter = lerp(lerp(_Color.rgb, float3(0.62, 0.92, 0.93), inRoom), lerp(_Deep.rgb, float3(0.22, 0.66, 0.74), inRoom), saturate(thick / 2.0)) * diff;
+                float3 scatter = lerp(lerp(_Color.rgb, float3(0.74, 0.90, 0.92), inRoom), lerp(_Deep.rgb, float3(0.40, 0.66, 0.74), inRoom), saturate(thick / 2.0)) * diff;
                 float3 baseCol = refr * trans * lerp(float3(1,1,1), _Color.rgb * 1.6, 0.35) + scatter * (1.0 - trans);
                 float alpha = 1.0;
 
@@ -211,6 +218,8 @@ Shader "Hidden/BackroomsWater"
                 }
                 float3 col = lerp(baseCol, env, saturate(f * _Smooth));
                 col += spec;
+                // v6.9: línea de agua suave (se funde con el fondo en el borde) en la sala de piscina
+                if (inRoom > 0.5 && _WDepthOn > 0.5) col = lerp(refr, col, saturate(rawThick / 0.09));
 
                 // espuma: junto a paredes + crestas de ondas circulares
                 float nz = tex2D(_NoiseTex, i.wpos.xz * 0.7 + _WTime * float2(0.015, -0.01)).r;

@@ -1216,7 +1216,7 @@ public static class SmokeTest
                     tag + "malla horneada con shader PoolBaked + lightmap EXR");
                 r.Check(baked != null && baked.GetComponent<MeshCollider>() != null, tag + "colisión de la sala horneada");
                 PoolRoomProbes pr = UnityEngine.Object.FindObjectOfType<PoolRoomProbes>();
-                r.Check(pr != null && pr.positions != null && pr.positions.Length == 6, tag + "6 sondas de luz horneadas en la sala");
+                r.Check(pr != null && pr.positions != null && pr.positions.Length == 33, tag + "33 sondas de luz horneadas en la sala (v6.9)");
                 int rtLights = 0; foreach (Light l in GameObject.Find("PoolRoom").GetComponentsInChildren<Light>(true)) rtLights++;
                 r.Check(rtLights == 0, tag + "la sala horneada no usa luces en tiempo real (" + rtLights + ")");
             }

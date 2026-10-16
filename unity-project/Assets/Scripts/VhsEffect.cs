@@ -146,6 +146,21 @@ public class VhsEffect : MonoBehaviour
 
     private void OnRenderImage(RenderTexture src, RenderTexture dst)
     {
+        // v6.9: post-procesado (bloom/AO/ACES) antes del VHS
+        if (PostStack.Enabled)
+        {
+            RenderTexture tmp = RenderTexture.GetTemporary(src.width, src.height, 0, src.format);
+            PostStack.Render(src, tmp, cam != null ? cam : (cam = GetComponent<Camera>()));
+            RenderVhs(tmp, dst);
+            RenderTexture.ReleaseTemporary(tmp);
+            return;
+        }
+        RenderVhs(src, dst);
+    }
+    private Camera cam;
+
+    private void RenderVhs(RenderTexture src, RenderTexture dst)
+    {
         float I = Mathf.Max(CurrentIntensity, ScreamLevel * 0.9f);
         if (material == null || UsingFallback || (I <= 0.001f && Shader.GetGlobalFloat("_GradeAmt") <= 0.001f))
         {

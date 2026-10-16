@@ -273,14 +273,14 @@ public class WaterVolume : MonoBehaviour
         float totalW = Mathf.Max(3, cfg.gridW) * cfg.cellSize, totalH = Mathf.Max(3, cfg.gridH) * cfg.cellSize;
         GameObject g = new GameObject("WaterCaustics");
         g.transform.SetParent(transform, false);
-        g.transform.position = generator.Root.TransformPoint(new Vector3(totalW * 0.5f, cfg.waterLevel + 0.6f, totalH * 0.5f));
+        g.transform.position = generator.Root.TransformPoint(new Vector3(totalW * 0.5f, cfg.waterLevel + 3.7f, totalH * 0.5f));   // v6.9: por encima del techo (cáusticas también en techo/paredes de la sala)
         g.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
         caustics = g.AddComponent<Projector>();
         caustics.orthographic = true;
         caustics.orthographicSize = totalH * 0.5f + 1f;
         caustics.aspectRatio = (totalW + 2f) / (totalH + 2f);
         caustics.nearClipPlane = 0.05f;
-        caustics.farClipPlane = 3.6f;   // hasta el fondo más hondo
+        caustics.farClipPlane = 6.7f;   // desde el techo hasta el fondo más hondo
         caustics.material = causticMat;
         caustics.ignoreLayers = (1 << WaterLayer) | (1 << 8) | (1 << 5) | (1 << 2);
     }
