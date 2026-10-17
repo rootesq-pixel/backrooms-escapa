@@ -62,6 +62,7 @@ public class MimicDisguise : MonoBehaviour
         d.rng = new System.Random(seed * 131 + level * 7 + 5);
         d.field = LevelConfig.Get(level).layout == LayoutKind.Field;
         d.stageT = FirstStageOverride >= 0f ? FirstStageOverride : (d.field ? Rand(d.rng, 60f, 120f) : Rand(d.rng, 40f, 90f));
+        d.FirstStageDelay = d.stageT;
         return d;
     }
 
@@ -73,6 +74,7 @@ public class MimicDisguise : MonoBehaviour
     public bool StagedWalking { get; private set; }
     public float SeenTime { get; private set; }
     public float StageTimer { get { return stageT; } }
+    public float FirstStageDelay { get; private set; }
     public static float FirstStageOverride = -1f;   // pruebas: primer encuentro antes
     public const float SeenToEncounter = 0.8f, StagedTimeout = 40f;
     private System.Random rng; private bool field; private float stageT, stagedT, encounterT;

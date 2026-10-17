@@ -39,10 +39,15 @@ public class FieldWorld : MonoBehaviour
         fw.plan = plan; fw.gen = gen; fw.levelRoot = levelRoot;
         fw.L = FieldHeight.L;
         fw.rnd = new System.Random(gen.UsedSeed * 13 + 1);
+        LoadDiag.Step("campo: terreno");
         fw.BuildTerrain(track);
+        LoadDiag.Step("campo: casas");
         fw.BuildHouses(cfg, track);
+        LoadDiag.Step("campo: copias del borde");
         foreach (GameObject hg in fw.houseGos) foreach (Transform ch in hg.transform) if (ch.name != "Furniture") fw.GhostTree(ch);   // zócalos y escalones también al otro lado del borde
+        LoadDiag.Step("campo: accesorios");
         fw.BuildProps(cfg, track);
+        LoadDiag.Step("campo: puntos y salida");
         Active = fw;
         return fw;
     }

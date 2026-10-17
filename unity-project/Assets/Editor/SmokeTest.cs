@@ -1863,7 +1863,8 @@ public static class SmokePlayRunner
         r.Check(loopsPlaying <= AudioBuzzLimiter.MaxBuzzing + 4, tag + " bucles de audio sonando a la vez ≤ " + (AudioBuzzLimiter.MaxBuzzing + 4) + " (" + loopsPlaying + ")");
         if (!inGame) r.Check(buzzPlaying == 0, tag + " en el menú no suenan los zumbidos de luces");
         if (inGame && !compareToLevel0) { census0Total = total; census0Loops = loopsPlaying; }
-        if (compareToLevel0 && census0Total >= 0) r.Check(total <= census0Total + 1 && loopsPlaying == census0Loops, tag + " tras reiniciar el nivel el nº de fuentes de audio (sin zumbidos) no crece (" + total + " vs " + census0Total + ", bucles " + loopsPlaying + " vs " + census0Loops + ")");
+        if (compareToLevel0 && census0Total >= 0) r.Check(total <= census0Total + 1 && loopsPlaying <= census0Loops,   // menos es válido (un zumbido de lámpara depende de la posición)
+ tag + " tras reiniciar el nivel el nº de fuentes de audio (sin zumbidos) no crece (" + total + " vs " + census0Total + ", bucles " + loopsPlaying + " vs " + census0Loops + ")");
     }
 
     private static IEnumerator Run()
@@ -2772,6 +2773,31 @@ public static class SmokePlayRunner
                 r.Check(ce != null && !ce.Locked && ce.T >= 6f, tag + "[ascensor] el siguiente nivel se abre tras el descenso completo (" + (ce != null ? ce.T.ToString("F1") : "-") + " s)");
                 ElevatorCabin.InstantForTests = true;
             }
+            if (LevelConfig.Get(lv).layout == LayoutKind.Field)
+            {   // v7.0.3: carga del campo con presupuesto, % en pantalla, tiempos por paso; y una precarga que nunca termina no cuelga
+                string rep = LoadDiag.Report ?? "";
+                bool pctShown = GameBootstrap.LoadingTextLog.Exists(t => t.Contains("Preparando el campo") && t.Contains("%"));
+                r.Check(rep.Contains("generar nivel") && rep.Contains("campo: casas") && rep.Contains("NavMesh") && rep.Contains("hierba: precarga") && LoadDiag.StepCount >= 12,
+                    tag + "[carga] tiempos por paso en el log (" + LoadDiag.StepCount + " pasos, " + LoadDiag.LastTotalSeconds.ToString("F2") + " s): " + rep);
+                r.Check(pctShown && GameBootstrap.LastPrewarmPercent == 100 && GameBootstrap.LastPrewarmSeconds <= GameBootstrap.PrewarmBudget + 0.6f,
+                    tag + "[carga] precarga del campo con % en pantalla y dentro del presupuesto (" + GameBootstrap.LastPrewarmInfo + ")");
+                float b0 = GameBootstrap.PrewarmBudget;
+                GameBootstrap.PrewarmStallForTest = true; GameBootstrap.PrewarmBudget = 1.0f; GameBootstrap.LoadingTextLog.Clear();
+                int lc = gb.LoadCount; float tl0 = Time.realtimeSinceStartup;
+                gb.LoadLevel(lv);
+                float tw = 0f; while (tw < 30f && !(gb.LoadCount > lc && gb.IsLoaded && GameManager.Instance != null)) { yield return 0.1f; tw += 0.1f; }
+                float tl = Time.realtimeSinceStartup - tl0;
+                GameBootstrap.PrewarmStallForTest = false; GameBootstrap.PrewarmBudget = b0;
+                bool pct2 = GameBootstrap.LoadingTextLog.Exists(t => t.Contains("%") && !t.Contains(" 0 %"));
+                r.Check(gb.LoadCount > lc && gb.IsLoaded && GameBootstrap.LastPrewarmTimedOut && GameBootstrap.LastPrewarmSeconds < 1.7f && pct2,
+                    tag + "[carga] precarga que nunca termina: el nivel empieza igual tras el tope (" + GameBootstrap.LastPrewarmInfo + ", carga total " + tl.ToString("F1") + " s)");
+                // el resto de la hierba llega jugando, repartido por fotograma
+                FieldGrass fgs = FieldGrass.Active; FieldGrass.MaxSubmitMs = 0f;
+                float ts = 0f; while (ts < 15f && fgs != null && !(fgs.PendingJobs == 0 && fgs.ReadyChunks >= fgs.ChunkCount && fgs.ChunkCount > 0)) { yield return null; ts += Time.unscaledDeltaTime; }
+                r.Check(fgs != null && fgs.PendingJobs == 0 && fgs.ReadyChunks >= fgs.ChunkCount, tag + "[carga] tras el tope, la hierba restante termina de llegar jugando (" + ts.ToString("F1") + " s, " + (fgs != null ? fgs.ReadyChunks + "/" + fgs.ChunkCount : "-") + ")");
+                r.Check(FieldGrass.MaxSubmitMs < 16f, tag + "[carga] y sin tirones mientras llega (peor Submit " + FieldGrass.MaxSubmitMs.ToString("F1") + " ms)");
+                yield return Until(() => GameBootstrap.Instance.IsLoaded && GameManager.Instance != null);
+            }
             yield return 1.0f;   // unos frames de juego (luces, IA, audio)
             yield return 0.6f;
             Census(r, "[Audio nivel " + lv + "]", true, false);
@@ -2899,7 +2925,8 @@ public static class SmokePlayRunner
                     else if (ip.type == ItemType.Glowstick) glowN++;
                     else if (ip.type == ItemType.VhsTape) tapeN++;
                 }
-                r.Check(notesN == LoreNotes.PerLevel && almondN >= 2 && glowN >= 3 && (tapeN >= 1 || (UnityEngine.Object.FindObjectOfType<BackroomsGenerator>() != null && UnityEngine.Object.FindObjectOfType<BackroomsGenerator>().ExtraSpots.Count >= 9 && Inventory.Instance != null && Inventory.Instance.GetCount(ItemType.VhsTape) >= 1)), tag + "objetos del nivel (la cinta puede haberse recogido al pasar): " + notesN + " notas, " + almondN + " aguas, " + glowN + " barras, " + tapeN + " cinta");
+                int foundLv = 0; if (Inventory.Instance != null) for (int k = 0; k < LoreNotes.PerLevel; k++) if (Inventory.Instance.HasNote(LoreNotes.IdFor(lv, k))) foundLv++;   // una nota recogida al salir de la cabina
+                r.Check(notesN <= LoreNotes.PerLevel && notesN + foundLv >= LoreNotes.PerLevel && almondN >= 2 && glowN >= 3 && (tapeN >= 1 || (UnityEngine.Object.FindObjectOfType<BackroomsGenerator>() != null && UnityEngine.Object.FindObjectOfType<BackroomsGenerator>().ExtraSpots.Count >= 9 && Inventory.Instance != null && Inventory.Instance.GetCount(ItemType.VhsTape) >= 1)), tag + "objetos del nivel (la cinta puede haberse recogido al pasar): " + notesN + " notas, " + almondN + " aguas, " + glowN + " barras, " + tapeN + " cinta");
                 Inventory invL = Inventory.Instance;
                 if (lv > 0 && prevNote >= 0) r.Check(invL != null && invL.HasNote(prevNote), tag + "la nota del nivel anterior se conserva (id " + prevNote + ")");
                 if (notePk != null && invL != null)

@@ -38,6 +38,15 @@ public static class V702Checks
     private static void Place(MonsterAI m, Vector3 p, float yaw) { m.WarpTo(p, yaw); }
 
     // lleva al jugador a un punto del NavMesh cerca de 'home' con 'dist' metros libres (la cabina del ascensor es estrecha)
+    private static float PathLen(Vector3 a, Vector3 b)
+    {
+        UnityEngine.AI.NavMeshPath path = new UnityEngine.AI.NavMeshPath();
+        if (!UnityEngine.AI.NavMesh.SamplePosition(a, out UnityEngine.AI.NavMeshHit ha, 2f, UnityEngine.AI.NavMesh.AllAreas) || !UnityEngine.AI.NavMesh.SamplePosition(b, out UnityEngine.AI.NavMeshHit hb, 3f, UnityEngine.AI.NavMesh.AllAreas)) return -1f;
+        if (!UnityEngine.AI.NavMesh.CalculatePath(ha.position, hb.position, UnityEngine.AI.NavMesh.AllAreas, path) || path.corners.Length < 2) return -1f;
+        float L = 0f; for (int i = 1; i < path.corners.Length; i++) L += Vector3.Distance(path.corners[i - 1], path.corners[i]);
+        return L;
+    }
+
     private static IEnumerator MoveToOpen(GameManager gm, Vector3 home, float yaw, float dist, Action<bool> done)
     {
         bool ok = OpenDir(gm, dist, out Vector3 d0, out Vector3 s0);
@@ -126,6 +135,7 @@ public static class V702Checks
             Place(main, far, 0f);
             yield return 0.5f;
             r.Check(san.MonsterDrain < 0.01f, tag + "[Cordura] lejos (>15 m): sin drenaje por monstruos (" + san.MonsterDrain.ToString("F2") + ")");
+            if (mim != null) Place(mim, far + new Vector3(60f, 0f, 0f), 0f);   // el imitador disfrazado también inquieta un poco: lejos
             yield return Sanity.RecoverDelay + 0.6f;
             bool under = gm.player.IsUnderwater;
             r.Check(under || (fl != null && fl.IsOn && san.DrainRate > 0f && san.DrainRate <= Sanity.RecoverRate + 0.01f), tag + "[Cordura] lejos y con luz se recupera despacio (" + san.DrainRate.ToString("F2") + "/s)");
@@ -185,10 +195,11 @@ public static class V702Checks
             bool searching = main.CurrentState == MonsterAI.State.Search || main.CurrentState == MonsterAI.State.Chase;
             float d0 = Vector3.Distance(A, W), ip = Vector3.Distance(main.InvestigatePoint, W);
             float d1 = Vector3.Distance(main.transform.position, W);
-            for (float tq = 0f; tq < 4f; tq += 0.1f) { yield return 0.1f; d1 = Mathf.Min(d1, Vector3.Distance(main.transform.position, W)); }   // lo más cerca que llega (luego sigue buscando alrededor)
+            float p0 = PathLen(main.transform.position, W), p1 = p0;   // a través de pared el camino rodea: se mide lo que le falta por recorrer
+            for (float tq = 0f; tq < 4f; tq += 0.1f) { yield return 0.1f; d1 = Mathf.Min(d1, Vector3.Distance(main.transform.position, W)); float pq = PathLen(main.transform.position, W); if (pq >= 0f) p1 = Mathf.Min(p1, pq); }   // lo más cerca que llega (luego sigue buscando alrededor)
             float range = MonsterAI.WhistleRange(W, A, out bool wall);
             r.Check(heardNow && searching && ip < 3.5f, tag + "[Silbido] el monstruo a " + d0.ToString("F0") + " m lo oye y va a investigar el sitio (estado " + main.CurrentState + ", punto a " + ip.ToString("F1") + " m" + (wall ? ", a través de pared" : "") + ")");
-            r.Check(d1 < d0 - 1.5f || d1 < 2.5f, tag + "[Silbido] el monstruo se acerca al silbido (" + d0.ToString("F1") + " → " + d1.ToString("F1") + " m)");
+            r.Check(d1 < d0 - 1.5f || d1 < 2.5f || (p0 > 0f && p1 < p0 - 1.5f), tag + "[Silbido] el monstruo se acerca al silbido (" + d0.ToString("F1") + " → " + d1.ToString("F1") + " m; por el camino " + p0.ToString("F1") + " → " + p1.ToString("F1") + " m)");
             // lejos: no lo oye
             main.Stop(); yield return 0.1f; main.Resume();
             int h1 = main.WhistlesHeard;
@@ -204,7 +215,7 @@ public static class V702Checks
         {
             MimicDisguise md = mim.mimic;
             r.Check(md.Disguised && md.puppet != null, tag + "[Mímico] disfrazado con el aspecto del jugador (copia " + (md.CopiedId < 0 ? "propia" : "de " + md.CopiedName) + ")");
-            r.Check(md.StageTimer > 0f && (cfg.layout != LayoutKind.Field || (md.StageTimer >= 59f && md.StageTimer <= 121f)) , tag + "[Mímico] primer encuentro programado a los " + md.StageTimer.ToString("F0") + " s" + (cfg.layout == LayoutKind.Field ? " (campo: 60-120 s)" : ""));
+            r.Check(md.StageTimer > 0f && (cfg.layout != LayoutKind.Field || (md.FirstStageDelay >= 60f && md.FirstStageDelay <= 120f)), tag + "[Mímico] primer encuentro programado a los " + md.FirstStageDelay.ToString("F0") + " s (quedan " + md.StageTimer.ToString("F0") + " s)" + (cfg.layout == LayoutKind.Field ? " (campo: 60-120 s)" : ""));
             // responde al silbido (a veces): con probabilidad forzada a 1 y espera corta
             {
                 gm.player.Teleport(home, homeYaw);

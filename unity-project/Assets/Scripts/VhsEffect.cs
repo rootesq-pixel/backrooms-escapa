@@ -89,11 +89,15 @@ public class VhsEffect : MonoBehaviour
     {
         AudioListener al = GetComponent<AudioListener>();
         if (al == null) return;
+        // v7.0.3: las fuentes ANTES del filtro: un AudioSource recién añadido (playOnAwake, sin clip) junto a un filtro
+        // provocaba «Only custom filters can be played...» en el Player.log
+        hissClip = ProceduralAudio.CreateTapeHiss();
+        humClip = ProceduralAudio.CreateTapeHum();
+        hiss = gameObject.AddComponent<AudioSource>(); hiss.playOnAwake = false;
+        hum = gameObject.AddComponent<AudioSource>(); hum.playOnAwake = false;
         lowPass = GetComponent<AudioLowPassFilter>();
         if (lowPass == null) lowPass = gameObject.AddComponent<AudioLowPassFilter>();
         lowPass.cutoffFrequency = 22000f;
-        hissClip = ProceduralAudio.CreateTapeHiss();
-        hiss = gameObject.AddComponent<AudioSource>();
         hiss.clip = hissClip;
         hiss.loop = true;
         hiss.spatialBlend = 0f;
@@ -101,8 +105,6 @@ public class VhsEffect : MonoBehaviour
         hiss.bypassEffects = true;
         hiss.playOnAwake = false;
         hiss.Play();
-        humClip = ProceduralAudio.CreateTapeHum();
-        hum = gameObject.AddComponent<AudioSource>();
         hum.clip = humClip; hum.loop = true; hum.spatialBlend = 0f; hum.volume = 0f; hum.bypassEffects = true; hum.playOnAwake = false;
         hum.Play();
     }

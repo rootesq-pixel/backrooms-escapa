@@ -401,6 +401,7 @@ public static class MpPlayRunner
             yield return Wait(() => WorldReady(gb, ns, 5) && ns.Epoch > epoch5, 240, "nivel 5 cargado (anfitrión)");
             yield return Wait(() => ns.AllReady(), 180, "todos listos en el nivel 5");
             r.Check(gb.CurrentLevel == 5 && ns.HashesMatch() && ns.HashMismatches == 0, "[Campo MP] nivel 5 cargado y con la misma huella (terreno, casas y accesorios deterministas)");
+            r.Check(gb.IsLoaded && GameBootstrap.LastPrewarmPercent == 100 && GameBootstrap.LastPrewarmSeconds <= GameBootstrap.PrewarmBudget + 0.6f, "[Campo MP] anfitrión: campo precargado dentro del presupuesto (" + GameBootstrap.LastPrewarmInfo + ", carga " + LoadDiag.LastTotalSeconds.ToString("F2") + " s)");
             FieldWorld fw = FieldWorld.Active;
             r.Check(fw != null && fw.houseCount >= 6 && FieldGrass.Active != null, "[Campo MP] campo con casas (" + (fw != null ? fw.houseCount : 0) + ") y hierba en el anfitrión");
             File.WriteAllText(MpTest.Dir + "/field_host.txt", gb.Generator.UsedSeed + ";" + (fw != null ? fw.houseCount : 0) + ";" + gb.Generator.ExitPosition.x.ToString("F2") + ";" + gb.Generator.ExitPosition.z.ToString("F2"));
@@ -744,8 +745,12 @@ public static class MpPlayRunner
         // ---- v7.0: nivel 5 (Campo infinito): mismo mundo; el cliente camina y corre por la hierba ----
         {
             int epochP = ns.Epoch;
+            float pb0 = GameBootstrap.PrewarmBudget;
+            GameBootstrap.PrewarmStallForTest = true; GameBootstrap.PrewarmBudget = 1.0f;   // v7.0.3: en el cliente la precarga «nunca termina»
             Mark("client_pool_ack");
-            yield return Wait(() => WorldReady(gb, ns, 5) && ns.Epoch > epochP, 240, "nivel 5 cargado (cliente)");
+            yield return Wait(() => WorldReady(gb, ns, 5) && ns.Epoch > epochP && gb.IsLoaded, 240, "nivel 5 cargado (cliente)");
+            GameBootstrap.PrewarmStallForTest = false; GameBootstrap.PrewarmBudget = pb0;
+            r.Check(gb.IsLoaded && GameBootstrap.LastPrewarmTimedOut && GameBootstrap.LastPrewarmSeconds < 1.7f, "[Campo MP] cliente: con una precarga que nunca termina el campo se abre igual tras el tope (" + GameBootstrap.LastPrewarmInfo + ")");
             yield return WaitMark("host_level5", 240);
             string[] hf = File.Exists(MpTest.Dir + "/field_host.txt") ? File.ReadAllText(MpTest.Dir + "/field_host.txt").Split(';') : new string[0];
             FieldWorld fw = FieldWorld.Active;

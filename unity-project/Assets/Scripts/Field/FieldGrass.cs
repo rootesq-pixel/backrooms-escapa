@@ -196,6 +196,7 @@ public class FieldGrass : MonoBehaviour
     //   (sin crear ni liberar búferes, sin basura por fotograma); como mucho UploadBudget trozos por fotograma.
     // · Un compute shader descarta por instancia lo que queda fuera de la vista o de su banda de LOD: 1 llamada por especie.
     public static bool Synchronous;               // capturas del editor: generar al momento
+    public static bool LoadingBoost;              // v7.0.3: con la pantalla de carga puesta: subir más por fotograma (los tirones no se ven)
     public const int SlotCap = 704, MaxSlots = 640, KindCap = 16384, UploadBudget = 4;
     private ComputeShader cull;
     private ComputeBuffer srcBuf, dstBuf, argsBuf, slotBuf, bandBuf;
@@ -312,7 +313,7 @@ public class FieldGrass : MonoBehaviour
                         Job j = new Job { ch = ch, seed = seed, density = density, light = light, cab = cab, counts = new int[kinds.Count] };
                         j.ep = epoch; j.plan = plan;
                         ch.queued = true; pending++;
-                        if (sync) { Generate(j); done.Enqueue(j); }
+                        if (Synchronous || (sync && pass == 0)) { Generate(j); done.Enqueue(j); }   // v7.0.3: al momento solo el anillo cercano; el resto en hilos
                         else System.Threading.ThreadPool.QueueUserWorkItem(o => { Job jj = (Job)o; try { Generate(jj); } catch (System.Exception) { jj.n = 0; } done.Enqueue(jj); }, j);
                     }
                     ch.lastUsed = now;
@@ -337,7 +338,8 @@ public class FieldGrass : MonoBehaviour
         // subir resultados terminados (presupuesto por fotograma: sin picos)
         float tLoop = (float)sw.Elapsed.TotalMilliseconds;
         int up = 0;
-        while ((sync || (up < UploadBudget && (up == 0 || sw.Elapsed.TotalMilliseconds - tLoop < 1.2))) && done.TryDequeue(out Job r))
+        double upCap = LoadingBoost ? 12.0 : (sync ? 6.0 : 1.2);
+        while ((Synchronous || ((up < UploadBudget || LoadingBoost || sync) && (up == 0 || sw.Elapsed.TotalMilliseconds - tLoop < upCap))) && done.TryDequeue(out Job r))
         {
             pending--;
             Chunk ch = r.ch;

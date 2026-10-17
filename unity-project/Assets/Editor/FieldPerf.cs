@@ -88,6 +88,7 @@ public static class FieldPerf
         StringBuilder sb = new StringBuilder();
         int q = int.Parse(System.Environment.GetEnvironmentVariable("PERF_Q") ?? "2");
         GameSettings.Quality = q;
+        GameBootstrap.WarmAllShaders = System.Environment.GetEnvironmentVariable("PERF_WARMALL") == "1";
         GameBootstrap gb = GameBootstrap.Instance;
         while (gb == null || UIManager.Instance == null || !gb.IsLoaded || !gb.InMenu) { yield return 0.2f; gb = GameBootstrap.Instance; }
         yield return 1.0f;
@@ -97,6 +98,7 @@ public static class FieldPerf
         UIManager.Instance.StartGame(5);
         while (!(gb.LoadCount > ld && gb.IsLoaded && GameManager.Instance != null && !gb.InMenu)) yield return 0.2f;
         sb.AppendLine("INFO carga nivel 5: " + (Time.realtimeSinceStartup - tl).ToString("F1") + " s (calidad " + q + ") | sin ranura tras cargar " + FieldGrass.SlotStarved + " trozos " + (FieldGrass.Active != null ? FieldGrass.Active.ChunkCount : -1));
+        sb.AppendLine("INFO carga por pasos: " + LoadDiag.LastTotalSeconds.ToString("F2") + " s | " + GameBootstrap.LastPrewarmInfo + " | " + LoadDiag.Report);
         if (ElevatorCabin.Current != null) ElevatorCabin.Current.Skip();
         float w = 0f; while (ElevatorCabin.PlayerLocked && w < 20f) { yield return 0.25f; w += 0.25f; }
         Debug.Log("[FieldPerf] nivel listo");

@@ -187,11 +187,15 @@ public class GameBootstrap : MonoBehaviour
         loading = true;
         IsLoaded = false;
         LevelConfig cfg = LevelConfig.Get(index);
-        ShowLoading("NIVEL " + index + "\n" + cfg.name + "\n\nGenerando...");
+        string head = "NIVEL " + index + "\n" + cfg.name + "\n\n";
+        LoadDiag.Begin("nivel " + index + " (" + cfg.name + ")");
+        ShowLoading(head + "Generando... 0 %");
         yield return null; // deja que se dibuje la pantalla de carga
         yield return null;
 
+        LoadDiag.Step("desmontar nivel anterior");
         TeardownWorld();
+        ShowLoading(head + "Generando... 5 %");
         yield return null; // esperar a que Unity destruya los objetos viejos
 
         InMenu = false;
@@ -199,37 +203,99 @@ public class GameBootstrap : MonoBehaviour
         CurrentLevel = index;
         NetStart ns = netStart;
         netStart = null;
-        Build(index, ns);
-        if (LevelConfig.Get(index).layout == LayoutKind.Field) PrewarmField();
+        bool ok = true;
+        try { Build(index, ns); }
+        catch (System.Exception e)
+        {
+            // v7.0.3: nunca dejar la pantalla de carga colgada: se registra y se juega con lo que haya
+            ok = false;
+            Debug.LogError("[Carga] error construyendo el nivel " + index + ": " + e);
+        }
+        if (ok && cfg.layout == LayoutKind.Field)
+        {
+            ShowLoading(head + "Preparando el campo... 40 %");
+            yield return PrewarmFieldRoutine(head);
+        }
         LoadCount++;
         HideLoading();
+        LoadDiag.End(LastPrewarmInfo);
         IsLoaded = true;
         loading = false;
     }
 
-    // v7.0.2: tirones del campo. Con la pantalla de carga aún puesta: compilar variantes de shader, rellenar la hierba de golpe
-    // y dibujar un fotograma mirando a los 4 lados (sube texturas/mallas y crea los estados de GPU antes de jugar)
-    private void PrewarmField()
+    // v7.0.3: precalentado del campo con presupuesto fijo (antes: Shader.WarmupAllShaders + toda la hierba de golpe en el hilo
+    // principal, muy lento en D3D11). La hierba cercana se genera en hilos y se sube con un presupuesto amplio mientras se ve
+    // la pantalla de carga (con %); como mucho PrewarmBudget segundos, después el resto llega poco a poco jugando.
+    public static float PrewarmBudget = 2.5f;
+    public static bool WarmAllShaders;                  // FieldPerf (editor): PERF_WARMALL=1
+    public static bool PrewarmStallForTest;              // pruebas: la hierba «nunca termina»
+    public static float LastPrewarmSeconds { get; private set; }
+    public static bool LastPrewarmTimedOut { get; private set; }
+    public static int LastPrewarmPercent { get; private set; }
+    public static string LastPrewarmInfo { get; private set; }
+    public static readonly List<string> LoadingTextLog = new List<string>();   // pruebas: textos de carga mostrados
+
+    private IEnumerator PrewarmFieldRoutine(string head)
     {
-        try
+        float t0 = Time.realtimeSinceStartup;
+        LastPrewarmTimedOut = false; LastPrewarmPercent = 0;
+        bool gfx = SystemInfo.graphicsDeviceType != UnityEngine.Rendering.GraphicsDeviceType.Null;
+        FieldGrass fg = FieldGrass.Active;
+        LoadDiag.Step("hierba: precarga");
+        FieldGrass.LoadingBoost = true;
+        int frames = 0, lastPct = -1;
+        while (fg != null)
         {
-            if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null) return;   // sin gráficos (pruebas)
-            Shader.WarmupAllShaders();
-            Camera cam = Camera.main;
-            if (cam == null || FieldGrass.Active == null) return;
-            Quaternion q0 = cam.transform.rotation;
-            bool s0 = FieldGrass.Synchronous; FieldGrass.Synchronous = true;
+            yield return null; frames++;
+            if (fg == null) break;
+            int total = Mathf.Max(1, fg.ChunkCount);
+            float frac = Mathf.Clamp01(fg.ReadyChunks / (float)total);
+            bool done = frames >= 2 && fg.ChunkCount > 0 && fg.PendingJobs == 0 && fg.ReadyChunks >= fg.ChunkCount && !PrewarmStallForTest;
+            int pct = 40 + Mathf.RoundToInt(frac * 50f);
+            if (PrewarmStallForTest) pct = Mathf.Min(pct, 89);
+            if (pct != lastPct) { ShowLoading(head + "Preparando el campo... " + pct + " %"); lastPct = pct; LastPrewarmPercent = pct; }
+            if (done) break;
+            if (Time.realtimeSinceStartup - t0 > PrewarmBudget)
+            {
+                LastPrewarmTimedOut = true;
+                Debug.Log("[Carga] hierba: tope de " + PrewarmBudget.ToString("F1") + " s alcanzado (" + fg.ReadyChunks + "/" + fg.ChunkCount + " trozos, " + fg.PendingJobs + " en cola); el resto llega jugando");
+                break;
+            }
+        }
+        FieldGrass.LoadingBoost = false;
+        string gi = fg != null ? fg.ReadyChunks + "/" + fg.ChunkCount + " trozos de hierba" : "sin hierba";
+        if (WarmAllShaders && gfx)
+        {   // solo pruebas de rendimiento en el editor (allí las variantes se compilan al primer uso); en la build NO: en D3D11 tarda muchísimo
+            LoadDiag.Step("shaders: precalentar todos");
+            try { Shader.WarmupAllShaders(); } catch (System.Exception e) { Debug.LogWarning("[Carga] WarmupAllShaders: " + e.Message); }
+        }
+        // un fotograma mirando a cada lado: crea los estados de GPU / sube mallas y texturas de lo que se ve de verdad
+        LoadDiag.Step("precalentado de vistas");
+        if (gfx)
+        {
             for (int i = 0; i < 4; i++)
             {
-                cam.transform.rotation = Quaternion.Euler(0f, i * 90f, 0f);
-                FieldGrass.Active.Submit();
-                if (FieldWorld.Active != null) FieldWorld.Active.DrawGhosts();
-                cam.Render();
+                try
+                {
+                    Camera cam = Camera.main;
+                    if (cam != null)
+                    {
+                        Quaternion q0 = cam.transform.rotation;
+                        cam.transform.rotation = Quaternion.Euler(0f, i * 90f, 0f);
+                        if (FieldGrass.Active != null) FieldGrass.Active.Submit();
+                        if (FieldWorld.Active != null) FieldWorld.Active.DrawGhosts();
+                        cam.Render();
+                        cam.transform.rotation = q0;
+                    }
+                }
+                catch (System.Exception e) { Debug.LogWarning("[Carga] precalentado de vista " + i + ": " + e.Message); }
+                ShowLoading(head + "Preparando el campo... " + (90 + i * 3) + " %");
+                yield return null;
             }
-            FieldGrass.Synchronous = s0;
-            cam.transform.rotation = q0;
         }
-        catch (System.Exception e) { Debug.LogWarning("[GameBootstrap] precalentado del campo: " + e.Message); }
+        LastPrewarmPercent = 100;
+        LastPrewarmSeconds = Time.realtimeSinceStartup - t0;
+        LastPrewarmInfo = "campo precargado en " + LastPrewarmSeconds.ToString("F2") + " s (" + gi + (LastPrewarmTimedOut ? ", tope alcanzado" : "") + ")";
     }
 
     private void TeardownWorld()
@@ -264,8 +330,10 @@ public class GameBootstrap : MonoBehaviour
         QualitySettings.anisotropicFiltering = AnisotropicFiltering.ForceEnable;
         QualitySettings.pixelLightCount = 8;
 
+        LoadDiag.Step("atmósfera");
         worldRoot = new GameObject("BackroomsWorld");
         ApplyAtmosphere(cfg);
+        LoadDiag.Step("generar nivel");
 
         // 1) Nivel
         GameObject genGo = new GameObject("BackroomsGenerator");
@@ -277,6 +345,7 @@ public class GameBootstrap : MonoBehaviour
         generator.extraMonsters = ns != null ? ns.extraMonsters : 0;
         generator.Generate();
         Generator = generator;
+        LoadDiag.Step("NavMesh");
 
         // 2) NavMesh (antes de crear jugador y monstruos para que no entren en el horneado)
         bool navBuilt = false;
@@ -286,15 +355,18 @@ public class GameBootstrap : MonoBehaviour
         }
         Debug.Log("[GameBootstrap] Nivel " + levelIndex + " (" + cfg.name + ") semilla: " + generator.UsedSeed + " | NavMesh en runtime: " + navBuilt);
 
+        LoadDiag.Step("ascensor");
         // 2b) Ascensor de entrada: cabina en la celda de inicio (mueve el punto de aparición al interior; no toca el laberinto)
         ElevatorCabin cabin = ElevatorCabin.Create(generator, cfg, worldRoot.transform);
         cabin.Skippable = ns == null && NextIntroSkippable;
         NextIntroSkippable = false;
 
+        LoadDiag.Step("jugador");
         // 3) Jugador
         GameObject player = BuildPlayer(generator, cfg, ns != null ? ns.SlotOf(NetSession.Instance.LocalId) : 0, out FirstPersonController fpc, out Flashlight flashlight, out Camera cam);
         if (generator.Culler != null) generator.Culler.viewer = cam.transform;
 
+        LoadDiag.Step("monstruos");
         // 4) Monstruos
         List<MonsterAI> monsters = new List<MonsterAI>();
         if (spawnMonster)
@@ -320,6 +392,7 @@ public class GameBootstrap : MonoBehaviour
             }
         }
 
+        LoadDiag.Step("objetos");
         // 5) Pilas
         BuildBatteries(generator, cfg, player.transform, flashlight, ns != null);
         BuildExtraPickups(generator, cfg, ns != null);
@@ -327,10 +400,12 @@ public class GameBootstrap : MonoBehaviour
         // 5b) v7.0 Campo infinito: hierba instanciada en GPU (fuera de levelRoot: no entra en la huella MP ni en el NavMesh) y El Vigía en el horizonte
         if (cfg.layout == LayoutKind.Field)
         {
+            LoadDiag.Step("hierba (crear)");
             FieldGrass.Create(worldRoot.transform, generator);
             FieldWatcherApparition.Create(worldRoot.transform, generator);
         }
 
+        LoadDiag.Step("HUD y GameManager");
         // 6) UI + GameManager
         GameObject gmGo = new GameObject("GameManager");
         gmGo.transform.SetParent(worldRoot.transform, false);
@@ -348,6 +423,7 @@ public class GameBootstrap : MonoBehaviour
         BuildHud(gmGo.transform, gm);
         Manager = gm;
 
+        LoadDiag.Step("ascensor (inicio) y red");
         // 7) Ascensor: el jugador queda bloqueado y los monstruos quietos hasta que se abren las puertas
         cabin.Bind(fpc, cam.transform, gm);
         if (ns == null)
@@ -633,6 +709,7 @@ public class GameBootstrap : MonoBehaviour
 
     private void ShowLoading(string text)
     {
+        if (LoadingTextLog.Count < 400) LoadingTextLog.Add(text);
         if (loadingCanvas == null) return;
         loadingText.text = text;
         loadingCanvas.SetActive(true);

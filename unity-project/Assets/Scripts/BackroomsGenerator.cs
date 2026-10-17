@@ -565,6 +565,7 @@ public class BackroomsGenerator : MonoBehaviour
         exitCell = exits.Count > 0 ? exits[rng.Next(exits.Count)] : new Vector2Int(w - 1, h - 1);
         if (config.layout == LayoutKind.Field)
         {
+            LoadDiag.Step("campo: plan");
             FieldPlan = FieldPlan.Make(UsedSeed, w, h, cellSize, startCell, exitCell);
             // distancias de nuevo rodeando las casas (las celdas con casa quedan a -1: no son sitio para objetos ni monstruos)
             for (int i = 0; i < w; i++) for (int j = 0; j < h; j++) distFromStart[i, j] = -1;
