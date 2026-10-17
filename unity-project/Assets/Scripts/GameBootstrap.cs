@@ -200,10 +200,36 @@ public class GameBootstrap : MonoBehaviour
         NetStart ns = netStart;
         netStart = null;
         Build(index, ns);
+        if (LevelConfig.Get(index).layout == LayoutKind.Field) PrewarmField();
         LoadCount++;
         HideLoading();
         IsLoaded = true;
         loading = false;
+    }
+
+    // v7.0.2: tirones del campo. Con la pantalla de carga aún puesta: compilar variantes de shader, rellenar la hierba de golpe
+    // y dibujar un fotograma mirando a los 4 lados (sube texturas/mallas y crea los estados de GPU antes de jugar)
+    private void PrewarmField()
+    {
+        try
+        {
+            if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null) return;   // sin gráficos (pruebas)
+            Shader.WarmupAllShaders();
+            Camera cam = Camera.main;
+            if (cam == null || FieldGrass.Active == null) return;
+            Quaternion q0 = cam.transform.rotation;
+            bool s0 = FieldGrass.Synchronous; FieldGrass.Synchronous = true;
+            for (int i = 0; i < 4; i++)
+            {
+                cam.transform.rotation = Quaternion.Euler(0f, i * 90f, 0f);
+                FieldGrass.Active.Submit();
+                if (FieldWorld.Active != null) FieldWorld.Active.DrawGhosts();
+                cam.Render();
+            }
+            FieldGrass.Synchronous = s0;
+            cam.transform.rotation = q0;
+        }
+        catch (System.Exception e) { Debug.LogWarning("[GameBootstrap] precalentado del campo: " + e.Message); }
     }
 
     private void TeardownWorld()
@@ -278,9 +304,20 @@ public class GameBootstrap : MonoBehaviour
             {
                 monsters.Add(BuildMonster(generator, cfg, player.transform, generator.MonsterSpawns[i], i, netClient));
             }
-            // v7.0.1: a veces el primer monstruo es un imitador (misma decisión en todos los equipos: depende de la semilla)
-            if (monsters.Count > 0 && MimicDisguise.LevelHasMimic(generator.UsedSeed, cfg.index))
-                MimicDisguise.Attach(monsters[0], generator.UsedSeed, cfg.index, cfg.step);
+            // v7.0.2: un imitador por nivel (1+) ADEMÁS del monstruo habitual (que no cambia). Lo crean igual anfitrión y clientes
+            // (mismo índice en la red); empieza junto a un punto de aparición lejano y el director lo coloca a la vista más tarde.
+            if (generator.MonsterSpawns.Count > 0 && MimicDisguise.LevelHasMimic(generator.UsedSeed, cfg.index))
+            {
+                Vector3 sp = generator.MonsterSpawns[generator.MonsterSpawns.Count - 1];
+                System.Random mr = new System.Random(generator.UsedSeed * 17 + 3);
+                float ang = (float)mr.NextDouble() * Mathf.PI * 2f;
+                Vector3 cand = sp + new Vector3(Mathf.Cos(ang), 0f, Mathf.Sin(ang)) * 3f;
+                if (UnityEngine.AI.NavMesh.SamplePosition(cand, out UnityEngine.AI.NavMeshHit nh, 3f, UnityEngine.AI.NavMesh.AllAreas)) sp = nh.position;
+                MonsterAI mim = BuildMonster(generator, cfg, player.transform, sp, monsters.Count, netClient);
+                mim.gameObject.name = "Monster_Mimic";
+                monsters.Add(mim);
+                MimicDisguise.Attach(mim, generator.UsedSeed, cfg.index, cfg.step);
+            }
         }
 
         // 5) Pilas
@@ -444,6 +481,7 @@ public class GameBootstrap : MonoBehaviour
         PlayerBody.Create(fpc, cam, flashlight);
 
         // Cordura + inventario (objetos y notas recogidos; se conservan entre niveles)
+        Whistle wh = player.AddComponent<Whistle>(); wh.fpc = fpc;   // v7.0.2: G silbar
         Sanity sanity = player.AddComponent<Sanity>();
         sanity.flashlight = flashlight;
         sanity.fpc = fpc;
@@ -485,12 +523,24 @@ public class GameBootstrap : MonoBehaviour
         {
             GameObject b = new GameObject("Battery");
             b.transform.SetParent(root, false);
-            b.transform.position = generator.BatterySpots[i] + Vector3.up * 0.12f;
-            b.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
-            ProceduralAssets.CreatePrimitive(PrimitiveType.Cylinder, "Body", b.transform, Vector3.zero, new Vector3(0.11f, 0.09f, 0.11f), body, false);
-            ProceduralAssets.CreatePrimitive(PrimitiveType.Cylinder, "Band", b.transform, new Vector3(0f, 0.02f, 0f), new Vector3(0.115f, 0.025f, 0.115f), band, false);
-            ProceduralAssets.CreatePrimitive(PrimitiveType.Cylinder, "Cap", b.transform, new Vector3(0f, 0.1f, 0f), new Vector3(0.05f, 0.015f, 0.05f), cap, false);
+            b.transform.rotation = Quaternion.Euler(0f, (i * 137.5f + generator.UsedSeed) % 360f, 0f);
+            bool real = ItemPickup.UseModels && ItemModels.Build("Battery", b.transform) != null;
+            if (real)
+            {
+                // v7.0.2: pila realista apoyada en la superficie (los puntos vienen a 10 cm; sobre el agua en los niveles inundados)
+                Vector3 sp = generator.BatterySpots[i]; sp.y -= 0.1f;
+                if (cfg.water) sp.y += Mathf.Max(0f, cfg.waterLevel - 0.05f);
+                b.transform.position = sp;
+            }
+            else
+            {
+                b.transform.position = generator.BatterySpots[i] + Vector3.up * 0.12f;
+                ProceduralAssets.CreatePrimitive(PrimitiveType.Cylinder, "Body", b.transform, Vector3.zero, new Vector3(0.11f, 0.09f, 0.11f), body, false);
+                ProceduralAssets.CreatePrimitive(PrimitiveType.Cylinder, "Band", b.transform, new Vector3(0f, 0.02f, 0f), new Vector3(0.115f, 0.025f, 0.115f), band, false);
+                ProceduralAssets.CreatePrimitive(PrimitiveType.Cylinder, "Cap", b.transform, new Vector3(0f, 0.1f, 0f), new Vector3(0.05f, 0.015f, 0.05f), cap, false);
+            }
             BatteryPickup pk = b.AddComponent<BatteryPickup>();
+            pk.resting = real;
             pk.target = player;
             pk.flashlight = flashlight;
             pk.amount = cfg.batteryAmount;

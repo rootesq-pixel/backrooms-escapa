@@ -253,6 +253,23 @@ public static class MpPlayRunner
         yield return Wait(() => { foreach (int id in NetSession.PickupIds()) if (id >= 100000) return true; return false; }, 20, "objeto soltado por el cliente");
         foreach (int id in NetSession.PickupIds()) if (id >= 100000) dropNet = true;
         r.Check(dropNet, "el objeto que suelta el cliente aparece también en el anfitrión");
+        // ---- v7.0.2: silbido (G) sincronizado en los dos sentidos ----
+        {
+            int hh0 = Whistle.HeardCount;
+            Mark("host_whistle_ready");
+            yield return WaitMark("client_whistled", 40);
+            yield return Wait(() => Whistle.HeardCount > hh0, 15, "silbido del cliente en el anfitrión");
+            NetPlayer rc = ns.Players.Find(p => !p.isLocal);
+            r.Check(Whistle.HeardCount > hh0 && rc != null && Whistle.LastPlayer == rc.id && !Whistle.LastFromMimic, "[Silbido MP] el anfitrión oye el silbido del cliente (jugador " + Whistle.LastPlayer + ")");
+            r.Check(rc != null && rc.avatar != null && (Whistle.LastPos - rc.avatar.transform.position).magnitude < 3f, "[Silbido MP] suena en la posición del cliente (audio 3D)");
+            Whistle wh = GameManager.Instance.player.GetComponent<Whistle>();
+            int e0 = Whistle.EmitCount;
+            if (wh != null) wh.debugPress = true;
+            yield return 0.4f;
+            r.Check(Whistle.EmitCount == e0 + 1, "[Silbido MP] el anfitrión silba (G)");
+            Mark("host_whistled");
+            yield return WaitMark("client_heard_host", 40);
+        }
         // pausa del anfitrión: no congela
         ui.PressEscape();
         yield return 0.3f;
@@ -337,6 +354,14 @@ public static class MpPlayRunner
         NetPlayer remote1 = ns.Players.Find(p => !p.isLocal);
         r.Check(remote1 != null && remote1.avatar != null && remote1.avatar != null && (oldAvatar == null), "el avatar remoto se recrea en el nuevo nivel");
         r.Check(!ns.LocalDowned && remote1 != null && !remote1.downed, "al cambiar de nivel todos están en pie");
+        {   // v7.0.2: un mímico por nivel (1+) además del monstruo, con el aspecto de un compañero; decide el anfitrión
+            int mims = 0, mains = 0; MimicDisguise md = null;
+            foreach (MonsterAI m in MonsterAI.Instances) { if (m == null) continue; if (m.mimic != null) { mims++; md = m.mimic; } else mains++; }
+            r.Check(mims == 1 && mains >= 1, "[Mímico MP] nivel 1: 1 mímico + " + mains + " monstruo(s) en el anfitrión");
+            r.Check(md != null && md.Disguised && md.puppet != null && !md.ai.netProxy, "[Mímico MP] el anfitrión lleva la IA del mímico disfrazado (copia de «" + (md != null ? md.CopiedName : "-") + "»)");
+            r.Check(Sanity.Instance != null, "[Cordura MP] el anfitrión tiene su propia cordura");
+            if (md != null) { int em = Whistle.EmitCount; md.WhistleBackNow(); r.Check(Whistle.EmitCount == em + 1 && Whistle.LastFromMimic, "[Silbido MP] el mímico silba (decide el anfitrión) y se difunde"); yield return 1.0f; }
+        }
         Mark("host_level1");
 
         // ---- v6.8.1: nivel 2 (Poolrooms) — el cliente sale de la piscina fija; el anfitrión lo ve en la playa ----
@@ -567,6 +592,22 @@ public static class MpPlayRunner
         foreach (int id in NetSession.PickupIds()) if (id >= 100000) dropNet = true;
         r.Check(dropNet, "el objeto soltado recibe un identificador de red del anfitrión");
         Mark("client_dropped");
+        // ---- v7.0.2: silbido (G) sincronizado ----
+        {
+            yield return WaitMark("host_whistle_ready", 40);
+            Whistle wh = gm.player.GetComponent<Whistle>();
+            r.Check(wh != null, "[Silbido MP] el cliente tiene el silbido (G)");
+            int e0 = Whistle.EmitCount;
+            if (wh != null) wh.debugPress = true;
+            yield return 0.4f;
+            r.Check(Whistle.EmitCount == e0 + 1, "[Silbido MP] el cliente silba (G) y se envía al anfitrión");
+            int h0 = Whistle.HeardCount;   // antes de avisar: el silbido del anfitrión puede llegar enseguida
+            Mark("client_whistled");
+            yield return WaitMark("host_whistled", 40);
+            yield return Wait(() => Whistle.HeardCount > h0 && Whistle.LastPlayer != ns.LocalId, 15, "silbido del anfitrión en el cliente");
+            r.Check(Whistle.HeardCount > h0 && Whistle.LastPlayer != ns.LocalId && !Whistle.LastFromMimic, "[Silbido MP] el cliente oye el silbido del anfitrión (jugador " + Whistle.LastPlayer + ")");
+            Mark("client_heard_host");
+        }
         ui.PressEscape();
         yield return 0.3f;
         r.Check(ui.Current == UIManager.Screen.Pause && Time.timeScale == 1f && !AudioListener.pause, "pausa en multijugador: el mundo NO se congela");
@@ -631,7 +672,31 @@ public static class MpPlayRunner
         yield return Wait(() => WorldReady(gb, ns, 1) && ns.Epoch > epoch0, 240, "nivel 1 cargado (cliente)");
         r.Check(gb.CurrentLevel == 1 && ns.CurrentStart.level == 1, "el cliente carga el nivel siguiente decidido por el anfitrión");
         r.Check(NetSession.PickupCount >= 5, "pickups del nivel 1 registrados");
+        int hm0 = Whistle.HeardCount;
         yield return WaitMark("host_level1", 240);
+        yield return Wait(() => Whistle.HeardCount > hm0 && Whistle.LastFromMimic, 15, "silbido del mímico en el cliente");
+        r.Check(Whistle.HeardCount > hm0 && Whistle.LastFromMimic && Whistle.LastPlayer == -1, "[Silbido MP] el cliente oye el silbido de respuesta del mímico (sincronizado)");
+        {   // v7.0.2: el cliente ve el mímico (proxy) disfrazado de un jugador y tiene su propia cordura
+            MimicDisguise md = null;
+            yield return Wait(() => { foreach (MonsterAI m in MonsterAI.Instances) if (m != null && m.mimic != null) { md = m.mimic; return true; } return false; }, 30, "mímico en el cliente");
+            r.Check(md != null && md.ai.netProxy && md.Disguised && md.puppet != null && md.puppet.gameObject.activeSelf, "[Mímico MP] el cliente ve el mímico disfrazado (proxy del anfitrión, copia de «" + (md != null ? md.CopiedName : "-") + "»)");
+            Sanity sc = Sanity.Instance;
+            r.Check(sc != null && sc.value > 0f, "[Cordura MP] el cliente tiene su propia barra COR (" + (sc != null ? sc.value.ToString("F0") : "-") + ")");
+            if (sc != null && md != null)
+            {
+                // un monstruo (proxy) junto al cliente: su cordura baja (local, por proximidad)
+                MonsterAI near = null; foreach (MonsterAI m in MonsterAI.Instances) if (m != null && m.mimic == null) near = m;
+                if (near != null)
+                {
+                    Vector3 np = near.transform.position; Vector3 back = GameManager.Instance.player.transform.position; float by = GameManager.Instance.player.transform.eulerAngles.y;
+                    GameManager.Instance.player.Teleport(np + near.transform.forward * 6f, Quaternion.LookRotation(-near.transform.forward).eulerAngles.y);
+                    yield return 0.6f;
+                    r.Check(sc.MonsterDrain > 1f, "[Cordura MP] cerca de un monstruo la cordura del cliente baja (" + sc.MonsterDrain.ToString("F2") + "/s a " + Vector3.Distance(GameManager.Instance.player.transform.position, near.transform.position).ToString("F1") + " m)");
+                    GameManager.Instance.player.Teleport(back, by);
+                    yield return 0.3f;
+                }
+            }
+        }
 
         // ---- v6.8.1: nivel 2, salir de la piscina fija (borde 4 lados, escalera, rescate) ----
         {

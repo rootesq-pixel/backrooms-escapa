@@ -728,13 +728,24 @@ public static class SmokeTest
             if (ok) foreach (Color c in sp.texture.GetPixels()) if (c.a > 0.5f) opaque++;
             r.Check(ok && opaque > 700 && opaque < ItemIcons.Size * ItemIcons.Size * 0.9f, "icono procedural de " + t + " (" + opaque + " px opacos)");
             GameObject vis = new GameObject("vis_" + t);
-            ItemPickup.BuildVisual(t, vis.transform);
+            bool real = ItemPickup.BuildVisual(t, vis.transform);
             r.Check(vis.GetComponentsInChildren<Renderer>().Length >= 1, "modelo 3D de recogida de " + t);
+            {   // v7.0.2: modelo realista horneado (PBR), tamaño real y dentro del presupuesto
+                MeshFilter mf = vis.GetComponentInChildren<MeshFilter>(); Renderer rr = vis.GetComponentInChildren<Renderer>();
+                int tris = mf != null && mf.sharedMesh != null ? mf.sharedMesh.triangles.Length / 3 : 0;
+                Bounds bb = rr != null ? rr.bounds : new Bounds();
+                Material mm = rr != null ? rr.sharedMaterial : null;
+                bool pbr = mm != null && mm.GetTexture("_MainTex") != null && mm.GetTexture("_BumpMap") != null && mm.GetTexture("_MetallicGlossMap") != null && mm.IsKeywordEnabled("_EMISSION");
+                float big = Mathf.Max(bb.size.x, Mathf.Max(bb.size.y, bb.size.z));
+                r.Check(real && pbr && tris > 200 && tris < 3000 && big > 0.05f && big < 0.5f && bb.min.y > -0.01f && bb.min.y < 0.02f,
+                    "modelo realista de " + t + " (" + tris + " triángulos, " + (big * 100f).ToString("F0") + " cm, PBR " + pbr + ", apoyado en la base)");
+                r.Check(vis.GetComponent<ItemHighlight>() != null, "brillo sutil para encontrar " + t);
+            }
             UnityEngine.Object.DestroyImmediate(vis);
         }
         GameObject nv = new GameObject("noteVis");
-        ItemPickup.BuildVisual(ItemType.None, nv.transform);
-        r.Check(nv.GetComponentsInChildren<Renderer>().Length >= 2, "modelo 3D de nota de papel");
+        bool nreal = ItemPickup.BuildVisual(ItemType.None, nv.transform);
+        r.Check(nreal && nv.GetComponentsInChildren<Renderer>().Length >= 1 && nv.GetComponentInChildren<Renderer>().bounds.size.z > 0.15f, "modelo 3D realista de nota de papel (hoja manuscrita)");
         UnityEngine.Object.DestroyImmediate(nv);
         r.Check(ItemIcons.Note() != null && ItemIcons.Lock() != null, "iconos de nota y candado");
 
@@ -1376,6 +1387,42 @@ public static class SmokeTest
         }
         r.Check(insideFree == enterTested, tag + "campo: interior libre en casas visitables (" + insideFree + "/" + enterTested + ")");
         r.Check(closedBlocked == closedTested, tag + "campo: casas cerradas sin hueco transitable (" + closedBlocked + "/" + closedTested + ")");
+        // v7.0.2: objetos solo dentro de casas abiertas, sobre muebles o tarima; ninguno en la hierba
+        {
+            LevelConfig fcfg = gen.config;
+            int inside = 0, total = 0, onFurn = 0; float maxIt = 0f;
+            List<Vector3> all = new List<Vector3>(gen.BatterySpots); all.AddRange(gen.ExtraSpots);
+            foreach (Vector3 w in all)
+            {
+                total++;
+                Vector3 lp = gen.Root.InverseTransformPoint(w);
+                bool inHouse = false;
+                foreach (FieldPlan.House h in plan.houses)
+                {
+                    if (!h.enterable) continue;
+                    Vector2 sz = FieldPlan.TemplateSize[h.template]; if (h.rot % 2 == 1) sz = new Vector2(sz.y, sz.x);
+                    if (Mathf.Abs(lp.x - h.pos.x) < sz.x * 0.5f - 0.15f && Mathf.Abs(lp.z - h.pos.y) < sz.y * 0.5f - 0.15f) inHouse = true;
+                }
+                if (inHouse) inside++;
+                // debajo hay mueble o tarima (no terreno)
+                if (Physics.Raycast(w + Vector3.up * 0.05f, Vector3.down, out RaycastHit hh, 0.4f) && (hh.collider.name.StartsWith("House_") || hh.collider.transform.parent != null && hh.collider.transform.parent.name == "Furniture")) onFurn++;
+                maxIt = Mathf.Max(maxIt, lp.y - FieldHeight.H(lp.x, lp.z));
+            }
+            r.Check(total == fcfg.batteries + 9 && gen.BatterySpots.Count == fcfg.batteries && gen.ExtraSpots.Count == 9, tag + "campo: todos los objetos colocados (" + gen.BatterySpots.Count + " pilas + " + gen.ExtraSpots.Count + " extra)");
+            r.Check(inside == total, tag + "campo: todos los objetos dentro de casas abiertas, ninguno en la hierba (" + inside + "/" + total + ")");
+            r.Check(onFurn == total, tag + "campo: cada objeto apoyado en mesa, estante, caja o tarima (" + onFurn + "/" + total + ")");
+            r.Check(enter >= FieldPlan.MinEnterable && fw.FurnitureCount > 0 && gen.FieldItemHouses >= Mathf.Min(enter, 4), tag + "campo: muebles en las casas abiertas (" + fw.FurnitureCount + " piezas, objetos en " + gen.FieldItemHouses + " casas de " + enter + ")");
+            List<Vector3> before = all;
+            BackroomsGenerator g2 = new GameObject("FieldGen2").AddComponent<BackroomsGenerator>();
+            FieldWorld keep = FieldWorld.Active;
+            g2.config = gen.config; g2.useRandomSeed = false; g2.seed = gen.UsedSeed; g2.Generate();
+            List<Vector3> again = new List<Vector3>(g2.BatterySpots); again.AddRange(g2.ExtraSpots);
+            bool sameSpots = again.Count == before.Count;
+            for (int i = 0; sameSpots && i < again.Count; i++) sameSpots = (g2.Root.InverseTransformPoint(again[i]) - gen.Root.InverseTransformPoint(before[i])).sqrMagnitude < 1e-6f;
+            r.Check(sameSpots, tag + "campo: sitios de los objetos deterministas por semilla (multijugador)");
+            UnityEngine.Object.DestroyImmediate(g2.gameObject);
+            FieldWorld.Active = keep;
+        }
         // determinismo: misma semilla -> mismo plan y misma huella; terreno periódico
         ulong h1 = gen.WorldHash();
         FieldPlan p2 = FieldPlan.Make(gen.UsedSeed, gen.GridWidth, gen.GridHeight, gen.CellSize, gen.StartCell, gen.ExitCell);
@@ -1495,7 +1542,7 @@ public static class SmokeTest
         r.Check(inst[2] > 3000 && inst[0] > 300, ft + "hierba visible en Alto y en Bajo (" + inst[2] + " / " + inst[0] + ")");
         r.Check(inst[0] < inst[1] && inst[1] < inst[2] && tris[0] * 3 < tris[2], ft + "Bajo reduce densidad y distancia de la hierba (" + tris[0] / 1000 + "k vs " + tris[2] / 1000 + "k tris)");
         r.Check(tris[2] < 9000000 && tris[0] < 2000000, ft + "presupuesto de triángulos de hierba (Alto < 9M, Bajo < 2M)");
-        r.Check(fg.ChunkCount < 400, ft + "trozos de hierba reciclados (" + fg.ChunkCount + " en memoria)");
+        r.Check(fg.ChunkCount <= FieldGrass.MaxSlots, ft + "trozos de hierba reciclados (" + fg.ChunkCount + " en memoria, máx. " + FieldGrass.MaxSlots + " ranuras)");
         // pisadas de hierba y roce: corriendo > andando > agachado; parado nada
         FootstepAudio fa = pw.GetComponent<FootstepAudio>();
         r.Check(fa != null && fa.kind == StepKind.Grass, ft + "pasos del jugador en modo hierba");
@@ -1587,21 +1634,28 @@ public static class SmokeTest
         {
             r.Check(fw.GhostCount >= fw.houseCount + fw.propCount + fw.chunkCount, vt + "copias del borde también para accesorios (" + fw.GhostCount + ")");
             float vis = FieldAtmosphere.FarClip * 0.9f;
-            int miss = 0, samples = 0; float maxJump = 0f; int prevInst = -1;
+            int miss = 0, samples = 0; float maxJump = 0f; int prevInst = -1; System.Text.StringBuilder instSeries = new System.Text.StringBuilder();
             Vector3 a = new Vector3(L - 30f, 0f, lp.z), b = new Vector3(L + 30f, 0f, lp.z + 8f);
             for (int i = 0; i <= 60; i++)
             {
                 Vector3 q = Vector3.Lerp(a, b, i / 60f); float xq = FieldHeight.Mod(q.x), zq = FieldHeight.Mod(q.z);
                 pw.Teleport(gm.generator.Root.TransformPoint(new Vector3(xq, FieldHeight.H(xq, zq) + 0.05f, zq)), 90f);
                 yield return null;
+                if (i == 0)
+                {   // v7.0.2: la subida a la GPU está repartida por tiempo: tras el salto inicial (teletransporte lejano) esperar a que la hierba esté lista
+                    float tw = 0f; FieldGrass fg0 = FieldGrass.Active;
+                    while (tw < 5f && fg0 != null && (fg0.PendingJobs > 0 || fg0.ReadyChunks < fg0.ChunkCount)) { yield return 0.1f; tw += 0.1f; }
+                    r.Info(vt + "hierba lista tras el salto inicial en " + tw.ToString("F1") + " s");
+                }
                 Vector3 camL = gm.generator.Root.InverseTransformPoint(Camera.main.transform.position);
                 miss += fw.MissingCopies(camL, vis); samples++;
                 FieldGrass fgq = FieldGrass.Active;
-                if (fgq != null) { fgq.Submit(); int n = fgq.VisibleInstances; if (prevInst > 0 && i > 2) maxJump = Mathf.Max(maxJump, Mathf.Abs(n - prevInst) / (float)prevInst); prevInst = n; }
+                if (fgq != null) { fgq.Submit(); int n = fgq.VisibleInstances; instSeries.Append(n).Append(' '); if (prevInst > 0 && i > 2) maxJump = Mathf.Max(maxJump, Mathf.Abs(n - prevInst) / (float)prevInst); prevInst = n; }
             }
             r.Check(miss == 0, vt + "andando y cruzando el borde no desaparece nada a la vista (" + samples + " pasos, " + miss + " fallos)");
             Vector2 b0 = FieldGrass.Band(0, 56f), b1 = FieldGrass.Band(1, 56f), b2 = FieldGrass.Band(2, 56f), bq = FieldGrass.Band(2, 22f);
             r.Check(b0.y == b1.x && b1.y == b2.x && b2.y <= 56f - FieldGrass.FadeW && bq.y <= 22f - FieldGrass.FadeW, vt + "hierba: bandas de LOD contiguas con fundido y apagado antes del radio");
+            if (maxJump >= 0.35f) r.Info(vt + "matas visibles por paso: " + instSeries);
             r.Check(maxJump < 0.35f, vt + "hierba: sin saltos bruscos de matas al moverse (máx " + (maxJump * 100f).ToString("F0") + "%)");
         }
         // imitador: disfraz, pistas y transformación
@@ -1645,7 +1699,7 @@ public static class SmokeTest
             // determinista y poco frecuente
             int hits = 0; bool same = true, lv0 = false;
             for (int sd = 1; sd <= 1000; sd++) { bool hh = MimicDisguise.LevelHasMimic(sd, 3); if (hh) hits++; same &= hh == MimicDisguise.LevelHasMimic(sd, 3); lv0 |= MimicDisguise.LevelHasMimic(sd, 0); }
-            r.Check(same && !lv0 && hits > 220 && hits < 380, vt + "imitador: decidido por la semilla, raro (" + hits / 10f + "% de niveles) y nunca en el nivel 0");
+            r.Check(same && !lv0 && hits == 1000, vt + "imitador: v7.0.2 garantizado en niveles 1+ (" + hits / 10f + "% de niveles) y nunca en el nivel 0");
         }
         pw.Teleport(gm.generator.Root.TransformPoint(lp), yaw);
         yield return 0.5f;
@@ -2781,9 +2835,10 @@ public static class SmokePlayRunner
                     yield return 0.5f;
                 }
             }
-            r.Check(gm.monsters != null && gm.monsters.Length == Mathf.Max(1, cfg.monsterCount), tag + "monstruos = " + cfg.monsterCount);
+            r.Check(gm.monsters != null && gm.monsters.Length == Mathf.Max(1, cfg.monsterCount) + (lv >= 1 ? 1 : 0), tag + "monstruos = " + cfg.monsterCount + (lv >= 1 ? " + 1 mímico" : ""));
             foreach (MonsterAI m in gm.monsters)
             {
+                if (m.mimic != null) continue;
                 r.Info(tag + "monstruo usa NavMesh: " + m.UsesNavMesh + ", estado " + m.CurrentState + ", chase " + m.chaseSpeed);
                 r.Check(m.visual != null && !m.visual.IsFallback && m.visual.profile != null && m.visual.profile.id == cfg.monsterModel, tag + "monstruo con modelo " + cfg.monsterModel + " (sin fallback)");
                 if (m.visual != null && m.visual.profile != null) modelIds.Add(m.visual.profile.id);
@@ -2825,8 +2880,13 @@ public static class SmokePlayRunner
 
             // Pilas: recoger una
             BatteryPickup[] picks = UnityEngine.Object.FindObjectsOfType<BatteryPickup>();
-            r.Check(picks.Length == cfg.batteries, tag + "pilas en escena = " + picks.Length);
+            r.Check(picks.Length + BatteryPickup.CollectedThisLevel == cfg.batteries, tag + "pilas en escena = " + picks.Length + (BatteryPickup.CollectedThisLevel > 0 ? " (+" + BatteryPickup.CollectedThisLevel + " ya recogidas al salir de la cabina)" : ""));
             foreach (MonsterAI m in gm.monsters) m.Stop();   // para que no interfieran con el test
+            {   // v7.0.2: mímico, cordura por cercanía y silbido en cada nivel
+                IEnumerator v2 = V702Checks.LevelChecks(r, tag, lv, cfg, gm);
+                while (v2.MoveNext()) yield return v2.Current;
+                gm = GameManager.Instance;
+            }
 
             // Objetos extra del nivel: notas, agua de almendras, barras luminosas, cinta
             {
@@ -2845,8 +2905,28 @@ public static class SmokePlayRunner
                 if (notePk != null && invL != null)
                 {
                     Vector3 np = notePk.transform.position;
-                    gm.player.Teleport(new Vector3(np.x, gm.player.transform.position.y, np.z), 0f);
+                    Vector3 backP = gm.player.transform.position; float backYaw = gm.player.transform.eulerAngles.y;
+                    // v7.0.2: en el campo la nota está sobre un mueble dentro de una casa: suelo bajo ella
+                    float fy = gm.player.transform.position.y;
+                    if (notePk.resting) { fy = np.y - 2.5f; foreach (RaycastHit hh in Physics.RaycastAll(np + Vector3.up * 0.05f, Vector3.down, 2.5f, ~0, QueryTriggerInteraction.Ignore)) fy = Mathf.Max(fy, Mathf.Min(hh.point.y, np.y - 0.6f) == hh.point.y ? hh.point.y : fy); if (fy < np.y - 2.4f) fy = np.y; }
+                    gm.player.Teleport(new Vector3(np.x, fy + 0.05f, np.z), 0f);
                     yield return 0.7f;
+                    if (notePk.resting && fy < np.y - 0.3f)
+                    {
+                        // fuera del mueble: un sitio cercano con el suelo a la misma altura y hueco para saltar
+                        Vector3 c0 = new Vector3(np.x, fy, np.z); bool mv = false;
+                        for (int ring = 1; ring <= 10 && !mv; ring++)
+                            for (int k = 0; k < 12 && !mv; k++)
+                            {
+                                Vector3 c = c0 + Quaternion.Euler(0f, k * 30f, 0f) * Vector3.forward * (ring * 0.5f);
+                                if (!Physics.Raycast(c + Vector3.up * 0.5f, Vector3.down, out RaycastHit gh2, 1.2f, ~0, QueryTriggerInteraction.Ignore)) continue;
+                                if (Mathf.Abs(gh2.point.y - fy) > 0.25f) continue;
+                                if (Physics.CheckCapsule(gh2.point + Vector3.up * 0.45f, gh2.point + Vector3.up * 2.0f, 0.3f, ~0, QueryTriggerInteraction.Ignore)) continue;
+                                gm.player.Teleport(gh2.point + Vector3.up * 0.05f, backYaw); mv = true;
+                            }
+                        if (!mv) gm.player.Teleport(backP, backYaw);
+                        yield return 0.3f;
+                    }
                     r.Check(invL.HasNote(firstNote) && LoreNotes.Get(firstNote).level == lv && LoreNotes.Get(firstNote).text.Length > 30, tag + "recoger una nota la añade al inventario (id " + firstNote + ": '" + LoreNotes.Get(firstNote).title + "')");
                     prevNote = firstNote;
                 }

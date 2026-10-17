@@ -41,7 +41,7 @@ public class FieldWorld : MonoBehaviour
         fw.rnd = new System.Random(gen.UsedSeed * 13 + 1);
         fw.BuildTerrain(track);
         fw.BuildHouses(cfg, track);
-        foreach (GameObject hg in fw.houseGos) foreach (Transform ch in hg.transform) fw.GhostTree(ch);   // zócalos y escalones también al otro lado del borde
+        foreach (GameObject hg in fw.houseGos) foreach (Transform ch in hg.transform) if (ch.name != "Furniture") fw.GhostTree(ch);   // zócalos y escalones también al otro lado del borde
         fw.BuildProps(cfg, track);
         Active = fw;
         return fw;
@@ -169,6 +169,8 @@ public class FieldWorld : MonoBehaviour
         Material roof = SurfMat("house_roof", new Color(0.62f, 0.62f, 0.62f), 0.15f, track);
         Material floor = SurfMat("house_floor", new Color(0.62f, 0.56f, 0.5f), 0.2f, track);
         Material trim = ProceduralAssets.CreateMaterial(new Color(0.24f, 0.2f, 0.17f), Tex("house_floor_a"), Vector2.one, 0.1f); track(trim);
+        // v7.0.2: muebles en madera más clara (con el tono del zócalo casi negros: los objetos no se distinguían)
+        Material furnWood = ProceduralAssets.CreateMaterial(new Color(0.66f, 0.52f, 0.38f), Tex("house_floor_a"), Vector2.one, 0.22f); track(furnWood);
         Dictionary<int, Mesh> cache = new Dictionary<int, Mesh>();
         Transform hroot = new GameObject("Houses").transform;
         hroot.SetParent(transform, false);
@@ -218,8 +220,48 @@ public class FieldWorld : MonoBehaviour
                     st.GetComponent<Renderer>().sharedMaterial = walls[(h.tint + 1) % 3];
                 }
             }
+            if (h.enterable) BuildFurniture(go.transform, h, k - 1, furnWood, floor);
             houseCount++;
         }
+    }
+
+    // v7.0.2: muebles sencillos en las casas abiertas (mesa, estantería, caja) y huecos para objetos sobre ellos y sobre la tarima.
+    //   Los objetos del Campo infinito (pilas, notas, agua, barras, cinta) solo aparecen aquí, nunca en la hierba.
+    public struct ItemSlot { public Vector3 pos; public int house; public int kind; }   // pos: superficie + 0,1 m (como los demás puntos); kind 0 mesa, 1 estante, 2 suelo
+    public const int SlotTable = 0, SlotShelf = 1, SlotFloor = 2;
+    public readonly List<ItemSlot> ItemSlots = new List<ItemSlot>();
+    public int FurnitureCount { get; private set; }
+
+    private void BuildFurniture(Transform house, FieldPlan.House h, int hi, Material wood, Material floorMat)
+    {
+        Vector2 sz = FieldPlan.TemplateSize[h.template];
+        float W = sz.x, D = sz.y, t = 0.2f, y0 = 0.15f;
+        Transform fr = new GameObject("Furniture").transform;
+        fr.SetParent(house, false);
+        float dx = DoorX(h.template);
+        System.Action<string, Vector3, Vector3> box = (n, c, s3) => { ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, n, fr, c, s3, wood, true).GetComponent<Renderer>().shadowCastingMode = ShadowCastingMode.Off; FurnitureCount++; };
+        System.Action<Vector3, int> slot = (lp, kind) => ItemSlots.Add(new ItemSlot { pos = house.TransformPoint(lp + Vector3.up * 0.1f), house = hi, kind = kind });
+        // mesa (lado contrario a la puerta)
+        float tx = dx < -0.1f ? W * 0.14f : -W * 0.2f, tz = -0.25f, top = y0 + 0.74f;
+        box("TableTop", new Vector3(tx, top, tz), new Vector3(1.2f, 0.05f, 0.7f));
+        foreach (float lx in new[] { -0.52f, 0.52f }) foreach (float lz in new[] { -0.27f, 0.27f })
+            box("TableLeg", new Vector3(tx + lx, y0 + 0.36f, tz + lz), new Vector3(0.06f, 0.72f, 0.06f));
+        slot(new Vector3(tx - 0.3f, top + 0.025f, tz + 0.12f), SlotTable);
+        slot(new Vector3(tx + 0.32f, top + 0.025f, tz + 0.1f), SlotTable);
+        // estantería contra la pared lateral derecha, hacia el fondo
+        float sx = W / 2 - t - 0.18f, zc = -D / 2 + t + 0.75f;
+        box("ShelfBack", new Vector3(W / 2 - t - 0.02f, y0 + 0.72f, zc), new Vector3(0.03f, 1.44f, 1.1f));
+        foreach (float ez in new[] { -0.54f, 0.54f }) box("ShelfSide", new Vector3(sx, y0 + 0.72f, zc + ez), new Vector3(0.32f, 1.44f, 0.03f));
+        foreach (float by in new[] { 0.06f, 0.5f, 0.95f, 1.42f }) box("ShelfBoard", new Vector3(sx, y0 + by, zc), new Vector3(0.32f, 0.025f, 1.06f));
+        foreach (float by in new[] { 0.5f, 0.95f })
+            foreach (float oz in new[] { -0.26f, 0.26f })
+                slot(new Vector3(sx - 0.02f, y0 + by + 0.0125f, zc + oz), SlotShelf);
+        // caja de madera en la esquina del fondo izquierda + tarima
+        float cx = -W / 2 + t + 0.4f, cz = -D / 2 + t + 0.4f;
+        box("Crate", new Vector3(cx, y0 + 0.25f, cz), new Vector3(0.5f, 0.5f, 0.5f));
+        slot(new Vector3(cx, y0 + 0.5f, cz), SlotTable);
+        slot(new Vector3(-W / 2 + t + 0.5f, y0, D * 0.12f), SlotFloor);
+        slot(new Vector3(tx, y0, tz - 0.85f), SlotFloor);
     }
 
     public static float DoorX(int tpl) { return tpl == 1 ? 0f : -FieldPlan.TemplateSize[tpl].x * 0.22f; }
@@ -604,13 +646,23 @@ public class FieldWorld : MonoBehaviour
         DrawGhosts();
     }
 
+    public static float LastGhostMs; public static int GhostDraws;
+    private readonly Plane[] gplanes = new Plane[6];
+    private static readonly System.Diagnostics.Stopwatch gsw = new System.Diagnostics.Stopwatch();
     public void DrawGhosts()
+    {
+        gsw.Restart(); GhostDraws = 0;
+        DrawGhostsInner();
+        LastGhostMs = (float)gsw.Elapsed.TotalMilliseconds;
+    }
+    private void DrawGhostsInner()
     {
         Camera cam = Camera.main;
         if (cam == null || levelRoot == null) return;
         Vector3 c = levelRoot.InverseTransformPoint(cam.transform.position);
         float range = GhostRange;   // v7.0.1: hasta el plano lejano (antes 110/170 m: saltos visibles entre la niebla)
         Matrix4x4 lw = levelRoot.localToWorldMatrix;
+        GeometryUtility.CalculateFrustumPlanes(cam, gplanes);   // v7.0.2: solo las copias dentro de la vista
         for (int ox = -1; ox <= 1; ox++)
             for (int oz = -1; oz <= 1; oz++)
             {
@@ -624,9 +676,12 @@ public class FieldWorld : MonoBehaviour
                     Ghost gh = ghosts[i];
                     Vector3 p = gh.center + off;
                     if (!GhostInRange(c, gh.center, gh.radius, off, range)) continue;
+                    Vector3 wp = lw.MultiplyPoint3x4(p); bool inView = true;
+                    for (int k = 0; k < 6 && inView; k++) if (gplanes[k].GetDistanceToPoint(wp) < -gh.radius) inView = false;
+                    if (!inView) continue;
                     Matrix4x4 m = sh * gh.local;
                     for (int s = 0; s < gh.mats.Length && s < gh.mesh.subMeshCount; s++)
-                        Graphics.DrawMesh(gh.mesh, m, gh.mats[s], 0, null, s, null, ShadowCastingMode.Off, false);
+                        { Graphics.DrawMesh(gh.mesh, m, gh.mats[s], 0, null, s, null, ShadowCastingMode.Off, false); GhostDraws++; }
                 }
             }
     }

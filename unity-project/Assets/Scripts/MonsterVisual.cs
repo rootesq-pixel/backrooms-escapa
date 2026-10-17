@@ -157,6 +157,93 @@ public class MonsterVisual : MonoBehaviour
         return t;
     }
 
+    // v7.0.2: encajar cada ojo en su cuenca. Con la malla en la pose actual (BakeMesh) se busca la superficie de la cara
+    // justo delante de cada ojo y el globo se hunde ~40 % de su radio (antes, con el estirado de El Vigía, sobresalían de la cabeza).
+    public static bool SkipSeatForCaptures;   // capturas «antes»
+    public static int SeatEyes(Transform visualRoot, Transform eyes)
+    {
+        SkinnedMeshRenderer sk = visualRoot.GetComponentInChildren<SkinnedMeshRenderer>();
+        if (sk == null || sk.sharedMesh == null) return 0;
+        Mesh baked = new Mesh();
+        int seated = 0;
+        try
+        {
+            // El espacio de los vértices de BakeMesh depende de la escala (no uniforme en El Vigía) y de la versión de Unity:
+            // se prueban las combinaciones y se elige la que coincide con los límites reales del renderer.
+            Bounds wb = sk.bounds;
+            Matrix4x4 toWorld = sk.transform.localToWorldMatrix; float bestErr = float.MaxValue; bool bestScale = false;
+            Matrix4x4[] mats = { sk.transform.localToWorldMatrix, Matrix4x4.TRS(sk.transform.position, sk.transform.rotation, Vector3.one) };
+            foreach (bool us in new[] { false, true })
+            {
+                sk.BakeMesh(baked, us);
+                Vector3[] tv = baked.vertices;
+                foreach (Matrix4x4 m in mats)
+                {
+                    Bounds b = new Bounds(m.MultiplyPoint3x4(tv[0]), Vector3.zero);
+                    for (int i = 0; i < tv.Length; i += 5) b.Encapsulate(m.MultiplyPoint3x4(tv[i]));
+                    float err = (b.size - wb.size).magnitude + (b.center - wb.center).magnitude;
+                    if (err < bestErr) { bestErr = err; toWorld = m; bestScale = us; }
+                }
+            }
+            sk.BakeMesh(baked, bestScale);
+            Matrix4x4 toEyes = eyes.worldToLocalMatrix * toWorld;
+            Vector3[] vs = baked.vertices;
+            List<float> zs = new List<float>();
+            // 1) centrar el par de ojos en la cabeza: con el estirado (0,7 en X/Z) y la pose de reposo la cabeza de El Vigía
+            //    queda desplazada del eje del modelo y los ojos flotaban a un lado, fuera de la cara.
+            float span = 0f, ey = 0f; int ne = 0;
+            foreach (Transform e in eyes) if (e.name.StartsWith("Eye") && e.name != "EyeGlow") { span = Mathf.Max(span, Mathf.Abs(e.localPosition.x) + Mathf.Abs(e.localScale.x)); ey += e.localPosition.y; ne++; }
+            if (ne > 0) ey /= ne;
+            float slab = Mathf.Max(0.04f, span * 0.6f);
+            Vector3 lossy = eyes.lossyScale;
+            float lim = Mathf.Max(0.25f, span * 5f);
+            for (int i = 0; i < vs.Length; i++)
+            {
+                Vector3 v = toEyes.MultiplyPoint3x4(vs[i]);
+                if (Mathf.Abs(v.y - ey) < slab && Mathf.Abs(v.x) < lim && Mathf.Abs(v.z) < lim) zs.Add(v.x);
+            }
+            if (zs.Count >= 8)
+            {
+                zs.Sort();
+                float cx = 0.5f * (zs[Mathf.RoundToInt((zs.Count - 1) * 0.05f)] + zs[Mathf.RoundToInt((zs.Count - 1) * 0.95f)]);
+                eyes.position += eyes.right * cx * lossy.x;
+                toEyes = eyes.worldToLocalMatrix * toWorld;
+            }
+            // 2) profundidad: rayo contra la malla en pose (collider temporal) desde delante de cada ojo hacia atrás;
+            //    se promedian 5 rayos (centro y bordes del globo) y el ojo se hunde ~55 % de su radio en la superficie.
+            Vector3[] wv = new Vector3[vs.Length];
+            for (int i = 0; i < vs.Length; i++) wv[i] = toWorld.MultiplyPoint3x4(vs[i]);
+            baked.vertices = wv; baked.RecalculateBounds();
+            GameObject cgo = new GameObject("EyeSeatProbe");
+            cgo.hideFlags = HideFlags.HideAndDontSave;
+            MeshCollider mc = cgo.AddComponent<MeshCollider>();
+            mc.sharedMesh = baked;
+            foreach (Transform e in eyes)
+            {
+                if (!e.name.StartsWith("Eye") || e.name == "EyeGlow") continue;
+                float rad = Mathf.Abs(e.localScale.x) * 0.5f * eyes.lossyScale.x;
+                Vector3 fwd = eyes.forward, c0 = e.position;
+                float sum = 0f; int hits = 0;
+                Vector3[] offs = { Vector3.zero, eyes.right * rad, -eyes.right * rad, eyes.up * rad, -eyes.up * rad };
+                foreach (Vector3 o in offs)
+                {
+                    Ray ray = new Ray(c0 + o + fwd * 0.6f, -fwd);
+                    if (mc.Raycast(ray, out RaycastHit hit, 1.2f)) { sum += Vector3.Dot(hit.point - c0, fwd); hits++; }
+                }
+                if (hits == 0) continue;
+                float depth = sum / hits - rad * 0.55f;          // desplazamiento a lo largo de forward
+                e.position = c0 + fwd * depth;
+                seated++;
+            }
+            if (Application.isPlaying) Object.Destroy(cgo); else Object.DestroyImmediate(cgo);
+            Transform glow = eyes.Find("EyeGlow");
+            if (glow != null && seated > 0) { Vector3 g = glow.localPosition; g.z = eyes.GetChild(0).localPosition.z + 0.25f; glow.localPosition = g; }
+        }
+        catch (System.Exception ex) { Debug.LogWarning("[MonsterVisual] SeatEyes: " + ex.Message); }
+        if (Application.isPlaying) Object.Destroy(baked); else Object.DestroyImmediate(baked);
+        return seated;
+    }
+
     private Transform AttachEyesTo(Transform visualRoot)
     {
         MonsterProfile p = profile;
@@ -203,6 +290,8 @@ public class MonsterVisual : MonoBehaviour
         eyeLight = l;
         eyeLightBase = p.eyeLightIntensity;
 
+        if (!SkipSeatForCaptures) SeatEyes(visualRoot, eyes.transform);
+
         // Enganchar al hueso más cercano (posición mundial conservada)
         SkinnedMeshRenderer sk = visualRoot.GetComponentInChildren<SkinnedMeshRenderer>();
         if (sk != null && sk.bones != null && sk.bones.Length > 0)
@@ -211,7 +300,7 @@ public class MonsterVisual : MonoBehaviour
             foreach (Transform b in sk.bones)
             {
                 if (b == null) continue;
-                float d = (b.position - mid).sqrMagnitude;
+                float d = (b.position - eyes.transform.position).sqrMagnitude;
                 if (d < bd) { bd = d; best = b; }
             }
             if (best != null) eyes.transform.SetParent(best, true);

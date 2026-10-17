@@ -103,3 +103,8 @@ Las fuentes «Escapa» son IBM Plex (Copyright © 2017 IBM Corp., Reserved Font 
 
 El roce de la hierba, el viento, el zumbido de radio de la salida, el terreno, las casas, los postes y las puertas sueltas se generan por código.
 «El Vigía (Nivel 5)» (FieldWatcher) reutiliza el modelo CC0 de El Alto (HorrorGameMaker.com) con una textura reteñida con Pillow.
+
+## Objetos recogibles y silbido (v7.0.2)
+- **Modelos de los objetos** (pila, agua de almendras, barra luminosa, cinta VHS, nota, linterna): trabajo propio, modelados por script en Blender 4.2 (`Tools/blender/item_models.py`) y horneados con Cycles (alto → bajo detalle) a texturas PBR de 512 px (albedo, metal/suavidad, normal, emisión). Los iconos del inventario se renderizan con los mismos modelos. Dominio público (CC0).
+- **Silbido** (`G`, tres variantes): sintetizado por código en el propio juego (`Whistle.cs`, osciladores con vibrato, respiración y envolvente). Sin grabaciones de terceros. Dominio público (CC0).
+- **Muebles de las casas del Campo infinito** (mesa, estantería, caja): primitivas con la textura de madera procedural del proyecto.

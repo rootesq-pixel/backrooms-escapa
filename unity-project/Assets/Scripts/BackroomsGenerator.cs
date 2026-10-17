@@ -1155,6 +1155,7 @@ public class BackroomsGenerator : MonoBehaviour
         MonsterSpawn = MonsterSpawns[0];
         PickBatterySpots(rng, mc);
         PickExtraSpots(new System.Random(UsedSeed * 31 + 7), 9);
+        PickFieldHouseSpots();   // v7.0.2: los objetos, solo dentro de las casas abiertas
         BuildFieldExit(rng);
     }
 
@@ -1191,6 +1192,43 @@ public class BackroomsGenerator : MonoBehaviour
 
         ExitTransform = slab;
         ExitPosition = slab.position;
+    }
+
+    // v7.0.2: reparte pilas y objetos extra entre los huecos de los muebles de las casas abiertas (determinista con la semilla:
+    // idéntico en multijugador). Primero un objeto por casa (repartidos), luego el resto; mesas y estantes antes que el suelo.
+    public int FieldItemHouses { get; private set; }
+    private void PickFieldHouseSpots()
+    {
+        FieldWorld fw = FieldWorld.Active;
+        if (fw == null || fw.ItemSlots.Count == 0) return;
+        System.Random r = new System.Random(UsedSeed * 53 + 11);
+        List<FieldWorld.ItemSlot> pool = new List<FieldWorld.ItemSlot>(fw.ItemSlots);
+        for (int i = pool.Count - 1; i > 0; i--) { int j = r.Next(i + 1); FieldWorld.ItemSlot tmp = pool[i]; pool[i] = pool[j]; pool[j] = tmp; }
+        // orden: rondas por casa (una por casa en cada ronda), dentro de la ronda muebles antes que suelo
+        pool.Sort((a, b) => (a.kind == FieldWorld.SlotFloor ? 1 : 0).CompareTo(b.kind == FieldWorld.SlotFloor ? 1 : 0));
+        List<FieldWorld.ItemSlot> order = new List<FieldWorld.ItemSlot>();
+        Dictionary<int, int> taken = new Dictionary<int, int>();
+        HashSet<int> houses = new HashSet<int>();
+        while (pool.Count > 0)
+        {
+            int minTaken = int.MaxValue;
+            foreach (FieldWorld.ItemSlot s in pool) { taken.TryGetValue(s.house, out int tk); if (tk < minTaken) minTaken = tk; }
+            for (int i = 0; i < pool.Count; i++)
+            {
+                taken.TryGetValue(pool[i].house, out int tk);
+                if (tk != minTaken) continue;
+                order.Add(pool[i]); taken[pool[i].house] = tk + 1; houses.Add(pool[i].house); pool.RemoveAt(i); break;
+            }
+        }
+        int nb = BatterySpots.Count, ne = ExtraSpots.Count;
+        if (order.Count < nb + ne) Debug.LogWarning("[Campo] pocos huecos en casas: " + order.Count + " < " + (nb + ne));
+        int k = 0;
+        List<Vector3> bs = new List<Vector3>(), es = new List<Vector3>();
+        // los extra (notas, agua, cinta…) primero para que siempre quepan; luego las pilas
+        for (int i = 0; i < ne && k < order.Count; i++) es.Add(order[k++].pos);
+        for (int i = 0; i < nb && k < order.Count; i++) bs.Add(order[k++].pos);
+        ExtraSpots = es; BatterySpots = bs;
+        FieldItemHouses = houses.Count;
     }
 
     private bool FieldBlocked(int x, int z) { return FieldPlan != null && FieldPlan.blocked.Contains(new Vector2Int(x, z)); }

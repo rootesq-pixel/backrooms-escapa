@@ -3,6 +3,7 @@ using UnityEngine;
 // Pila recogible: recarga la linterna al acercarse. Gira y flota ligeramente.
 public class BatteryPickup : MonoBehaviour
 {
+    public bool resting;   // v7.0.2: pila realista apoyada en la superficie (sin girar ni flotar)
     public Transform target;
     public Flashlight flashlight;
     public float amount = 35f;
@@ -24,8 +25,11 @@ public class BatteryPickup : MonoBehaviour
 
     private void Update()
     {
-        transform.Rotate(0f, 70f * Time.deltaTime, 0f, Space.World);
-        transform.position = basePos + Vector3.up * (0.04f * Mathf.Sin(Time.time * 2f + phase));
+        if (!resting)
+        {
+            transform.Rotate(0f, 70f * Time.deltaTime, 0f, Space.World);
+            transform.position = basePos + Vector3.up * (0.04f * Mathf.Sin(Time.time * 2f + phase));
+        }
 
         if (target == null) return;
         Vector3 d = target.position - basePos;

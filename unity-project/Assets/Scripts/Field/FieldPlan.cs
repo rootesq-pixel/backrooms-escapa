@@ -15,6 +15,7 @@ public class FieldPlan
     public readonly List<Rect> footprints = new List<Rect>();        // XZ local (sin hierba dentro)
     public readonly List<Vector3> clearings = new List<Vector3>();   // x, z, radio (sin hierba)
 
+    public const int MinEnterable = 5;
     public static readonly Vector2[] TemplateSize = { new Vector2(7.2f, 5.6f), new Vector2(6.0f, 6.0f), new Vector2(8.4f, 5.0f) };
 
     public static FieldPlan Make(int seed, int w, int h, float cs, Vector2Int start, Vector2Int exit)
@@ -50,6 +51,11 @@ public class FieldPlan
             if (hs.rot % 2 == 1) sz = new Vector2(sz.y, sz.x);
             p.footprints.Add(new Rect(hs.pos - sz * 0.5f - Vector2.one * 0.35f, sz + Vector2.one * 0.7f));
         }
+
+        // v7.0.2: los objetos van dentro de las casas abiertas: al menos 5 abiertas (las primeras cerradas se abren)
+        int open = 0; foreach (House hh in p.houses) if (hh.enterable) open++;
+        for (int i = 0; i < p.houses.Count && open < MinEnterable; i++)
+            if (!p.houses[i].enterable) { House hh = p.houses[i]; hh.enterable = true; p.houses[i] = hh; open++; }
 
         // fila de postes de la luz que cruza todo el campo (no bloquea celdas: van a 3 m del centro)
         bool alongX = r.NextDouble() < 0.5;

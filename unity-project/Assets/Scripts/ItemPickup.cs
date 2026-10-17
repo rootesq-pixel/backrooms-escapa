@@ -16,6 +16,7 @@ public class ItemPickup : MonoBehaviour
     private float reqTimer;
 
     private Vector3 basePos;
+    public bool resting;              // v7.0.2: modelo realista apoyado (sin girar ni flotar; brillo sutil)
     private float phase;
     private bool collected;
     private static AudioClip pickupClip;
@@ -34,8 +35,11 @@ public class ItemPickup : MonoBehaviour
     {
         float dt = Time.deltaTime;
         if (cooldown > 0f) cooldown -= dt;
-        transform.Rotate(0f, (noteId >= 0 ? 35f : 60f) * dt, 0f, Space.World);
-        transform.position = basePos + Vector3.up * (0.035f * Mathf.Sin(Time.time * 2f + phase));
+        if (!resting)
+        {
+            transform.Rotate(0f, (noteId >= 0 ? 35f : 60f) * dt, 0f, Space.World);
+            transform.position = basePos + Vector3.up * (0.035f * Mathf.Sin(Time.time * 2f + phase));
+        }
 
         Inventory inv = Inventory.Instance;
         if (inv == null || collected || cooldown > 0f) return;
@@ -134,9 +138,10 @@ public class ItemPickup : MonoBehaviour
         if (parent != null) go.transform.SetParent(parent, false);
         go.transform.position = position;
         go.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
-        BuildVisual(noteId >= 0 ? ItemType.None : t, go.transform);
+        bool real = BuildVisual(noteId >= 0 ? ItemType.None : t, go.transform);
         ItemPickup p = go.AddComponent<ItemPickup>();
-        p.type = t; p.noteId = noteId; p.cooldown = cooldownSeconds;
+        p.type = t; p.noteId = noteId; p.cooldown = cooldownSeconds; p.resting = real;
+        if (!real) go.transform.position = position + Vector3.up * 0.0f;
         return p;
     }
 
@@ -150,7 +155,16 @@ public class ItemPickup : MonoBehaviour
         return m;
     }
 
-    public static void BuildVisual(ItemType t, Transform root)
+    // v7.0.2: modelo realista (Resources/Items) si está; si no, el de primitivas de siempre. Devuelve true si es el realista.
+    public static bool BuildVisual(ItemType t, Transform root)
+    {
+        if (UseModels && ItemModels.Build(ItemModels.IdFor(t, t == ItemType.None), root) != null) return true;
+        BuildPrimitiveVisual(t, root);
+        return false;
+    }
+    public static bool UseModels = true;   // capturas «antes»
+
+    public static void BuildPrimitiveVisual(ItemType t, Transform root)
     {
         Transform r = new GameObject("Visual").transform;
         r.SetParent(root, false);

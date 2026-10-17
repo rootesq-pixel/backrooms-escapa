@@ -3,16 +3,16 @@
 Juego de terror en primera persona para PC (Windows 64 bits) hecho con **Unity**: escapa de las Backrooms a través de **6 niveles** encadenados. Cada nivel es un laberinto (o aparcamiento abierto) procedural con su propia estética, luces, dificultad y criaturas que patrullan y te persiguen. La salida es una puerta discreta que **solo se descubre explorando**: sin cartel, sin flecha, sin indicador de distancia.
 
 - 🌐 **Web:** https://rootesq-pixel.github.io/backrooms-escapa/
-- ⬇️ **Descarga directa v7.0.1 (Windows, ZIP ≈ 93 MB):** [BackroomsEscape_v7_0_1_Windows.zip](https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v7.0.1/BackroomsEscape_v7_0_1_Windows.zip)
-- 📦 **Release v7.0.1:** https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.1
-- 🕓 Versiones anteriores: [v6.9.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.9.0) (Poolrooms estilo POOLS) · [v6.5.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.5.0) (audio e intro) · [v6.4.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.4.0) (ascensor) · [v6.3.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.3.0) (5 niveles, sin ascensor) · [v6.2.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.2.0) (multijugador por Internet, 6 niveles) · [v6.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.0.0) (multijugador por IP y puerto) · [v5.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v5.0.0) (un jugador)
+- ⬇️ **Descarga directa v7.0.2 (Windows, ZIP ≈ 94 MB):** [BackroomsEscape_v7_0_2_Windows.zip](https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v7.0.2/BackroomsEscape_v7_0_2_Windows.zip)
+- 📦 **Release v7.0.2:** https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.2
+- 🕓 Versiones anteriores: [v7.0.1](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.1) (Campo infinito pulido, imitadores) · [v6.9.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.9.0) (Poolrooms estilo POOLS) · [v6.5.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.5.0) (audio e intro) · [v6.4.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.4.0) (ascensor) · [v6.3.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.3.0) (5 niveles, sin ascensor) · [v6.2.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.2.0) (multijugador por Internet, 6 niveles) · [v6.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.0.0) (multijugador por IP y puerto) · [v5.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v5.0.0) (un jugador)
 
 > ⚠️ **Build temprana.** Puede haber errores. El **multijugador** se ha probado en local y con un servidor intermedio real; **las pruebas con amigos por Internet están pendientes**. El ejecutable **no está firmado**, así que Windows SmartScreen puede avisar al abrirlo (*Más información → Ejecutar de todas formas*).
 
 ## Cómo jugar
 
-1. Descarga `BackroomsEscape_v7_0_1_Windows.zip` desde la [release v7.0.1](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.1).
-2. Descomprime el ZIP (≈ 113 MB descomprimido).
+1. Descarga `BackroomsEscape_v7_0_2_Windows.zip` desde la [release v7.0.2](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.2).
+2. Descomprime el ZIP (≈ 176 MB descomprimido).
 3. Ejecuta `BackroomsEscape.exe`.
 
 ## Niveles
@@ -26,6 +26,16 @@ Juego de terror en primera persona para PC (Windows 64 bits) hecho con **Unity**
 | 4 | Complejo industrial | Chapa oxidada, tuberías y luces de emergencia rojas | 2 × El Hollín (más rápidos) |
 
 Al llegar a la puerta de salida se carga el siguiente nivel; tras el nivel 5 (Campo infinito) aparece la pantalla de victoria (tiempo total e intentos fallidos). Si te atrapan, el nivel se reinicia.
+
+## Novedades de la v7.0.2 — imitador garantizado, silbido, cordura y campo sin tirones
+- **Imitador garantizado en cada nivel (1 en adelante):** además del monstruo de siempre (que no cambia, El Vigía incluido), en cada partida de nivel hay **exactamente un imitador** con tu mismo aspecto (en multijugador, el traje y el nombre de un compañero). Ya no depende de la suerte: en el Campo infinito, tras 1-2 minutos aparece **a la vista, a 15-35 m**, quieto o andando despacio con la linterna encendida; en los demás niveles, a media distancia. Si no te lo cruzas, vuelve a intentarlo más tarde. Mantiene las pistas (tirones, pasos mudos, mirada fija, linterna que no ilumina) y se transforma y ataca si te acercas o lo miras demasiado. Se anima de verdad (andar/quieto con su cadencia a tirones) y sujeta la linterna con la mano: antes el brazo derecho se quedaba estirado en pose de T, también en los compañeros remotos.
+- **Silbar (`G`):** silbido 3D (tres variantes, sonido propio, dominio público) con 3 s de espera. Los demás jugadores lo oyen en su sitio. Los monstruos a menos de ~40 m (menos a través de paredes, algo más en las Poolrooms por el eco) **van a investigar** el lugar: no te detectan al instante. A veces, un rato después, el imitador **devuelve el silbido**…
+- **Cordura (barra COR):** ahora baja de verdad con el miedo: empieza a ~15 m de un monstruo y es máxima a menos de ~5 m, y el doble de rápido si lo estás mirando. Cuenta el imitador (disfrazado inquieta poco; transformado, como un monstruo) y El Vigía; su aparición en el horizonte resta un poco. Lejos del peligro se recupera despacio. Con poca cordura aumenta la interferencia VHS. En multijugador, cada jugador tiene la suya.
+- **Ojos de los monstruos en su sitio:** los ojos de El Vigía salían flotando fuera de la cabeza (por el estirado del modelo). Ahora se encajan en las cuencas de todos los monstruos (y del imitador transformado).
+- **Campo infinito sin tirones en Alto (sin bajar la calidad):** la hierba se genera en hilos de fondo y se sube poco a poco a la GPU (búfer fijo reciclado, sin basura de memoria), se recorta en la GPU (compute shader) y se dibuja con **15 llamadas en lugar de ~1600**; al cruzar el borde del mundo ya no se reconstruye nada (antes: un tirón de ~360 ms). Las copias del borde se recortan por cámara y los shaders se precalientan en la pantalla de carga. Prueba de rendimiento: **0 fotogramas por encima de 33 ms** al cruzar trozos y el borde.
+- **Objetos dentro de las casas:** en el Campo infinito las pilas, notas, agua de almendras, barras y la cinta ya no aparecen en la hierba: están dentro de las casas abiertas, sobre **mesas, estanterías, cajas o la tarima** (muebles nuevos). Siempre hay al menos 5 casas abiertas. Es determinista por semilla (igual para todos en multijugador).
+- **Objetos realistas:** pila, agua de almendras, barra luminosa, cinta VHS, nota y linterna son ahora **modelos 3D hechos en Blender con texturas PBR horneadas** (albedo, metal/suavidad, normal y emisión), a tamaño real, apoyados en las superficies (ya no giran ni flotan) y con un **brillo sutil** al acercarte para poder encontrarlos. Los iconos del inventario se han renderizado de nuevo a partir de los mismos modelos.
+- **Multijugador:** el protocolo pasa a **MP-4** (silbido, imitador extra y objetos en casas), así que **todos debéis usar la v7.0.2**.
 
 ## Novedades de la v7.0.1 — Campo infinito pulido + imitadores
 - **Ahora se puede saltar** (`Espacio`) en todos los niveles: también en las laderas del campo, dentro de las casas y en multijugador (los demás ven tu salto). Gasta un poco de resistencia; agachado o nadando no se salta. Hasta ahora el juego no tenía salto.
@@ -134,7 +144,7 @@ Modo **cooperativo de 2 a 4 jugadores**. El modo de un jugador no cambia: la red
 
 **Opción A: con código (recomendada, sin abrir puertos)**
 
-1. Todos necesitáis la **misma versión** (v7.0.1). El protocolo es **MP-3** (desde la v7.0.1): la v7.0.0 y anteriores **no pueden unirse**.
+1. Todos necesitáis la **misma versión** (v7.0.2). El protocolo es **MP-4** (desde la v7.0.2): la v7.0.1 y anteriores **no pueden unirse**.
 2. **Anfitrión:** menú principal → **Multijugador** → tu nombre → **Alojar con código**. Pasa a tus amigos el código de la sala.
 3. **Clientes:** Multijugador → tu nombre → **Unirse con código** → escribe el código → entras en la sala de espera.
 4. El anfitrión elige el nivel con ◄ ► y pulsa **Empezar**. No se puede entrar en una partida ya empezada.
@@ -174,6 +184,7 @@ Sin reconexión a mitad de partida, sin voz, sin migración de anfitrión (si el
 | Barra rápida (casillas 1-5; 1 = linterna) | `1`-`5` |
 | Usar una pila (recarga la linterna) | `B` |
 | Modo cámara VHS on/off | `V` |
+| Silbar (los monstruos cercanos van a investigar; los compañeros lo oyen) | `G` |
 | Saltar | `Espacio` |
 | Saltar el ascensor (solo tras morir y reiniciar el nivel) | `Espacio` / `E` |
 | Menú de pausa (en multijugador la partida **no** se detiene) | `Esc` |

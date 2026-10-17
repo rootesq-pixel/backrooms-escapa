@@ -292,6 +292,7 @@ public class MonsterAI : MonoBehaviour
             a = b; res = b;
         }
         NetSample last = nbuf[(nhead + ncount - 1) % nbuf.Length];
+        if ((last.pos - res.pos).sqrMagnitude > 36f && mimic != null) res = last;   // v7.0.2: el imitador se recoloca de golpe (sin deslizarse)
         transform.position = res.pos;
         transform.rotation = Quaternion.Euler(0f, res.yaw, 0f);
         if (mimic != null) mimic.SetDisguised((last.state & MimicDisguise.NetBit) != 0);
@@ -327,6 +328,11 @@ public class MonsterAI : MonoBehaviour
         Vector3 toTarget = target.position - transform.position;
         float distance = toTarget.magnitude;
         float flatDistance = new Vector2(toTarget.x, toTarget.z).magnitude;
+        if (whistleDelay >= 0f && !(mimic != null && mimic.Disguised))
+        {
+            whistleDelay -= dt;
+            if (whistleDelay < 0f && CurrentState != State.Chase && CurrentState != State.Kill) EnterSearch(whistlePos);
+        }
         if (mimic != null && mimic.Disguised)
         {
             if (!mimic.Tick(target, dt)) { UpdateDisguised(dt, flatDistance, toTarget); return; }
@@ -367,9 +373,15 @@ public class MonsterAI : MonoBehaviour
     // v7.0.1 imitador disfrazado: se acerca despacio hasta unos metros y se queda mirando
     private void UpdateDisguised(float dt, float flatDistance, Vector3 toTarget)
     {
-        if (flatDistance > MimicDisguise.HoldDistance)
+        MimicDisguise.Phase ph = mimic.CurrentPhase;
+        Vector3 l = toTarget; l.y = 0f;
+        // acecho: quieto donde está (el director lo pondrá a la vista); a la vista: quieto o andando muy despacio hacia el jugador;
+        // descubierto (ya lo ha visto): se acerca despacio hasta unos metros y se queda mirando
+        bool walk = ph == MimicDisguise.Phase.Encountered ? flatDistance > MimicDisguise.HoldDistance
+                  : ph == MimicDisguise.Phase.Staged && mimic.StagedWalking && flatDistance > MimicDisguise.HoldDistance + 4f;
+        if (walk)
         {
-            SetSpeed(patrolSpeed * 0.8f);
+            SetSpeed(ph == MimicDisguise.Phase.Staged ? 0.7f : patrolSpeed * 0.8f);
             repathTimer -= dt;
             if (repathTimer <= 0f || !hasDestination) { repathTimer = repathInterval; SetDestination(target.position); }
             if (!useNav) UpdateFallbackMovement(dt);
@@ -378,8 +390,7 @@ public class MonsterAI : MonoBehaviour
         {
             StopMoving();
             if (useNav && agent != null && agent.enabled && agent.isOnNavMesh) agent.ResetPath();
-            Vector3 l = toTarget; l.y = 0f;
-            if (l.sqrMagnitude > 0.01f) transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(l), 1f - Mathf.Exp(-3f * dt));
+            if (ph != MimicDisguise.Phase.Lurk && l.sqrMagnitude > 0.01f) transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(l), 1f - Mathf.Exp(-3f * dt));
         }
         UpdateVisual(dt);
     }
@@ -573,6 +584,41 @@ public class MonsterAI : MonoBehaviour
     {
         stopped = false;
         EnterKill();
+    }
+
+    // v7.0.2: imitador: lo coloca el director de encuentros (anfitrión / un jugador)
+    public void WarpTo(Vector3 p, float yaw)
+    {
+        hasDestination = false; fallbackPath.Clear(); fallbackIndex = 0;
+        if (useNav && agent != null && agent.enabled) { agent.Warp(p); if (agent.isOnNavMesh) agent.ResetPath(); }
+        else transform.position = p;
+        transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+        lastPos = transform.position;
+    }
+    public bool UsesNav { get { return useNav; } }
+
+    // v7.0.2: silbido (G). Si está en su radio (menos a través de paredes; más en las piscinas por el eco), tras un momento
+    // va a investigar el sitio del silbido (no lo detecta: búsqueda normal, solo persigue si luego ve al jugador)
+    public const float WhistleRadius = 40f, WhistleWallFactor = 0.55f, WhistleReactDelay = 0.7f;
+    public int WhistlesHeard { get; private set; }
+    public Vector3 InvestigatePoint { get { return lastKnownPosition; } }
+    private float whistleDelay = -1f; private Vector3 whistlePos;
+    public static float WhistleRange(Vector3 from, Vector3 to, out bool wall)
+    {
+        wall = Physics.Linecast(from + Vector3.up * 1.6f, to + Vector3.up * 1.4f, ~0, QueryTriggerInteraction.Ignore);
+        float r = WhistleRadius * (wall ? WhistleWallFactor : 1f);
+        if (WaterVolume.Active != null) r *= 1.3f;   // Poolrooms: azulejos y agua, el silbido resuena más lejos
+        return r;
+    }
+    public bool HearWhistle(Vector3 pos)
+    {
+        if (netProxy || stopped || CurrentState == State.Kill || CurrentState == State.Chase || Disguised) return false;
+        float r = WhistleRange(pos, transform.position, out bool wall);
+        if (Vector3.Distance(pos, transform.position) > r) return false;
+        whistlePos = pos;
+        if (NavMesh.SamplePosition(pos, out NavMeshHit h, 3f, NavMesh.AllAreas)) whistlePos = h.position;
+        whistleDelay = WhistleReactDelay; WhistlesHeard++;
+        return true;
     }
 
     // Detiene al monstruo (lo llama GameManager al terminar la partida)

@@ -162,7 +162,7 @@ public class MonsterProfile
             note = "Mismo rig que El Alto, reteñido con Pillow (hueso blanqueado con tierra y verdín), mucho más alto y delgado; se agazapa en la hierba y aparece inmóvil en el horizonte; ojos y sonidos procedurales.",
             fit = FitMode.Height, size = 3.3f, stretch = new Vector3(0.7f, 1f, 0.7f), yaw = 0f,
             ai_eyeHeight = 2.8f, killDistance = 1.7f, screamUp = -0.02f,
-            eyes = true, eyePos = new Vector3(0f, 0.95f, 0.05f), eyeSpacing = 0.02f, eyeSize = 0.008f,
+            eyes = true, eyePos = new Vector3(0f, 0.95f, 0.05f), eyeSpacing = 0.015f, eyeSize = 0.0058f,
             eyeColor = new Color(0.9f, 0.9f, 0.8f), eyeLightIntensity = 0.3f, eyeLightRange = 3f,
             jitter = 0.2f, stutterChance = 0.15f, lightReactive = false,
             growl = GrowlKind.Hiss, growlPitch = 0.7f, footstepPitch = 0.75f, footstepVolume = 0.3f,

@@ -74,6 +74,7 @@ public class RemotePlayer : MonoBehaviour
     // v7.0.1: copia del imitador (no cuenta como jugador: fuera de All, sin pisadas, linterna sin luz, etiqueta con fallos)
     public bool IsMimic { get; private set; }
     public bool ShowTag = true;
+    public string AnimDiag { get { if (animator == null) return "sin animator"; AnimatorStateInfo si = animator.GetCurrentAnimatorStateInfo(0); return "enabled " + animator.isActiveAndEnabled + " init " + animator.isInitialized + " avatar " + (animator.avatar != null && animator.avatar.isValid) + " human " + animator.isHuman + " ctrl " + (animator.runtimeAnimatorController != null) + " estado " + CurrentState + " idle " + (si.shortNameHash == hIdle) + " walk " + (si.shortNameHash == hWalk) + " t " + si.normalizedTime.ToString("F2") + " speed " + animator.speed.ToString("F2") + " clips " + animator.GetCurrentAnimatorClipInfoCount(0); } }
     public void RestartAnimator()
     {
         if (animator == null) return;
@@ -125,6 +126,7 @@ public class RemotePlayer : MonoBehaviour
                 r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
                 r.receiveShadows = true;
             }
+            armU = Find(model, "UpperArm.R"); armL = Find(model, "LowerArm.R"); armH = Find(model, "Middle1.R");
             ModelLoaded = true;
         }
         else
@@ -252,6 +254,15 @@ public class RemotePlayer : MonoBehaviour
         }
     }
 
+    // v7.0.2: salto inmediato (escenificación del imitador): vacía la interpolación para que no cruce el mapa deslizándose
+    public void Snap(Vector3 pos, float yaw)
+    {
+        count = 0; head = 0; posInit = false;
+        Push(pos, yaw, -4f, 0f, FlagFlash);
+        Push(pos, yaw, -4f, 0f, FlagFlash);
+        transform.position = pos; transform.rotation = Quaternion.Euler(0f, yaw, 0f); lastPos = pos;
+    }
+
     public void SetDowned(bool d) { Downed = d; if (!d) Revive01 = 0f; }
     public void SetRevive(float v) { Revive01 = Mathf.Clamp01(v); }
     public void SetName(string n) { playerName = n; if (tagText != null) tagText.text = n; name = "Remote_" + n; }
@@ -300,6 +311,33 @@ public class RemotePlayer : MonoBehaviour
         UpdateLamp(s.pitch, dt);
         Footsteps(dt);
         UpdateTag();
+    }
+
+    // v7.0.2: el brazo derecho no viene animado en los clips (en primera persona lo coloca un IK): sin esto se quedaba
+    // en pose de T. IK de dos huesos: la mano sujeta la linterna (la del imitador sigue sus tirones).
+    private Transform armU, armL, armH;
+    public bool ArmIkActive { get; private set; }
+    public bool AnimatorRunning { get { return animator != null && animator.isActiveAndEnabled && animator.isInitialized && animator.speed > 0.05f && animator.GetCurrentAnimatorClipInfoCount(0) > 0; } }
+    public float ArmHandError { get; private set; }
+    private void LateUpdate()
+    {
+        ArmIkActive = false;
+        if (armU == null || armL == null || armH == null || lamp == null || model == null || !model.gameObject.activeInHierarchy || Downed) return;
+        Vector3 S = armU.position;
+        float a = Vector3.Distance(armU.position, armL.position), b = Vector3.Distance(armL.position, armH.position);
+        if (a < 0.01f || b < 0.01f) return;
+        Vector3 T = lamp.position - lamp.forward * 0.1f - transform.up * 0.03f;
+        Vector3 toT = T - S; float d = Mathf.Clamp(toT.magnitude, Mathf.Abs(a - b) + 0.01f, (a + b) * 0.995f);
+        Vector3 dir = toT.normalized;
+        Vector3 pole = -transform.up + transform.right * 0.7f - transform.forward * 0.2f;
+        Vector3 perp = pole - Vector3.Dot(pole, dir) * dir;
+        if (perp.sqrMagnitude < 1e-4f) perp = -transform.up; perp.Normalize();
+        float cosA = Mathf.Clamp((a * a + d * d - b * b) / (2f * a * d), -1f, 1f), sinA = Mathf.Sqrt(1f - cosA * cosA);
+        Vector3 E = S + dir * (a * cosA) + perp * (a * sinA);
+        armU.rotation = Quaternion.FromToRotation(armL.position - armU.position, E - S) * armU.rotation;
+        armL.rotation = Quaternion.FromToRotation(armH.position - armL.position, (S + dir * d) - armL.position) * armL.rotation;
+        ArmHandError = Vector3.Distance(armH.position, S + dir * d);
+        ArmIkActive = true;
     }
 
     private void DriveAnimator(bool swim)

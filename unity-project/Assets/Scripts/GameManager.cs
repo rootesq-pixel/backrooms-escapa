@@ -373,7 +373,7 @@ public class GameManager : MonoBehaviour
             string name = config != null ? config.name : string.Empty;
             infoText.text = "Nivel " + levelIndex + " · " + name + "   Tiempo: " + FormatTime(total)
                 + "\nEncuentra la salida"
-                + "\nWASD mover · Shift correr · Espacio saltar · Ctrl/C agacharse · Q/E asomarse · F linterna"
+                + "\nWASD mover · Shift correr · Espacio saltar · Ctrl/C agacharse · Q/E asomarse · F linterna · G silbar"
                 + "\nB usar pila · I inventario · V VHS · R reiniciar · Esc pausa";
         }
     }

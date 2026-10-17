@@ -29,6 +29,7 @@ Shader "Backrooms/FieldGrass"
 
             struct Inst { float4 pos; float4 prm; };   // pos: xyz local del nivel (=mundo), w escala | prm: giro, tono, seco, altura
             StructuredBuffer<Inst> _Inst;
+            float _Base;   // v7.0.2: región de la especie en el búfer seleccionado en GPU (el fundido de LOD ya viene en la escala)
             sampler2D _MainTex, _WindNoise;
             float _Cutoff, _MaxH, _WTime;
             float4 _DryCol, _Tint, _WindDir;
@@ -47,10 +48,8 @@ Shader "Backrooms/FieldGrass"
 
             v2f vert(appdata v, uint iid : SV_InstanceID)
             {
-                Inst I = _Inst[iid];
-                float dc = distance(I.pos.xz, _WorldSpaceCameraPos.xz);
-                float fade = smoothstep(_LodBand.x - _LodBand.z, _LodBand.x + _LodBand.z, dc) * (1.0 - smoothstep(_LodBand.y - _LodBand.z, _LodBand.y + _LodBand.z, dc));
-                float s = I.pos.w * fade, c = cos(I.prm.x), sn = sin(I.prm.x);
+                Inst I = _Inst[(uint)_Base + iid];
+                float s = I.pos.w, c = cos(I.prm.x), sn = sin(I.prm.x);
                 float3 lp = v.vertex.xyz; lp.y *= I.prm.w;
                 float h01 = saturate(v.vertex.y / _MaxH);
                 float3 p = float3(lp.x * c - lp.z * sn, lp.y, lp.x * sn + lp.z * c) * s;

@@ -16,12 +16,14 @@ public class FieldGrass : MonoBehaviour
     {
         public string name; public Mesh mesh; public Material mat; public float maxH; public float weight; public float sMin, sMax; public int lodMax; public float dry;
     }
+    // v7.0.2: cada trozo (por trozo «real» del campo que se repite + LOD) ocupa una ranura fija del búfer de instancias de GPU.
     private class Chunk
     {
-        public int lod; public float lastUsed; public int total;
-        public ComputeBuffer[] inst; public ComputeBuffer[] args; public MaterialPropertyBlock[] mpb; public int[] counts; public Bounds bounds;
+        public int lod, wx, wz, slot = -1, total; public float lastUsed; public int[] counts; public Bounds bounds;   // bounds en coords del trozo real
+        public bool ready, queued; public long key;
     }
-
+    private class Job { public int ep; public FieldPlan plan; public Chunk ch; public int seed; public float density; public bool light; public Vector3 cab; public Inst[] data; public int n; public float ymin, ymax; public int[] counts; }
+    private struct Inst { public Vector4 pos; public Vector4 prm; }
     public const float CS = 8f;
     private readonly List<Kind> kinds = new List<Kind>();
     private readonly Dictionary<long, Chunk> chunks = new Dictionary<long, Chunk>();
@@ -143,15 +145,15 @@ public class FieldGrass : MonoBehaviour
     private void OnDestroy()
     {
         if (Active == this) Active = null;
-        foreach (Chunk c in chunks.Values) Release(c);
         chunks.Clear();
+        ReleaseGpu();
         foreach (Object o in owned) ProceduralAssets.SafeDestroy(o);
     }
 
-    private static void Release(Chunk c)
+    private void ReleaseGpu()
     {
-        if (c.inst != null) foreach (ComputeBuffer b in c.inst) if (b != null) b.Release();
-        if (c.args != null) foreach (ComputeBuffer b in c.args) if (b != null) b.Release();
+        foreach (ComputeBuffer b in new[] { srcBuf, dstBuf, argsBuf, slotBuf, bandBuf }) if (b != null) b.Release();
+        srcBuf = dstBuf = argsBuf = slotBuf = bandBuf = null;
     }
 
     public void Settings(out float radius, out float density)
@@ -179,69 +181,267 @@ public class FieldGrass : MonoBehaviour
     private void LateUpdate() { Submit(); }
 
     // también lo llaman las capturas del editor antes de Camera.Render() (los Graphics.Draw* solo valen para el fotograma en curso)
+    // v7.0.2: métricas para la prueba de tirones
+    public static float LastSubmitMs, MaxSubmitMs; public static int BuiltThisFrame, BuiltTotal;
+    private static readonly System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
     public void Submit()
+    {
+        sw.Restart(); BuiltThisFrame = 0;
+        SubmitInner();
+        LastSubmitMs = (float)sw.Elapsed.TotalMilliseconds; if (LastSubmitMs > MaxSubmitMs) MaxSubmitMs = LastSubmitMs;
+    }
+    // ---------------- v7.0.2: núcleo sin tirones ----------------
+    // · Los trozos se identifican por su trozo «real» (el campo se repite): al dar la vuelta no se rehace nada.
+    // · Las matas se generan en hilos de fondo (System.Threading) y se suben a una ranura fija de un único búfer de GPU
+    //   (sin crear ni liberar búferes, sin basura por fotograma); como mucho UploadBudget trozos por fotograma.
+    // · Un compute shader descarta por instancia lo que queda fuera de la vista o de su banda de LOD: 1 llamada por especie.
+    public static bool Synchronous;               // capturas del editor: generar al momento
+    public const int SlotCap = 704, MaxSlots = 640, KindCap = 16384, UploadBudget = 4;
+    private ComputeShader cull;
+    private ComputeBuffer srcBuf, dstBuf, argsBuf, slotBuf, bandBuf;
+    private int kCull = -1, kClear, kClamp;
+    private readonly Stack<int> freeSlots = new Stack<int>();
+    private readonly Vector4[] slotData = new Vector4[MaxSlots], bandData = new Vector4[MaxSlots], planeVec = new Vector4[6];
+    private MaterialPropertyBlock[] kindMpb;
+    private readonly bool[] kindUsed = new bool[32];
+    private readonly System.Collections.Concurrent.ConcurrentQueue<Job> done = new System.Collections.Concurrent.ConcurrentQueue<Job>();
+    private readonly System.Collections.Concurrent.ConcurrentBag<Inst[]> pool = new System.Collections.Concurrent.ConcurrentBag<Inst[]>();
+    private struct KindInfo { public float weight, sMin, sMax, dry; public int lodMax; public bool heavy; }
+    private KindInfo[] kinfo;
+    private Vector3[] shortArr = new Vector3[0];
+    private int epoch, pending;
+    private float syncUntil;
+    public int PendingJobs { get { return pending; } }
+    public int FreeSlots { get { return freeSlots.Count; } }
+    public static int SlotStarved; public static float MaxPartTotal; public static Vector3 MaxParts;
+    public int ReadyChunks { get; private set; }
+
+    private bool InitGpu()
+    {
+        if (kCull >= 0) return true;
+        if (!canDraw) return false;
+        cull = Resources.Load<ComputeShader>("Field/Shaders/FieldGrassCull");
+        if (cull == null) { canDraw = false; return false; }
+        kCull = cull.FindKernel("Cull"); kClear = cull.FindKernel("Clear"); kClamp = cull.FindKernel("Clamp");
+        srcBuf = new ComputeBuffer(SlotCap * MaxSlots, 32);
+        dstBuf = new ComputeBuffer(KindCap * Mathf.Max(1, kinds.Count), 32);
+        argsBuf = new ComputeBuffer(5 * Mathf.Max(1, kinds.Count), sizeof(uint), ComputeBufferType.IndirectArguments);
+        slotBuf = new ComputeBuffer(MaxSlots, 16); bandBuf = new ComputeBuffer(MaxSlots, 16);
+        uint[] args = new uint[5 * kinds.Count];
+        kindMpb = new MaterialPropertyBlock[kinds.Count];
+        for (int k = 0; k < kinds.Count; k++)
+        {
+            args[k * 5] = kinds[k].mesh.GetIndexCount(0); args[k * 5 + 2] = kinds[k].mesh.GetIndexStart(0); args[k * 5 + 3] = (uint)kinds[k].mesh.GetBaseVertex(0);
+            kindMpb[k] = new MaterialPropertyBlock(); kindMpb[k].SetBuffer("_Inst", dstBuf); kindMpb[k].SetFloat("_Base", k * KindCap);
+        }
+        argsBuf.SetData(args);
+        foreach (int kk in new[] { kCull, kClear, kClamp }) { cull.SetBuffer(kk, "_Args", argsBuf); }
+        cull.SetBuffer(kCull, "_Src", srcBuf); cull.SetBuffer(kCull, "_Dst", dstBuf); cull.SetBuffer(kCull, "_Slots", slotBuf); cull.SetBuffer(kCull, "_Bands", bandBuf);
+        cull.SetInt("_KindCap", KindCap); cull.SetInt("_Kinds", kinds.Count);
+        return true;
+    }
+
+    private void Snapshot()
+    {
+        kinfo = new KindInfo[kinds.Count];
+        for (int k = 0; k < kinds.Count; k++) kinfo[k] = new KindInfo { weight = kinds[k].weight, sMin = kinds[k].sMin, sMax = kinds[k].sMax, dry = kinds[k].dry, lodMax = kinds[k].lodMax, heavy = Heavy(kinds[k]) };
+        shortArr = shortSpots.ToArray();
+    }
+
+    private void ClearAll()
+    {
+        chunks.Clear(); freeSlots.Clear();
+        for (int i = MaxSlots - 1; i >= 0; i--) freeSlots.Push(i);
+        epoch++; ReadyChunks = 0;
+        syncUntil = Time.unscaledTime + 0.25f;   // relleno inicial (pantalla de carga / cambio de calidad): de golpe
+    }
+
+    private void SubmitInner()
     {
         Camera cam = Camera.main;
         if (cam == null || levelRoot == null) return;
         Settings(out float radius, out float density);
+        if (kinfo == null || shortArr.Length != shortSpots.Count) Snapshot();
         if (density != Density || GameSettings.Quality != builtQuality)
         {
-            // cambio de calidad: se rehacen todos los trozos con la nueva densidad (y en Bajo solo matas ligeras)
-            foreach (Chunk old in chunks.Values) Release(old);
-            chunks.Clear();
+            ClearAll();
             builtQuality = GameSettings.Quality;
         }
         Radius = radius; Density = density;
+        bool gpu = InitGpu();
+        bool sync = Synchronous || Time.unscaledTime < syncUntil;
         Vector3 c = levelRoot.InverseTransformPoint(cam.transform.position);
         GeometryUtility.CalculateFrustumPlanes(cam, planes);
         UpdatePushers();
+        float L = FieldHeight.L; int ncx = Mathf.Max(1, Mathf.RoundToInt(L / CS));
         float pr = radius + CS * 1.5f;   // radio de precarga
         int cx0 = Mathf.FloorToInt((c.x - pr) / CS), cx1 = Mathf.FloorToInt((c.x + pr) / CS);
         int cz0 = Mathf.FloorToInt((c.z - pr) / CS), cz1 = Mathf.FloorToInt((c.z + pr) / CS);
         float now = Time.unscaledTime;
-        int vis = 0, tris = 0, calls = 0;
+        int vis = 0, tris = 0, active = 0;
+        for (int k = 0; k < kindUsed.Length; k++) kindUsed[k] = false;
+        bool light = GameSettings.Quality == 0;
+        FieldPlan plan = FieldWorld.Active != null ? FieldWorld.Active.plan : null;
+        Vector3 cab = ElevatorCabin.Current != null ? levelRoot.InverseTransformPoint(ElevatorCabin.Current.transform.position) : new Vector3(-999f, 0f, -999f);
+        int seed = gen != null ? gen.UsedSeed : 0;
+
+        // primero los trozos cercanos (si falta alguno, se piden antes)
+        for (int pass = 0; pass < 2; pass++)
         for (int cx = cx0; cx <= cx1; cx++)
             for (int cz = cz0; cz <= cz1; cz++)
             {
                 float mx = (cx + 0.5f) * CS - c.x, mz = (cz + 0.5f) * CS - c.z;
                 float dcen = Mathf.Sqrt(mx * mx + mz * mz);
+                if ((pass == 0) != (dcen < 24f)) continue;
                 float dmin = Mathf.Max(0f, dcen - CS * 0.71f), dmax = dcen + CS * 0.71f;
                 if (dmin > radius + CS) continue;
+                int wx = ((cx % ncx) + ncx) % ncx, wz = ((cz % ncx) + ncx) % ncx;
                 for (int lod = 0; lod < 3; lod++)
                 {
-                Vector2 band = Band(lod, radius);
-                if (band.y <= band.x) continue;
-                bool draw = dmax >= band.x - FadeW && dmin <= band.y + FadeW;
-                // precarga: el trozo se crea un paso antes de entrar en su banda (sin tirones ni huecos al caminar)
-                bool keep = draw || (dmax >= band.x - FadeW - CS && dmin <= band.y + FadeW + CS);
-                if (!keep) continue;
-                long key = ((long)(cx + 100000) << 24) ^ ((long)(cz + 100000) << 2) ^ lod;
-                if (!chunks.TryGetValue(key, out Chunk ch))
-                {
-                    ch = MakeChunk(cx, cz, lod, density);
-                    for (int k = 0; k < kinds.Count; k++) if (ch.mpb[k] != null) ch.mpb[k].SetVector("_LodBand", new Vector4(band.x, band.y, FadeW, 0f));
-                    chunks[key] = ch;
+                    Vector2 band = Band(lod, radius);
+                    if (band.y <= band.x) continue;
+                    bool draw = dmax >= band.x - FadeW && dmin <= band.y + FadeW;
+                    // precarga: el trozo se pide un paso antes de entrar en su banda
+                    bool keep = draw || (dmax >= band.x - FadeW - CS * 1.5f && dmin <= band.y + FadeW + CS * 1.5f);
+                    if (!keep) continue;
+                    long key = ((long)(wx + 1000) << 24) ^ ((long)(wz + 1000) << 2) ^ lod;
+                    if (!chunks.TryGetValue(key, out Chunk ch))
+                    {
+                        ch = new Chunk { lod = lod, wx = wx, wz = wz, key = key, counts = new int[kinds.Count] };
+                        chunks[key] = ch;
+                        Job j = new Job { ch = ch, seed = seed, density = density, light = light, cab = cab, counts = new int[kinds.Count] };
+                        j.ep = epoch; j.plan = plan;
+                        ch.queued = true; pending++;
+                        if (sync) { Generate(j); done.Enqueue(j); }
+                        else System.Threading.ThreadPool.QueueUserWorkItem(o => { Job jj = (Job)o; try { Generate(jj); } catch (System.Exception) { jj.n = 0; } done.Enqueue(jj); }, j);
+                    }
+                    ch.lastUsed = now;
+                    if (!ch.ready || !draw || ch.total == 0) continue;
+                    Vector3 off = new Vector3((cx - wx) * CS, 0f, (cz - wz) * CS);
+                    Bounds wb = ch.bounds; wb.center = levelRoot.TransformPoint(wb.center + off);
+                    if (!GeometryUtility.TestPlanesAABB(planes, wb)) continue;
+                    if (active < MaxSlots)
+                    {
+                        slotData[active] = new Vector4(ch.slot * SlotCap, ch.total, off.x, off.z);
+                        bandData[active] = new Vector4(band.x, band.y, FadeW, 0f);
+                        active++;
+                    }
+                    for (int k = 0; k < kinds.Count; k++)
+                    {
+                        if (ch.counts[k] == 0) continue;
+                        kindUsed[k] = true; vis += ch.counts[k]; tris += ch.counts[k] * (int)(kinds[k].mesh.GetIndexCount(0) / 3);
+                    }
                 }
-                ch.lastUsed = now;
-                Bounds wb = ch.bounds; wb.center = levelRoot.TransformPoint(wb.center);
-                if (!draw || !GeometryUtility.TestPlanesAABB(planes, wb)) continue;
-                for (int k = 0; k < kinds.Count; k++)
-                {
-                    if (ch.counts[k] == 0) continue;
-                    vis += ch.counts[k]; tris += ch.counts[k] * (int)(kinds[k].mesh.GetIndexCount(0) / 3); calls++;
-                    if (canDraw && kinds[k].mat != null)
-                        Graphics.DrawMeshInstancedIndirect(kinds[k].mesh, 0, kinds[k].mat, wb, ch.args[k], 0, ch.mpb[k], ShadowCastingMode.Off, false, 0, null);
-                }
-            }
             }
 
+        // subir resultados terminados (presupuesto por fotograma: sin picos)
+        float tLoop = (float)sw.Elapsed.TotalMilliseconds;
+        int up = 0;
+        while ((sync || (up < UploadBudget && (up == 0 || sw.Elapsed.TotalMilliseconds - tLoop < 1.2))) && done.TryDequeue(out Job r))
+        {
+            pending--;
+            Chunk ch = r.ch;
+            bool alive = r.ep == epoch && chunks.TryGetValue(ch.key, out Chunk cur) && cur == ch;
+            if (alive && freeSlots.Count == 0) StealSlot(now);   // tras un teletransporte: reciclar el trozo más antiguo que ya no se usa
+            if (alive && freeSlots.Count > 0)
+            {
+                ch.slot = freeSlots.Pop();
+                ch.total = r.n; ch.counts = r.counts; ch.queued = false; ch.ready = true; ReadyChunks++;
+                float x0 = ch.wx * CS, z0 = ch.wz * CS;
+                float ymin = r.ymin, ymax = r.ymax; if (ymin > ymax) { ymin = 0f; ymax = 0f; }
+                ch.bounds = new Bounds(new Vector3(x0 + CS * 0.5f, (ymin + ymax) * 0.5f + 0.6f, z0 + CS * 0.5f), new Vector3(CS + 3f, ymax - ymin + 3f, CS + 3f));
+                if (gpu && r.n > 0) srcBuf.SetData(r.data, 0, ch.slot * SlotCap, r.n);
+                BuiltThisFrame++; BuiltTotal++; up++;
+            }
+            else if (alive) { chunks.Remove(ch.key); SlotStarved++; }
+            if (r.data != null) pool.Add(r.data);
+            r.data = null;
+        }
+
+        float tUp = (float)sw.Elapsed.TotalMilliseconds;
+        int calls = 0;
+        if (gpu && active > 0)
+        {
+            slotBuf.SetData(slotData, 0, 0, active); bandBuf.SetData(bandData, 0, 0, active);
+            for (int i = 0; i < 6; i++) planeVec[i] = new Vector4(planes[i].normal.x, planes[i].normal.y, planes[i].normal.z, planes[i].distance);
+            cull.SetVectorArray("_Planes", planeVec);
+            cull.SetVector("_Cam", new Vector4(c.x, c.y, c.z, active));
+            cull.Dispatch(kClear, 1, 1, 1);
+            cull.Dispatch(kCull, active, 1, 1);
+            cull.Dispatch(kClamp, 1, 1, 1);
+            Bounds big = new Bounds(cam.transform.position, new Vector3(radius * 2f + 30f, 300f, radius * 2f + 30f));
+            for (int k = 0; k < kinds.Count; k++)
+            {
+                if (!kindUsed[k] || kinds[k].mat == null) continue;
+                Graphics.DrawMeshInstancedIndirect(kinds[k].mesh, 0, kinds[k].mat, big, argsBuf, k * 20, kindMpb[k], ShadowCastingMode.Off, false, 0, null);
+                calls++;
+            }
+        }
+        else if (active > 0) { for (int k = 0; k < kinds.Count; k++) if (kindUsed[k]) calls++; }
+
+        float tGpu = (float)sw.Elapsed.TotalMilliseconds;
+        if (tGpu > MaxPartTotal) { MaxPartTotal = tGpu; MaxParts = new Vector3(tLoop, tUp - tLoop, tGpu - tUp); }
         VisibleInstances = vis; VisibleTriangles = tris; DrawCalls = calls;
-        // reciclar trozos lejanos o con otro detalle (se liberan los buffers)
+        // reciclar trozos lejanos (la ranura vuelve a la pila; nada se libera en GPU)
         evict.Clear();
-        foreach (KeyValuePair<long, Chunk> kv in chunks) if (now - kv.Value.lastUsed > 3.0f) evict.Add(kv.Key);
-        foreach (long k in evict) { Release(chunks[k]); chunks.Remove(k); }
+        foreach (KeyValuePair<long, Chunk> kv in chunks) if (now - kv.Value.lastUsed > 3.0f && !kv.Value.queued) evict.Add(kv.Key);
+        foreach (long k in evict) { Chunk ch = chunks[k]; if (ch.ready && ch.slot >= 0) { freeSlots.Push(ch.slot); ReadyChunks--; } chunks.Remove(k); }
     }
 
+    private void StealSlot(float now)
+    {
+        Chunk best = null;
+        foreach (KeyValuePair<long, Chunk> kv in chunks)
+        {
+            Chunk c = kv.Value;
+            if (!c.ready || c.slot < 0 || c.lastUsed >= now) continue;
+            if (best == null || c.lastUsed < best.lastUsed) best = c;
+        }
+        if (best == null) return;
+        freeSlots.Push(best.slot); ReadyChunks--; chunks.Remove(best.key);
+    }
+
+    // en un hilo de fondo: solo matemáticas deterministas (misma semilla => mismas matas en todos los equipos)
+    private void Generate(Job j)
+    {
+        Chunk ch = j.ch; int lod = ch.lod;
+        Inst[] buf; if (!pool.TryTake(out buf)) buf = new Inst[SlotCap];
+        j.data = buf; j.n = 0; j.ymin = 999f; j.ymax = -999f;
+        System.Random r = new System.Random(ch.wx * 73856093 ^ ch.wz * 19349663 ^ lod * 83492791 ^ j.seed);
+        float total = 0f;
+        KindInfo[] ki = kinfo; Vector3[] spots = shortArr;
+        for (int k = 0; k < ki.Length; k++) if (ki[k].lodMax >= lod && !(j.light && ki[k].heavy)) total += ki[k].weight;
+        int count = Mathf.RoundToInt(CS * CS * LodDensity[lod] * j.density);
+        float x0 = ch.wx * CS, z0 = ch.wz * CS;
+        FieldPlan plan = j.plan;
+        for (int i = 0; i < count; i++)
+        {
+            float x = x0 + (float)r.NextDouble() * CS, z = z0 + (float)r.NextDouble() * CS;
+            float xw = x, zw = z;
+            float patch = Patch(xw, zw);
+            if (r.NextDouble() > 0.6 + 0.4 * patch) { r.NextDouble(); r.NextDouble(); r.NextDouble(); continue; }
+            if (plan != null && plan.NoGrass(xw, zw)) continue;
+            if (FieldHeight.WrappedDist(j.cab.x, j.cab.z, xw, zw) < 2.6f) continue;
+            float shortK = 1f;
+            for (int s = 0; s < spots.Length; s++)
+            {
+                float dd = FieldHeight.WrappedDist(spots[s].x, spots[s].z, xw, zw);
+                if (dd < 1.6f) shortK = Mathf.Min(shortK, Mathf.Lerp(0.25f, 1f, dd / 1.6f));
+            }
+            double pick = r.NextDouble() * total; int kk = 0;
+            for (int k = 0; k < ki.Length; k++) { if (ki[k].lodMax < lod || (j.light && ki[k].heavy)) continue; pick -= ki[k].weight; kk = k; if (pick <= 0) break; }
+            KindInfo K = ki[kk];
+            float sc = Mathf.Lerp(K.sMin, K.sMax, (float)r.NextDouble()) * LodScale[lod] * Mathf.Lerp(0.75f, 1.2f, patch);
+            float hmul = Mathf.Lerp(0.8f, 1.3f, (float)r.NextDouble()) * shortK;
+            float dryN = Mathf.Clamp01(K.dry + (Dry(xw, zw) - 0.5f) * 0.9f + (float)(r.NextDouble() - 0.5) * 0.3f);
+            float y = FieldHeight.H(x, z);
+            float rot = (float)r.NextDouble() * 6.2832f, tone = (float)r.NextDouble();
+            if (j.n >= SlotCap) continue;
+            j.ymin = Mathf.Min(j.ymin, y); j.ymax = Mathf.Max(j.ymax, y);
+            buf[j.n++] = new Inst { pos = new Vector4(x, y - 0.02f, z, sc), prm = new Vector4(rot, kk + Mathf.Min(tone, 0.999f), dryN, hmul) };
+            j.counts[kk]++;
+        }
+    }
     // jugador local, otros jugadores y monstruos doblan la hierba a su paso
     private void UpdatePushers()
     {
@@ -256,69 +456,6 @@ public class FieldGrass : MonoBehaviour
     }
 
     private static Vector4 Push(Vector3 p, float r) { return new Vector4(p.x, p.y, p.z, r); }
-
-    private struct Inst { public Vector4 pos; public Vector4 prm; }
-
-    private Chunk MakeChunk(int cx, int cz, int lod, float density)
-    {
-        float L = FieldHeight.L;
-        int ncx = Mathf.Max(1, Mathf.RoundToInt(L / CS));
-        int wx = ((cx % ncx) + ncx) % ncx, wz = ((cz % ncx) + ncx) % ncx;   // trozo «real» (el campo se repite)
-        System.Random r = new System.Random(wx * 73856093 ^ wz * 19349663 ^ lod * 83492791 ^ (gen != null ? gen.UsedSeed : 0));
-        List<Inst>[] per = new List<Inst>[kinds.Count];
-        for (int k = 0; k < kinds.Count; k++) per[k] = new List<Inst>();
-        float total = 0f;
-        bool light = GameSettings.Quality == 0;
-        foreach (Kind k in kinds) if (k.lodMax >= lod && !(light && Heavy(k))) total += k.weight;
-        int count = Mathf.RoundToInt(CS * CS * LodDensity[lod] * density);
-        float x0 = cx * CS, z0 = cz * CS, ymin = 999f, ymax = -999f;
-        FieldPlan plan = FieldWorld.Active != null ? FieldWorld.Active.plan : null;
-        Vector3 cab = ElevatorCabin.Current != null && levelRoot != null ? levelRoot.InverseTransformPoint(ElevatorCabin.Current.transform.position) : new Vector3(-999f, 0f, -999f);
-        for (int i = 0; i < count; i++)
-        {
-            float x = x0 + (float)r.NextDouble() * CS, z = z0 + (float)r.NextDouble() * CS;
-            float xw = FieldHeight.Mod(x), zw = FieldHeight.Mod(z);
-            // manchas: zonas más densas/altas y claros (ruido de baja frecuencia periódico)
-            float patch = Patch(xw, zw);
-            if (r.NextDouble() > 0.6 + 0.4 * patch) { r.NextDouble(); r.NextDouble(); r.NextDouble(); continue; }
-            if (plan != null && plan.NoGrass(xw, zw)) continue;
-            if (FieldHeight.WrappedDist(cab.x, cab.z, xw, zw) < 2.6f) continue;
-            float shortK = 1f;
-            for (int s = 0; s < shortSpots.Count; s++)
-            {
-                float dd = FieldHeight.WrappedDist(shortSpots[s].x, shortSpots[s].z, xw, zw);
-                if (dd < 1.6f) shortK = Mathf.Min(shortK, Mathf.Lerp(0.25f, 1f, dd / 1.6f));
-            }
-            double pick = r.NextDouble() * total; int kk = 0;
-            for (int k = 0; k < kinds.Count; k++) { if (kinds[k].lodMax < lod || (light && Heavy(kinds[k]))) continue; pick -= kinds[k].weight; kk = k; if (pick <= 0) break; }
-            Kind K = kinds[kk];
-            float sc = Mathf.Lerp(K.sMin, K.sMax, (float)r.NextDouble()) * LodScale[lod] * Mathf.Lerp(0.75f, 1.2f, patch);
-            float hmul = Mathf.Lerp(0.8f, 1.3f, (float)r.NextDouble()) * shortK;
-            float dryN = Mathf.Clamp01(K.dry + (Dry(xw, zw) - 0.5f) * 0.9f + (float)(r.NextDouble() - 0.5) * 0.3f);
-            float y = FieldHeight.H(x, z);
-            ymin = Mathf.Min(ymin, y); ymax = Mathf.Max(ymax, y);
-            per[kk].Add(new Inst
-            {
-                pos = new Vector4(x, y - 0.02f, z, sc),
-                prm = new Vector4((float)r.NextDouble() * 6.2832f, (float)r.NextDouble(), dryN, hmul),
-            });
-        }
-        Chunk ch = new Chunk { lod = lod, counts = new int[kinds.Count], inst = new ComputeBuffer[kinds.Count], args = new ComputeBuffer[kinds.Count], mpb = new MaterialPropertyBlock[kinds.Count] };
-        if (ymin > ymax) { ymin = 0f; ymax = 0f; }
-        ch.bounds = new Bounds(new Vector3(x0 + CS * 0.5f, (ymin + ymax) * 0.5f + 0.6f, z0 + CS * 0.5f), new Vector3(CS + 3f, ymax - ymin + 3f, CS + 3f));
-        for (int k = 0; k < kinds.Count; k++)
-        {
-            ch.counts[k] = per[k].Count; ch.total += per[k].Count;
-            if (per[k].Count == 0 || !canDraw) continue;
-            ch.inst[k] = new ComputeBuffer(per[k].Count, 32);
-            ch.inst[k].SetData(per[k]);
-            ch.args[k] = new ComputeBuffer(1, 5 * sizeof(uint), ComputeBufferType.IndirectArguments);
-            ch.args[k].SetData(new uint[] { kinds[k].mesh.GetIndexCount(0), (uint)per[k].Count, kinds[k].mesh.GetIndexStart(0), kinds[k].mesh.GetBaseVertex(0), 0 });
-            ch.mpb[k] = new MaterialPropertyBlock();
-            ch.mpb[k].SetBuffer("_Inst", ch.inst[k]);
-        }
-        return ch;
-    }
 
     // ruido periódico (periodo L) para manchas de hierba y de hierba seca
     public static float Patch(float x, float z)

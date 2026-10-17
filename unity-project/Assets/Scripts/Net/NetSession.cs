@@ -8,10 +8,10 @@ public enum NetRole { None, Host, Client }
 public static class NetMsg
 {
     // cliente -> anfitrión
-    public const byte Hello = 1, State = 2, PickupReq = 3, Chat = 4, Glow = 5, DropItem = 6, Ready = 7, Ping = 8, Bye = 9, DbgMonsters = 20;
+    public const byte Hello = 1, State = 2, PickupReq = 3, Chat = 4, Glow = 5, DropItem = 6, Ready = 7, Ping = 8, Bye = 9, WhistleReq = 10, DbgMonsters = 20;
     // anfitrión -> cliente
     public const byte Welcome = 101, Reject = 102, Lobby = 103, StartLevel = 104, Snapshot = 105, PickupTaken = 106, ItemSpawned = 107,
-        Downed = 108, Revived = 109, AllDown = 110, LevelComplete = 111, ChatFrom = 112, GlowFrom = 113, PlayerLeft = 114, HostLeft = 115, Resync = 117, Descend = 118;
+        Downed = 108, Revived = 109, AllDown = 110, LevelComplete = 111, ChatFrom = 112, GlowFrom = 113, PlayerLeft = 114, HostLeft = 115, Resync = 117, Descend = 118, WhistleFrom = 119;
 }
 
 public class NetPlayer
@@ -42,7 +42,7 @@ public class NetStart
 // Los clientes generan el mismo mundo a partir de la semilla que envía el anfitrión. Transporte: TCP propio (NetTransport).
 public class NetSession : MonoBehaviour
 {
-    public const string Protocol = "BackroomsEscape-MP-3";   // v7.0.1: imitador (bit de disfraz en el estado del monstruo)
+    public const string Protocol = "BackroomsEscape-MP-4";   // v7.0.2: silbido (G) y un imitador extra por nivel (más monstruos en la red)
     public const int MaxPlayers = 4;
     public const int DefaultPort = 7777;
     public const float TickRate = 20f;
@@ -400,6 +400,16 @@ public class NetSession : MonoBehaviour
                     byte[] m = new NetWriter(NetMsg.GlowFrom).Int(p.id).Vec3(pos).Vec3(vel).ToArray();
                     foreach (NetPlayer q in Players) if (q.conn != null && q != p) q.conn.Send(m);
                     SpawnGlow(pos, vel);
+                    break;
+                }
+                case NetMsg.WhistleReq:
+                {
+                    // v7.0.2: silbido de un cliente: el anfitrión lo reenvía a los demás y avisa a sus monstruos
+                    if (p == null) break;
+                    Vector3 pos = r.Vec3(); int variant = r.Byte();
+                    byte[] m = new NetWriter(NetMsg.WhistleFrom).Int(p.id).Vec3(pos).Byte(variant).Bool(false).ToArray();
+                    foreach (NetPlayer q in Players) if (q.conn != null && q != p) q.conn.Send(m);
+                    Whistle.HostHeard(pos, p.id, variant, false);
                     break;
                 }
                 case NetMsg.DropItem:
@@ -785,6 +795,12 @@ public class NetSession : MonoBehaviour
                     if (ChatReceived != null) ChatReceived(nm, tx);
                     break;
                 }
+                case NetMsg.WhistleFrom:
+                {
+                    int who = r.Int(); Vector3 pos = r.Vec3(); int variant = r.Byte(); bool mim = r.Bool();
+                    Whistle.ClientHeard(pos, who, variant, mim);
+                    break;
+                }
                 case NetMsg.GlowFrom:
                 {
                     r.Int(); Vector3 pos = r.Vec3(), vel = r.Vec3();
@@ -1046,6 +1062,13 @@ public class NetSession : MonoBehaviour
             Broadcast(m);
         }
         else if (serverConn != null) serverConn.Send(new NetWriter(NetMsg.Glow).Vec3(pos).Vec3(vel).ToArray());
+    }
+
+    // v7.0.2: silbidos (G). Anfitrión: a todos; cliente: al anfitrión (que lo reenvía)
+    public void NotifyWhistle(Vector3 pos, int playerId, int variant, bool mimic)
+    {
+        if (Role == NetRole.Host) Broadcast(new NetWriter(NetMsg.WhistleFrom).Int(playerId).Vec3(pos).Byte(variant).Bool(mimic).ToArray());
+        else if (serverConn != null) serverConn.Send(new NetWriter(NetMsg.WhistleReq).Vec3(pos).Byte(variant).ToArray());
     }
 
     private void SpawnGlow(Vector3 pos, Vector3 vel) { Glowstick.Spawn(pos, vel, null); }
