@@ -82,6 +82,10 @@ public class MonsterAI : MonoBehaviour
     private Flashlight playerFlashlight;
 
     private Vector3 lastKnownPosition;
+    // v7.0.4 Campo infinito: el objetivo en su imagen más cercana al monstruo (persigue a través del borde)
+    private Vector3 TargetPos { get { return target == null ? transform.position : FieldWrap.Image(target.position, transform.position); } }
+    private Vector2Int edgeCrossing; private Vector3 edgeDest;
+    public int EdgeCrossings { get; private set; }
     private float lostSightTimer;
     private float searchTimer;
     private float waitTimer;
@@ -240,7 +244,7 @@ public class MonsterAI : MonoBehaviour
         {
             target = t;
             SetTargetRefs();
-            if (CurrentState == State.Chase) { lastKnownPosition = target.position; repathTimer = 0f; }
+            if (CurrentState == State.Chase) { lastKnownPosition = TargetPos; repathTimer = 0f; }
         }
     }
 
@@ -259,6 +263,7 @@ public class MonsterAI : MonoBehaviour
     }
 
     public void Resume() { stopped = false; }
+    public void ChaseForTests() { stopped = false; EnterChase(); }   // v7.0.4: pruebas de adrenalina
     public bool IsStopped { get { return stopped; } }
 
     // ---- cliente: estado recibido del anfitrión, interpolado ----
@@ -325,7 +330,8 @@ public class MonsterAI : MonoBehaviour
             UpdateKill(dt);
             return;
         }
-        Vector3 toTarget = target.position - transform.position;
+        if (edgeCrossing != Vector2Int.zero && FieldWrap.On && FieldWrap.EdgeDistance(transform.position, edgeCrossing) < 1.0f) CrossFieldEdge();
+        Vector3 toTarget = TargetPos - transform.position;
         float distance = toTarget.magnitude;
         float flatDistance = new Vector2(toTarget.x, toTarget.z).magnitude;
         if (whistleDelay >= 0f && !(mimic != null && mimic.Disguised))
@@ -383,7 +389,7 @@ public class MonsterAI : MonoBehaviour
         {
             SetSpeed(ph == MimicDisguise.Phase.Staged ? 0.7f : patrolSpeed * 0.8f);
             repathTimer -= dt;
-            if (repathTimer <= 0f || !hasDestination) { repathTimer = repathInterval; SetDestination(target.position); }
+            if (repathTimer <= 0f || !hasDestination) { repathTimer = repathInterval; SetDestination(TargetPos); }
             if (!useNav) UpdateFallbackMovement(dt);
         }
         else
@@ -404,7 +410,7 @@ public class MonsterAI : MonoBehaviour
             netKillTimer += dt;
             if (netKillTimer > 2.2f && !GameManagerLost()) { ResumeAfterKill(); return; }
         }
-        Vector3 toPlayer = target.position - transform.position;
+        Vector3 toPlayer = TargetPos - transform.position;
         toPlayer.y = 0f;
         float d = toPlayer.magnitude;
         if (d > 0.01f)
@@ -436,7 +442,7 @@ public class MonsterAI : MonoBehaviour
         }
         if (hears)
         {
-            EnterSearch(target.position);
+            EnterSearch(TargetPos);
             return;
         }
 
@@ -459,7 +465,7 @@ public class MonsterAI : MonoBehaviour
         if (sees)
         {
             lostSightTimer = 0f;
-            lastKnownPosition = target.position;
+            lastKnownPosition = TargetPos;
         }
         else
         {
@@ -476,7 +482,7 @@ public class MonsterAI : MonoBehaviour
         if (repathTimer <= 0f)
         {
             repathTimer = repathInterval;
-            SetDestination(sees ? target.position : lastKnownPosition);
+            SetDestination(sees ? TargetPos : lastKnownPosition);
         }
     }
 
@@ -495,7 +501,7 @@ public class MonsterAI : MonoBehaviour
             if (repathTimer <= 0f)
             {
                 repathTimer = repathInterval;
-                lastKnownPosition = target.position;
+                lastKnownPosition = TargetPos;
                 SetDestination(lastKnownPosition);
                 searchTimer = 0f;
             }
@@ -532,7 +538,7 @@ public class MonsterAI : MonoBehaviour
         if (!wasChasing && visual != null) visual.OnChaseStart();
         SetSpeed(chaseSpeed);
         lostSightTimer = 0f;
-        lastKnownPosition = target.position;
+        lastKnownPosition = TargetPos;
         repathTimer = 0f;
     }
 
@@ -558,7 +564,7 @@ public class MonsterAI : MonoBehaviour
         }
 
         // Mirar al jugador
-        Vector3 look = target.position - transform.position;
+        Vector3 look = TargetPos - transform.position;
         look.y = 0f;
         if (look.sqrMagnitude > 0.001f)
         {
@@ -584,6 +590,18 @@ public class MonsterAI : MonoBehaviour
     {
         stopped = false;
         EnterKill();
+    }
+
+    // v7.0.4: llega al borde del campo camino de su destino: pasa al lado opuesto (el campo es periódico: mismo sitio físico)
+    private void CrossFieldEdge()
+    {
+        Vector2Int c = edgeCrossing; edgeCrossing = Vector2Int.zero;
+        Vector3 np = FieldWrap.CrossEdge(transform.position, c, 0.4f);
+        if (useNav && NavMesh.SamplePosition(np, out NavMeshHit h, 3f, NavMesh.AllAreas)) np = h.position;
+        Vector3 goal = edgeDest;
+        if (useNav && agent != null && agent.enabled) agent.Warp(np); else transform.position = np;
+        lastPos = transform.position; EdgeCrossings++;
+        SetDestination(goal);
     }
 
     // v7.0.2: imitador: lo coloca el director de encuentros (anfitrión / un jugador)
@@ -613,6 +631,7 @@ public class MonsterAI : MonoBehaviour
     public bool HearWhistle(Vector3 pos)
     {
         if (netProxy || stopped || CurrentState == State.Kill || CurrentState == State.Chase || Disguised) return false;
+        pos = FieldWrap.Image(pos, transform.position);   // v7.0.4: al otro lado del borde del campo también se oye
         float r = WhistleRange(pos, transform.position, out bool wall);
         if (Vector3.Distance(pos, transform.position) > r) return false;
         whistlePos = pos;
@@ -653,7 +672,7 @@ public class MonsterAI : MonoBehaviour
     private bool HasLineOfSight()
     {
         Vector3 from = EyePosition();
-        Vector3 to = target.position + Vector3.up * 1.2f;
+        Vector3 to = TargetPos + Vector3.up * 1.2f;
 
         RaycastHit hit;
         if (Physics.Linecast(from, to, out hit, sightMask & ~PlayerBody.LayerMaskBit, QueryTriggerInteraction.Ignore))
@@ -724,6 +743,13 @@ public class MonsterAI : MonoBehaviour
 
     private void SetDestination(Vector3 dest)
     {
+        edgeCrossing = Vector2Int.zero;
+        if (FieldWrap.On)
+        {   // v7.0.4: destino en otra imagen del campo: ir al punto del borde por el que se cruza (y allí se pasa al otro lado)
+            dest = FieldWrap.Image(dest, transform.position);
+            edgeDest = dest;
+            dest = FieldWrap.NavTarget(transform.position, dest, 0.4f, out edgeCrossing);
+        }
         destination = dest;
         hasDestination = true;
 

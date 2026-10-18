@@ -23,6 +23,8 @@ public class LevelConfig
     public Vector2Int roomSize = new Vector2Int(2, 4);
     public int pillarEvery = 0;            // 0 = sin pilares; n = pilar cada n celdas (OpenPillars)
     public float pillarSize = 0.9f;
+    public int decks = 1;                  // v7.0.4: aparcamiento con plantas a medio nivel unidas por rampas (GaragePlan)
+    public float deckDrop = 1.6f;
 
     // --- Superficies ---
     public SurfaceStyle wallStyle = SurfaceStyle.WallpaperYellow;
@@ -158,7 +160,8 @@ public class LevelConfig
         c.name = "Aparcamiento";
         c.subtitle = "Hormigón, pilares y manchas de aceite. Las luces están muy lejos unas de otras.";
         c.layout = LayoutKind.OpenPillars;
-        c.gridW = 20; c.gridH = 20; c.cellSize = 5f; c.wallHeight = 3.6f;
+        c.gridW = 32; c.gridH = 36; c.cellSize = 5f; c.wallHeight = 3.6f;   // v7.0.4: 160 x 180 m en 4 plantas (antes 100 x 100 m, una planta)
+        c.decks = 4; c.deckDrop = 1.6f;
         c.loopChance = 0.80f; c.roomCount = 0; c.pillarEvery = 2; c.pillarSize = 0.9f;
         c.wallStyle = SurfaceStyle.ConcreteWall; c.floorStyle = SurfaceStyle.ConcreteFloor; c.ceilingStyle = SurfaceStyle.ConcreteCeiling;
         c.wallTileU = 3f; c.wallTileV = 0f; c.floorTileU = 2.7f; c.floorTileV = 5.4f; c.ceilTileU = c.ceilTileV = 3f;
@@ -169,8 +172,8 @@ public class LevelConfig
         c.fixture = FixtureKind.Tube; c.lightSpacing = 3; c.deadChance = 0.30f; c.flickerChance = 0.5f;
         c.lightColor = new Color(0.85f, 0.95f, 1f); c.emissionColor = new Color(1.1f, 1.3f, 1.5f);
         c.lightIntensity = 1.5f; c.lightRange = 13f; c.maxRealtimeLights = 9; c.buzzChance = 0.6f;
-        c.flashlightDrain = 0.7f; c.flashlightRecharge = 0.08f; c.batteries = 5; c.batteryAmount = 35f;
-        c.monsterCount = 1; c.patrolSpeed = 2.0f; c.chaseSpeed = 4.4f; c.sightRange = 24f; c.hearingScale = 1.1f; c.darkSightFactor = 0.5f;
+        c.flashlightDrain = 0.7f; c.flashlightRecharge = 0.08f; c.batteries = 7; c.batteryAmount = 35f;
+        c.monsterCount = 2; c.patrolSpeed = 2.0f; c.chaseSpeed = 4.4f; c.sightRange = 24f; c.hearingScale = 1.1f; c.darkSightFactor = 0.5f;
         c.droneHz = 40f; c.droneNoise = 0.28f; c.droneVolume = 0.35f; c.ambientEvent = AmbientEvent.Drip;
         c.eventInterval = new Vector2(5f, 12f);
         c.step = StepKind.Concrete;

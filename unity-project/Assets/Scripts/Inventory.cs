@@ -27,6 +27,10 @@ public class Inventory : MonoBehaviour
 
     public Slot[] slots = new Slot[SlotCount];
     public readonly List<int> notes = new List<int>();
+    public readonly HashSet<ItemType> wrongKeys = new HashSet<ItemType>();   // v7.0.4: llaves probadas que no abren
+    public bool IsWrongKey(ItemType t) { return wrongKeys.Contains(t); }
+    public void MarkWrongKey(ItemType t) { if (wrongKeys.Add(t)) Notify(); }
+    public bool HasKey(ItemType t) { return ItemDefs.IsKey(t) && GetCount(t) > 0; }
 
     private int[] startCounts;
     private List<int> startNotes;
@@ -214,6 +218,10 @@ public class Inventory : MonoBehaviour
                 msg = "Agua de almendras: recuperas resistencia y cordura";
                 ok = true;
                 break;
+            case ItemType.Key0: case ItemType.Key1: case ItemType.Key2: case ItemType.Key3: case ItemType.Key4:
+                if (ExitLock.Active != null) { ok = ExitLock.Active.TryKeyFromInventory(this, slots[i].type, out msg); }
+                else msg = "Aquí no hay ninguna cerradura";
+                break;
             case ItemType.Glowstick:
                 if (ThrowGlowstick(true)) { Remove(i, 1); msg = "Barra luminosa lanzada"; ok = true; }
                 break;
@@ -294,6 +302,7 @@ public class Inventory : MonoBehaviour
     public void CommitForNextLevel()
     {
         carryCounts = CurrentCounts();
+        foreach (ItemType k in ItemDefs.Keys) carryCounts[(int)k] = 0;   // v7.0.4: las llaves son de cada nivel
         carryNotes = new List<int>(notes);
         if (sanity != null) sanity.Commit();
     }
@@ -302,6 +311,7 @@ public class Inventory : MonoBehaviour
     {
         carryCounts = (int[])startCounts.Clone();
         carryNotes = new List<int>(startNotes);
+        wrongKeys.Clear();   // v7.0.4
         if (sanity != null) sanity.Revert();
     }
 

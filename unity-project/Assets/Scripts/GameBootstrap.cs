@@ -396,6 +396,7 @@ public class GameBootstrap : MonoBehaviour
         // 5) Pilas
         BuildBatteries(generator, cfg, player.transform, flashlight, ns != null);
         BuildExtraPickups(generator, cfg, ns != null);
+        BuildKeyPickups(generator, cfg, ns != null);   // v7.0.4: llaves señuelo
 
         // 5b) v7.0 Campo infinito: hierba instanciada en GPU (fuera de levelRoot: no entra en la huella MP ni en el NavMesh) y El Vigía en el horizonte
         if (cfg.layout == LayoutKind.Field)
@@ -413,6 +414,7 @@ public class GameBootstrap : MonoBehaviour
         gm.player = fpc;
         gm.flashlight = flashlight;
         gm.exit = generator.ExitTransform;
+        ExitLock.Create(gm.gameObject, generator.UsedSeed, cfg.index, generator.ExitTransform, gm.exitRadius);   // v7.0.4: salida cerrada con llave
         gm.monsters = monsters.ToArray();
         gm.monster = monsters.Count > 0 ? monsters[0] : null;
         gm.playerCamera = cam.transform;
@@ -558,6 +560,7 @@ public class GameBootstrap : MonoBehaviour
 
         // Cordura + inventario (objetos y notas recogidos; se conservan entre niveles)
         Whistle wh = player.AddComponent<Whistle>(); wh.fpc = fpc;   // v7.0.2: G silbar
+        Adrenaline adr = player.AddComponent<Adrenaline>(); adr.fpc = fpc;   // v7.0.4: adrenalina en las persecuciones
         Sanity sanity = player.AddComponent<Sanity>();
         sanity.flashlight = flashlight;
         sanity.fpc = fpc;
@@ -661,6 +664,29 @@ public class GameBootstrap : MonoBehaviour
         }
     }
 
+    // v7.0.4: 5 llaves parecidas repartidas por el nivel (en el campo, dentro de casas). Orden de tipos según la semilla.
+    public static int KeysPlaced { get; private set; }
+    private void BuildKeyPickups(BackroomsGenerator generator, LevelConfig cfg, bool net)
+    {
+        KeysPlaced = 0;
+        if (generator.KeySpots == null || generator.KeySpots.Count == 0) return;
+        Transform root = new GameObject("KeyPickups").transform;
+        root.SetParent(worldRoot.transform, false);
+        List<ItemType> types = new List<ItemType>(ItemDefs.Keys);
+        System.Random r = new System.Random(generator.UsedSeed * 977 + cfg.index * 13 + 5);
+        for (int i = types.Count - 1; i > 0; i--) { int j = r.Next(i + 1); ItemType t = types[i]; types[i] = types[j]; types[j] = t; }
+        for (int i = 0; i < generator.KeySpots.Count && i < types.Count; i++)
+        {
+            Vector3 p = generator.KeySpots[i];
+            p.y -= 0.1f;
+            if (cfg.water) p.y += Mathf.Max(0f, cfg.waterLevel - 0.05f);
+            ItemPickup ip = ItemPickup.Spawn(types[i], p, -1, root, 0f);
+            ip.transform.rotation = Quaternion.Euler(0f, (float)r.NextDouble() * 360f, 0f);
+            if (net) { ip.netId = 3000 + i; NetSession.RegisterPickup(ip.netId, ip); }
+            KeysPlaced++;
+        }
+    }
+
     // ------------------------------------------------------------------
     // Monstruo: modelo 3D del nivel (Resources/Monsters/<id>) + IA; si el modelo falla, figura procedural
     // ------------------------------------------------------------------
@@ -686,6 +712,7 @@ public class GameBootstrap : MonoBehaviour
         ai.eyeHeight = profile.ai_eyeHeight;
         ai.visual = MonsterVisual.Create(m, profile, playerTransform);
         ai.Setup(playerTransform, generator);
+        if (cfg.layout == LayoutKind.Field) WrapView.Attach(m);   // v7.0.4: se ve y se oye en la imagen más cercana
         return ai;
     }
 
@@ -766,13 +793,25 @@ public class GameBootstrap : MonoBehaviour
         subtitle.rectTransform.sizeDelta = new Vector2(1500f, 120f);
         subtitle.rectTransform.anchoredPosition = new Vector2(0f, 0f);
 
-        // Aviso breve ("+ Pila")
-        Text toast = CreateText(canvasGo.transform, "Toast", string.Empty, 32, TextAnchor.MiddleCenter);
-        toast.rectTransform.anchorMin = new Vector2(0.5f, 0f);
-        toast.rectTransform.anchorMax = new Vector2(0.5f, 0f);
-        toast.rectTransform.pivot = new Vector2(0.5f, 0f);
-        toast.rectTransform.sizeDelta = new Vector2(800f, 60f);
-        toast.rectTransform.anchoredPosition = new Vector2(0f, 150f);
+        // Aviso breve ("+ Pila", "Llave de latón: no es esta"...)
+        // v7.0.4: por encima de la barra rápida y los medidores (antes se montaba sobre ellos), con panel oscuro semitransparente
+        Image toastPanel = CreateImage(canvasGo.transform, "ToastPanel", new Color(0f, 0f, 0f, GameManager.ToastAlpha));
+        RectTransform tpr = toastPanel.rectTransform;
+        tpr.anchorMin = tpr.anchorMax = new Vector2(0.5f, 0f);
+        tpr.pivot = new Vector2(0.5f, 0f);
+        tpr.sizeDelta = new Vector2(GameManager.ToastMaxWidth, GameManager.ToastHeight);
+        tpr.anchoredPosition = new Vector2(0f, HotbarHud.TopEdge + GameManager.ToastGap);
+        toastPanel.raycastTarget = false;
+        toastPanel.gameObject.SetActive(false);
+        Text toast = CreateText(toastPanel.transform, "Toast", string.Empty, 32, TextAnchor.MiddleCenter);
+        toast.rectTransform.anchorMin = Vector2.zero;
+        toast.rectTransform.anchorMax = Vector2.one;
+        toast.rectTransform.offsetMin = new Vector2(24f, 4f);
+        toast.rectTransform.offsetMax = new Vector2(-24f, -4f);
+        toast.horizontalOverflow = HorizontalWrapMode.Wrap; toast.verticalOverflow = VerticalWrapMode.Truncate;
+        toast.resizeTextForBestFit = true; toast.resizeTextMinSize = 16; toast.resizeTextMaxSize = 32;
+        Shadow tsh = toast.gameObject.AddComponent<Shadow>(); tsh.effectColor = new Color(0f, 0f, 0f, 0.9f); tsh.effectDistance = new Vector2(2f, -2f);
+        gm.toastPanel = toastPanel;
 
         // Texto de información arriba a la izquierda
         Text info = CreateText(canvasGo.transform, "Info", string.Empty, 22, TextAnchor.UpperLeft);

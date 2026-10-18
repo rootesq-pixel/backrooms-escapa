@@ -120,8 +120,10 @@ public class MonsterVisual : MonoBehaviour
         stepClip = ProceduralAudio.CreateMonsterStep(kind, seed);
         growlClip = ProceduralAudio.CreateGrowl(kind, seed + 1);
         screamClip = ProceduralAudio.CreateScream(kind, seed + 2);
-        stepSrc = gameObject.AddComponent<AudioSource>();
-        voiceSrc = gameObject.AddComponent<AudioSource>();
+        // v7.0.4: en un hijo (lo desplaza WrapView: en el campo se oye donde se ve)
+        GameObject sfx = new GameObject("Sfx"); sfx.transform.SetParent(transform, false);
+        stepSrc = sfx.AddComponent<AudioSource>();
+        voiceSrc = sfx.AddComponent<AudioSource>();
         foreach (AudioSource s in new[] { stepSrc, voiceSrc })
         {
             s.spatialBlend = 1f;
@@ -390,11 +392,11 @@ public class MonsterVisual : MonoBehaviour
         float dt = Time.deltaTime;
         if (dt <= 0f) return;
 
-        float distance = player != null ? Vector3.Distance(player.position, transform.position) : 99f;
+        float distance = player != null ? FieldWrap.Distance(transform.position, player.position) : 99f;   // v7.0.4: distancia envuelta en el campo
         bool lit = false;
         if (playerFlash != null && playerFlash.IsOn && player != null && Camera.main != null)
         {
-            Vector3 to = transform.position + Vector3.up * 1.0f - Camera.main.transform.position;
+            Vector3 to = FieldWrap.Image(transform.position, Camera.main.transform.position) + Vector3.up * 1.0f - Camera.main.transform.position;
             lit = to.magnitude < playerFlash.range && Vector3.Angle(Camera.main.transform.forward, to) < playerFlash.spotAngle * 0.5f;
         }
 

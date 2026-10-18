@@ -56,7 +56,7 @@ public class Sanity : MonoBehaviour
 
     private bool ClearLine(Transform view, MonsterAI m)
     {
-        Vector3 target = m.transform.position + Vector3.up * Mathf.Min(1.5f, m.eyeHeight * 0.8f);
+        Vector3 target = FieldWrap.Image(m.transform.position, view.position) + Vector3.up * Mathf.Min(1.5f, m.eyeHeight * 0.8f);   // v7.0.4: imagen más cercana
         RaycastHit hit;
         if (!Physics.Linecast(view.position, target, out hit, ~0, QueryTriggerInteraction.Ignore)) return true;
         return hit.transform != null && (hit.transform.IsChildOf(m.transform) || hit.transform.IsChildOf(transform));
@@ -75,7 +75,7 @@ public class Sanity : MonoBehaviour
         {
             MonsterAI m = ms[i];
             if (m == null || !m.isActiveAndEnabled) continue;
-            float d = Vector3.Distance(transform.position, m.transform.position);
+            float d = FieldWrap.Distance(m.transform.position, transform.position);
             if (d < nearest) nearest = d;
             float f = FearFactor(d);
             if (f <= 0f) continue;
@@ -85,7 +85,7 @@ public class Sanity : MonoBehaviour
         // línea de visión solo con el más temible, y no cada fotograma
         losTimer -= dt;
         if (worstM != losTarget || losTimer <= 0f) { losTarget = worstM; losOk = worstM != null && ClearLine(view, worstM); losTimer = 0.2f; }
-        if (worstM != null && losOk && LooksAt(view, worstM.transform.position + Vector3.up, 35f)) { looking = true; worst *= LookMult; }
+        if (worstM != null && losOk && LooksAt(view, FieldWrap.Image(worstM.transform.position, view.position) + Vector3.up, 35f)) { looking = true; worst *= LookMult; }
         float monster = worst * FearRate;
 
         FieldWatcherApparition ap = FieldWatcherApparition.Active;

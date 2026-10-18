@@ -269,7 +269,14 @@ public static class V702Checks
             if (seen)
             {
                 float lo = cfg.layout == LayoutKind.Field ? 15f : 7f, hi = cfg.layout == LayoutKind.Field ? 35f : 22f;
-                r.Check(md.LastStageDistance >= lo - 1.6f && md.LastStageDistance <= hi + 2.1f, tag + "[Mímico] a media distancia: " + md.LastStageDistance.ToString("F1") + " m (" + lo + "-" + hi + ")");
+                if (md.StageCount > 0 || !FieldWrap.On)
+                    r.Check(md.LastStageDistance >= lo - 1.6f && md.LastStageDistance <= hi + 2.1f, tag + "[Mímico] a media distancia: " + md.LastStageDistance.ToString("F1") + " m (" + lo + "-" + hi + ")");
+                else
+                {
+                    // v7.0.4: en el campo envuelto puede verse de lejos al otro lado del borde antes de escenificarse
+                    float wd = FieldWrap.Distance(mim.transform.position, gm.player.transform.position);
+                    r.Check(wd >= lo - 1.6f && wd <= 60.5f, tag + "[Mímico] visto sin escenificar al otro lado del borde, a " + wd.ToString("F1") + " m envueltos (" + (lo - 1.6f) + "-60)");
+                }
                 RemotePlayer pp = md.puppet;
                 r.Check(pp != null && pp.gameObject.activeInHierarchy, tag + "[Mímico] la copia (jugador) es visible, con linterna");
                 yield return 0.5f;

@@ -39,14 +39,16 @@ public class BackroomsGenerator : MonoBehaviour
     public bool IsGenerated { get; private set; }
     public bool HasLevel { get { return IsGenerated && levelRoot != null; } }
     public int UsedSeed { get; private set; }
-    public FieldPlan FieldPlan { get; private set; }   // v7.0: casas/postes/puertas del Campo infinito (null en otros niveles)
+    public FieldPlan FieldPlan { get; private set; }
+    public GaragePlan Garage { get; private set; }     // v7.0.4: plantas del aparcamiento (null en otros niveles)   // v7.0: casas/postes/puertas del Campo infinito (null en otros niveles)
     public bool IsField { get { return config != null && config.layout == LayoutKind.Field; } }
     public Vector3 PlayerStart { get; private set; }
     public float PlayerStartYaw { get; private set; }
     public Vector3 MonsterSpawn { get; private set; }
     public List<Vector3> MonsterSpawns { get; private set; }
     public List<Vector3> BatterySpots { get; private set; }
-    public List<Vector3> ExtraSpots { get; private set; }     // sitios para notas, agua de almendras, barras luminosas y cintas
+    public List<Vector3> ExtraSpots { get; private set; }
+    public List<Vector3> KeySpots { get; private set; }        // v7.0.4: llaves señuelo (ExitLock.KeyCount; una abre la salida)     // sitios para notas, agua de almendras, barras luminosas y cintas
     public Vector3 ExitPosition { get; private set; }
     public Transform ExitTransform { get; private set; }
     public Transform Root { get { return levelRoot; } }
@@ -139,7 +141,7 @@ public class BackroomsGenerator : MonoBehaviour
         roomCount = config.roomCount;
         roomSizeRange = config.roomSize;
 
-        FieldHeight.Reset(); FieldPlan = null;
+        FieldHeight.Reset(); FieldPlan = null; Garage = null; GaragePlan.Active = null;
         UsedSeed = useRandomSeed ? System.Environment.TickCount : seed;
         System.Random rng = new System.Random(UsedSeed);
 
@@ -222,6 +224,7 @@ public class BackroomsGenerator : MonoBehaviour
     public float FloorHeightLocal(float x, float z)
     {
         if (FieldHeight.Active) return FieldHeight.H(x, z);
+        if (Garage != null) return Garage.Y(x, z);
         if (HasPoolRoom)
         {
             float cs = cellSize;
@@ -243,6 +246,7 @@ public class BackroomsGenerator : MonoBehaviour
         if (MonsterSpawns != null) foreach (Vector3 v in MonsterSpawns) h = NetUtil.FnvVec(h, v);
         if (BatterySpots != null) foreach (Vector3 v in BatterySpots) h = NetUtil.FnvVec(h, v);
         if (ExtraSpots != null) foreach (Vector3 v in ExtraSpots) h = NetUtil.FnvVec(h, v);
+        if (KeySpots != null) foreach (Vector3 v in KeySpots) h = NetUtil.FnvVec(h, v);   // v7.0.4
         if (levelRoot != null)
         {
             int verts = 0, tris = 0, meshes = 0;
@@ -413,6 +417,10 @@ public class BackroomsGenerator : MonoBehaviour
                     wallsH[i, j] = false;
         }
 
+        // v7.0.4: aparcamiento por plantas (rampas, tabiques, callejones, rampas falsas)
+        if (config.decks > 1 && config.layout != LayoutKind.Field)
+            Garage = GaragePlan.Make(new System.Random(UsedSeed * 313 + 41), w, h, cellSize, wallHeight, config.decks, config.deckDrop, wallsV, wallsH);
+
         // v7.0 Campo infinito: sin muros (ni siquiera el borde: el campo se repite), salida desde el centro
         if (config.layout == LayoutKind.Field)
         {
@@ -557,6 +565,8 @@ public class BackroomsGenerator : MonoBehaviour
                 if (distFromStart[i, j] < minExit) continue;
                 if (InPoolBlock(i, j)) continue;
                 Vector2Int c = new Vector2Int(i, j);
+                // v7.0.4: aparcamiento: la salida, en la última planta (la más baja), nunca en una rampa ni en un pasillo falso
+                if (Garage != null && (Garage.DeckOfRow(j) != Garage.decks - 1 || Garage.IsRamp(i, j) || Garage.decoys.Contains(c))) continue;
                 bool hasWall = false;
                 for (int d = 0; d < 4; d++) if (!IsOpen(c, d)) hasWall = true;
                 if (hasWall || config.layout == LayoutKind.Field) exits.Add(c);
@@ -673,7 +683,7 @@ public class BackroomsGenerator : MonoBehaviour
         Material pipeMat = cfg.pipes ? wallMat : null;
 
         // --- Chunks (cada uno es un renderer, para que las luces por píxel se repartan bien) ---
-        int chunkCells = Mathf.Max(1, Mathf.RoundToInt(8f / cs));
+        int chunkCells = Garage != null ? 3 : Mathf.Max(1, Mathf.RoundToInt(8f / cs));   // v7.0.4: aparcamiento grande: menos renderers
         int cxN = (w + chunkCells - 1) / chunkCells;
         int czN = (h + chunkCells - 1) / chunkCells;
         MeshBuilder[,] wallsB = new MeshBuilder[cxN, czN];
@@ -690,6 +700,8 @@ public class BackroomsGenerator : MonoBehaviour
         }
 
         // Suelo y techo por chunk (UV en metros del mundo)
+        if (Garage != null) BuildGarageFlats(flatB, chunkCells, cfg);   // v7.0.4: por celda, a la altura de su planta (rampas inclinadas)
+        else
         for (int cx = 0; cx < cxN; cx++)
         {
             for (int cz = 0; cz < czN; cz++)
@@ -716,6 +728,7 @@ public class BackroomsGenerator : MonoBehaviour
                 int cx = Mathf.Min(i, w - 1) / chunkCells, cz = j / chunkCells;
                 float sh = wh;
                 Vector3 center = new Vector3(i * cs, sh * 0.5f, (j + 0.5f) * cs);
+                if (Garage != null) { GarageSpan(i - 1, j, i, j, out float yb, out float yt); sh = yt - yb; center.y = (yb + yt) * 0.5f; }
                 bool poolSideV = HasPoolRoom && j >= PoolBlock.y && j < PoolBlock.yMax && (i == PoolBlock.x || i == PoolBlock.xMax);
                 (poolSideV && !PoolFixed ? poolWallB : wallsB[cx, cz]).AddWallBox(SlotWall, center, new Vector3(t, sh, segLen), cfg.wallTileU, cfg.wallTileV, (float)rng.NextDouble());
                 wallSegments++;
@@ -736,6 +749,7 @@ public class BackroomsGenerator : MonoBehaviour
                 int cx = i / chunkCells, cz = Mathf.Min(j, h - 1) / chunkCells;
                 float sh = wh;
                 Vector3 center = new Vector3((i + 0.5f) * cs, sh * 0.5f, j * cs);
+                if (Garage != null) { GarageSpan(i, j - 1, i, j, out float yb, out float yt); sh = yt - yb; center.y = (yb + yt) * 0.5f; }
                 bool poolSideH = HasPoolRoom && i >= PoolBlock.x && i < PoolBlock.xMax && (j == PoolBlock.y || j == PoolBlock.yMax);
                 (poolSideH && !PoolFixed ? poolWallB : wallsB[cx, cz]).AddWallBox(SlotWall, center, new Vector3(segLen, sh, t), cfg.wallTileU, cfg.wallTileV, (float)rng.NextDouble());
                 wallSegments++;
@@ -784,8 +798,15 @@ public class BackroomsGenerator : MonoBehaviour
                 for (int j = cfg.pillarEvery; j < h; j += cfg.pillarEvery)
                 {
                     int cx = Mathf.Min(i, w - 1) / chunkCells, cz = Mathf.Min(j, h - 1) / chunkCells;
-                    wallsB[cx, cz].AddWallBox(SlotWall, new Vector3(i * cs, wh * 0.5f, j * cs),
-                        new Vector3(cfg.pillarSize, wh, cfg.pillarSize), cfg.wallTileU, cfg.wallTileV, (float)rng.NextDouble());
+                    float py = wh * 0.5f, ph = wh;
+                    if (Garage != null)
+                    {
+                        GarageSpan(i - 1, j - 1, i, j, out float b0, out float t0); GarageSpan(i - 1, j, i, j - 1, out float b1, out float t1);
+                        float yb = Mathf.Min(b0, b1), yt = Mathf.Max(t0, t1); ph = yt - yb; py = (yb + yt) * 0.5f;
+                    }
+                    float psz = cfg.pillarSize * (Garage != null ? 0.92f + 0.16f * (float)new System.Random(i * 7919 + j * 104729 + UsedSeed).NextDouble() : 1f);   // v7.0.4: pequeñas variaciones
+                    wallsB[cx, cz].AddWallBox(SlotWall, new Vector3(i * cs, py, j * cs),
+                        new Vector3(psz, ph, psz), cfg.wallTileU, cfg.wallTileV, (float)rng.NextDouble());
                     pillars++;
                 }
             }
@@ -822,6 +843,7 @@ public class BackroomsGenerator : MonoBehaviour
                     mr.sharedMaterials = new Material[] { floorMat, ceilMat };
                     mr.shadowCastingMode = ShadowCastingMode.Off;
                     mr.receiveShadows = false;
+                    if (Garage != null) go.AddComponent<MeshCollider>().sharedMesh = fm;   // v7.0.4: suelos a varias alturas y rampas
                 }
                 if (!decorB[cx, cz].IsEmpty)
                 {
@@ -839,7 +861,8 @@ public class BackroomsGenerator : MonoBehaviour
         }
 
         // Colliders planos de suelo y techo (cajas grandes: sin costuras)
-        if (!HasPoolRoom) AddBox("FloorCollider", new Vector3(totalW * 0.5f, -0.1f, totalH * 0.5f), new Vector3(totalW + 2f * t, 0.2f, totalH + 2f * t));
+        if (Garage != null) { /* v7.0.4: colisión con la propia malla de suelos/techos */ }
+        else if (!HasPoolRoom) AddBox("FloorCollider", new Vector3(totalW * 0.5f, -0.1f, totalH * 0.5f), new Vector3(totalW + 2f * t, 0.2f, totalH + 2f * t));
         else
         {
             int k = 0;
@@ -847,7 +870,7 @@ public class BackroomsGenerator : MonoBehaviour
                 AddBox("FloorCollider" + (k++ == 0 ? "" : k.ToString()), new Vector3(fr.center.x, -0.1f, fr.center.y), new Vector3(fr.width, 0.2f, fr.height));
             PoolRoomSetPiece.Build(this, cfg, levelRoot, poolWallB.IsEmpty ? null : Track(poolWallB.ToMesh("PoolRoomWalls")));
         }
-        AddBox("CeilingCollider", new Vector3(totalW * 0.5f, wh + 0.1f, totalH * 0.5f), new Vector3(totalW + 2f * t, 0.2f, totalH + 2f * t));
+        if (Garage == null) AddBox("CeilingCollider", new Vector3(totalW * 0.5f, wh + 0.1f, totalH * 0.5f), new Vector3(totalW + 2f * t, 0.2f, totalH + 2f * t));
 
         // Luces
         BuildFixtures(rng);
@@ -864,13 +887,48 @@ public class BackroomsGenerator : MonoBehaviour
 
         PickBatterySpots(rng, mc);
         PickExtraSpots(new System.Random(UsedSeed * 31 + 7), 9);
+        PickKeySpots(new System.Random(UsedSeed * 71 + 29), ExitLock.KeyCount);
         BuildExitDoor(rng);
+        if (Garage != null) GarageDecor.Build(this, Garage, cfg, decorRoot, wallMat, o => Track(o));   // v7.0.4: topes, señales y números de planta
 
         // Agua realista (shader propio + volumen con interacción)
         if (cfg.water)
         {
             Water = WaterVolume.Create(this, cfg, decorRoot, rippleSet);
         }
+    }
+
+    // v7.0.4: rango vertical que debe cubrir un muro entre dos celdas (la que esté fuera de la rejilla no cuenta)
+    private void GarageSpan(int ax, int az, int bx, int bz, out float yb, out float yt)
+    {
+        yb = float.MaxValue; yt = float.MinValue;
+        if (ax >= 0 && az >= 0 && ax < w && az < h) { yb = Mathf.Min(yb, Garage.CellMin(ax, az)); yt = Mathf.Max(yt, Garage.CellMax(ax, az) + wallHeight); }
+        if (bx >= 0 && bz >= 0 && bx < w && bz < h) { yb = Mathf.Min(yb, Garage.CellMin(bx, bz)); yt = Mathf.Max(yt, Garage.CellMax(bx, bz) + wallHeight); }
+        if (yb > yt) { yb = 0f; yt = wallHeight; }
+        yb -= 0.05f;
+    }
+
+    private void BuildGarageFlats(MeshBuilder[,] flatB, int chunkCells, LevelConfig cfg)
+    {
+        float cs = cellSize, wh = wallHeight;
+        for (int x = 0; x < w; x++)
+            for (int z = 0; z < h; z++)
+            {
+                MeshBuilder mb = flatB[x / chunkCells, z / chunkCells];
+                float x0 = x * cs, x1 = (x + 1) * cs, z0 = z * cs, z1 = (z + 1) * cs;
+                float y0 = Garage.Y(x0 + 0.01f, z0 + 0.001f), y1 = Garage.Y(x0 + 0.01f, z1 - 0.001f);
+                if (Garage.IsRamp(x, z))
+                {
+                    int b = Garage.rampB[new Vector2Int(x, z)]; int zb = Garage.boundaries[b];
+                    y0 = Mathf.Lerp(Garage.DeckY(b), Garage.DeckY(b + 1), Mathf.Clamp01((z0 - (zb - 1) * cs) / (2f * cs)));
+                    y1 = Mathf.Lerp(Garage.DeckY(b), Garage.DeckY(b + 1), Mathf.Clamp01((z1 - (zb - 1) * cs) / (2f * cs)));
+                }
+                Vector3 n = Vector3.Cross(new Vector3(0f, y1 - y0, cs), Vector3.right).normalized;
+                mb.AddQuad(SlotFloor, new Vector3(x0, y0, z0), new Vector3(x1, y0, z0), new Vector3(x1, y1, z1), new Vector3(x0, y1, z1),
+                    n, Vector3.right, Vector3.forward, cfg.floorTileU, cfg.floorTileV, 0f, 0f);
+                mb.AddQuad(SlotCeiling, new Vector3(x0, y0 + wh, z0), new Vector3(x1, y0 + wh, z0), new Vector3(x1, y1 + wh, z1), new Vector3(x0, y1 + wh, z1),
+                    -n, Vector3.right, Vector3.forward, cfg.ceilTileU, cfg.ceilTileV, 0f, 0f);
+            }
     }
 
     // Rectángulo (x0,z0)-(x1,z1) menos el bloque de la piscina (hasta 4 trozos)
@@ -959,7 +1017,8 @@ public class BackroomsGenerator : MonoBehaviour
                 }
 
                 if (x % spacing != 0 || z % spacing != 0) continue;
-                if (InPoolBlock(x, z)) continue;   // la sala de piscina tiene su propia luz (tragaluces/ventanas)
+                if (InPoolBlock(x, z)) continue;
+                if (Garage != null && Garage.IsRamp(x, z)) continue;   // v7.0.4: techo inclinado   // la sala de piscina tiene su propia luz (tragaluces/ventanas)
                 bool deadFix = rng.NextDouble() < cfg.deadChance;
                 CreateCeilingFixture(lightsRoot, c, deadFix, emissive, dead, housing, rng, buzzClip);
                 fixtures++;
@@ -977,7 +1036,7 @@ public class BackroomsGenerator : MonoBehaviour
         float wh = wallHeight;
         GameObject fx = new GameObject("Fixture");
         fx.transform.SetParent(parent, false);
-        fx.transform.localPosition = new Vector3(c.x, 0f, c.z);
+        fx.transform.localPosition = new Vector3(c.x, c.y, c.z);   // v7.0.4: c.y = suelo de la planta (0 salvo en el aparcamiento)
 
         Renderer lens;
         float lightY = wh - 0.5f;
@@ -1135,6 +1194,42 @@ public class BackroomsGenerator : MonoBehaviour
         }
     }
 
+    // v7.0.4: sitios para las llaves: repartidas, lejos del inicio y no pegadas a la salida ni a otros objetos
+    private void PickKeySpots(System.Random rng, int count)
+    {
+        KeySpots = new List<Vector3>();
+        List<Vector2Int> picked = new List<Vector2Int>();
+        int maxD = 1; for (int x = 0; x < w; x++) for (int z = 0; z < h; z++) if (distFromStart[x, z] >= 0) maxD = Mathf.Max(maxD, distFromStart[x, z]);
+        int minStart = Mathf.Clamp(maxD / 5, 2, 8);
+        int guard = 0;
+        while (picked.Count < count && guard++ < 3000)
+        {
+            Vector2Int c = new Vector2Int(rng.Next(w), rng.Next(h));
+            if (c == startCell || c == exitCell) continue;
+            if (InPoolBlock(c.x, c.y) || FieldBlocked(c.x, c.y)) continue;
+            if (distFromStart[c.x, c.y] < 0) continue;   // inalcanzable
+            bool strict = guard < 1500;
+            if (distFromStart[c.x, c.y] < (strict ? minStart : 2)) continue;
+            if (Mathf.Abs(c.x - exitCell.x) + Mathf.Abs(c.y - exitCell.y) < (strict ? 3 : 2)) continue;
+            int minSep = guard < 800 ? Mathf.Max(3, Mathf.Min(w, h) / 4) : (guard < 2000 ? 2 : 1);
+            bool ok = true;
+            for (int i = 0; i < picked.Count; i++)
+                if (Mathf.Abs(picked[i].x - c.x) + Mathf.Abs(picked[i].y - c.y) < minSep) { ok = false; break; }
+            if (!ok) continue;
+            Vector3 world = levelRoot.TransformPoint(CellCenterLocal(c.x, c.y));
+            if (guard < 2500)
+            {
+                foreach (Vector3 b in BatterySpots) { Vector3 d = b - world; d.y = 0f; if (d.magnitude < cellSize * 0.7f) ok = false; }
+                foreach (Vector3 b in ExtraSpots) { Vector3 d = b - world; d.y = 0f; if (d.magnitude < cellSize * 0.7f) ok = false; }
+                if (!ok) continue;
+            }
+            picked.Add(c);
+            float ox = ((float)rng.NextDouble() - 0.5f) * cellSize * 0.45f;
+            float oz = ((float)rng.NextDouble() - 0.5f) * cellSize * 0.45f;
+            KeySpots.Add(levelRoot.TransformPoint(CellCenterLocal(c.x, c.y) + new Vector3(ox, 0.1f, oz)));
+        }
+    }
+
     // ------------------------------------------------------------------
     // Puerta de salida: discreta (marco distinto, LED verde tenue visible solo de cerca)
     // ------------------------------------------------------------------
@@ -1156,6 +1251,7 @@ public class BackroomsGenerator : MonoBehaviour
         MonsterSpawn = MonsterSpawns[0];
         PickBatterySpots(rng, mc);
         PickExtraSpots(new System.Random(UsedSeed * 31 + 7), 9);
+        KeySpots = new List<Vector3>();
         PickFieldHouseSpots();   // v7.0.2: los objetos, solo dentro de las casas abiertas
         BuildFieldExit(rng);
     }
@@ -1221,10 +1317,13 @@ public class BackroomsGenerator : MonoBehaviour
                 order.Add(pool[i]); taken[pool[i].house] = tk + 1; houses.Add(pool[i].house); pool.RemoveAt(i); break;
             }
         }
-        int nb = BatterySpots.Count, ne = ExtraSpots.Count;
-        if (order.Count < nb + ne) Debug.LogWarning("[Campo] pocos huecos en casas: " + order.Count + " < " + (nb + ne));
+        int nb = BatterySpots.Count, ne = ExtraSpots.Count, nk = ExitLock.KeyCount;
+        if (order.Count < nb + ne + nk) Debug.LogWarning("[Campo] pocos huecos en casas: " + order.Count + " < " + (nb + ne + nk));
         int k = 0;
         List<Vector3> bs = new List<Vector3>(), es = new List<Vector3>();
+        // v7.0.4: las llaves primero (la primera ronda: cada una en una casa distinta)
+        KeySpots = new List<Vector3>();
+        for (int i = 0; i < nk && k < order.Count; i++) KeySpots.Add(order[k++].pos);
         // los extra (notas, agua, cinta…) primero para que siempre quepan; luego las pilas
         for (int i = 0; i < ne && k < order.Count; i++) es.Add(order[k++].pos);
         for (int i = 0; i < nb && k < order.Count; i++) bs.Add(order[k++].pos);
@@ -1331,7 +1430,7 @@ public class BackroomsGenerator : MonoBehaviour
     private Vector3 CellCenterLocal(int x, int z)
     {
         float px = (x + 0.5f) * cellSize, pz = (z + 0.5f) * cellSize;
-        return new Vector3(px, FieldHeight.Active ? FieldHeight.H(px, pz) : 0f, pz);
+        return new Vector3(px, FieldHeight.Active ? FieldHeight.H(px, pz) : (Garage != null ? Garage.Y(px, pz) : 0f), pz);
     }
 
     private Vector2Int WorldToCell(Vector3 world)

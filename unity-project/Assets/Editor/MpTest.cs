@@ -119,9 +119,13 @@ public static class MpPlayRunner
     // ------------------------------------------------------------------
     // ANFITRIÓN
     // ------------------------------------------------------------------
+    // v7.0.4: suelo junto a la puerta (en el aparcamiento la salida está en una planta más baja)
+    private static float ExitFloorY(BackroomsGenerator g) { return g.Garage != null && g.ExitTransform != null && g.ExitTransform.parent != null ? g.ExitTransform.parent.position.y + 0.1f : g.PlayerStart.y; }
+
     private static IEnumerator RunHost()
     {
         SmokeTest.Report r = report;
+        ExitLock.AutoKeyForTests = true;          // v7.0.4: la llave se prueba aparte (bloque «Llaves»)
         PlayerPrefs.DeleteKey(MultiplayerUI.KName);
         GameSettings.ResetDefaults();
         yield return Wait(() => GameBootstrap.Instance != null && GameBootstrap.Instance.IsLoaded, 90, "menú principal");
@@ -344,8 +348,9 @@ public static class MpPlayRunner
         // ---- salida: ambos van a la puerta -> siguiente nivel ----
         int epoch0 = ns.Epoch;
         Vector3 ex = gen.ExitPosition;
-        GameManager.Instance.player.Teleport(new Vector3(ex.x, gen.PlayerStart.y, ex.z), 0f);
+        GameManager.Instance.player.Teleport(new Vector3(ex.x, ExitFloorY(gen), ex.z), 0f);
         yield return Wait(() => ns.ExitCount >= 1, 20, "contador de salida");
+        r.Check(ns.UnlockedEpoch == epoch0, "[Llaves MP] el anfitrión abre la puerta de salida con la llave buena (para todos)");
         r.Info("jugadores en la salida: " + ns.ExitCount + "/" + ns.ExitTotal);
         yield return Wait(() => WorldReady(gb, ns, 1) && ns.Epoch > epoch0, 240, "nivel 1 cargado tras llegar a la salida todos");
         r.Check(gb.CurrentLevel == 1 && ns.Epoch > epoch0, "todos los jugadores en la salida -> se carga el nivel siguiente (época " + ns.Epoch + ")");
@@ -367,7 +372,15 @@ public static class MpPlayRunner
         // ---- v6.8.1: nivel 2 (Poolrooms) — el cliente sale de la piscina fija; el anfitrión lo ve en la playa ----
         {
             BackroomsGenerator gen1 = gb.Generator; int epoch1 = ns.Epoch; Vector3 ex1 = gen1.ExitPosition;
-            GameManager.Instance.player.Teleport(new Vector3(ex1.x, gen1.PlayerStart.y, ex1.z), 0f);
+            {   // v7.0.4: esta vez abre el cliente (con su llave); el anfitrión no tiene llave y espera
+                ExitLock.AutoKeyForTests = false;
+                float tw = 0f; while (tw < 90f && !(ExitLock.Active != null && ExitLock.Active.Unlocked)) { yield return 0.25f; tw += 0.25f; }
+                NetPlayer rc = ns.Players.Find(p => !p.isLocal);
+                r.Check(ExitLock.Active != null && ExitLock.Active.Unlocked && rc != null && ExitLock.Active.UnlockedBy == rc.name,
+                    "[Llaves MP] el cliente abre la puerta y el anfitrión la ve abierta (por «" + (ExitLock.Active != null ? ExitLock.Active.UnlockedBy : "-") + "»)");
+                ExitLock.AutoKeyForTests = true;
+            }
+            GameManager.Instance.player.Teleport(new Vector3(ex1.x, ExitFloorY(gen1), ex1.z), 0f);
             yield return Wait(() => WorldReady(gb, ns, 2) && ns.Epoch > epoch1, 240, "nivel 2 cargado tras la salida del nivel 1");
             yield return Wait(() => ns.AllReady(), 180, "todos listos en el nivel 2");
             r.Check(gb.CurrentLevel == 2 && ns.HashesMatch() && ns.HashMismatches == 0, "[Piscina MP] nivel 2 cargado y con la misma huella (sala fija)");
@@ -465,6 +478,7 @@ public static class MpPlayRunner
     private static IEnumerator RunClient()
     {
         SmokeTest.Report r = report;
+        ExitLock.AutoKeyForTests = true;          // v7.0.4: la llave se prueba aparte (bloque «Llaves»)
         PlayerPrefs.DeleteKey(MultiplayerUI.KName);
         GameSettings.ResetDefaults();
         yield return Wait(() => GameBootstrap.Instance != null && GameBootstrap.Instance.IsLoaded, 90, "menú principal");
@@ -669,7 +683,15 @@ public static class MpPlayRunner
         }
         Vector3 ex = gen.ExitPosition;
         int epoch0 = ns.Epoch;
-        gm.player.Teleport(new Vector3(ex.x, gen.PlayerStart.y, ex.z), 0f);
+        {   // v7.0.4: el cliente no tiene la llave: espera a que el anfitrión abra la puerta para todos
+            ExitLock.AutoKeyForTests = false;
+            float tw = 0f; while (tw < 90f && !(ExitLock.Active != null && ExitLock.Active.Unlocked)) { yield return 0.25f; tw += 0.25f; }
+            NetPlayer hp = ns.Players.Find(p => !p.isLocal);
+            r.Check(ExitLock.Active != null && ExitLock.Active.Unlocked && hp != null && ExitLock.Active.UnlockedBy == hp.name,
+                "[Llaves MP] el anfitrión abre la puerta y el cliente la ve abierta (por «" + (ExitLock.Active != null ? ExitLock.Active.UnlockedBy : "-") + "»)");
+            ExitLock.AutoKeyForTests = true;
+        }
+        gm.player.Teleport(new Vector3(ex.x, ExitFloorY(gen), ex.z), 0f);
         yield return Wait(() => WorldReady(gb, ns, 1) && ns.Epoch > epoch0, 240, "nivel 1 cargado (cliente)");
         r.Check(gb.CurrentLevel == 1 && ns.CurrentStart.level == 1, "el cliente carga el nivel siguiente decidido por el anfitrión");
         r.Check(NetSession.PickupCount >= 5, "pickups del nivel 1 registrados");
@@ -702,7 +724,7 @@ public static class MpPlayRunner
         // ---- v6.8.1: nivel 2, salir de la piscina fija (borde 4 lados, escalera, rescate) ----
         {
             BackroomsGenerator gen1 = gb.Generator; int epoch1 = ns.Epoch; Vector3 ex1 = gen1.ExitPosition;
-            GameManager.Instance.player.Teleport(new Vector3(ex1.x, gen1.PlayerStart.y, ex1.z), 0f);
+            GameManager.Instance.player.Teleport(new Vector3(ex1.x, ExitFloorY(gen1), ex1.z), 0f);
             yield return Wait(() => WorldReady(gb, ns, 2) && ns.Epoch > epoch1, 240, "nivel 2 cargado (cliente)");
             yield return WaitMark("host_level2", 240);
             gm = GameManager.Instance; FirstPersonController pw = gm.player;

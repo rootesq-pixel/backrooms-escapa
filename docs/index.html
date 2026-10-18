@@ -73,6 +73,7 @@
       <nav class="site-nav" id="menu-principal" aria-label="Navegación principal">
         <ul>
           <li><a href="#trailer">Tráiler</a></li>
+          <li><a href="#novedades">Novedades</a></li>
           <li><a href="#niveles">Niveles</a></li>
           <li><a href="#monstruos">Monstruos</a></li>
           <li><a href="#caracteristicas">Características</a></li>
@@ -101,13 +102,13 @@
         <h1 class="glitch" id="hero-title" data-title data-text="BACKROOMS: ESCAPA">BACKROOMS: ESCAPA</h1>
         <p class="hero-tagline">Has atravesado la pared equivocada. Zumbido de fluorescentes, moqueta húmeda y kilómetros de pasillos amarillos. Algo te sigue. <strong>Encuentra la salida.</strong></p>
         <div class="hero-actions">
-          <a class="btn btn-primary" href="https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v7.0.3/BackroomsEscape_v7_0_3_Windows.zip" download>
+          <a class="btn btn-primary" href="https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v7.0.4/BackroomsEscape_v7_0_4_Windows.zip" download>
             <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 5.5 10.5 4.4v7.1H3V5.5Zm0 13 7.5 1.1v-7H3v5.9Zm8.4 1.2L21 21v-8.4h-9.6v7.1Zm0-15.4v7.2H21V3l-9.6 1.3Z"/></svg>
             Descargar para Windows
           </a>
           <a class="btn btn-ghost" href="#trailer">Ver gameplay</a>
         </div>
-        <p class="hero-note">Build temprana v7.0.3 (el Campo infinito carga rápido; imitador garantizado, silbido con G, cordura por miedo, campo sin tirones, objetos realistas dentro de las casas) · Windows 64 bits · ≈ 94 MB (zip). <a href="https://github.com/rootesq-pixel/backrooms-escapa/releases" target="_blank" rel="noopener">Código y versiones<span class="sr-only"> (se abre en una pestaña nueva)</span></a></p>
+        <p class="hero-note">Build temprana v7.0.4 (adrenalina en las persecuciones, llaves señuelo, aparcamiento de cuatro plantas, borde del Campo infinito arreglado) · Windows 64 bits · ≈ 95 MB (zip). <a href="https://github.com/rootesq-pixel/backrooms-escapa/releases" target="_blank" rel="noopener">Código y versiones<span class="sr-only"> (se abre en una pestaña nueva)</span></a></p>
         <ul class="hero-facts" aria-label="Datos rápidos">
           <li><strong>5</strong> niveles</li>
           <li><strong>5</strong> criaturas</li>
@@ -137,6 +138,96 @@
       </div>
     </section>
 
+    <!-- NOVEDADES (cada versión añade una entrada arriba) -->
+    <section class="section reveal" id="novedades" aria-labelledby="novedades-title">
+      <div class="container">
+        <header class="section-head">
+          <p class="section-tag">// NOVEDADES</p>
+          <h2 id="novedades-title">Novedades</h2>
+          <p class="section-lead">Qué ha cambiado en cada versión, de la más nueva a la más antigua. Todas se descargan desde <a href="https://github.com/rootesq-pixel/backrooms-escapa/releases" target="_blank" rel="noopener">las versiones en GitHub<span class="sr-only"> (se abre en una pestaña nueva)</span></a>.</p>
+        </header>
+        <ol class="news-list">
+          <li class="news-item news-latest">
+            <div class="news-meta"><span class="news-ver">v7.0.4</span><time datetime="2026-10-18">18 oct 2026</time></div>
+            <figure class="news-shot"><img src="assets/img/news-v7-0-4.jpg" alt="Pasillo de rampa del aparcamiento, de hormigón y casi a oscuras, con un cartel azul que pone RAMPA iluminado por la linterna." width="960" height="540" loading="lazy"></figure>
+            <div class="news-body">
+              <h3>Adrenalina, llaves señuelo y un aparcamiento sin fin</h3>
+              <ul>
+                <li><strong>Adrenalina:</strong> si un monstruo te persigue, aguantas más corriendo y vas un poco más rápido. Oirás tu corazón y la barra RES se pondrá roja.</li>
+                <li><strong>La salida está cerrada con llave.</strong> Hay varias llaves parecidas y solo una abre; las que no sirven se marcan en rojo. En el Campo infinito, búscalas dentro de las casas.</li>
+                <li><strong>El aparcamiento ahora tiene cuatro plantas</strong>, rampas, callejones sin salida y carteles que mienten. La salida está muy lejos, en la planta más baja.</li>
+                <li>En el Campo infinito, compañeros y monstruos ya no desaparecen al cruzar el borde del mundo.</li>
+                <li>Los avisos ya no tapan la barra rápida: salen por encima, sobre un fondo oscuro, en cualquier pantalla.</li>
+                <li>Multijugador: todos necesitáis la v7.0.4 (protocolo MP-5).</li>
+              </ul>
+            </div>
+          </li>
+          <li class="news-item">
+            <div class="news-meta"><span class="news-ver">v7.0.3</span><time datetime="2026-10-17">17 oct 2026</time></div>
+            <div class="news-body">
+              <h3>El Campo infinito carga rápido</h3>
+              <ul>
+                <li>El nivel 5 ya no se queda tanto rato en «Generando...»: la pantalla de carga muestra el <strong>porcentaje</strong> y la hierba lejana llega poco a poco mientras juegas, sin tirones.</li>
+                <li>Si algo falla al generar un nivel, el juego arranca igual en vez de quedarse colgado.</li>
+                <li>Registro de carga paso a paso en el <code>Player.log</code> para poder ayudarte si algo va lento.</li>
+              </ul>
+            </div>
+          </li>
+          <li class="news-item">
+            <div class="news-meta"><span class="news-ver">v7.0.2</span><time datetime="2026-10-17">17 oct 2026</time></div>
+            <figure class="news-shot"><img src="assets/img/news-v7-0-2.jpg" alt="El imitador, idéntico al jugador con traje amarillo y linterna, de pie en la hierba del Campo infinito." width="960" height="540" loading="lazy"></figure>
+            <div class="news-body">
+              <h3>Imitador, silbido y cordura</h3>
+              <ul>
+                <li><strong>Un imitador en cada nivel</strong> (del 1 en adelante): alguien igual que tú… que no eres tú.</li>
+                <li><strong>Silba con <kbd>G</kbd></strong>: tus compañeros te oyen, los monstruos cercanos van a mirar y, a veces, alguien te devuelve el silbido.</li>
+                <li>La barra de <strong>cordura (COR)</strong> baja cerca de los monstruos, sobre todo si los miras.</li>
+                <li>Campo infinito sin tirones, objetos dentro de las casas y modelos de objetos realistas.</li>
+              </ul>
+            </div>
+          </li>
+          <li class="news-item">
+            <div class="news-meta"><span class="news-ver">v7.0.1</span><time datetime="2026-10-16">16 oct 2026</time></div>
+            <figure class="news-shot"><img src="assets/img/news-v7-0-1.jpg" alt="Árbol realista en el Campo infinito con la niebla de fondo." width="960" height="540" loading="lazy"></figure>
+            <div class="news-body">
+              <h3>Más realista y ahora se puede saltar</h3>
+              <ul>
+                <li>Puertas, postes y árboles nuevos en el Campo infinito, sin parpadeos.</li>
+                <li><strong>Salto</strong> con <kbd>Espacio</kbd> y los controles siempre a la vista en el HUD.</li>
+                <li>Nuevo tráiler.</li>
+              </ul>
+            </div>
+          </li>
+          <li class="news-item">
+            <div class="news-meta"><span class="news-ver">v7.0.0</span><time datetime="2026-10-16">16 oct 2026</time></div>
+            <figure class="news-shot"><img src="assets/img/news-v7-0-0.jpg" alt="Una casa abandonada en medio de la hierba alta y la niebla del Campo infinito." width="960" height="540" loading="lazy"></figure>
+            <div class="news-body">
+              <h3>Nuevo nivel: Campo infinito</h3>
+              <ul>
+                <li>Un campo de hierba que no se acaba nunca, casas abandonadas, niebla… y <strong>El Vigía</strong> mirándote desde el horizonte.</li>
+              </ul>
+            </div>
+          </li>
+          <li class="news-item news-compact">
+            <div class="news-meta"><span class="news-ver">v6.x</span><time datetime="2026-10-11">11–16 oct 2026</time></div>
+            <div class="news-body">
+              <h3>La serie 6, en pocas palabras</h3>
+              <ul>
+                <li><strong>v6.9</strong>: Poolrooms más bonitas (agua clara, luz horneada en Blender).</li>
+                <li><strong>v6.8</strong>: sala de piscina fija; arreglado que no se pudiera salir del agua.</li>
+                <li><strong>v6.7</strong>: inventario nuevo, agua realista y sala de piscina de Blender.</li>
+                <li><strong>v6.6</strong>: susto de muerte visible y texturas horneadas.</li>
+                <li><strong>v6.5</strong>: intro de arranque y audio más suave.</li>
+                <li><strong>v6.4</strong>: ascensor de entrada y créditos.</li>
+                <li><strong>v6.3</strong>: 5 niveles y mezcla de audio.</li>
+                <li><strong>v6.2</strong>: multijugador por Internet con código de sala.</li>
+              </ul>
+            </div>
+          </li>
+        </ol>
+      </div>
+    </section>
+
     <!-- NIVELES -->
     <section class="section reveal" id="niveles" aria-labelledby="niveles-title">
       <div class="container">
@@ -159,7 +250,7 @@
             <div class="level-body">
               <p class="level-num">NIVEL 1</p>
               <h3>Aparcamiento</h3>
-              <p>Hormigón gris, manchas de aceite y pilares. Un espacio abierto, de techo alto y muy oscuro, con tubos fluorescentes muy separados y a menudo muertos.</p>
+              <p>Cuatro plantas de hormigón unidas por rampas, filas de pilares que no se acaban, callejones sin salida y carteles que mienten. Muy oscuro, con tubos fluorescentes muy separados y a menudo muertos. La salida está en lo más hondo.</p>
             </div>
           </li>
           <li class="level-card">
@@ -352,7 +443,7 @@
             <h3>Cómo jugar con amigos</h3>
             <p class="mp-opt"><strong>Opción A · Con código</strong> (recomendada: sin abrir puertos, funciona incluso con CGNAT)</p>
             <ol class="steps">
-              <li><strong>Misma versión.</strong> Todos necesitáis la v7.0.3 (protocolo <strong>MP-4</strong>); la v7.0.1 y anteriores no pueden unirse.</li>
+              <li><strong>Misma versión.</strong> Todos necesitáis la v7.0.4 (protocolo <strong>MP-5</strong>); la v7.0.3 y anteriores no pueden unirse.</li>
               <li><strong>Anfitrión:</strong> menú principal → <em>Multijugador</em> → escribe tu nombre → <em>Alojar con código</em>. La sala muestra un código de 6 caracteres: pásaselo a tus amigos.</li>
               <li><strong>Clientes:</strong> <em>Multijugador</em> → nombre → <em>Unirse con código</em> → escribe el código. Entraréis en la sala de espera.</li>
               <li>El anfitrión elige el nivel con ◄ ► y pulsa <em>Empezar</em>. No se puede entrar en una partida ya empezada.</li>
@@ -573,11 +664,11 @@
         <div class="download-box">
           <div class="download-main">
             <p class="download-platform">Windows PC · 64 bits</p>
-            <a class="btn btn-primary" href="https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v7.0.3/BackroomsEscape_v7_0_3_Windows.zip" download>
+            <a class="btn btn-primary" href="https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v7.0.4/BackroomsEscape_v7_0_4_Windows.zip" download>
               <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 5.5 10.5 4.4v7.1H3V5.5Zm0 13 7.5 1.1v-7H3v5.9Zm8.4 1.2L21 21v-8.4h-9.6v7.1Zm0-15.4v7.2H21V3l-9.6 1.3Z"/></svg>
               Descargar para Windows
             </a>
-            <p class="download-note"><strong>v7.0.3</strong> · ZIP de ≈ 94 MB <span class="tbd">(aprox.)</span>. Descomprime y ejecuta <code>BackroomsEscape.exe</code>.</p>
+            <p class="download-note"><strong>v7.0.4</strong> · ZIP de ≈ 95 MB <span class="tbd">(aprox.)</span>. Descomprime y ejecuta <code>BackroomsEscape.exe</code>.</p>
             <p class="download-note download-smartscreen"><strong>Aviso de Windows SmartScreen:</strong> el ejecutable no está firmado digitalmente, por lo que Windows puede mostrar «Windows protegió su PC». Pulsa <em>Más información</em> → <em>Ejecutar de todas formas</em> si confías en la descarga. Es una build temprana.</p>
             <p class="download-note"><a href="https://github.com/rootesq-pixel/backrooms-escapa/releases" target="_blank" rel="noopener">Código y versiones<span class="sr-only"> (se abre en una pestaña nueva)</span></a> · <a href="https://github.com/rootesq-pixel/backrooms-escapa" target="_blank" rel="noopener">Repositorio en GitHub<span class="sr-only"> (se abre en una pestaña nueva)</span></a></p>
           </div>
@@ -592,7 +683,7 @@
                 <tr><th scope="row">Procesador</th><td class="tbd">Por determinar</td><td class="tbd">Por determinar</td></tr>
                 <tr><th scope="row">Memoria</th><td class="tbd">Por determinar</td><td class="tbd">Por determinar</td></tr>
                 <tr><th scope="row">Gráficos</th><td class="tbd">Por determinar</td><td class="tbd">Por determinar</td></tr>
-                <tr><th scope="row">Almacenamiento</th><td colspan="2">≈ 94 MB comprimido / ≈ 176 MB descomprimido <span class="tbd">(aproximado; puede cambiar)</span></td></tr>
+                <tr><th scope="row">Almacenamiento</th><td colspan="2">≈ 95 MB comprimido / ≈ 180 MB descomprimido <span class="tbd">(aproximado; puede cambiar)</span></td></tr>
               </tbody>
             </table>
           </div>

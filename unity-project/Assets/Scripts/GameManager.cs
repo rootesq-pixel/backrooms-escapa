@@ -41,9 +41,12 @@ public class GameManager : MonoBehaviour
     public Text titleText;
     public Text subtitleText;
     public Text toastText;
+    public Image toastPanel;   // v7.0.4: fondo oscuro del aviso, encima de la barra rápida
+    public const float ToastMaxWidth = 1100f, ToastHeight = 64f, ToastGap = 22f, ToastAlpha = 0.72f;
     public Image overlay;
     public Image fadeImage;
     public RectTransform staminaFill;
+    private UnityEngine.UI.Image staminaImg;
     public RectTransform batteryFill;
 
     public GameState State { get; private set; }
@@ -188,16 +191,20 @@ public class GameManager : MonoBehaviour
             return;
         }
 
-        Vector3 d = player.transform.position - exit.position;
+        Vector3 d = FieldWrap.Delta(exit.position, player.transform.position);   // v7.0.4: la puerta del campo también al otro lado del borde
         d.y = 0f;
         if (NetSession.Active)
         {
             // multijugador: el anfitrión da el nivel por superado cuando todos los jugadores en pie están en la salida
-            NetSession.LocalAtExit = d.magnitude <= exitRadius && !NetSession.Instance.LocalDowned;
+            bool here = d.magnitude <= exitRadius && !NetSession.Instance.LocalDowned;
+            // v7.0.4: puerta con llave. La abre quien tenga la buena (el anfitrión la abre para todos).
+            if (here && ExitLock.Active != null && !ExitLock.Active.AtDoor(Inventory.Instance)) here = false;
+            NetSession.LocalAtExit = here;
             return;
         }
         if (d.magnitude <= exitRadius)
         {
+            if (ExitLock.Active != null && !ExitLock.Active.AtDoor(Inventory.Instance)) return;   // v7.0.4: cerrada con llave
             Win();
         }
     }
@@ -338,6 +345,19 @@ public class GameManager : MonoBehaviour
         {
             toastText.text = text;
             toastTimer = 1.6f;
+            if (toastPanel != null)
+            {
+                toastPanel.gameObject.SetActive(!string.IsNullOrEmpty(text));
+                // ancho según el texto (a 32 px), sin pasar del máximo ni del ancho del lienzo
+                float cw = ToastMaxWidth;
+                RectTransform cr = toastPanel.canvas != null ? toastPanel.canvas.transform as RectTransform : null;
+                if (cr != null && cr.rect.width > 100f) cw = Mathf.Min(cw, cr.rect.width - 48f);
+                TextGenerationSettings gs = toastText.GetGenerationSettings(new Vector2(10000f, ToastHeight));
+                gs.resizeTextForBestFit = false; gs.fontSize = 32;
+                float pw = toastText.cachedTextGeneratorForLayout.GetPreferredWidth(text ?? "", gs) / Mathf.Max(0.01f, toastText.pixelsPerUnit);
+                toastPanel.rectTransform.sizeDelta = new Vector2(Mathf.Clamp(pw + 56f, 240f, cw), ToastHeight);
+                Color pc = toastPanel.color; pc.a = ToastAlpha; toastPanel.color = pc;
+            }
         }
     }
 
@@ -348,7 +368,8 @@ public class GameManager : MonoBehaviour
         {
             toastTimer -= dt;
             Color c = toastText.color; c.a = Mathf.Clamp01(toastTimer / 0.6f); toastText.color = c;
-            if (toastTimer <= 0f) toastText.text = string.Empty;
+            if (toastPanel != null) { Color pc = toastPanel.color; pc.a = ToastAlpha * c.a; toastPanel.color = pc; }
+            if (toastTimer <= 0f) { toastText.text = string.Empty; if (toastPanel != null) toastPanel.gameObject.SetActive(false); }
         }
     }
 
@@ -361,6 +382,8 @@ public class GameManager : MonoBehaviour
         if (player != null && staminaFill != null)
         {
             staminaFill.anchorMax = new Vector2(Mathf.Clamp01(player.Stamina01), 1f);
+            if (staminaImg == null) staminaImg = staminaFill.GetComponent<UnityEngine.UI.Image>();
+            if (staminaImg != null) staminaImg.color = Adrenaline.Tint(new Color(0.9f, 0.85f, 0.3f));
         }
         if (flashlight != null && batteryFill != null)
         {
@@ -372,7 +395,7 @@ public class GameManager : MonoBehaviour
             float total = (bootstrap != null ? bootstrap.RunElapsed : 0f) + elapsed;
             string name = config != null ? config.name : string.Empty;
             infoText.text = "Nivel " + levelIndex + " · " + name + "   Tiempo: " + FormatTime(total)
-                + "\nEncuentra la salida"
+                + (ExitLock.Active != null && !ExitLock.Active.Unlocked ? "\nEncuentra la salida y la llave que la abre (solo una de las llaves sirve)" : "\nEncuentra la salida")
                 + "\nWASD mover · Shift correr · Espacio saltar · Ctrl/C agacharse · Q/E asomarse · F linterna · G silbar"
                 + "\nB usar pila · I inventario · V VHS · R reiniciar · Esc pausa";
         }

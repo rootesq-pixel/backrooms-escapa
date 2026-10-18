@@ -1104,6 +1104,9 @@ public static class SmokeTest
         foreach (string f in files)
         {
             string txt = File.ReadAllText(f);
+            // v7.0.4: el aparcamiento tiene señalización de garaje (SALIDA/RAMPA, muchas mienten) pedida para desorientar;
+            // se permite solo ahí y se comprueba aparte que ningún cartel cuelga junto a la puerta real (V704Checks)
+            if (Path.GetFileName(f) == "GarageDecor.cs") continue;
             if (txt.Contains("\"SALIDA") || txt.Contains("TextMesh ") && txt.Contains("tm.text")) { hits++; r.Fail("Código con cartel de salida: " + f); }
         }
         r.Check(hits == 0, "Ningún script crea el cartel 'SALIDA' ni TextMesh de salida");
@@ -1140,6 +1143,7 @@ public static class SmokeTest
         foreach (Transform t in go.GetComponentsInChildren<Transform>(true))
         {
             string n = t.name.ToLowerInvariant();
+            if (n == "garagesigns" && cfg.decks > 1) continue;   // v7.0.4: señalización del aparcamiento (ver arriba)
             if (n.Contains("sign") || n.Contains("salida") || n.Contains("arrow")) badName = true;
         }
         r.Check(!badName, tag + "ningún objeto llamado sign/salida/arrow");
@@ -1872,6 +1876,7 @@ public static class SmokePlayRunner
         SmokeTest.Report r = report;
         GameSettings.ResetDefaults();
         ElevatorCabin.InstantForTests = true;      // las pruebas largas no esperan al ascensor; el bloque «Ascensor» lo reproduce en tiempo real
+        ExitLock.AutoKeyForTests = true;          // v7.0.4: la salida con llave se prueba en V704Checks
         yield return Until(() => GameBootstrap.Instance != null && GameBootstrap.Instance.IsLoaded);
         GameBootstrap gb = GameBootstrap.Instance;
         r.Info("Play mode activo. Nivel inicial " + gb.CurrentLevel);
@@ -2913,6 +2918,11 @@ public static class SmokePlayRunner
                 while (v2.MoveNext()) yield return v2.Current;
                 gm = GameManager.Instance;
             }
+            {   // v7.0.4: llaves señuelo, adrenalina, aparcamiento por plantas y bordes del campo
+                IEnumerator v4 = V704Checks.LevelChecks(r, tag, lv, cfg, gm);
+                while (v4.MoveNext()) yield return v4.Current;
+                gm = GameManager.Instance;
+            }
 
             // Objetos extra del nivel: notas, agua de almendras, barras luminosas, cinta
             {
@@ -3126,7 +3136,7 @@ public static class SmokePlayRunner
             if (picks.Length > 0)
             {
                 Vector3 p = picks[0].transform.position;
-                gm.player.Teleport(new Vector3(p.x, 0.1f, p.z), 0f);
+                gm.player.Teleport(new Vector3(p.x, gm.generator.Garage != null ? p.y + 0.05f : 0.1f, p.z), 0f);   // v7.0.4: plantas
                 yield return 0.5f;
                 r.Check(UnityEngine.Object.FindObjectsOfType<BatteryPickup>().Length == picks.Length - 1, tag + "recoger una pila funciona");
             }
@@ -3161,7 +3171,7 @@ public static class SmokePlayRunner
             if (lv == 0) { ElevatorCabin.InstantForTests = false; realNext = true; }
             Transform exit = gm.exit;
             Vector3 stand = exit.position + exit.forward * 0.7f;
-            gm.player.Teleport(new Vector3(stand.x, 0.1f, stand.z), 0f);
+            gm.player.Teleport(new Vector3(stand.x, (exit.parent != null ? exit.parent.position.y : 0f) + 0.1f, stand.z), 0f);   // v7.0.4: plantas del aparcamiento
             int loadsBefore = GameBootstrap.Instance.LoadCount;
             yield return 0.3f;
             bool last = lv == LevelConfig.Count - 1;

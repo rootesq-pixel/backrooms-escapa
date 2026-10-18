@@ -8,10 +8,10 @@ public enum NetRole { None, Host, Client }
 public static class NetMsg
 {
     // cliente -> anfitrión
-    public const byte Hello = 1, State = 2, PickupReq = 3, Chat = 4, Glow = 5, DropItem = 6, Ready = 7, Ping = 8, Bye = 9, WhistleReq = 10, DbgMonsters = 20;
+    public const byte Hello = 1, State = 2, PickupReq = 3, Chat = 4, Glow = 5, DropItem = 6, Ready = 7, Ping = 8, Bye = 9, WhistleReq = 10, UnlockReq = 11, DbgMonsters = 20;
     // anfitrión -> cliente
     public const byte Welcome = 101, Reject = 102, Lobby = 103, StartLevel = 104, Snapshot = 105, PickupTaken = 106, ItemSpawned = 107,
-        Downed = 108, Revived = 109, AllDown = 110, LevelComplete = 111, ChatFrom = 112, GlowFrom = 113, PlayerLeft = 114, HostLeft = 115, Resync = 117, Descend = 118, WhistleFrom = 119;
+        Downed = 108, Revived = 109, AllDown = 110, LevelComplete = 111, ChatFrom = 112, GlowFrom = 113, PlayerLeft = 114, HostLeft = 115, Resync = 117, Descend = 118, WhistleFrom = 119, ExitUnlocked = 120;
 }
 
 public class NetPlayer
@@ -42,7 +42,8 @@ public class NetStart
 // Los clientes generan el mismo mundo a partir de la semilla que envía el anfitrión. Transporte: TCP propio (NetTransport).
 public class NetSession : MonoBehaviour
 {
-    public const string Protocol = "BackroomsEscape-MP-4";   // v7.0.2: silbido (G) y un imitador extra por nivel (más monstruos en la red)
+    public const string Protocol = "BackroomsEscape-MP-5";   // v7.0.4: llaves de la salida (UnlockReq / ExitUnlocked)
+    // antes: "BackroomsEscape-MP-4"   // v7.0.2: silbido (G) y un imitador extra por nivel (más monstruos en la red)
     public const int MaxPlayers = 4;
     public const int DefaultPort = 7777;
     public const float TickRate = 20f;
@@ -165,7 +166,7 @@ public class NetSession : MonoBehaviour
         LocalId = 0;
         Players.Clear();
         Players.Add(new NetPlayer { id = 0, name = LocalName, isLocal = true });
-        nextPlayerId = 1; Epoch = 0; WorldEpoch = 0; descendEpoch = 0;
+        nextPlayerId = 1; Epoch = 0; WorldEpoch = 0; descendEpoch = 0; UnlockedEpoch = 0;
         taken.Clear(); takenBy.Clear(); drops.Clear();
         LastNotice = ""; LastError = "";
         if (!relay && AutoUpnp)
@@ -208,7 +209,7 @@ public class NetSession : MonoBehaviour
         Role = NetRole.Client;       // provisional: Update gestiona la fase de conexión
         InGame = false;
         Players.Clear();
-        Epoch = 0; WorldEpoch = 0; descendEpoch = 0;
+        Epoch = 0; WorldEpoch = 0; descendEpoch = 0; UnlockedEpoch = 0;
     }
 
     public static string CleanName(string n)
@@ -249,7 +250,7 @@ public class NetSession : MonoBehaviour
         connector = null;
         Connecting = false; ConnectStatus = "";
         Role = NetRole.None; InGame = false;
-        Epoch = 0; WorldEpoch = 0; descendEpoch = 0; pendingStart = null; CurrentStart = null;
+        Epoch = 0; WorldEpoch = 0; descendEpoch = 0; UnlockedEpoch = 0; pendingStart = null; CurrentStart = null;
         LocalDowned = false; LocalRevive01 = 0f;
         pickups.Clear(); taken.Clear(); takenBy.Clear(); drops.Clear();
         mons = new MonsterAI[0]; gm = null; fpc = null; localPlayer = null; gen = null;
@@ -412,6 +413,14 @@ public class NetSession : MonoBehaviour
                     Whistle.HostHeard(pos, p.id, variant, false);
                     break;
                 }
+                case NetMsg.UnlockReq:
+                {
+                    // v7.0.4: un cliente ha abierto la puerta con la llave buena: el anfitrión la abre para todos
+                    int ep = r.Int();
+                    if (p == null || ep != Epoch) break;
+                    HostUnlock(p.id, p.name);
+                    break;
+                }
                 case NetMsg.DropItem:
                     if (p != null) HostDrop((ItemType)r.Int(), r.Int(), r.Vec3());
                     break;
@@ -554,7 +563,7 @@ public class NetSession : MonoBehaviour
             {
                 if (l == d || l.downed) continue;
                 Vector3 lp = PosOf(l);
-                Vector3 diff = lp - dp; diff.y = 0f;
+                Vector3 diff = FieldWrap.Delta(dp, lp); diff.y = 0f;
                 if (diff.magnitude <= ReviveRadius) { near = true; break; }
             }
             d.revive = near ? d.revive + dt / ReviveSeconds : Mathf.Max(0f, d.revive - dt * 0.5f);
@@ -568,6 +577,7 @@ public class NetSession : MonoBehaviour
             if (p.downed) continue;
             living++;
             bool at = p.isLocal ? LocalAtExit : (p.flags & RemotePlayer.FlagExit) != 0 && p.epoch == WorldEpoch;
+            if (ExitLock.Active != null && !ExitLock.Active.Unlocked) at = false;   // v7.0.4: cerrada con llave
             if (at) atExit++;
         }
         ExitCount = atExit; ExitTotal = living;
@@ -793,6 +803,13 @@ public class NetSession : MonoBehaviour
                 {
                     string nm = r.Str(), tx = r.Str();
                     if (ChatReceived != null) ChatReceived(nm, tx);
+                    break;
+                }
+                case NetMsg.ExitUnlocked:
+                {
+                    int ep = r.Int(); int who = r.Int(); string nm = r.Str();
+                    if (ep == WorldEpoch && ExitLock.Active != null) ExitLock.Active.Unlock(false, who == LocalId ? LocalName : nm);
+                    UnlockedEpoch = ep;
                     break;
                 }
                 case NetMsg.WhistleFrom:
@@ -1065,6 +1082,21 @@ public class NetSession : MonoBehaviour
     }
 
     // v7.0.2: silbidos (G). Anfitrión: a todos; cliente: al anfitrión (que lo reenvía)
+    // v7.0.4: puerta de salida abierta con la llave buena
+    public int UnlockedEpoch { get; private set; }
+    public void RequestUnlock()
+    {
+        if (Role == NetRole.Host) HostUnlock(LocalId, LocalName);
+        else if (serverConn != null) serverConn.Send(new NetWriter(NetMsg.UnlockReq).Int(WorldEpoch).ToArray());
+    }
+    private void HostUnlock(int id, string nm)
+    {
+        if (UnlockedEpoch == Epoch) return;
+        UnlockedEpoch = Epoch;
+        if (ExitLock.Active != null && !ExitLock.Active.Unlocked) ExitLock.Active.Unlock(false, nm);
+        Broadcast(new NetWriter(NetMsg.ExitUnlocked).Int(Epoch).Int(id).Str(nm ?? "").ToArray());
+    }
+
     public void NotifyWhistle(Vector3 pos, int playerId, int variant, bool mimic)
     {
         if (Role == NetRole.Host) Broadcast(new NetWriter(NetMsg.WhistleFrom).Int(playerId).Vec3(pos).Byte(variant).Bool(mimic).ToArray());
@@ -1106,7 +1138,7 @@ public class NetSession : MonoBehaviour
             if (p.downed || Time.unscaledTime < p.graceUntil) continue;
             Transform t = p.isLocal ? localPlayer : (p.avatar != null ? p.avatar.transform : null);
             if (t == null) continue;
-            float d = (t.position - from).sqrMagnitude;
+            float d = FieldWrap.Delta(from, t.position).sqrMagnitude;   // v7.0.4: distancia con vuelta en el campo
             if (t == current) curD = d;
             if (d < bd) { bd = d; best = t; }
         }

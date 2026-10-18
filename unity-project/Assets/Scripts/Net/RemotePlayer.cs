@@ -143,13 +143,15 @@ public class RemotePlayer : MonoBehaviour
 
         BuildLamp();
         BuildTag();
-        stepSrc = gameObject.AddComponent<AudioSource>();
+        GameObject sfx = new GameObject("Sfx"); sfx.transform.SetParent(transform, false);   // v7.0.4: lo desplaza WrapView
+        stepSrc = sfx.AddComponent<AudioSource>();
         stepSrc.spatialBlend = 1f; stepSrc.minDistance = 1.5f; stepSrc.maxDistance = 20f; stepSrc.rolloffMode = AudioRolloffMode.Linear;
         stepSrc.playOnAwake = false; stepSrc.dopplerLevel = 0f;
         stepClip = ProceduralAudio.CreateFootstep(stepKind);
         splashClip = ProceduralAudio.CreateSplash();
         owned.Add(stepClip); owned.Add(splashClip);
-        if (stepKind == StepKind.Grass) rustleSrc = GrassAudio.MakeRustleSource(gameObject, true);
+        if (stepKind == StepKind.Grass) rustleSrc = GrassAudio.MakeRustleSource(sfx, true);
+        WrapView.Attach(gameObject);   // v7.0.4: imagen más cercana en el Campo infinito
     }
 
     // v7.0: pasos de hierba y roce también para los jugadores remotos (mismo volumen relativo que los locales)

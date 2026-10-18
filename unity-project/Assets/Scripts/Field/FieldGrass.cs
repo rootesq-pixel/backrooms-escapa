@@ -450,9 +450,10 @@ public class FieldGrass : MonoBehaviour
         int n = 0;
         FirstPersonController f = FirstPersonController.LocalInstance;
         if (f != null) pushers[n++] = Push(f.transform.position, 0.75f);
-        foreach (RemotePlayer rp in RemotePlayer.All) if (rp != null && n < 5) pushers[n++] = Push(rp.transform.position, 0.75f);
+        Vector3 cref = Camera.main != null ? Camera.main.transform.position : (f != null ? f.transform.position : Vector3.zero);   // v7.0.4: imagen más cercana
+        foreach (RemotePlayer rp in RemotePlayer.All) if (rp != null && n < 5) pushers[n++] = Push(FieldWrap.Image(rp.transform.position, cref), 0.75f);
         if (GameManager.Instance != null && GameManager.Instance.monsters != null)
-            foreach (MonsterAI m in GameManager.Instance.monsters) if (m != null && n < 8) pushers[n++] = Push(m.transform.position, 1.0f);
+            foreach (MonsterAI m in GameManager.Instance.monsters) if (m != null && n < 8) pushers[n++] = Push(FieldWrap.Image(m.transform.position, cref), 1.0f);
         for (int i = n; i < 8; i++) pushers[i] = Vector4.zero;
         Shader.SetGlobalVectorArray("_GrassPush", pushers);
     }

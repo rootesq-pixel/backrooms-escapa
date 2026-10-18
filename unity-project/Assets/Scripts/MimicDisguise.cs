@@ -96,7 +96,7 @@ public class MimicDisguise : MonoBehaviour
     {
         if (viewer == null || puppet == null || !puppet.gameObject.activeInHierarchy) return false;
         ViewOf(viewer, out Vector3 eye, out Vector3 fwd, out Camera cam);
-        Vector3 chest = transform.position + Vector3.up * 1.3f;
+        Vector3 chest = FieldWrap.Image(transform.position, eye) + Vector3.up * 1.3f;   // v7.0.4: imagen más cercana
         Vector3 to = chest - eye; float d = to.magnitude;
         if (d > 60f || d < 0.1f) return false;
         if (cam != null)
@@ -186,7 +186,7 @@ public class MimicDisguise : MonoBehaviour
         Camera cam = f != null ? f.GetComponentInChildren<Camera>() : null;
         if (cam != null) { eye = cam.transform.position; fwd = cam.transform.forward; }
         else { eye = viewer.position + Vector3.up * 1.6f; fwd = viewer.forward; }
-        Vector3 to = transform.position + Vector3.up * 1.5f - eye;
+        Vector3 to = FieldWrap.Image(transform.position, eye) + Vector3.up * 1.5f - eye;
         float d = to.magnitude;
         if (d > StareRange || d < 0.01f) return false;
         if (Vector3.Dot(fwd, to / d) <= StareDot) return false;
@@ -198,7 +198,7 @@ public class MimicDisguise : MonoBehaviour
     {
         if (!Disguised) return false;
         DisguiseTime += dt;
-        Vector3 to = target.position - transform.position; to.y = 0f;
+        Vector3 to = FieldWrap.Delta(transform.position, target.position); to.y = 0f;
         bool watched = Watched(target);
         Stare = watched ? Stare + dt : Mathf.Max(0f, Stare - dt * 0.5f);
         switch (CurrentPhase)

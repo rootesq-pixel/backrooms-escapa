@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public enum ItemType { None = 0, Flashlight = 1, Battery = 2, AlmondWater = 3, Glowstick = 4, VhsTape = 5 }
+public enum ItemType { None = 0, Flashlight = 1, Battery = 2, AlmondWater = 3, Glowstick = 4, VhsTape = 5, Key0 = 6, Key1 = 7, Key2 = 8, Key3 = 9, Key4 = 10 }
 
 // Datos de los objetos del inventario (textos en español)
 public static class ItemDefs
@@ -31,7 +31,20 @@ public static class ItemDefs
             description = "Ilumina una zona pequeña con luz verde durante unos 2 minutos. Usar: la lanzas hacia delante. Soltar: la dejas en el suelo." },
         new Def { type = ItemType.VhsTape, name = "Cinta de vídeo", weight = 0.25f, condition = "Desgastada", useLabel = "Guardar", maxStack = 9, usable = false, droppable = true, preferredSlot = 4,
             description = "Una cinta VHS con una etiqueta escrita a mano: «NO ABRIR - 1994». Alguien grabó aquí antes que tú. No sirve para nada, pero no la tires." },
+        // v7.0.4: llaves señuelo (parecidas; una sola abre la salida del nivel). No pasan al nivel siguiente.
+        new Def { type = ItemType.Key0, name = "Llave de latón", weight = 0.012f, condition = "Desgastada", useLabel = "Probar en la puerta", maxStack = 1, usable = true, droppable = true, preferredSlot = 0,
+            description = "Llave plana de latón con la cabeza redonda y «TESA» grabado. Solo una de las llaves que hay por el nivel abre la puerta de salida. Al llegar a la puerta se prueban solas; si no es, queda marcada." },
+        new Def { type = ItemType.Key1, name = "Llave de acero", weight = 0.014f, condition = "Con arañazos", useLabel = "Probar en la puerta", maxStack = 1, usable = true, droppable = true, preferredSlot = 0,
+            description = "Llave de acero con la cabeza cuadrada y una etiqueta grabada: «B-12». Solo una de las llaves que hay por el nivel abre la puerta de salida. Al llegar a la puerta se prueban solas; si no es, queda marcada." },
+        new Def { type = ItemType.Key2, name = "Llave de hierro antigua", weight = 0.03f, condition = "Oxidada", useLabel = "Probar en la puerta", maxStack = 1, usable = true, droppable = true, preferredSlot = 0,
+            description = "Llave de paletón, pesada y fría, de anilla redonda. Parece mucho más vieja que este sitio. Solo una de las llaves que hay por el nivel abre la puerta de salida. Al llegar a la puerta se prueban solas; si no es, queda marcada." },
+        new Def { type = ItemType.Key3, name = "Llave de bronce", weight = 0.012f, condition = "Verdosa en los bordes", useLabel = "Probar en la puerta", maxStack = 1, usable = true, droppable = true, preferredSlot = 0,
+            description = "Llave de bronce con la cabeza de trébol y «ACE» grabado. Solo una de las llaves que hay por el nivel abre la puerta de salida. Al llegar a la puerta se prueban solas; si no es, queda marcada." },
+        new Def { type = ItemType.Key4, name = "Llave niquelada", weight = 0.013f, condition = "Brillante", useLabel = "Probar en la puerta", maxStack = 1, usable = true, droppable = true, preferredSlot = 0,
+            description = "Llave niquelada con un llavero de cartón: un «4» escrito a boli. Solo una de las llaves que hay por el nivel abre la puerta de salida. Al llegar a la puerta se prueban solas; si no es, queda marcada." },
     };
+    public static bool IsKey(ItemType t) { return t >= ItemType.Key0 && t <= ItemType.Key4; }
+    public static readonly ItemType[] Keys = { ItemType.Key0, ItemType.Key1, ItemType.Key2, ItemType.Key3, ItemType.Key4 };
 
     public static readonly ItemType[] All = { ItemType.Flashlight, ItemType.Battery, ItemType.AlmondWater, ItemType.Glowstick, ItemType.VhsTape };
     public static int Count { get { return defs.Length; } }
@@ -59,9 +72,9 @@ public static class LoreNotes
             "Nota arrugada|Lo vi desde la fotocopiadora: alto, de espaldas, demasiado pálido. No se mueve cuando lo miras. Cuando parpadeas, está más cerca." },
         // Nivel 1 — Aparcamiento
         new[] {
-            "Tique de aparcamiento|Entrada 23:41. Salida: sin registrar. Planta -1, plaza 118. La barrera no se levanta. Las luces del fondo llevan días muertas.",
+            "Tique de aparcamiento|Entrada 23:41. Salida: sin registrar. Planta -1, plaza 118. Los carteles de SALIDA apuntan a todas partes; yo bajaría. Hasta abajo del todo.",
             "Nota sobre el capó|Algo enorme respira al otro lado de los pilares. Apagué la linterna y se quedó quieto. Creo que oye mejor de lo que ve.",
-            "Aviso de la comunidad|Se recuerda que está prohibido estacionar en la rampa. Sobre todo de noche. Sobre todo si el suelo tiembla." },
+            "Aviso de la comunidad|Se ruega a los usuarios que devuelvan las llaves al vigilante. Hay muchas copias perdidas por las plantas y solo una abre la puerta de abajo. Las demás entran, pero no giran." },
         // Nivel 2 — Poolrooms
         new[] {
             "Cuaderno mojado|El agua sube un centímetro por hora. No sé de dónde viene. Está tibia. Anoche algo con demasiadas patas cruzó el pasillo sin hacer ruido.",

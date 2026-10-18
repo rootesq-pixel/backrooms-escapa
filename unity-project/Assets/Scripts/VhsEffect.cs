@@ -119,7 +119,7 @@ public class VhsEffect : MonoBehaviour
         for (int i = 0; i < ms.Count; i++)
         {
             if (ms[i] == null) continue;
-            float d = Vector3.Distance(p, ms[i].transform.position);
+            float d = FieldWrap.Distance(ms[i].transform.position, p);
             float g = Mathf.Clamp01(1f - d / 14f);
             if (ms[i].CurrentState == MonsterAI.State.Chase) g = Mathf.Max(g, Mathf.Clamp01(1.2f - d / 20f) * 0.8f);
             if (g > target) target = g;

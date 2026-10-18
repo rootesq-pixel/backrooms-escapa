@@ -564,6 +564,7 @@ public class InventoryUI : MonoBehaviour
             sv.bg.color = sel ? new Color(1f, 0.93f, 0.75f, 1f) : new Color(0.82f, 0.82f, 0.82f, 1f);
             sv.icon.color = has && s.type == ItemType.Flashlight && manager != null && GameManager.Instance != null && GameManager.Instance.flashlight != null && !GameManager.Instance.flashlight.IsOn
                 ? new Color(0.65f, 0.65f, 0.65f, 1f) : Color.white;
+            if (has && inv.IsWrongKey(s.type)) sv.icon.color = new Color(1f, 0.42f, 0.38f, 0.75f);   // v7.0.4: llave que no abre
             if (i == dragFrom) sv.icon.color = new Color(1f, 1f, 1f, 0.25f);
         }
 
@@ -583,7 +584,7 @@ public class InventoryUI : MonoBehaviour
         ItemDefs.Def def = ItemDefs.Get(cur.type);
         bigIcon.enabled = true;
         bigIcon.sprite = ItemIcons.Get(cur.type);
-        detailName.text = def.name;
+        detailName.text = def.name + (inv.IsWrongKey(cur.type) ? "  (no abre la salida)" : "");
         if (cur.type == ItemType.Flashlight)
         {
             float b = GameManager.Instance != null && GameManager.Instance.flashlight != null ? GameManager.Instance.flashlight.Battery01 : 0f;
@@ -637,7 +638,7 @@ public class InventoryUI : MonoBehaviour
         if (!show) { if (tooltip.activeSelf) tooltip.SetActive(false); return; }
         Inventory.Slot s = inv.GetSlot(hovered);
         ItemDefs.Def def = ItemDefs.Get(s.type);
-        tipName.text = def.name + (s.type != ItemType.Flashlight && s.count > 1 ? "  x" + s.count : "");
+        tipName.text = def.name + (inv.IsWrongKey(s.type) ? " (no abre)" : "") + (s.type != ItemType.Flashlight && s.count > 1 ? "  x" + s.count : "");
         string d = def.description;
         if (d.Length > 120) { int cut = d.LastIndexOf(' ', 116); d = d.Substring(0, cut > 60 ? cut : 116) + "…"; }
         tipBody.text = d;

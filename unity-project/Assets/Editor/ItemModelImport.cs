@@ -6,7 +6,7 @@ using UnityEngine;
 //   Unity -batchmode -quit -executeMethod ItemModelImport.Run
 public class ItemModelImport : AssetPostprocessor
 {
-    public static readonly string[] Ids = { "Battery", "AlmondWater", "Glowstick", "VhsTape", "Note", "Flashlight" };
+    public static readonly string[] Ids = { "Battery", "AlmondWater", "Glowstick", "VhsTape", "Note", "Flashlight", "Key0", "Key1", "Key2", "Key3", "Key4" };
     const string Dir = "Assets/Resources/Items/";
 
     void OnPreprocessModel()

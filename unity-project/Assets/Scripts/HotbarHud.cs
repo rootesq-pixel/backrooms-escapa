@@ -15,13 +15,18 @@ public class HotbarHud : MonoBehaviour
     private readonly ItemType[] lastType = new ItemType[Slots];
     private readonly int[] lastCount = new int[Slots];
     private RectTransform batFill, staFill, sanFill;
-    private Image sanFillImg;
+    private Image sanFillImg, staFillImg;
 
     public Canvas HudCanvas { get { return canvas; } }
     public bool Visible { get { return canvas != null && canvas.enabled; } }
     public int SlotCountBuilt { get { return Slots; } }
     public ItemType SlotType(int i) { return lastType[i]; }
     public int SlotAmount(int i) { return lastCount[i]; }
+    public Color StaminaColor { get { return staFillImg != null ? staFillImg.color : Color.clear; } }
+    // v7.0.4: todo el bloque inferior va anclado al borde inferior (antes al centro: en pantallas muy anchas se salía por abajo).
+    // TopEdge = borde superior del bloque (etiquetas BAT/RES/COR) en unidades del lienzo de referencia, medido desde abajo.
+    public const float BaseY = -470f, TopEdge = BaseY + 540f + 146f;
+    public readonly System.Collections.Generic.List<RectTransform> LayoutRects = new System.Collections.Generic.List<RectTransform>();
     public float Meter(int which) { RectTransform r = which == 0 ? batFill : which == 1 ? staFill : sanFill; return r != null ? r.anchorMax.x : -1f; }
 
     public static HotbarHud Create(Inventory inv)
@@ -38,7 +43,7 @@ public class HotbarHud : MonoBehaviour
         Transform root = canvas.transform;
 
         // Medidores
-        float baseY = -450f;      // respecto al centro (1080 de alto): zona inferior
+        float baseY = BaseY;      // respecto al centro de un lienzo de 1080 de alto; luego se reancla abajo
         float mx = -165f;
         string[] names = { "BAT", "RES", "COR" };
         for (int i = 0; i < 3; i++)
@@ -49,7 +54,7 @@ public class HotbarHud : MonoBehaviour
             RectTransform fr = fill.rectTransform;
             fr.anchorMin = new Vector2(0f, 0f); fr.anchorMax = new Vector2(1f, 1f);
             fr.offsetMin = new Vector2(2f, 2f); fr.offsetMax = new Vector2(-2f, -2f);
-            if (i == 0) batFill = fr; else if (i == 1) staFill = fr; else { sanFill = fr; sanFillImg = fill; }
+            if (i == 0) batFill = fr; else if (i == 1) { staFill = fr; staFillImg = fill; } else { sanFill = fr; sanFillImg = fill; }
             UiStyle.Label(root, names[i], 17, TextAnchor.MiddleCenter, x, baseY + 136f, 150f, 20f, UiStyle.Dim);
         }
 
@@ -66,6 +71,16 @@ public class HotbarHud : MonoBehaviour
             icon[i] = ic; border[i] = bor;
             UiStyle.Label(inner.transform, (i + 1).ToString(), 18, TextAnchor.UpperLeft, -sw * 0.5f + 17f, sw * 0.5f - 17f, 30f, 24f, UiStyle.Gold);
             count[i] = UiStyle.Label(inner.transform, "", 22, TextAnchor.LowerRight, 0f, -sw * 0.5f + 22f, sw - 12f, 28f, UiStyle.Text, FontStyle.Bold);
+        }
+
+        // v7.0.4: reanclar al borde inferior (misma posición en 16:9; pegado abajo en cualquier otra proporción)
+        foreach (Transform ch in root)
+        {
+            RectTransform rt = ch as RectTransform; if (rt == null) continue;
+            Vector2 p = rt.anchoredPosition;
+            rt.anchorMin = rt.anchorMax = new Vector2(0.5f, 0f);
+            rt.anchoredPosition = new Vector2(p.x, p.y + 540f);
+            LayoutRects.Add(rt);
         }
     }
 
@@ -95,11 +110,12 @@ public class HotbarHud : MonoBehaviour
             Color c = Color.Lerp(UiStyle.Border, UiStyle.BorderHi, flash[i]);
             c.a = Mathf.Lerp(0.9f, 1f, flash[i]);
             border[i].color = c;
-            if (icon[i].enabled) icon[i].color = dimItem ? new Color(0.6f, 0.6f, 0.6f, 0.9f) : Color.white;
+            if (icon[i].enabled) icon[i].color = dimItem ? new Color(0.6f, 0.6f, 0.6f, 0.9f) : (inv.IsWrongKey(lastType[i]) ? new Color(1f, 0.42f, 0.38f, 0.75f) : Color.white);
         }
 
         if (gm.flashlight != null) SetFill(batFill, gm.flashlight.Battery01);
         if (inv.fpc != null) SetFill(staFill, inv.fpc.Stamina01);
+        if (staFillImg != null) staFillImg.color = Adrenaline.Tint(new Color(0.55f, 0.85f, 0.5f));   // v7.0.4: RES teñida con adrenalina
         if (inv.sanity != null)
         {
             float s = inv.sanity.Sanity01;

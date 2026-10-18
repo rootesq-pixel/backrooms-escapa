@@ -384,6 +384,51 @@ public static class ProceduralAudio
     }
 
     // Chapoteo extra (nivel inundado)
+    // v7.0.4: cerradura atascada (llave que entra pero no gira): golpecitos metálicos y el picaporte que tiembla
+    public static AudioClip CreateLockRattle()
+    {
+        int n = (int)(SR * 0.75f); float[] d = new float[n];
+        System.Random r = new System.Random(4242);
+        float[] hits = { 0.02f, 0.11f, 0.17f, 0.26f, 0.33f, 0.45f, 0.52f };
+        for (int h = 0; h < hits.Length; h++)
+        {
+            int i0 = (int)(hits[h] * SR); float amp = h % 2 == 0 ? 0.9f : 0.55f; float f1 = 2100f + (float)r.NextDouble() * 900f, f2 = 3700f + (float)r.NextDouble() * 1400f;
+            for (int i = 0; i < SR * 0.06f && i0 + i < n; i++)
+            {
+                float t = i / (float)SR, e = Mathf.Exp(-t * 90f);
+                d[i0 + i] += amp * e * (0.6f * Mathf.Sin(2f * Mathf.PI * f1 * t) + 0.4f * Mathf.Sin(2f * Mathf.PI * f2 * t) + 0.5f * ((float)r.NextDouble() * 2f - 1f));
+            }
+            // golpe sordo de la puerta contra el marco
+            for (int i = 0; i < SR * 0.08f && i0 + i < n; i++) { float t = i / (float)SR; d[i0 + i] += 0.5f * amp * Mathf.Exp(-t * 35f) * Mathf.Sin(2f * Mathf.PI * 95f * t); }
+        }
+        Normalize(d, 0.8f);
+        return Make("LockRattle", d);
+    }
+
+    // v7.0.4: la llave buena: clic-clac del pestillo y un crujido corto de la puerta
+    public static AudioClip CreateUnlock()
+    {
+        int n = (int)(SR * 1.1f); float[] d = new float[n];
+        System.Random r = new System.Random(777);
+        foreach (float at in new[] { 0.05f, 0.21f })
+        {
+            int i0 = (int)(at * SR);
+            for (int i = 0; i < SR * 0.05f && i0 + i < n; i++) { float t = i / (float)SR, e = Mathf.Exp(-t * 120f); d[i0 + i] += e * (Mathf.Sin(2f * Mathf.PI * 2600f * t) * 0.7f + ((float)r.NextDouble() * 2f - 1f) * 0.6f); }
+            for (int i = 0; i < SR * 0.07f && i0 + i < n; i++) { float t = i / (float)SR; d[i0 + i] += 0.6f * Mathf.Exp(-t * 50f) * Mathf.Sin(2f * Mathf.PI * 160f * t); }
+        }
+        int c0 = (int)(0.4f * SR); float ph = 0f;
+        for (int i = 0; c0 + i < n; i++)
+        {
+            float t = i / (float)SR, u = t / 0.65f; if (u > 1f) break;
+            float f = Mathf.Lerp(180f, 120f, u) * (1f + 0.15f * Mathf.Sin(t * 70f));
+            ph += 2f * Mathf.PI * f / SR;
+            float saw = (ph / (2f * Mathf.PI)) % 1f * 2f - 1f;
+            d[c0 + i] += 0.35f * Mathf.Sin(Mathf.PI * u) * saw * (0.6f + 0.4f * (float)r.NextDouble());
+        }
+        Normalize(d, 0.75f);
+        return Make("Unlock", d);
+    }
+
     public static AudioClip CreateSplash()
     {
         int n = (int)(SR * 0.45f);

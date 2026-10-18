@@ -347,4 +347,67 @@ if want('Flashlight'):
     p.append(box(0.022, 0.016, 0.012, (0.09, 0, zc + 0.033), rubber, 0.003))
     p.append(box(0.012, 0.008, 0.006, (0.09, 0, zc + 0.040), yel, 0.002))
     bake_item('Flashlight', p)
+
+# ---------------- v7.0.4: llaves (5 variantes parecidas: solo una abre la salida de cada nivel) ----------------
+def torus(R, r, loc, m, sz=1.0, rot=(0, 0, 0), seg=(32, 12)):
+    bpy.ops.mesh.primitive_torus_add(major_radius=R, minor_radius=r, location=loc, rotation=rot, major_segments=seg[0], minor_segments=seg[1])
+    o = bpy.context.object; o.scale = (1, 1, sz); bpy.ops.object.transform_apply(scale=True); setm(o, m); return o
+
+def key_blade(p, m, x0, L, w, t, z, teeth, groove_m=None):
+    """hoja plana tipo Yale a lo largo de X desde x0, con dientes en el canto +Y"""
+    p.append(box(L, w, t, (x0 + L / 2, 0, z), m, 0.0004))
+    n = len(teeth); step = (L * 0.8) / n
+    for i, hgt in enumerate(teeth):
+        p.append(box(step * 0.75, hgt, t, (x0 + L * 0.12 + step * (i + 0.5), w / 2 + hgt / 2 - 0.0002, z), m, 0.0003, rot=(0, 0, math.radians(8 if i % 2 else -8))))
+    p.append(box(L * 0.1, w * 0.7, t, (x0 + L - L * 0.04, -w * 0.12, z), m, 0.0004, rot=(0, 0, math.radians(-25))))   # punta biselada
+    if groove_m is not None:
+        p.append(box(L * 0.82, w * 0.16, 0.0004, (x0 + L * 0.5, -w * 0.12, z + t / 2 + 0.0001), groove_m))
+
+KEYS = [
+    # nombre, color, rugosidad, tipo de cabeza, dientes, texto
+    ('Key0', (0.80, 0.60, 0.24), 0.30, 'round', [0.0022, 0.0034, 0.0016, 0.0030, 0.0024], 'TESA'),
+    ('Key1', (0.66, 0.67, 0.69), 0.28, 'square', [0.0030, 0.0018, 0.0032, 0.0020, 0.0028, 0.0016], 'B-12'),
+    ('Key2', (0.20, 0.16, 0.13), 0.70, 'ring', None, ''),
+    ('Key3', (0.62, 0.40, 0.20), 0.38, 'clover', [0.0018, 0.0028, 0.0034, 0.0020, 0.0026], 'ACE'),
+    ('Key4', (0.78, 0.78, 0.76), 0.22, 'oval', [0.0032, 0.0022, 0.0018, 0.0034, 0.0020], '4'),
+]
+for kname, kcol, krough, kbow, kteeth, ktxt in KEYS:
+    if not want(kname): continue
+    reset()
+    km = mat(kname + '_m', kcol, krough, 1.0, tex='grime' if kname == 'Key2' else 'brushed', amt=0.35 if kname == 'Key2' else 0.18)
+    dark = mat(kname + '_d', tuple(c * 0.35 for c in kcol), 0.6, 1.0)
+    T = 0.0022; z = T / 2
+    p = []
+    if kbow == 'round':
+        p.append(torus(0.0105, 0.0055, (0, 0, z + 0.0006), km, sz=0.30))
+        x0 = 0.014
+    elif kbow == 'square':
+        p.append(box(0.022, 0.024, T * 1.1, (0, 0, z), km, 0.003)); p.append(cyl(0.0035, T * 1.3, (-0.004, 0, z), dark, 20))
+        x0 = 0.010
+    elif kbow == 'clover':
+        for a in (90, 210, 330):
+            ax, ay = math.cos(math.radians(a)) * 0.0062, math.sin(math.radians(a)) * 0.0062
+            p.append(torus(0.0058, 0.0030, (ax - 0.002, ay, z + 0.0005), km, sz=0.33))
+        x0 = 0.010
+    elif kbow == 'oval':
+        o = torus(0.0105, 0.0050, (0, 0, z + 0.0005), km, sz=0.30); o.scale = (1.25, 0.9, 1); bpy.ops.object.transform_apply(scale=True); p.append(o)
+        # etiqueta de llavero con número
+        tag = mat('tag', (0.86, 0.80, 0.55), 0.7, tex='grime', amt=0.3)
+        ringm = mat('ring', (0.7, 0.7, 0.7), 0.25, 1.0)
+        p.append(torus(0.0085, 0.0007, (-0.016, 0, 0.0009), ringm, sz=1.0))
+        p.append(box(0.022, 0.014, 0.0008, (-0.034, 0.004, 0.0004), tag, 0.0006, rot=(0, 0, math.radians(14))))
+        tt = text('4', 0.008, (-0.034, 0.004, 0.0010), mat('inkk', (0.1, 0.1, 0.3), 0.6), rot=(0, 0, math.radians(14)), font=FONT_H); p.append(tt)
+        x0 = 0.013
+    else:   # 'ring': llave antigua de paletón (hierro)
+        p.append(torus(0.011, 0.0022, (0, 0, 0.0022), km, sz=1.0, seg=(36, 12)))
+        p.append(cyl(0.0024, 0.058, (0.040, 0, 0.0024), km, 20, (0, math.radians(90), 0)))
+        p.append(cyl(0.0034, 0.004, (0.013, 0, 0.0024), km, 20, (0, math.radians(90), 0)))
+        p.append(box(0.010, 0.012, 0.0036, (0.064, 0.0068, 0.0018), km, 0.0005))
+        for wx in (0.061, 0.067): p.append(box(0.0016, 0.006, 0.0038, (wx, 0.0098, 0.0019), dark))
+        bake_item(kname, p)
+        continue
+    key_blade(p, km, x0, 0.040 if kname != 'Key1' else 0.046, 0.0085, T, z, kteeth, groove_m=dark)
+    if ktxt and kbow != 'oval':
+        p.append(text(ktxt, 0.0042, (0.0 if kbow != 'square' else 0.003, 0, T + 0.0009), dark, rot=(0, 0, 0), font=FONT_B))
+    bake_item(kname, p)
 print('[items] OK')

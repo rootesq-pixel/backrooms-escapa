@@ -35,6 +35,7 @@ public class FirstPersonController : MonoBehaviour
     [Header("Stamina")]
     public float maxStamina = 100f;
     public float staminaDrainPerSecond = 25f;
+    [System.NonSerialized] public float staminaDrainMul = 1f, sprintMul = 1f;   // v7.0.4: adrenalina (Adrenaline)
     public float staminaRegenPerSecond = 15f;
     [Tooltip("Segundos sin correr antes de empezar a recuperar stamina.")]
     public float staminaRegenDelay = 1f;
@@ -86,6 +87,7 @@ public class FirstPersonController : MonoBehaviour
     public void SetStaminaForTests(float v) { stamina = Mathf.Clamp(v, 0f, maxStamina); exhausted = false; }
     public float Stamina01 { get { return maxStamina > 0f ? stamina / maxStamina : 0f; } }
     public bool IsSprinting { get; private set; }
+    public float EffectiveSprintSpeed { get { return sprintSpeed * sprintMul; } }
     public bool IsMoving { get; private set; }
     public bool IsCrouching { get; private set; }
     public bool IsGrounded { get { return controller != null && controller.isGrounded; } }
@@ -422,7 +424,7 @@ public class FirstPersonController : MonoBehaviour
 
         if (IsSprinting)
         {
-            stamina -= staminaDrainPerSecond * dt;
+            stamina -= staminaDrainPerSecond * staminaDrainMul * dt;
             regenTimer = staminaRegenDelay;
             if (stamina <= 0f)
             {
@@ -448,7 +450,7 @@ public class FirstPersonController : MonoBehaviour
         }
 
         // --- Velocidad con aceleración / deceleración suaves ---
-        float baseSpeed = IsCrouching ? crouchSpeed : (IsSprinting ? sprintSpeed : walkSpeed);
+        float baseSpeed = IsCrouching ? crouchSpeed : (IsSprinting ? sprintSpeed * sprintMul : walkSpeed);
         float speed = baseSpeed * speedFactor * WaterFactor;
         if (IsSwimming) speed = swimSpeed * speedFactor;
         Vector3 desired = transform.TransformDirection(input) * speed;

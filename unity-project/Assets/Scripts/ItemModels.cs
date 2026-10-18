@@ -16,6 +16,7 @@ public static class ItemModels
             case "AlmondWater": return 1.2f;
             case "VhsTape": return 1.2f;
             case "Note": return 1.25f;
+            case "Key0": case "Key1": case "Key2": case "Key3": case "Key4": return 1.7f;   // v7.0.4: llaves (6-8 cm reales)
             default: return 1f;
         }
     }
@@ -30,6 +31,11 @@ public static class ItemModels
             case ItemType.Glowstick: return "Glowstick";
             case ItemType.VhsTape: return "VhsTape";
             case ItemType.Flashlight: return "Flashlight";
+            case ItemType.Key0: return "Key0";
+            case ItemType.Key1: return "Key1";
+            case ItemType.Key2: return "Key2";
+            case ItemType.Key3: return "Key3";
+            case ItemType.Key4: return "Key4";
             default: return "Note";
         }
     }
