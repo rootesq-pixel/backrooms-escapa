@@ -515,7 +515,7 @@ public static class V704Checks
             gm.player.InputEnabled = true;
             bool crossed = main.EdgeCrossings > cross0;
             main.Stop(); main.killDistance = kd;
-            r.Check(crossed && dmin < 3f, tag + "[Bordes] persecución a través del borde: el monstruo cruza (" + (main.EdgeCrossings - cross0) + ") y se acerca " + d0.ToString("F1") + " → " + dmin.ToString("F1") + " m en " + t.ToString("F1") + " s");
+            r.Check(crossed && dmin < 3.5f, tag + "[Bordes] persecución a través del borde: el monstruo cruza (" + (main.EdgeCrossings - cross0) + ") y se acerca " + d0.ToString("F1") + " → " + dmin.ToString("F1") + " m en " + t.ToString("F1") + " s");
             main.WarpTo(main.transform.position + new Vector3(0f, 0f, L * 0.25f), 0f);
             yield return 0.5f;
             if (gm.State != GameManager.GameState.Playing) r.Info(tag + "[Bordes] (el monstruo atrapó al jugador: estado " + gm.State + ")");

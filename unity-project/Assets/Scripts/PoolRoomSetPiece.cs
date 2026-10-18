@@ -371,10 +371,13 @@ public class PoolRoomProbes : MonoBehaviour
     private readonly SphericalHarmonicsL2[] one = new SphericalHarmonicsL2[1];
     public int AppliedCount { get; private set; }
 
-    public void Init(Transform levelRoot, Vector3 ctr, Bounds b)
+    public void Init(Transform levelRoot, Vector3 ctr, Bounds b) { Init(levelRoot, ctr, b, "PoolRoom/PoolRoomProbes", PoolRoomSetPiece.BakeExposure); }
+
+    // v7.1.0: también para las salas del parque de bolas (otro recurso y exposición)
+    public void Init(Transform levelRoot, Vector3 ctr, Bounds b, string resource, float exposure)
     {
         bounds = b;
-        TextAsset ta = Resources.Load<TextAsset>("PoolRoom/PoolRoomProbes");
+        TextAsset ta = Resources.Load<TextAsset>(resource);
         if (ta == null) { positions = new Vector3[0]; sh = new SphericalHarmonicsL2[0]; return; }
         PJ pj = JsonUtility.FromJson<PJ>(ta.text);
         positions = new Vector3[pj.probes.Length]; sh = new SphericalHarmonicsL2[pj.probes.Length];
@@ -386,7 +389,7 @@ public class PoolRoomProbes : MonoBehaviour
             for (int k = 0; k + 5 < p.s.Length; k += 6)
             {
                 Vector3 d = levelRoot.TransformDirection(new Vector3(p.s[k], p.s[k + 1], p.s[k + 2]));
-                Color c = new Color(p.s[k + 3], p.s[k + 4], p.s[k + 5]) * PoolRoomSetPiece.BakeExposure;
+                Color c = new Color(p.s[k + 3], p.s[k + 4], p.s[k + 5]) * exposure;
                 float m = Mathf.Max(c.r, Mathf.Max(c.g, c.b));
                 if (m <= 0f) continue;
                 s.AddDirectionalLight(-d, c / m, m);

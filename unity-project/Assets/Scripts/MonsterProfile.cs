@@ -169,6 +169,20 @@ public class MonsterProfile
             walkAnimSpeed = 0.6f, runAnimSpeed = 1.2f, stridePatrol = 2.4f, strideChase = 3.2f,
             tint = new Color(1f, 1f, 1f), smoothness = 0.2f,
         };
-        return new[] { stalker, giant, drowned, zombie, bot, watcher };
+        MonsterProfile lurker = new MonsterProfile
+        {
+            id = "PitLurker", modelFile = "SootHorror", displayName = "El Sumergido (Nivel 6)",
+            modelAuthor = "EmoPreben", modelSource = "https://opengameart.org/content/horror-monster-0",
+            licence = "CC0 (dominio público)",
+            note = "Mismo rig que El Hollín, reteñido con NumPy/Pillow (piel cerosa gris pálida con manchas desteñidas de bolas de colores), más bajo y ancho; se esconde bajo las bolas de las piscinas y sale de golpe; ojos y sonidos procedurales.",
+            fit = FitMode.Height, size = 2.1f, stretch = new Vector3(0.85f, 1.0f, 0.9f), yaw = 0f,
+            ai_eyeHeight = 1.8f, killDistance = 1.6f,
+            eyes = true, eyePos = new Vector3(0f, 0.93f, 0.06f), eyeSpacing = 0.028f, eyeSize = 0.008f,
+            eyeColor = new Color(1f, 0.85f, 0.55f), eyeLightIntensity = 0.45f, eyeLightRange = 3.5f,
+            growl = GrowlKind.Hiss, growlPitch = 0.85f, footstepPitch = 0.8f, footstepVolume = 0.45f,
+            walkAnimSpeed = 0.75f, runAnimSpeed = 1.15f, stridePatrol = 1.7f, strideChase = 2.5f,
+            tint = new Color(0.95f, 0.92f, 0.9f), smoothness = 0.45f, jitter = 0.35f, stutterChance = 0.18f, lightReactive = true,
+        };
+        return new[] { stalker, giant, drowned, zombie, bot, watcher, lurker };
     }
 }

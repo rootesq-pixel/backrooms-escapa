@@ -64,6 +64,7 @@ se reinicia solo a los pocos segundos (o al instante con **R**). Cada nivel empi
 | Inventario en rejilla 5×3 + notas (pausa el juego; `I` o `Esc` lo cierra; flechas / clic para elegir, `Tab` cambia Objetos/Notas, botones Usar / Soltar) | `I` |
 | Barra rápida: usar el objeto de la casilla 1-5 (1 = linterna, resto según lo recogido) | `1`-`5` |
 | Usar una pila (recarga la linterna) | `B` (o botón «Recargar linterna» en el inventario) |
+| Silbar (los monstruos cercanos van a investigar; los compañeros lo oyen) | `G` |
 | Modo cámara VHS on/off | `V` |
 | Nadar / bucear en agua profunda: avanzar + `Ctrl`/`C` para sumergirte | `W` + `Ctrl` |
 | Menú de pausa (Continuar / Reiniciar nivel / Opciones / Menú principal / Salir). En multijugador la partida **no** se detiene | `Esc` |

@@ -88,7 +88,18 @@ public class BackroomsGenerator : MonoBehaviour
         RectInt b = PoolBlock;
         return vertical ? (j == b.y + 1 && (i == b.x || i == b.xMax)) : ((i == b.x + 1 && j == b.y) || (i == b.x + 2 && j == b.yMax));
     }
-    public bool InPoolBlock(int x, int z) { return HasPoolRoom && PoolBlock.Contains(new Vector2Int(x, z)); }
+    public bool InPoolBlock(int x, int z) { return HasPoolRoom && PoolBlock.Contains(new Vector2Int(x, z)) || InHall(x, z); }   // v7.1.0: también las salas del parque
+    // v7.1.0 Parque de bolas: salas fijas horneadas de 5x4 celdas (BallpitSetPiece), perímetro cerrado con 4 puertas
+    public const int HallW = 5, HallH = 4;
+    public readonly List<RectInt> Halls = new List<RectInt>();
+    public bool InHallWorld(Vector3 world) { Vector2Int c = WorldToCell(world); return InHall(c.x, c.y); }   // v7.1.0
+    public bool InHall(int x, int z) { for (int k = 0; k < Halls.Count; k++) if (Halls[k].Contains(new Vector2Int(x, z))) return true; return false; }
+    public int HallIndex(int x, int z) { for (int k = 0; k < Halls.Count; k++) if (Halls[k].Contains(new Vector2Int(x, z))) return k; return -1; }
+    private int BlockId(int x, int z) { if (HasPoolRoom && PoolBlock.Contains(new Vector2Int(x, z))) return 0; int k = HallIndex(x, z); return k < 0 ? -1 : 1 + k; }
+    // puertas de la sala: S en la columna 3, N en la 0, O y E en la fila 1 (igual que Tools/ballpit/build_hall.py)
+    public static bool HallDoorH(RectInt b, int i, int j) { return (j == b.y && i == b.x + 3) || (j == b.yMax && i == b.x); }
+    public static bool HallDoorV(RectInt b, int i, int j) { return j == b.y + 1 && (i == b.x || i == b.xMax); }
+    public Vector3 HallCenterLocal(int k) { RectInt b = Halls[k]; return new Vector3((b.x + b.width * 0.5f) * cellSize, 0f, (b.y + b.height * 0.5f) * cellSize); }
     public bool IsPoolCell(int x, int z)
     {
         if (!InPoolBlock(x, z)) return false;
@@ -141,7 +152,7 @@ public class BackroomsGenerator : MonoBehaviour
         roomCount = config.roomCount;
         roomSizeRange = config.roomSize;
 
-        FieldHeight.Reset(); FieldPlan = null; Garage = null; GaragePlan.Active = null;
+        FieldHeight.Reset(); FieldPlan = null; Garage = null; GaragePlan.Active = null; StartDoorRepairs = 0;
         UsedSeed = useRandomSeed ? System.Environment.TickCount : seed;
         System.Random rng = new System.Random(UsedSeed);
 
@@ -225,6 +236,12 @@ public class BackroomsGenerator : MonoBehaviour
     {
         if (FieldHeight.Active) return FieldHeight.H(x, z);
         if (Garage != null) return Garage.Y(x, z);
+        if (Halls.Count > 0)
+        {
+            int hx = Mathf.FloorToInt(x / cellSize), hz = Mathf.FloorToInt(z / cellSize);
+            int k = HallIndex(hx, hz);
+            if (k >= 0) { Vector3 c = HallCenterLocal(k); return BallpitSetPiece.FloorY(x - c.x, z - c.z); }
+        }
         if (HasPoolRoom)
         {
             float cs = cellSize;
@@ -419,7 +436,10 @@ public class BackroomsGenerator : MonoBehaviour
 
         // v7.0.4: aparcamiento por plantas (rampas, tabiques, callejones, rampas falsas)
         if (config.decks > 1 && config.layout != LayoutKind.Field)
+        {
             Garage = GaragePlan.Make(new System.Random(UsedSeed * 313 + 41), w, h, cellSize, wallHeight, config.decks, config.deckDrop, wallsV, wallsH);
+            StartDoorRepairs = EnsureReachFromStartDoor();
+        }
 
         // v7.0 Campo infinito: sin muros (ni siquiera el borde: el campo se repite), salida desde el centro
         if (config.layout == LayoutKind.Field)
@@ -431,6 +451,7 @@ public class BackroomsGenerator : MonoBehaviour
         }
 
         ChoosePoolBlock();
+        ChooseHalls();
     }
 
     private void ChoosePoolBlock()
@@ -458,6 +479,25 @@ public class BackroomsGenerator : MonoBehaviour
             wallsV[bx, bz + 1] = false; wallsV[bx + PoolBlockW, bz + 1] = false;
             EnsureConnected();
         }
+    }
+
+    private void ChooseHalls()
+    {
+        Halls.Clear();
+        if (config == null || config.halls <= 0 || config.layout != LayoutKind.Maze || !BallpitSetPiece.HasBakedAssets) return;
+        System.Random hr = new System.Random(UsedSeed * 173 + 29);
+        for (int tries = 0; tries < 400 && Halls.Count < config.halls; tries++)
+        {
+            int bx = 1 + hr.Next(Mathf.Max(1, w - HallW - 1)), bz = 1 + hr.Next(Mathf.Max(1, h - HallH - 1));
+            RectInt b = new RectInt(bx, bz, HallW, HallH);
+            bool ok = !b.Contains(startCell);
+            foreach (RectInt o in Halls) if (b.xMin - 1 < o.xMax && o.xMin - 1 < b.xMax && b.yMin - 1 < o.yMax && o.yMin - 1 < b.yMax) ok = false;
+            if (!ok) continue;
+            Halls.Add(b);
+            for (int i = bx; i <= bx + HallW; i++) for (int j = bz; j < bz + HallH; j++) wallsV[i, j] = i == bx || i == bx + HallW ? !HallDoorV(b, i, j) : false;
+            for (int i = bx; i < bx + HallW; i++) for (int j = bz; j <= bz + HallH; j++) wallsH[i, j] = j == bz || j == bz + HallH ? !HallDoorH(b, i, j) : false;
+        }
+        if (Halls.Count > 0) EnsureConnected();
     }
 
     // Abre muros (nunca los del perímetro de la sala de piscina) hasta que todas las celdas sean alcanzables (determinista)
@@ -489,7 +529,7 @@ public class BackroomsGenerator : MonoBehaviour
                     for (int d = 0; d < 4; d++)
                     {
                         Vector2Int n = c + Dirs[d];
-                        if (!InBounds(n) || !seen[n.x, n.y] || InPoolBlock(c.x, c.y) != InPoolBlock(n.x, n.y)) continue;
+                        if (!InBounds(n) || !seen[n.x, n.y] || BlockId(c.x, c.y) != BlockId(n.x, n.y)) continue;
                         RemoveWallBetween(c, n); opened = true; break;
                     }
                 }
@@ -711,8 +751,9 @@ public class BackroomsGenerator : MonoBehaviour
                 foreach (Rect fr in FloorRectsMinusPool(x0, z0, x1, z1))
                     flatB[cx, cz].AddQuad(SlotFloor, new Vector3(fr.xMin, 0f, fr.yMin), new Vector3(fr.xMax, 0f, fr.yMin), new Vector3(fr.xMax, 0f, fr.yMax), new Vector3(fr.xMin, 0f, fr.yMax),
                         Vector3.up, Vector3.right, Vector3.forward, cfg.floorTileU, cfg.floorTileV, 0f, 0f);
-                flatB[cx, cz].AddQuad(SlotCeiling, new Vector3(x0, wh, z0), new Vector3(x1, wh, z0), new Vector3(x1, wh, z1), new Vector3(x0, wh, z1),
-                    Vector3.down, Vector3.right, Vector3.forward, cfg.ceilTileU, cfg.ceilTileV, 0f, 0f);
+                foreach (Rect cr in RectsMinusHalls(Rect.MinMaxRect(x0, z0, x1, z1)))
+                    flatB[cx, cz].AddQuad(SlotCeiling, new Vector3(cr.xMin, wh, cr.yMin), new Vector3(cr.xMax, wh, cr.yMin), new Vector3(cr.xMax, wh, cr.yMax), new Vector3(cr.xMin, wh, cr.yMax),
+                        Vector3.down, Vector3.right, Vector3.forward, cfg.ceilTileU, cfg.ceilTileV, 0f, 0f);
             }
         }
         MeshBuilder poolWallB = new MeshBuilder(1);
@@ -789,6 +830,32 @@ public class BackroomsGenerator : MonoBehaviour
             }
         }
 
+        // v7.1.0: jambas y dintel de las puertas de las salas del parque de bolas (hueco 2 m x 2,5 m, como la piscina)
+        foreach (RectInt hb in Halls)
+        {
+            float side = (cs - PoolDoorW) * 0.5f + t * 0.5f - 0.002f, lh = wh - PoolDoorTop;
+            for (int i = hb.x; i < hb.xMax; i++)
+                foreach (int j in new[] { hb.y, hb.yMax })
+                {
+                    if (!HallDoorH(hb, i, j)) continue;
+                    MeshBuilder mb = wallsB[Mathf.Min(i, w - 1) / chunkCells, Mathf.Min(j, h - 1) / chunkCells];
+                    float c0 = (i + 0.5f) * cs, z = j * cs;
+                    mb.AddWallBox(SlotWall, new Vector3(c0 - PoolDoorW * 0.5f - side * 0.5f, wh * 0.5f, z), new Vector3(side, wh, t), cfg.wallTileU, cfg.wallTileV, 0.37f);
+                    mb.AddWallBox(SlotWall, new Vector3(c0 + PoolDoorW * 0.5f + side * 0.5f, wh * 0.5f, z), new Vector3(side, wh, t), cfg.wallTileU, cfg.wallTileV, 0.61f);
+                    mb.AddWallBox(SlotWall, new Vector3(c0, PoolDoorTop + lh * 0.5f, z), new Vector3(PoolDoorW + 0.01f, lh, t), cfg.wallTileU, cfg.wallTileV, 0.13f);
+                }
+            for (int j = hb.y; j < hb.yMax; j++)
+                foreach (int i in new[] { hb.x, hb.xMax })
+                {
+                    if (!HallDoorV(hb, i, j)) continue;
+                    MeshBuilder mb = wallsB[Mathf.Min(i, w - 1) / chunkCells, Mathf.Min(j, h - 1) / chunkCells];
+                    float c0 = (j + 0.5f) * cs, x = i * cs;
+                    mb.AddWallBox(SlotWall, new Vector3(x, wh * 0.5f, c0 - PoolDoorW * 0.5f - side * 0.5f), new Vector3(t, wh, side), cfg.wallTileU, cfg.wallTileV, 0.29f);
+                    mb.AddWallBox(SlotWall, new Vector3(x, wh * 0.5f, c0 + PoolDoorW * 0.5f + side * 0.5f), new Vector3(t, wh, side), cfg.wallTileU, cfg.wallTileV, 0.83f);
+                    mb.AddWallBox(SlotWall, new Vector3(x, PoolDoorTop + lh * 0.5f, c0), new Vector3(t, lh, PoolDoorW + 0.01f), cfg.wallTileU, cfg.wallTileV, 0.47f);
+                }
+        }
+
         // Pilares (aparcamiento): en las intersecciones de la rejilla cada N celdas
         int pillars = 0;
         if (cfg.layout == LayoutKind.OpenPillars && cfg.pillarEvery > 0)
@@ -862,13 +929,14 @@ public class BackroomsGenerator : MonoBehaviour
 
         // Colliders planos de suelo y techo (cajas grandes: sin costuras)
         if (Garage != null) { /* v7.0.4: colisión con la propia malla de suelos/techos */ }
-        else if (!HasPoolRoom) AddBox("FloorCollider", new Vector3(totalW * 0.5f, -0.1f, totalH * 0.5f), new Vector3(totalW + 2f * t, 0.2f, totalH + 2f * t));
+        else if (!HasPoolRoom && Halls.Count == 0) AddBox("FloorCollider", new Vector3(totalW * 0.5f, -0.1f, totalH * 0.5f), new Vector3(totalW + 2f * t, 0.2f, totalH + 2f * t));
         else
         {
             int k = 0;
             foreach (Rect fr in FloorRectsMinusPool(-t, -t, totalW + t, totalH + t))
                 AddBox("FloorCollider" + (k++ == 0 ? "" : k.ToString()), new Vector3(fr.center.x, -0.1f, fr.center.y), new Vector3(fr.width, 0.2f, fr.height));
-            PoolRoomSetPiece.Build(this, cfg, levelRoot, poolWallB.IsEmpty ? null : Track(poolWallB.ToMesh("PoolRoomWalls")));
+            if (HasPoolRoom) PoolRoomSetPiece.Build(this, cfg, levelRoot, poolWallB.IsEmpty ? null : Track(poolWallB.ToMesh("PoolRoomWalls")));
+            if (Halls.Count > 0) BallpitSetPiece.Build(this, cfg, levelRoot);
         }
         if (Garage == null) AddBox("CeilingCollider", new Vector3(totalW * 0.5f, wh + 0.1f, totalH * 0.5f), new Vector3(totalW + 2f * t, 0.2f, totalH + 2f * t));
 
@@ -888,6 +956,7 @@ public class BackroomsGenerator : MonoBehaviour
         PickBatterySpots(rng, mc);
         PickExtraSpots(new System.Random(UsedSeed * 31 + 7), 9);
         PickKeySpots(new System.Random(UsedSeed * 71 + 29), ExitLock.KeyCount);
+        if (Halls.Count > 0) PlaceHallSpots(new System.Random(UsedSeed * 53 + 11));   // v7.1.0: llaves y objetos dentro de las salas (una llave entre las bolas)
         BuildExitDoor(rng);
         if (Garage != null) GarageDecor.Build(this, Garage, cfg, decorRoot, wallMat, o => Track(o));   // v7.0.4: topes, señales y números de planta
 
@@ -933,6 +1002,36 @@ public class BackroomsGenerator : MonoBehaviour
 
     // Rectángulo (x0,z0)-(x1,z1) menos el bloque de la piscina (hasta 4 trozos)
     private List<Rect> FloorRectsMinusPool(float x0, float z0, float x1, float z1)
+    {
+        List<Rect> outR = new List<Rect>();
+        foreach (Rect a in FloorRectsMinusPoolOnly(x0, z0, x1, z1)) outR.AddRange(RectsMinusHalls(a));
+        return outR;
+    }
+
+    // v7.1.0: rectángulo menos las salas del parque de bolas (resta sucesiva)
+    private List<Rect> RectsMinusHalls(Rect a)
+    {
+        List<Rect> cur = new List<Rect> { a };
+        float cs = cellSize;
+        foreach (RectInt hb in Halls)
+        {
+            Rect h = Rect.MinMaxRect(hb.x * cs, hb.y * cs, hb.xMax * cs, hb.yMax * cs);
+            List<Rect> nx = new List<Rect>();
+            foreach (Rect r0 in cur)
+            {
+                if (h.xMax <= r0.xMin || h.xMin >= r0.xMax || h.yMax <= r0.yMin || h.yMin >= r0.yMax) { nx.Add(r0); continue; }
+                float ix0 = Mathf.Max(r0.xMin, h.xMin), ix1 = Mathf.Min(r0.xMax, h.xMax), iz0 = Mathf.Max(r0.yMin, h.yMin), iz1 = Mathf.Min(r0.yMax, h.yMax);
+                if (r0.yMin < iz0) nx.Add(Rect.MinMaxRect(r0.xMin, r0.yMin, r0.xMax, iz0));
+                if (iz1 < r0.yMax) nx.Add(Rect.MinMaxRect(r0.xMin, iz1, r0.xMax, r0.yMax));
+                if (r0.xMin < ix0) nx.Add(Rect.MinMaxRect(r0.xMin, iz0, ix0, iz1));
+                if (ix1 < r0.xMax) nx.Add(Rect.MinMaxRect(ix1, iz0, r0.xMax, iz1));
+            }
+            cur = nx;
+        }
+        return cur;
+    }
+
+    private List<Rect> FloorRectsMinusPoolOnly(float x0, float z0, float x1, float z1)
     {
         List<Rect> r = new List<Rect>();
         if (!HasPoolRoom) { r.Add(Rect.MinMaxRect(x0, z0, x1, z1)); return r; }
@@ -1194,6 +1293,26 @@ public class BackroomsGenerator : MonoBehaviour
         }
     }
 
+    // v7.1.0: dos llaves y dos objetos pasan a las salas del parque de bolas: una llave enterrada entre las bolas de una piscina
+    // (asoma un poco), otra en el atrezo (tras el mostrador, bajo la mesa de la fiesta, en la plataforma alta...)
+    public readonly List<Vector3> HallPitKeys = new List<Vector3>();
+    private void PlaceHallSpots(System.Random rng)
+    {
+        HallPitKeys.Clear();
+        List<Vector3> props = new List<Vector3>(BallpitSetPiece.PropSpots);
+        for (int i = props.Count - 1; i > 0; i--) { int j = rng.Next(i + 1); Vector3 t = props[i]; props[i] = props[j]; props[j] = t; }
+        int hk = rng.Next(Halls.Count), hp = (hk + 1 + rng.Next(System.Math.Max(1, Halls.Count - 1))) % Halls.Count;
+        Vector3 pit = BallpitSetPiece.PitKeySpot(rng);
+        Vector3 Hall(int k, Vector3 l) { return levelRoot.TransformPoint(HallCenterLocal(k) + l + new Vector3(0f, 0.1f, 0f)); }
+        if (KeySpots.Count >= 4)
+        {
+            KeySpots[1] = Hall(hk, pit); HallPitKeys.Add(KeySpots[1]);
+            KeySpots[3] = Hall(hp, props[0]);
+        }
+        for (int i = 0; i < 2 && i < ExtraSpots.Count && 1 + i < props.Count; i++)
+            ExtraSpots[ExtraSpots.Count - 1 - i] = Hall((hp + 1 + i) % Halls.Count, props[1 + i]);
+    }
+
     // v7.0.4: sitios para las llaves: repartidas, lejos del inicio y no pegadas a la salida ni a otros objetos
     private void PickKeySpots(System.Random rng, int count)
     {
@@ -1415,6 +1534,53 @@ public class BackroomsGenerator : MonoBehaviour
     }
 
     // Orienta al jugador hacia una dirección abierta
+    // v7.1.0: la cabina del ascensor ocupa la celda de inicio y solo se sale por su puerta (la primera salida abierta,
+    // como en ComputeStartYaw). Si la celda tenía más salidas, lo que quedaba tras ellas solo se alcanzaba por detrás de
+    // la cabina: en el aparcamiento podía quedar el jugador encerrado en un callejón. Se abren muros normales hasta que
+    // todo el nivel se alcanza desde la puerta sin cruzar la celda de inicio.
+    public int StartDoorRepairs { get; private set; }
+    private int EnsureReachFromStartDoor()
+    {
+        int dir = IsOpen(startCell, 0) ? 0 : IsOpen(startCell, 1) ? 1 : IsOpen(startCell, 2) ? 2 : 3;
+        Vector2Int n0 = startCell + Dirs[dir];
+        if (!InBounds(n0)) return 0;
+        int opened = 0;
+        for (int guard = 0; guard < w * h; guard++)
+        {
+            bool[,] seen = new bool[w, h];
+            Queue<Vector2Int> q = new Queue<Vector2Int>(); q.Enqueue(n0); seen[n0.x, n0.y] = true; seen[startCell.x, startCell.y] = true; int cnt = 2;
+            while (q.Count > 0)
+            {
+                Vector2Int c = q.Dequeue();
+                for (int d = 0; d < 4; d++)
+                {
+                    if (!IsOpen(c, d)) continue;
+                    Vector2Int n = c + Dirs[d];
+                    if (seen[n.x, n.y]) continue;
+                    seen[n.x, n.y] = true; cnt++; q.Enqueue(n);
+                }
+            }
+            if (cnt >= w * h) return opened;
+            bool did = false;
+            for (int i = 0; i < w && !did; i++)
+                for (int j = 0; j < h && !did; j++)
+                {
+                    if (seen[i, j]) continue;
+                    Vector2Int c = new Vector2Int(i, j);
+                    for (int d = 0; d < 4; d++)
+                    {
+                        Vector2Int n = c + Dirs[d];
+                        if (!InBounds(n) || !seen[n.x, n.y] || n == startCell) continue;
+                        if (Garage != null && !Garage.CanOpen(c, n)) continue;
+                        if (Dirs[d].y == 1) wallsH[c.x, c.y + 1] = false; else if (Dirs[d].x == 1) wallsV[c.x + 1, c.y] = false; else if (Dirs[d].y == -1) wallsH[c.x, c.y] = false; else wallsV[c.x, c.y] = false;
+                        did = true; opened++; break;
+                    }
+                }
+            if (!did) return opened;
+        }
+        return opened;
+    }
+
     private float ComputeStartYaw()
     {
         if (IsOpen(startCell, 0)) return 0f;     // Norte

@@ -834,13 +834,13 @@ public static class SmokeTest
     private static void TestV4Assets(Report r)
     {
         // Niveles
-        r.Check(LevelConfig.Count == 6 && LevelConfig.Get(5).name == "Campo infinito" && LevelConfig.Get(5).layout == LayoutKind.Field, "hay 6 niveles; el 5 es el Campo infinito (" + LevelConfig.Count + ")");
+        r.Check(LevelConfig.Count == 7 && LevelConfig.Get(5).name == "Campo infinito" && LevelConfig.Get(5).layout == LayoutKind.Field && LevelConfig.Get(6).name == "Parque de bolas" && LevelConfig.Get(6).halls > 0, "hay 7 niveles; el 5 es el Campo infinito y el 6 el Parque de bolas (" + LevelConfig.Count + ")");
         r.Check(LevelConfig.Get(2).water && LevelConfig.Get(2).name == "Poolrooms", "nivel 2 = Poolrooms (antes «Salas inundadas»: agua realista)");
         bool onlyOneWater = true; for (int i = 0; i < LevelConfig.Count; i++) if (i != 2 && LevelConfig.Get(i).water) onlyOneWater = false;
         r.Check(onlyOneWater && LevelConfig.Get(3).name == "Hotel abandonado" && LevelConfig.Get(4).name == "Complejo industrial", "sin otro nivel de agua; nivel 3 = hotel, nivel 4 = industrial");
         r.Check(MonsterProfile.ForLevel(2).id == "DrownedZombie", "el Ahogado es el monstruo del nivel de agua (Poolrooms)");
         r.Check(Resources.Load<GameObject>("Poolrooms/PoolHall") == null && MonsterProfile.ById("AlienBug") == null, "el modelo PoolHall y El Reptador ya no existen");
-        r.Check(LoreNotes.Total == 18 && !LoreNotes.Valid(60) && LoreNotes.Valid(52) && LoreNotes.Valid(42), "18 notas de ambiente (3 por nivel, 6 niveles)");
+        r.Check(LoreNotes.Total == 21 && !LoreNotes.Valid(70) && LoreNotes.Valid(62) && LoreNotes.Valid(52), "21 notas de ambiente (3 por nivel, 7 niveles)");
         var seenMonsters = new HashSet<string>();
         for (int i = 0; i < LevelConfig.Count; i++)
         {
@@ -1292,6 +1292,7 @@ public static class SmokeTest
         {
             Vector3 a = prev + Vector3.up * 0.9f, bpt = path[i] + Vector3.up * 0.9f;
             if (i == 0) { prev = path[i]; continue; }
+            if (gen.Halls.Count > 0 && (gen.InHallWorld(prev) || gen.InHallWorld(path[i]))) { prev = path[i]; continue; }   // v7.1.0: salas de juegos con muebles (se cruza por la malla de navegación; se comprueba en V710Checks)
             Vector3 dir = bpt - a;
             if (dir.magnitude > 0.01f && Physics.SphereCast(a, 0.34f, dir.normalized, out RaycastHit hit, dir.magnitude))
             {
@@ -1317,7 +1318,9 @@ public static class SmokeTest
         r.Check(standFree && Vector3.Distance(standPos, doorFloor) < 1.6f, tag + "se puede estar a <1.6 m de la puerta sin atravesar nada");
 
         // NavMesh en edición (si el paquete lo permite)
+        BallpitSetPiece.BeginNavBuild();
         bool navBuilt = MonsterAI.TryBuildRuntimeNavMesh(gen.Root.gameObject);
+        BallpitSetPiece.EndNavBuild();
         if (navBuilt)
         {
             NavMeshPath np = new NavMeshPath();
@@ -1866,9 +1869,9 @@ public static class SmokePlayRunner
         r.Check(buzzPlaying <= AudioBuzzLimiter.MaxBuzzing, tag + " zumbidos de luces sonando a la vez ≤ " + AudioBuzzLimiter.MaxBuzzing + " (" + buzzPlaying + ")");
         r.Check(loopsPlaying <= AudioBuzzLimiter.MaxBuzzing + 4, tag + " bucles de audio sonando a la vez ≤ " + (AudioBuzzLimiter.MaxBuzzing + 4) + " (" + loopsPlaying + ")");
         if (!inGame) r.Check(buzzPlaying == 0, tag + " en el menú no suenan los zumbidos de luces");
-        if (inGame && !compareToLevel0) { census0Total = total; census0Loops = loopsPlaying; }
-        if (compareToLevel0 && census0Total >= 0) r.Check(total <= census0Total + 1 && loopsPlaying <= census0Loops,   // menos es válido (un zumbido de lámpara depende de la posición)
- tag + " tras reiniciar el nivel el nº de fuentes de audio (sin zumbidos) no crece (" + total + " vs " + census0Total + ", bucles " + loopsPlaying + " vs " + census0Loops + ")");
+        if (inGame && !compareToLevel0) { census0Total = total; census0Loops = loopsPlaying - buzzPlaying; }
+        if (compareToLevel0 && census0Total >= 0) r.Check(total <= census0Total + 1 && loopsPlaying - buzzPlaying <= census0Loops,   // menos es válido (un zumbido de lámpara depende de la posición)
+ tag + " tras reiniciar el nivel el nº de fuentes de audio (sin zumbidos) no crece (" + total + " vs " + census0Total + ", bucles sin zumbidos " + (loopsPlaying - buzzPlaying) + " vs " + census0Loops + ")");
     }
 
     private static IEnumerator Run()
@@ -1876,6 +1879,7 @@ public static class SmokePlayRunner
         SmokeTest.Report r = report;
         GameSettings.ResetDefaults();
         ElevatorCabin.InstantForTests = true;      // las pruebas largas no esperan al ascensor; el bloque «Ascensor» lo reproduce en tiempo real
+        BallPitLurker.DisabledForTests = true;     // v7.1.0: solo se sumerge en V710Checks (no interfiere con otras pruebas)
         ExitLock.AutoKeyForTests = true;          // v7.0.4: la salida con llave se prueba en V704Checks
         yield return Until(() => GameBootstrap.Instance != null && GameBootstrap.Instance.IsLoaded);
         GameBootstrap gb = GameBootstrap.Instance;
@@ -2923,6 +2927,11 @@ public static class SmokePlayRunner
                 while (v4.MoveNext()) yield return v4.Current;
                 gm = GameManager.Instance;
             }
+            {   // v7.1.0: Parque de bolas
+                IEnumerator v10 = V710Checks.LevelChecks(r, tag, lv, cfg, gm);
+                while (v10.MoveNext()) yield return v10.Current;
+                gm = GameManager.Instance;
+            }
 
             // Objetos extra del nivel: notas, agua de almendras, barras luminosas, cinta
             {
@@ -2936,7 +2945,7 @@ public static class SmokePlayRunner
                     else if (ip.type == ItemType.VhsTape) tapeN++;
                 }
                 int foundLv = 0; if (Inventory.Instance != null) for (int k = 0; k < LoreNotes.PerLevel; k++) if (Inventory.Instance.HasNote(LoreNotes.IdFor(lv, k))) foundLv++;   // una nota recogida al salir de la cabina
-                r.Check(notesN <= LoreNotes.PerLevel && notesN + foundLv >= LoreNotes.PerLevel && almondN >= 2 && glowN >= 3 && (tapeN >= 1 || (UnityEngine.Object.FindObjectOfType<BackroomsGenerator>() != null && UnityEngine.Object.FindObjectOfType<BackroomsGenerator>().ExtraSpots.Count >= 9 && Inventory.Instance != null && Inventory.Instance.GetCount(ItemType.VhsTape) >= 1)), tag + "objetos del nivel (la cinta puede haberse recogido al pasar): " + notesN + " notas, " + almondN + " aguas, " + glowN + " barras, " + tapeN + " cinta");
+                r.Check(notesN <= LoreNotes.PerLevel && notesN + foundLv >= LoreNotes.PerLevel && almondN + ItemPickup.AlmondCollectedThisLevel >= 2 && glowN + ItemPickup.GlowCollectedThisLevel >= 3 && (tapeN >= 1 || (UnityEngine.Object.FindObjectOfType<BackroomsGenerator>() != null && UnityEngine.Object.FindObjectOfType<BackroomsGenerator>().ExtraSpots.Count >= 9 && Inventory.Instance != null && Inventory.Instance.GetCount(ItemType.VhsTape) >= 1)), tag + "objetos del nivel (la cinta puede haberse recogido al pasar): " + notesN + " notas, " + almondN + " aguas, " + glowN + " barras, " + tapeN + " cinta");
                 Inventory invL = Inventory.Instance;
                 if (lv > 0 && prevNote >= 0) r.Check(invL != null && invL.HasNote(prevNote), tag + "la nota del nivel anterior se conserva (id " + prevNote + ")");
                 if (notePk != null && invL != null)

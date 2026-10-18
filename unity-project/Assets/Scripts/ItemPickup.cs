@@ -95,6 +95,7 @@ public class ItemPickup : MonoBehaviour
         Finish();
     }
 
+    public static int GlowCollectedThisLevel, AlmondCollectedThisLevel;   // pruebas: barras recogidas al pasar (se reinicia al cargar el nivel)
     public bool Collect()
     {
         Inventory inv = Inventory.Instance;
@@ -115,6 +116,8 @@ public class ItemPickup : MonoBehaviour
                 if (gm != null) gm.ShowToast("Inventario lleno");
                 return false;
             }
+            if (type == ItemType.Glowstick) GlowCollectedThisLevel++;
+            if (type == ItemType.AlmondWater) AlmondCollectedThisLevel++;
             if (gm != null) gm.ShowToast("+ " + ItemDefs.Get(type).name + (added > 1 ? " x" + added : "") + "   (I: inventario)");
         }
         Finish();

@@ -25,6 +25,7 @@ public class LevelConfig
     public float pillarSize = 0.9f;
     public int decks = 1;                  // v7.0.4: aparcamiento con plantas a medio nivel unidas por rampas (GaragePlan)
     public float deckDrop = 1.6f;
+    public int halls = 0;                  // v7.1.0: salas de juego fijas horneadas (Parque de bolas, BallpitSetPiece)
 
     // --- Superficies ---
     public SurfaceStyle wallStyle = SurfaceStyle.WallpaperYellow;
@@ -96,7 +97,7 @@ public class LevelConfig
     public Color doorColor = new Color(0.55f, 0.52f, 0.38f);
     public Color doorFrameColor = new Color(0.30f, 0.24f, 0.14f);
 
-    public const int Count = 6;
+    public const int Count = 7;
     private static LevelConfig[] cache;
 
     public static LevelConfig Get(int index)
@@ -119,7 +120,8 @@ public class LevelConfig
             case 2: c = Level2(); break;
             case 3: c = Level3(); break;
             case 4: c = Level4(); break;
-            default: c = Level5(); break;
+            case 5: c = Level5(); break;
+            default: c = Level6(); break;
         }
         c.monsterModel = MonsterProfile.ForLevel(i).id;   // un monstruo distinto por nivel
         return c;
@@ -293,6 +295,36 @@ public class LevelConfig
         c.eventInterval = new Vector2(20f, 40f);
         c.step = StepKind.Grass;
         c.doorColor = new Color(0.62f, 0.58f, 0.50f); c.doorFrameColor = new Color(0.34f, 0.30f, 0.25f);
+        return c;
+    }
+
+    // Nivel 6 (v7.1.0): Parque de bolas — parque infantil cubierto abandonado: piscinas de bolas, estructuras acolchadas, toboganes
+    private static LevelConfig Level6()
+    {
+        LevelConfig c = new LevelConfig();
+        c.index = 6;
+        c.name = "Parque de bolas";
+        c.subtitle = "Colchonetas descoloridas, piscinas de bolas y una música de cajita que suena muy lejos. Aquí ya no viene nadie a jugar.";
+        c.gridW = 22; c.gridH = 22; c.cellSize = 4f; c.wallHeight = 3.0f;
+        c.loopChance = 0.18f; c.roomCount = 9; c.roomSize = new Vector2Int(2, 3);
+        c.halls = 3;
+        c.wallStyle = SurfaceStyle.PlayWall; c.floorStyle = SurfaceStyle.PlayFloor; c.ceilingStyle = SurfaceStyle.CeilingBeige;
+        c.wallTileU = 4.8f; c.wallTileV = 4.8f; c.floorTileU = c.floorTileV = 2.4f; c.ceilTileU = c.ceilTileV = 2.4f;
+        c.ceilTint = new Color(0.92f, 0.92f, 0.94f);
+        c.ambient = new Color(0.085f, 0.08f, 0.07f);
+        c.fog = new Color(0.20f, 0.19f, 0.17f);
+        c.grade = 0.6f;
+        c.fogDensity = 0.03f;
+        c.reflectionIntensity = 0.12f;
+        c.fixture = FixtureKind.Panel; c.lightSpacing = 2; c.deadChance = 0.18f; c.flickerChance = 0.35f;
+        c.lightColor = new Color(1f, 0.96f, 0.88f); c.emissionColor = new Color(1.25f, 1.2f, 1.05f);
+        c.lightIntensity = 1.2f; c.lightRange = 8f; c.maxRealtimeLights = 10; c.buzzChance = 0.45f;
+        c.flashlightDrain = 0.6f; c.flashlightRecharge = 0.12f; c.batteries = 5; c.batteryAmount = 35f;
+        c.monsterCount = 1; c.patrolSpeed = 1.9f; c.chaseSpeed = 4.6f; c.sightRange = 20f; c.hearingScale = 1.3f;
+        c.droneHz = 52f; c.droneNoise = 0.10f; c.droneVolume = 0.22f; c.ambientEvent = AmbientEvent.Creak;
+        c.eventInterval = new Vector2(10f, 22f);
+        c.step = StepKind.Carpet;
+        c.doorColor = new Color(0.62f, 0.55f, 0.42f); c.doorFrameColor = new Color(0.36f, 0.30f, 0.22f);
         return c;
     }
 }

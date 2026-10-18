@@ -103,6 +103,9 @@ public class FirstPersonController : MonoBehaviour
     public float swimSpeed = 2.0f;
     public float WaterDepth { get; private set; }
     public float WaterFactor { get; private set; }
+    // v7.1.0: vadear en una piscina de bolas (profundidad de bolas sobre los pies)
+    public float BallDepth { get; private set; }
+    public float BallWadeFactor { get; private set; } = 1f;
     public bool IsSwimming { get; private set; }
     public bool IsUnderwater { get; private set; }
     public bool IsDiving { get; private set; }
@@ -407,6 +410,8 @@ public class FirstPersonController : MonoBehaviour
         WaterDepth = Mathf.Lerp(WaterDepth, rawDepth, 1f - Mathf.Exp(-14f * dt));
         IsSwimming = wv != null && (IsSwimming ? rawDepth > swimDepth - 0.2f : rawDepth > swimDepth);
         WaterFactor = wv != null ? WaterVolume.WadeFactor(WaterDepth) : 1f;
+        BallDepth = BallPitField.All.Count > 0 ? BallPitField.DepthAt(transform.position) : 0f;
+        BallWadeFactor = BallDepth > 0.05f ? Mathf.Lerp(1f, 0.5f, Mathf.Clamp01(BallDepth / 0.7f)) : 1f;
 
         // --- Agacharse (Ctrl mantener, C alternar). Nadando, Ctrl = bucear ---
         if (Input.GetKeyDown(KeyCode.C)) crouchToggled = !crouchToggled;
@@ -451,7 +456,7 @@ public class FirstPersonController : MonoBehaviour
 
         // --- Velocidad con aceleración / deceleración suaves ---
         float baseSpeed = IsCrouching ? crouchSpeed : (IsSprinting ? sprintSpeed * sprintMul : walkSpeed);
-        float speed = baseSpeed * speedFactor * WaterFactor;
+        float speed = baseSpeed * speedFactor * WaterFactor * BallWadeFactor;
         if (IsSwimming) speed = swimSpeed * speedFactor;
         Vector3 desired = transform.TransformDirection(input) * speed;
         bool grounded = controller.isGrounded;

@@ -307,7 +307,7 @@ public class GameBootstrap : MonoBehaviour
             if (worldAssets[i] != null) Destroy(worldAssets[i]);
         }
         worldAssets.Clear();
-        BatteryPickup.CollectedThisLevel = 0;
+        BatteryPickup.CollectedThisLevel = 0; ItemPickup.GlowCollectedThisLevel = 0; ItemPickup.AlmondCollectedThisLevel = 0;
         if (NetSession.Instance != null) NetSession.Instance.OnWorldTeardown();
     }
 
@@ -351,7 +351,9 @@ public class GameBootstrap : MonoBehaviour
         bool navBuilt = false;
         if (spawnMonster && buildNavMesh && !netClient)
         {
+            BallpitSetPiece.BeginNavBuild();
             navBuilt = MonsterAI.TryBuildRuntimeNavMesh(generator.Root.gameObject);
+            BallpitSetPiece.EndNavBuild();
         }
         Debug.Log("[GameBootstrap] Nivel " + levelIndex + " (" + cfg.name + ") semilla: " + generator.UsedSeed + " | NavMesh en runtime: " + navBuilt);
 
@@ -578,6 +580,7 @@ public class GameBootstrap : MonoBehaviour
         steps.Setup(cfg.step);
         AmbienceAudio amb = worldRoot.AddComponent<AmbienceAudio>();
         amb.Setup(cfg, player.transform);
+        if (generator.Halls.Count > 0) PlayparkAudio.Create(worldRoot.transform, player.transform);   // v7.1.0: caja de música y risas lejanas
         return player;
     }
 
@@ -654,11 +657,13 @@ public class GameBootstrap : MonoBehaviour
                 // las notas que ya tengo no se vuelven a colocar
                 int id = LoreNotes.IdFor(cfg.index, noteK++);
                 ItemPickup np = ItemPickup.Spawn(ItemType.None, p, id, root, 0f);
+                if (generator.Halls.Count > 0 && generator.InHallWorld(p)) np.pickupRadius = 1.45f;   // v7.1.0: sobre mostrador / mesa
                 if (net) { np.netId = 1000 + i; NetSession.RegisterPickup(np.netId, np); }
             }
             else
             {
                 ItemPickup ip = ItemPickup.Spawn(t, p, -1, root, 0f);
+                if (generator.Halls.Count > 0 && generator.InHallWorld(p)) ip.pickupRadius = 1.45f;   // v7.1.0: sobre mostrador / mesa
                 if (net) { ip.netId = 1000 + i; NetSession.RegisterPickup(ip.netId, ip); }
             }
         }
@@ -681,7 +686,13 @@ public class GameBootstrap : MonoBehaviour
             p.y -= 0.1f;
             if (cfg.water) p.y += Mathf.Max(0f, cfg.waterLevel - 0.05f);
             ItemPickup ip = ItemPickup.Spawn(types[i], p, -1, root, 0f);
+            if (generator.Halls.Count > 0 && generator.InHallWorld(p)) ip.pickupRadius = 1.45f;   // v7.1.0
             ip.transform.rotation = Quaternion.Euler(0f, (float)r.NextDouble() * 360f, 0f);
+            if (generator.HallPitKeys.Contains(generator.KeySpots[i]))
+            {   // v7.1.0: medio enterrada entre las bolas, inclinada: asoma el mango
+                ip.transform.position += Vector3.up * 0.03f;
+                ip.transform.rotation = Quaternion.Euler(28f, (float)r.NextDouble() * 360f, 12f);
+            }
             if (net) { ip.netId = 3000 + i; NetSession.RegisterPickup(ip.netId, ip); }
             KeysPlaced++;
         }
@@ -713,6 +724,11 @@ public class GameBootstrap : MonoBehaviour
         ai.visual = MonsterVisual.Create(m, profile, playerTransform);
         ai.Setup(playerTransform, generator);
         if (cfg.layout == LayoutKind.Field) WrapView.Attach(m);   // v7.0.4: se ve y se oye en la imagen más cercana
+        if (generator.Halls.Count > 0)   // v7.1.0 Parque de bolas: El Sumergido se esconde en las piscinas (el primero; no el imitador)
+        {
+            m.AddComponent<BallPitMonsterFx>();
+            if (index == 0 && !proxy) BallPitLurker.Attach(ai, generator.UsedSeed);
+        }
         return ai;
     }
 

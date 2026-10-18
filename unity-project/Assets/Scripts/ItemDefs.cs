@@ -95,6 +95,11 @@ public static class LoreNotes
             "Mapa dibujado a mano|He caminado recto tres horas. He vuelto a pasar junto a la misma casa. Misma ventana rota, mismo tablón suelto. Ya no dibujo, solo cuento casas.",
             "Hoja de cuaderno mojada|Hay algo alto y blanco a lo lejos, entre la hierba. Si lo miras, ya no está. Si dejas de mirarlo, está más cerca. No lo mires mucho. No dejes de mirarlo.",
             "Nota clavada en un poste|Las puertas sueltas no llevan a ninguna parte. Todas menos una. Esa zumba como una radio vieja y tiene una luz cansada al lado. Escucha el viento… y lo que no es viento." },
+        // Nivel 6 — Parque de bolas
+        new[] {
+            "Pulsera de entrada|Pulsera de papel, color naranja: «Niño 4-8 años · Entrada 17:05 · Salida ____». Tiene una mancha de batido seca. Nadie rellenó la hora de salida.",
+            "Hoja de incidencias|Día 12: falta una bola roja. Día 13: faltan doce. Día 14: la piscina grande tiene MÁS bolas que ayer y está más honda. No meter la mano hasta el fondo.",
+            "Nota infantil a lápiz|Mi amigo vive debajo de las bolas. Si te quedas muy quieto en el borde sale a jugar. No le gusta que le pisen. Las llaves las guarda él." },
     };
 
     public static int Total { get { return data.Length * PerLevel; } }

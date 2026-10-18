@@ -111,6 +111,21 @@ public static class MonsterAssetBuilder
         Debug.Log("[MonsterAssetBuilder] OK");
     }
 
+    // v7.1.0: solo un prefab (batchmode: -executeMethod MonsterAssetBuilder.BuildOnlyFromEnv, MONSTER_ID=PitLurker)
+    public static void BuildOnlyFromEnv()
+    {
+        string id = System.Environment.GetEnvironmentVariable("MONSTER_ID");
+        MonsterProfile p = MonsterProfile.ById(id);
+        if (p == null) { Debug.LogError("[MonsterAssetBuilder] no existe " + id); EditorApplication.Exit(1); return; }
+        Directory.CreateDirectory(MatDir); Directory.CreateDirectory(CtrlDir); Directory.CreateDirectory(PrefabDir);
+        AssetDatabase.Refresh();
+        AssetDatabase.ImportAsset(ModelPath(p), ImportAssetOptions.ForceUpdate);
+        BuildOne(p);
+        AssetDatabase.SaveAssets(); AssetDatabase.Refresh();
+        Debug.Log("[MonsterAssetBuilder] OK " + id);
+        EditorApplication.Exit(0);
+    }
+
     private static Material MakeMat(string name, Texture2D albedo, Texture2D normal, Texture2D metalSmooth, Texture2D ao, Color tint, float smoothness, Color emission)
     {
         string path = MatDir + "/" + name + ".mat";
@@ -153,6 +168,8 @@ public static class MonsterAssetBuilder
                 return MakeMat("FieldWatcher", Tex("Watcher_Albedo"), Tex("Stalker_Normal"), null, null, p.tint, p.smoothness, Color.black);
             case "GiantMutant":
                 return MakeMat("GiantMutant", Tex("Giant_Albedo"), null, null, null, p.tint, p.smoothness, Color.black);
+            case "PitLurker":
+                return MakeMat("PitLurker", Tex("Sunk_Albedo"), Tex("Soot_Normal"), null, null, p.tint, p.smoothness, Color.black);
             case "SootHorror":
                 return MakeMat("SootHorror", Tex("Soot_Albedo"), Tex("Soot_Normal"), null, null, p.tint, p.smoothness, Color.black);
         }

@@ -433,6 +433,43 @@ public static class MpPlayRunner
             Mark("host_field_done");
         }
 
+        // ---- v7.1.0: nivel 6 (Parque de bolas): mismas salas y llaves; el monstruo se sumerge y emerge en el anfitrión y el cliente lo ve ----
+        {
+            int epoch6 = ns.Epoch;
+            ns.HostLoadLevel(6, false, false);
+            yield return Wait(() => WorldReady(gb, ns, 6) && ns.Epoch > epoch6, 240, "nivel 6 cargado (anfitrión)");
+            yield return Wait(() => ns.AllReady(), 180, "todos listos en el nivel 6");
+            BackroomsGenerator g6 = gb.Generator;
+            r.Check(gb.CurrentLevel == 6 && ns.HashesMatch() && ns.HashMismatches == 0 && g6.Halls.Count >= 3 && BallPitField.All.Count == g6.Halls.Count, "[Parque MP] nivel 6 cargado con la misma huella (" + g6.Halls.Count + " salas de bolas)");
+            Vector3 pk = g6.HallPitKeys.Count > 0 ? g6.HallPitKeys[0] : Vector3.zero;
+            File.WriteAllText(MpTest.Dir + "/bp_host.txt", g6.UsedSeed + ";" + g6.Halls.Count + ";" + pk.x.ToString("F2") + ";" + pk.z.ToString("F2"));
+            ElevatorCabin cab6 = ElevatorCabin.Current;
+            yield return Wait(() => cab6 == null || cab6.Released, 40, "puertas del ascensor abiertas (parque)");
+            yield return 0.5f;
+            foreach (MonsterAI m in MonsterAI.Instances) m.Stop();
+            Mark("host_level6");
+            yield return WaitMark("client_bp_ready", 240);
+            BallPitLurker lk = BallPitLurker.Active;
+            r.Check(lk != null, "[Parque MP] el anfitrión controla el monstruo de las piscinas");
+            if (lk != null && BallPitField.All.Count > 0)
+            {
+                bool dis = BallPitLurker.DisabledForTests; BallPitLurker.DisabledForTests = false;
+                lk.Submerge(BallPitField.All[0], 0);
+                yield return 0.8f;
+                r.Check(lk.IsHidden, "[Parque MP] anfitrión: monstruo sumergido");
+                Mark("host_bp_sub");
+                yield return WaitMark("client_bp_seen", 60);
+                lk.BeginEmerge(false);
+                yield return Wait(() => lk.Current == BallPitLurker.Phase.Roaming, 10, "emerger (anfitrión)");
+                foreach (MonsterAI m in MonsterAI.Instances) m.Stop();
+                BallPitLurker.DisabledForTests = dis;
+                yield return 1.5f;
+            }
+            Mark("host_bp_emerged");
+            yield return WaitMark("client_bp_done", 120);
+            Mark("host_bp_done");
+        }
+
         // ---- desconexión del cliente ----
         GameObject av1 = remote1.avatar.gameObject;
         yield return WaitMark("client_left", 120);
@@ -800,6 +837,39 @@ public static class MpPlayRunner
             r.Check(rmax > 0.3f, "[Campo MP] el cliente oye el roce de la hierba al correr (" + rmax.ToString("F2") + ")");
             Mark("client_field_done");
             yield return WaitMark("host_field_done", 60);
+        }
+
+        // ---- v7.1.0: nivel 6 (Parque de bolas) en el cliente ----
+        {
+            yield return Wait(() => WorldReady(gb, ns, 6) && gb.IsLoaded, 240, "nivel 6 cargado (cliente)");
+            yield return WaitMark("host_level6", 240);
+            BackroomsGenerator g6 = gb.Generator;
+            string[] hb = File.Exists(MpTest.Dir + "/bp_host.txt") ? File.ReadAllText(MpTest.Dir + "/bp_host.txt").Split(';') : new string[0];
+            Vector3 pk = g6.HallPitKeys.Count > 0 ? g6.HallPitKeys[0] : Vector3.zero;
+            r.Check(hb.Length == 4 && hb[0] == g6.UsedSeed.ToString() && hb[1] == g6.Halls.Count.ToString() && hb[2] == pk.x.ToString("F2") && hb[3] == pk.z.ToString("F2") && BallPitField.All.Count == g6.Halls.Count,
+                "[Parque MP] el cliente tiene las mismas salas y la llave enterrada en la misma piscina");
+            gm = GameManager.Instance; FirstPersonController p6 = gm.player;
+            if (BallPitField.All.Count > 0)
+            {
+                BallPitField f0 = BallPitField.All[0]; var pit = f0.pits[1 < f0.pits.Length ? 1 : 0];
+                Rect ir = BallpitSetPiece.PitInner(pit, f0.rim);
+                p6.Teleport(f0.transform.TransformPoint(new Vector3(ir.center.x, pit.floor + 0.3f, ir.center.y)), 0f);
+                yield return 1.0f;
+                r.Check(p6.BallDepth > 0.25f && p6.BallWadeFactor < 0.9f, "[Parque MP] el cliente vadea entre las bolas (profundidad " + p6.BallDepth.ToString("F2") + ")");
+            }
+            Mark("client_bp_ready");
+            yield return WaitMark("host_bp_sub", 120);
+            BallPitMonsterFx fx = null;
+            yield return Wait(() => { foreach (BallPitMonsterFx q in UnityEngine.Object.FindObjectsOfType<BallPitMonsterFx>()) if (q.Under) { fx = q; return true; } return false; }, 8, "monstruo sumergido visto en el cliente");
+            bool eyesOff = fx != null; if (fx != null) foreach (Light l in fx.GetComponentsInChildren<Light>()) if (l.enabled) eyesOff = false;
+            r.Check(fx != null && fx.Under && eyesOff, "[Parque MP] el cliente ve al monstruo bajo las bolas (sin luz en los ojos)");
+            int b0 = BallPitMonsterFx.Bursts;
+            Mark("client_bp_seen");
+            yield return WaitMark("host_bp_emerged", 60);
+            yield return Wait(() => BallPitMonsterFx.Bursts > b0, 5, "estallido en el cliente");
+            r.Check(BallPitMonsterFx.Bursts > b0 && fx != null && !fx.Under, "[Parque MP] el cliente ve y oye el estallido de bolas al emerger (" + (BallPitMonsterFx.Bursts - b0) + ")");
+            Mark("client_bp_done");
+            yield return WaitMark("host_bp_done", 60);
         }
 
         // ---- salir, reintentar con la partida en marcha, reunirse y ver el cierre del anfitrión ----

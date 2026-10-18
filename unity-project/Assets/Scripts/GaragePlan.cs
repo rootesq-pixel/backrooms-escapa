@@ -100,6 +100,7 @@ public class GaragePlan
         return g;
     }
 
+    public bool CanOpen(Vector2Int a, Vector2Int b) { return !Fixed(a, b); }
     private bool Fixed(Vector2Int a, Vector2Int b)
     {
         // no abrir: losas entre plantas, paredes de las rampas (reales o falsas)

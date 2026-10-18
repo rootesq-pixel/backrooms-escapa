@@ -19,7 +19,9 @@ public enum SurfaceStyle
     PoolFloor,
     MetalWall,
     MetalFloor,
-    WaterNormal
+    WaterNormal,
+    PlayWall,       // v7.1.0 Parque de bolas (texturas horneadas en Tools/ballpit/textures.py)
+    PlayFloor
 }
 
 // Conjunto de texturas PBR para el shader Standard:
@@ -190,6 +192,8 @@ public static class ProceduralTextures
             case SurfaceStyle.PoolFloor: c = PoolTile(Res(1024), false); normalStrength = 2.8f; break;
             case SurfaceStyle.MetalWall: c = MetalPlate(Res(1024)); normalStrength = 2.6f; break;
             case SurfaceStyle.MetalFloor: c = DiamondPlate(Res(512)); normalStrength = 3.2f; break;
+            case SurfaceStyle.PlayWall: c = WallpaperYellow(Res(1024), wallHeight); normalStrength = 2.2f; break;   // reserva si faltan las horneadas
+            case SurfaceStyle.PlayFloor: c = Carpet(Res(512), false); normalStrength = 3f; break;
             default: c = WaterRipples(Res(512)); normalStrength = 5f; break;
         }
         return Finish(c, style, normalStrength, aniso);

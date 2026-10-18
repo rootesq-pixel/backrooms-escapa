@@ -17,7 +17,8 @@ public class TextureImportRules : AssetPostprocessor
         bool normal = n.EndsWith("_n"), mask = n.EndsWith("_m");
         ti.textureType = normal ? TextureImporterType.NormalMap : TextureImporterType.Default;
         ti.sRGBTexture = !(normal || mask);
-        ti.alphaSource = mask ? TextureImporterAlphaSource.FromInput : TextureImporterAlphaSource.None;
+        bool cutout = n.EndsWith("Net_a") || n.EndsWith("Atlas_a");   // v7.1.0: red y atlas de carteles del parque de bolas (alfa recortado)
+        ti.alphaSource = mask || cutout ? TextureImporterAlphaSource.FromInput : TextureImporterAlphaSource.None;
         ti.alphaIsTransparency = false;
         ti.mipmapEnabled = true;
         ti.streamingMipmaps = false;

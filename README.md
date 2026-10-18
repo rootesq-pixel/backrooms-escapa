@@ -1,18 +1,18 @@
 # BACKROOMS: ESCAPA
 
-Juego de terror en primera persona para PC (Windows 64 bits) hecho con **Unity**: escapa de las Backrooms a través de **6 niveles** encadenados. Cada nivel es un laberinto (o aparcamiento abierto) procedural con su propia estética, luces, dificultad y criaturas que patrullan y te persiguen. La salida es una puerta discreta que **solo se descubre explorando**: sin cartel, sin flecha, sin indicador de distancia.
+Juego de terror en primera persona para PC (Windows 64 bits) hecho con **Unity**: escapa de las Backrooms a través de **7 niveles** encadenados. Cada nivel es un laberinto (o aparcamiento abierto) procedural con su propia estética, luces, dificultad y criaturas que patrullan y te persiguen. La salida es una puerta discreta que **solo se descubre explorando**: sin cartel, sin flecha, sin indicador de distancia.
 
 - 🌐 **Web:** https://rootesq-pixel.github.io/backrooms-escapa/
-- ⬇️ **Descarga directa v7.0.4 (Windows, ZIP ≈ 95 MB):** [BackroomsEscape_v7_0_4_Windows.zip](https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v7.0.4/BackroomsEscape_v7_0_4_Windows.zip)
-- 📦 **Release v7.0.4:** https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.4
-- 🕓 Versiones anteriores: [v7.0.3](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.3) (carga rápida del Campo infinito) · [v7.0.2](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.2) (imitador garantizado, silbido, cordura) · [v7.0.1](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.1) (Campo infinito pulido, imitadores) · [v6.9.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.9.0) (Poolrooms estilo POOLS) · [v6.5.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.5.0) (audio e intro) · [v6.4.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.4.0) (ascensor) · [v6.3.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.3.0) (5 niveles, sin ascensor) · [v6.2.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.2.0) (multijugador por Internet, 6 niveles) · [v6.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.0.0) (multijugador por IP y puerto) · [v5.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v5.0.0) (un jugador)
+- ⬇️ **Descarga directa v7.1.0 (Windows, ZIP ≈ 110 MB):** [BackroomsEscape_v7_1_0_Windows.zip](https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v7.1.0/BackroomsEscape_v7_1_0_Windows.zip)
+- 📦 **Release v7.1.0:** https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.1.0
+- 🕓 Versiones anteriores: [v7.0.4](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.4) (adrenalina, llaves señuelo) · [v7.0.3](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.3) (carga rápida del Campo infinito) · [v7.0.2](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.2) (imitador garantizado, silbido, cordura) · [v7.0.1](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.1) (Campo infinito pulido, imitadores) · [v6.9.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.9.0) (Poolrooms estilo POOLS) · [v6.5.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.5.0) (audio e intro) · [v6.4.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.4.0) (ascensor) · [v6.3.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.3.0) (5 niveles, sin ascensor) · [v6.2.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.2.0) (multijugador por Internet, 6 niveles) · [v6.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.0.0) (multijugador por IP y puerto) · [v5.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v5.0.0) (un jugador)
 
 > ⚠️ **Build temprana.** Puede haber errores. El **multijugador** se ha probado en local y con un servidor intermedio real; **las pruebas con amigos por Internet están pendientes**. El ejecutable **no está firmado**, así que Windows SmartScreen puede avisar al abrirlo (*Más información → Ejecutar de todas formas*).
 
 ## Cómo jugar
 
-1. Descarga `BackroomsEscape_v7_0_4_Windows.zip` desde la [release v7.0.4](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.4).
-2. Descomprime el ZIP (≈ 180 MB descomprimido).
+1. Descarga `BackroomsEscape_v7_1_0_Windows.zip` desde la [release v7.1.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.1.0).
+2. Descomprime el ZIP (≈ 200 MB descomprimido).
 3. Ejecuta `BackroomsEscape.exe`.
 
 ## Niveles
@@ -24,8 +24,20 @@ Juego de terror en primera persona para PC (Windows 64 bits) hecho con **Unity**
 | 2 | Poolrooms | Azulejos blancos de piscina con franja azul y agua realista (olas, reflejos, espuma, cáusticas, vadeo, restos flotantes); luz azulada | El Ahogado |
 | 3 | Hotel abandonado | Pasillos estrechos con moqueta roja, lámparas casi muertas y niebla densa | 2 × El Huésped |
 | 4 | Complejo industrial | Chapa oxidada, tuberías y luces de emergencia rojas | 2 × El Hollín (más rápidos) |
+| 5 | Campo infinito | Hierba alta sin fin, niebla, casas abandonadas y un mundo que se repite | El Vigía |
+| 6 | Parque de bolas | Parque infantil cubierto abandonado: piscinas de bolas, toboganes, redes, sala de cumpleaños y mostrador de meriendas; fluorescentes que parpadean | El Sumergido (se esconde bajo las bolas) |
 
-La puerta de salida está **cerrada con llave**: en cada nivel hay 4-6 llaves parecidas y solo una la abre. Al cruzarla con la llave buena se carga el siguiente nivel; tras el nivel 5 (Campo infinito) aparece la pantalla de victoria (tiempo total e intentos fallidos). Si te atrapan, el nivel se reinicia.
+La puerta de salida está **cerrada con llave**: en cada nivel hay 4-6 llaves parecidas y solo una la abre. Al cruzarla con la llave buena se carga el siguiente nivel; tras el nivel 6 (Parque de bolas) aparece la pantalla de victoria (tiempo total e intentos fallidos). Si te atrapan, el nivel se reinicia.
+
+## Novedades de la v7.1.0 — nuevo nivel 6: Parque de bolas
+- **Nuevo nivel 6, «Parque de bolas»** (después del Campo infinito; los demás niveles conservan su número): un parque infantil cubierto abandonado con tres salas de juego enormes unidas por pasillos. Piscinas con **miles de bolas de plástico** (dibujadas en la GPU por instancias), estructura acolchada de varias alturas, toboganes de tubo, redes, bloques de espuma, pilares acolchados de colores, una **sala de cumpleaños** a medio recoger y un **mostrador de meriendas**. Colores desvaídos y polvorientos e iluminación global **cocida en Blender Cycles** (como los Poolrooms), con algunos fluorescentes que parpadean y zumban.
+- **Vadear entre las bolas:** dentro de una piscina te hundes hasta la cintura, vas más despacio, las bolas se apartan alrededor de tus piernas y crujen al rozarlas.
+- **El Sumergido**, monstruo propio del nivel: se esconde **debajo de las bolas** y se arrastra por el fondo. Lo delata un bulto en la superficie y el roce de las bolas; si te metes cerca, **emerge de golpe** entre una lluvia de bolas y te persigue. El imitador y la cordura, el silbido, la adrenalina y las llaves señuelo funcionan igual que en el resto de niveles.
+- **Llaves y objetos en las salas:** una llave está **medio enterrada en una piscina** (asoma el mango) y otras cosas esperan tras el mostrador, en la mesa de la fiesta o en la plataforma alta. La salida, como siempre, cerrada y lejos.
+- **Audio:** caja de música lejana desde la sala de cumpleaños, risas de niños a lo lejos y mucha reverberación de nave vacía.
+- **Tres notas nuevas** (21 en total) y créditos actualizados. En calidad **Baja** solo se dibuja la capa superior de bolas.
+- **Arreglo en el Aparcamiento (nivel 1):** en algunos mapas la cabina del ascensor tapaba la segunda salida de la celda de inicio y el jugador quedaba encerrado en un callejón sin salida (y los monstruos no podían llegar hasta él). Ahora el nivel se abre siempre desde la puerta de la cabina.
+- **Multijugador:** el protocolo pasa a **MP-6** (nivel nuevo), así que **todos debéis usar la v7.1.0**.
 
 ## Novedades de la v7.0.4 — adrenalina, llaves señuelo y un aparcamiento sin fin
 - **Adrenalina:** cuando un monstruo te persigue, la resistencia baja ~45 % más despacio, recibes un pequeño empujón de resistencia al empezar la persecución y corres un 7 % más rápido. Lo notarás por el **latido** y la barra **RES** teñida de rojo; se pasa unos segundos después de despistarlo. Funciona en todos los niveles (también con el imitador y El Vigía) y en multijugador cada jugador tiene la suya.
@@ -161,7 +173,7 @@ Modo **cooperativo de 2 a 4 jugadores**. El modo de un jugador no cambia: la red
 
 **Opción A: con código (recomendada, sin abrir puertos)**
 
-1. Todos necesitáis la **misma versión** (v7.0.4). El protocolo es **MP-5** (desde la v7.0.4): la v7.0.3 y anteriores **no pueden unirse**.
+1. Todos necesitáis la **misma versión** (v7.1.0). El protocolo es **MP-6** (desde la v7.1.0): la v7.0.4 y anteriores **no pueden unirse**.
 2. **Anfitrión:** menú principal → **Multijugador** → tu nombre → **Alojar con código**. Pasa a tus amigos el código de la sala.
 3. **Clientes:** Multijugador → tu nombre → **Unirse con código** → escribe el código → entras en la sala de espera.
 4. El anfitrión elige el nivel con ◄ ► y pulsa **Empezar**. No se puede entrar en una partida ya empezada.

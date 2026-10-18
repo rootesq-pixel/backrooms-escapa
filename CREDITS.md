@@ -13,6 +13,7 @@ Cada nivel usa una criatura distinta. Los modelos originales se convirtieron a F
 | 2 Poolrooms | DrownedZombie | El Ahogado | Rikindle3D (modelo del Huésped, reteñido) | CC0 (dominio público) | https://opengameart.org/content/male-city-zombie-ready-for-use-in-game-engines |
 | 3 Hotel | CityZombie | El Huésped | Rikindle3D | CC0 (dominio público) | https://opengameart.org/content/male-city-zombie-ready-for-use-in-game-engines |
 | 4 Industrial | SootHorror | El Hollín | EmoPreben | CC0 (dominio público) | https://opengameart.org/content/horror-monster-0 |
+| 6 Parque de bolas | PitLurker | El Sumergido | EmoPreben (modelo del Hollín, reteñido) | CC0 (dominio público) | https://opengameart.org/content/horror-monster-0 |
 
 ### Modificaciones
 
@@ -103,6 +104,13 @@ Las fuentes «Escapa» son IBM Plex (Copyright © 2017 IBM Corp., Reserved Font 
 
 El roce de la hierba, el viento, el zumbido de radio de la salida, el terreno, las casas, los postes y las puertas sueltas se generan por código.
 «El Vigía (Nivel 5)» (FieldWatcher) reutiliza el modelo CC0 de El Alto (HorrorGameMaker.com) con una textura reteñida con Pillow.
+
+## Parque de bolas (v7.1.0)
+- **Sala de juegos** (piscinas de bolas, estructura acolchada con redes, toboganes, columnas, bloques de espuma, sala de fiestas, mostrador de meriendas, fluorescentes): trabajo propio, modelada por script en Blender 4.2 (`Tools/ballpit/build_hall.py`) con iluminación global horneada en Cycles (lightmap HDR + sondas) y eliminación de ruido con Intel Open Image Denoise. Dominio público (CC0).
+- **Texturas** (goma EVA, vinilo acolchado, pared con mural de globos, plástico, red, bolas) y **atlas de carteles** (menú, normas, póster, banderines, dibujo infantil): generadas por código con NumPy/Pillow (`Tools/ballpit/textures.py`, `atlas.py`; tipografía DejaVu, licencia libre de Bitstream Vera/DejaVu). Dominio público (CC0).
+- **Bolas**: miles de instancias en GPU con un shader propio (`BallInstanced.shader`); se apartan alrededor de las piernas y se levantan cuando algo se arrastra por debajo.
+- **Audio**: roce de bolas, caja de música (melodía de la «Canción de cuna» de J. Brahms, 1868, dominio público) y risas infantiles lejanas sintetizadas por formantes; todo generado por código (`ProceduralAudio.cs`), sin grabaciones de terceros.
+- **«El Sumergido (Nivel 6)»** (PitLurker) reutiliza el modelo CC0 de El Hollín (EmoPreben) con una textura reteñida con NumPy/Pillow (piel cerosa gris pálida con manchas desteñidas de bolas de colores).
 
 ## Objetos recogibles y silbido (v7.0.2)
 - **Modelos de los objetos** (pila, agua de almendras, barra luminosa, cinta VHS, nota, linterna): trabajo propio, modelados por script en Blender 4.2 (`Tools/blender/item_models.py`) y horneados con Cycles (alto → bajo detalle) a texturas PBR de 512 px (albedo, metal/suavidad, normal, emisión). Los iconos del inventario se renderizan con los mismos modelos. Dominio público (CC0).

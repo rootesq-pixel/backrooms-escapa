@@ -16,6 +16,12 @@ public static class AudioBuzzLimiter
     public static void Register(FlickeringLight f) { if (f != null && !lights.Contains(f)) lights.Add(f); }
     public static void Unregister(FlickeringLight f) { lights.Remove(f); }
     public static int Registered { get { return lights.Count; } }
+    // v7.1.0: zumbidos que no son FlickeringLight (fluorescentes de las salas de bolas) entran en el mismo reparto
+    private static readonly List<AudioSource> ext = new List<AudioSource>();
+    private static readonly HashSet<AudioSource> extOn = new HashSet<AudioSource>();
+    private static readonly List<KeyValuePair<float, AudioSource>> tmpE = new List<KeyValuePair<float, AudioSource>>();
+    public static void RegisterExternal(AudioSource a) { if (a != null && !ext.Contains(a)) ext.Add(a); }
+    public static bool ExternalOn(AudioSource a) { return Disabled || extOn.Contains(a); }
 
     public static void Tick()
     {
@@ -35,7 +41,16 @@ public static class AudioBuzzLimiter
         }
         if (Disabled) return;
         tmp.Sort((a, b) => a.Key.CompareTo(b.Key));
-        for (int i = 0; i < tmp.Count && i < MaxBuzzing; i++)
-            if (tmp[i].Key < HearDistance * HearDistance) tmp[i].Value.buzzGateTarget = 1f;
+        tmpE.Clear(); extOn.Clear();
+        for (int i = ext.Count - 1; i >= 0; i--) { if (ext[i] == null) { ext.RemoveAt(i); continue; } tmpE.Add(new KeyValuePair<float, AudioSource>((ext[i].transform.position - p).sqrMagnitude, ext[i])); }
+        tmpE.Sort((a, b) => a.Key.CompareTo(b.Key));
+        int li = 0, ei = 0;
+        for (int n = 0; n < MaxBuzzing; n++)
+        {
+            bool takeL = li < tmp.Count && (ei >= tmpE.Count || tmp[li].Key <= tmpE[ei].Key);
+            float d2 = takeL ? tmp[li].Key : (ei < tmpE.Count ? tmpE[ei].Key : float.MaxValue);
+            if (d2 >= HearDistance * HearDistance) break;
+            if (takeL) tmp[li++].Value.buzzGateTarget = 1f; else extOn.Add(tmpE[ei++].Value);
+        }
     }
 }

@@ -429,6 +429,120 @@ public static class ProceduralAudio
         return Make("Unlock", d);
     }
 
+    // v7.1.0: caja de música gastada tocando la «Canción de cuna» de Brahms (dominio público): púas metálicas con parciales
+    // inarmónicos, algo desafinada y frenándose al final (cuerda acabándose)
+    public static AudioClip CreateMusicBox()
+    {
+        // (semitonos desde C6, pulsos)
+        int[] nt = { 4, 4, 7, 4, 4, 7, 4, 7, 12, 11, 9, 9, 7, 2, 4, 5, 2, 2, 4, 5, 2, 5, 11, 9, 7, 11, 12 };
+        float[] du = { 0.5f, 0.5f, 2f, 0.5f, 0.5f, 2f, 0.5f, 0.5f, 1f, 1.5f, 0.5f, 1f, 1f, 0.5f, 0.5f, 1f, 1f, 0.5f, 0.5f, 2f, 0.5f, 0.5f, 0.5f, 0.5f, 1f, 1f, 3f };
+        int[] bass = { 0, 0, 7, 7, 7, 7, 0, 0 };
+        float total = 0f; foreach (float d0 in du) total += d0;
+        float beat0 = 60f / 66f;
+        int n = (int)(SR * (total * beat0 * 1.25f + 3f));
+        float[] d = new float[n];
+        System.Random r = new System.Random(19);
+        float t = 0.3f, beat = 0f;
+        System.Action<float, float, float> tine = (start, f, amp) =>
+        {
+            int s0 = (int)(start * SR), len = (int)(SR * 2.6f);
+            float[] pf = { 1f, 2.76f, 5.40f, 8.93f }, pa = { 1f, 0.32f, 0.12f, 0.05f }, pd = { 1.7f, 4f, 9f, 16f };
+            for (int i = 0; i < len && s0 + i < n; i++)
+            {
+                float tt = i / (float)SR, v = 0f;
+                for (int k = 0; k < 4; k++) if (f * pf[k] < SR * 0.45f) v += pa[k] * Mathf.Exp(-tt * pd[k]) * Mathf.Sin(2f * Mathf.PI * f * pf[k] * tt);
+                if (i < 60) v += (Noise.Hash01(i, 3, s0) * 2f - 1f) * 0.3f * (1f - i / 60f);   // golpe de la púa
+                d[s0 + i] += v * amp;
+            }
+        };
+        for (int i = 0; i < nt.Length; i++)
+        {
+            float slow = 1f + 0.35f * Mathf.Pow(i / (float)(nt.Length - 1), 2.5f);   // se va parando
+            float cents = ((float)r.NextDouble() - 0.5f) * 22f;
+            float f = 1046.5f * Mathf.Pow(2f, (nt[i] + cents / 100f) / 12f);
+            tine(t, f, 0.55f + (float)r.NextDouble() * 0.15f);
+            int bar = Mathf.FloorToInt(beat / 3f);
+            if (Mathf.Abs(beat - bar * 3f) < 0.01f && bar < bass.Length) tine(t, 261.6f * Mathf.Pow(2f, bass[bar] / 12f), 0.35f);
+            t += du[i] * beat0 * slow; beat += du[i];
+        }
+        Normalize(d, 0.7f);
+        return Make("MusicBox", d);
+    }
+
+    // v7.1.0: risa infantil lejana (síntesis por formantes: pulsos glotales agudos + resonancias de /a/ infantil, "ja-ja-ja")
+    public static AudioClip CreateChildLaugh(int seed)
+    {
+        System.Random r = new System.Random(seed);
+        int n = (int)(SR * 2.2f);
+        float[] d = new float[n];
+        int voices = 1 + r.Next(2);
+        for (int vce = 0; vce < voices; vce++)
+        {
+            float f0b = 360f + (float)r.NextDouble() * 120f, start = vce * (0.15f + (float)r.NextDouble() * 0.3f);
+            int syl = 4 + r.Next(4);
+            float[] src = new float[n];
+            float ph = 0f;
+            for (int sy = 0; sy < syl; sy++)
+            {
+                float t0 = start + sy * (0.15f + (float)r.NextDouble() * 0.04f), dur = 0.10f + (float)r.NextDouble() * 0.04f;
+                int a0 = (int)(t0 * SR), len = (int)(dur * SR);
+                float f0 = f0b * (1f + 0.12f * Mathf.Exp(-sy * 0.6f)) * (1f - 0.03f * sy);
+                for (int i = 0; i < len && a0 + i < n; i++)
+                {
+                    float tt = i / (float)SR, env = Mathf.Min(1f, tt / 0.012f) * Mathf.Pow(1f - i / (float)len, 1.4f);
+                    float ff = f0 * (1f + 0.02f * Mathf.Sin(2f * Mathf.PI * 7f * tt) - 0.1f * i / len);
+                    ph += ff / SR; if (ph > 1f) ph -= 1f;
+                    float glot = (ph < 0.4f ? Mathf.Sin(Mathf.PI * ph / 0.4f) : 0f);           // pulso glotal
+                    float asp = (Noise.Hash01(a0 + i, 9, seed + vce) * 2f - 1f) * (tt < 0.035f ? 0.9f : 0.12f);   // la "j" aspirada
+                    src[a0 + i] += (glot * (tt < 0.03f ? 0.2f : 1f) + asp) * env;
+                }
+            }
+            // formantes (resonadores de 2º orden) de una /a/ infantil
+            float[] F = { 1050f, 1750f, 3300f }, Bw = { 120f, 160f, 260f }, G = { 1f, 0.6f, 0.25f };
+            for (int k = 0; k < 3; k++)
+            {
+                float rr = Mathf.Exp(-Mathf.PI * Bw[k] / SR), th = 2f * Mathf.PI * F[k] / SR;
+                float a1 = 2f * rr * Mathf.Cos(th), a2 = -rr * rr, y1 = 0f, y2 = 0f;
+                for (int i = 0; i < n; i++) { float y = (1f - rr) * src[i] + a1 * y1 + a2 * y2; y2 = y1; y1 = y; d[i] += y * G[k]; }
+            }
+        }
+        Normalize(d, 0.6f);
+        return Make("ChildLaugh" + seed, d);
+    }
+
+    // v7.1.0: rozar bolas de plástico huecas (bucle de 2 s): cientos de "toc" agudos amortiguados + roce de plástico
+    public static AudioClip CreateBallRustle(int seed)
+    {
+        int n = SR * 2;
+        float[] d = new float[n];
+        System.Random r = new System.Random(seed);
+        int clicks = 900;
+        for (int c = 0; c < clicks; c++)
+        {
+            int start = r.Next(n);
+            float f = 1500f + (float)r.NextDouble() * 3400f, f2 = f * (1.47f + (float)r.NextDouble() * 0.2f);
+            float decay = 260f + (float)r.NextDouble() * 500f, amp = Mathf.Pow((float)r.NextDouble(), 2.2f);
+            int len = (int)(SR * 6f / decay);
+            for (int i = 0; i < len; i++)
+            {
+                float t = i / (float)SR, e = Mathf.Exp(-t * decay);
+                d[(start + i) % n] += amp * e * (Mathf.Sin(2f * Mathf.PI * f * t) + 0.45f * Mathf.Sin(2f * Mathf.PI * f2 * t));
+            }
+        }
+        // roce: ruido paso-alto con envolvente lenta (bucle sin costura)
+        float lp = 0f, prev = 0f;
+        for (int i = 0; i < n; i++)
+        {
+            float w = Noise.Hash01(i, 7, seed) * 2f - 1f;
+            lp += 0.5f * (w - lp);
+            float hp = lp - prev; prev = lp;
+            float env = 0.6f + 0.4f * Mathf.Sin(2f * Mathf.PI * 3f * i / (float)n * 2f);
+            d[i] += hp * 0.5f * env;
+        }
+        Normalize(d, 0.55f);
+        return Make("BallRustle", d);
+    }
+
     public static AudioClip CreateSplash()
     {
         int n = (int)(SR * 0.45f);

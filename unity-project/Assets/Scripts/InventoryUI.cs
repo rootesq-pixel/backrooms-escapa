@@ -280,14 +280,15 @@ public class InventoryUI : MonoBehaviour
         RectTransform pr = (RectTransform)notesPage.transform;
         pr.anchorMin = pr.anchorMax = new Vector2(0.5f, 0.5f); pr.sizeDelta = Vector2.zero; pr.anchoredPosition = Vector2.zero;
 
-        int total = LoreNotes.Total;                  // 5 niveles x 3 notas = 15 (2 columnas: 9 + 6)
+        int total = LoreNotes.Total;                  // v7.1.0: 7 niveles x 3 notas = 21 (2 columnas: 11 + 10)
+        int perCol = (total + 1) / 2;
         float rowW = 304f, rowH = 34f, gap = 6f;
         float left = -690f, top = 250f;
-        Image tray = UiStyle.Rect(notesPage.transform, "ListFrame", left + rowW + gap * 0.5f, top - (9 * (rowH + gap)) * 0.5f + gap * 0.5f, rowW * 2f + gap + 28f, 9 * (rowH + gap) + 22f, new Color(0.02f, 0.02f, 0.02f, 0.9f));
-        Sprite(UiStyle.Rect(tray.transform, "Foam", 0f, 0f, rowW * 2f + gap + 22f, 9 * (rowH + gap) + 16f, new Color(0.9f, 0.9f, 0.9f, 1f)), "foam_panel");
+        Image tray = UiStyle.Rect(notesPage.transform, "ListFrame", left + rowW + gap * 0.5f, top - (perCol * (rowH + gap)) * 0.5f + gap * 0.5f, rowW * 2f + gap + 28f, perCol * (rowH + gap) + 22f, new Color(0.02f, 0.02f, 0.02f, 0.9f));
+        Sprite(UiStyle.Rect(tray.transform, "Foam", 0f, 0f, rowW * 2f + gap + 22f, perCol * (rowH + gap) + 16f, new Color(0.9f, 0.9f, 0.9f, 1f)), "foam_panel");
         for (int i = 0; i < total; i++)
         {
-            int col = i / 9, row = i % 9;
+            int col = i / perCol, row = i % perCol;
             int level = i / LoreNotes.PerLevel, k = i % LoreNotes.PerLevel;
             float x = left + rowW * 0.5f + col * (rowW + gap);
             float y = top - rowH * 0.5f - row * (rowH + gap);
