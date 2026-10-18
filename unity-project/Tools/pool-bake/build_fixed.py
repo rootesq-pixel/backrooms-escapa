@@ -3,7 +3,23 @@ import bpy, bmesh, math, sys, json, struct, os
 import numpy as np
 argv=sys.argv[sys.argv.index('--')+1:] if '--' in sys.argv else []
 SPP=int(argv[0]) if argv else 1024; RES=int(argv[1]) if len(argv)>1 else 2048
-OUT='/workspace/pool-render/fixed/'
+OUT=os.environ.get('POOL_OUT','/workspace/pool-render/fixed/').replace('\\','/'); OUT=OUT if OUT.endswith('/') else OUT+'/'; os.makedirs(OUT,exist_ok=True)
+def cycles_device(sc):
+    """CYCLES_DEVICE=CPU (por defecto) | GPU | OPTIX | CUDA. GPU prueba OptiX y luego CUDA."""
+    dev = os.environ.get('CYCLES_DEVICE', 'CPU').upper()
+    if dev == 'CPU':
+        sc.cycles.device = 'CPU'; return 'CPU'
+    p = bpy.context.preferences.addons['cycles'].preferences
+    for t in (('OPTIX', 'CUDA') if dev in ('GPU', 'OPTIX') else (dev,)):
+        try:
+            p.compute_device_type = t; p.get_devices()
+        except TypeError:
+            continue
+        if any(d.type == t for d in p.devices): break
+    for d in p.devices: d.use = (d.type == p.compute_device_type)
+    sc.cycles.device = 'GPU'; print('cycles device', p.compute_device_type, [d.name for d in p.devices if d.use], flush=True)
+    return p.compute_device_type
+
 for o in list(bpy.data.objects): bpy.data.objects.remove(o)
 CS=4.0; T=0.2; WH=3.2; DECK=0.28
 HW=2*CS-T/2-0.004; HD=1.5*CS-T/2-0.004; H=WH-DECK-0.004
@@ -73,7 +89,7 @@ bpy.context.view_layer.objects.active=ob; ob.select_set(True)
 for p in me.polygons: p.select = p.material_index!=4
 bpy.ops.object.mode_set(mode='EDIT')
 bpy.ops.uv.smart_project(angle_limit=math.radians(60),island_margin=0.0,area_weight=0.0,scale_to_bounds=False)
-bpy.ops.uv.pack_islands(rotate=True,margin=6.0/RES*1.5)
+bpy.ops.uv.pack_islands(rotate=True,shape_method='CONCAVE',margin=12.0/RES)
 bpy.ops.object.mode_set(mode='OBJECT')
 for p in me.polygons:
     if p.material_index==4:
@@ -93,14 +109,14 @@ WINW=float(os.environ.get('WINW','120')); SKYW=float(os.environ.get('SKYW','260'
 for x in WIN_S: area('WinS',(x,-HD+0.03,(WIN_Z0+WIN_Z1)/2),(math.radians(-90),0,0),WIN_W,WIN_Z1-WIN_Z0,WINW)
 for x in WIN_N: area('WinN',(x,HD-0.03,(WIN_Z0+WIN_Z1)/2),(math.radians(90),0,0),WIN_W,WIN_Z1-WIN_Z0,WINW)
 for (x,y) in SKY: area('Sky',(x,y,H-0.03),(0,0,0),SKW,SKD,SKYW)
-sc=bpy.context.scene; sc.render.engine='CYCLES'; cy=sc.cycles; cy.device='CPU'; cy.samples=SPP
+sc=bpy.context.scene; sc.render.engine='CYCLES'; cy=sc.cycles; cycles_device(sc); cy.samples=SPP
 cy.max_bounces=6; cy.diffuse_bounces=4; cy.use_denoising=False
 sc.world=bpy.data.worlds.new('W'); sc.world.use_nodes=True; sc.world.node_tree.nodes['Background'].inputs[1].default_value=0.0
 # bake irradiance
 img=bpy.data.images.new('LM',RES,RES,float_buffer=True,alpha=False)
 for m in me.materials:
     nt=m.node_tree; t=nt.nodes.new('ShaderNodeTexImage'); t.image=img; nt.nodes.active=t
-b=sc.render.bake; b.use_pass_direct=True; b.use_pass_indirect=True; b.use_pass_color=False; b.margin=8; b.margin_type='EXTEND'; b.target='IMAGE_TEXTURES'
+b=sc.render.bake; b.use_pass_direct=True; b.use_pass_indirect=True; b.use_pass_color=False; b.margin=16; b.margin_type='EXTEND'; b.target='IMAGE_TEXTURES'
 bpy.ops.object.bake(type='DIFFUSE',uv_layer='UV1')
 px=np.array(img.pixels[:],dtype=np.float32).reshape(RES,RES,4)
 np.save(OUT+'lm_raw.npy',px[:,:,:3])
@@ -111,11 +127,12 @@ sc.render.resolution_x=sc.render.resolution_y=8; sc.render.resolution_percentage
 sc.render.image_settings.file_format='OPEN_EXR'
 from mathutils import Matrix, Vector
 faces=[(Vector((1,0,0)),Vector((0,0,1))),(Vector((-1,0,0)),Vector((0,0,1))),(Vector((0,1,0)),Vector((0,0,1))),(Vector((0,-1,0)),Vector((0,0,1))),(Vector((0,0,1)),Vector((0,1,0))),(Vector((0,0,-1)),Vector((0,1,0)))]
-for py in (-3.0,3.0):
-  for px_ in (-5.0,0.0,5.0):
+PTS=[(x,z,h) for h in (0.5,1.6) for x in (-6.0,-3.0,0.0,3.0,6.0) for z in (-4.5,0.0,4.5)]+[(x,0.0,-0.8) for x in (-3.0,0.0,3.0)]
+for (px_,py,pz) in PTS:
+  if True:
     samples=[]
     for fwd,up in faces:
-        co.location=(px_,py,1.2); co.rotation_euler=fwd.to_track_quat('-Z','Y' if up.y else 'Z').to_euler()
+        co.location=(px_,py,pz); co.rotation_euler=fwd.to_track_quat('-Z','Y' if up.y else 'Z').to_euler()
         sc.render.filepath=OUT+'probe_tmp.exr'; bpy.ops.render.render(write_still=True)
         im=bpy.data.images.load(OUT+'probe_tmp.exr'); a=np.array(im.pixels[:]).reshape(8,8,4); bpy.data.images.remove(im)
         R=co.matrix_world.to_3x3()
@@ -125,7 +142,7 @@ for py in (-3.0,3.0):
                 d=R@Vector((u,v,-1)); dw=4/64/ (d.length**3); d.normalize()
                 c=a[j,i,:3]*dw/math.pi
                 samples.append([d.x,d.z,d.y,float(c[0]),float(c[1]),float(c[2])])
-    probes.append({'p':[px_,1.2+DECK,py],'s':samples})
+    probes.append({'p':[px_,pz+DECK,py],'s':samples})
 json.dump({'probes':probes},open(OUT+'probes.json','w'))
 # export mesh (Unity coords: swap y/z -> flip winding); local origin = block centre at corridor floor (y=0) -> deck at DECK
 me.calc_loop_triangles() if hasattr(me,'calc_loop_triangles') else None

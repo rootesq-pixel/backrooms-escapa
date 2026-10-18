@@ -7,7 +7,26 @@ from mathutils import Vector, Matrix
 argv = sys.argv[sys.argv.index('--') + 1:] if '--' in sys.argv else []
 SPP = int(argv[0]) if argv else 256; RES = int(argv[1]) if len(argv) > 1 else 2048
 MODE = argv[2] if len(argv) > 2 else 'bake'
-OUT = '/workspace/ballpit/bake/'; TEX = '/workspace/ballpit/tex/'; RTEX = '/workspace/BackroomsEscape/Assets/Resources/Textures/'
+# Rutas configurables (v7.1.1, horneado en otra máquina): BP_OUT, BP_TEX, BP_RTEX (terminadas en /); dispositivo: CYCLES_DEVICE
+def _dir(k, d): v = os.environ.get(k, d).replace('\\', '/'); return v if v.endswith('/') else v + '/'
+OUT = _dir('BP_OUT', '/workspace/ballpit/bake/'); TEX = _dir('BP_TEX', '/workspace/ballpit/tex/'); RTEX = _dir('BP_RTEX', '/workspace/BackroomsEscape/Assets/Resources/Textures/')
+os.makedirs(OUT, exist_ok=True)
+def cycles_device(sc):
+    """CYCLES_DEVICE=CPU (por defecto) | GPU | OPTIX | CUDA. GPU prueba OptiX y luego CUDA."""
+    dev = os.environ.get('CYCLES_DEVICE', 'CPU').upper()
+    if dev == 'CPU':
+        sc.cycles.device = 'CPU'; return 'CPU'
+    p = bpy.context.preferences.addons['cycles'].preferences
+    for t in (('OPTIX', 'CUDA') if dev in ('GPU', 'OPTIX') else (dev,)):
+        try:
+            p.compute_device_type = t; p.get_devices()
+        except TypeError:
+            continue
+        if any(d.type == t for d in p.devices): break
+    for d in p.devices: d.use = (d.type == p.compute_device_type)
+    sc.cycles.device = 'GPU'; print('cycles device', p.compute_device_type, [d.name for d in p.devices if d.use], flush=True)
+    return p.compute_device_type
+
 for o in list(bpy.data.objects): bpy.data.objects.remove(o)
 random.seed(7)
 CS = 4.0; T = 0.2; NX, NY = 5, 4
@@ -20,7 +39,7 @@ DOORS = {'S': ccol(3), 'N': ccol(0), 'W': crow(1), 'E': crow(1)}
 # materiales (índice = submalla en Unity)
 M_WALL, M_FLOOR, M_CEIL, M_RED, M_YEL, M_BLU, M_GRN, M_PLY, M_PLB, M_NET, M_EMIT, M_BALL, M_METAL, M_ATLAS = range(14)
 NMAT = 14
-ATL = json.load(open('/workspace/ballpit/tex/atlas.json'))
+ATL = json.load(open(TEX + 'atlas.json'))
 AREC = []   # atlas: ('q', origen, u, v, región) proyección plana | ('f', min, max, región) relleno con una muestra
 TILE = {M_WALL: 4.8, M_FLOOR: 2.4, M_CEIL: 2.4, M_RED: 1.2, M_YEL: 1.2, M_BLU: 1.2, M_GRN: 1.2, M_PLY: 1.5, M_PLB: 1.5, M_NET: 1.0, M_EMIT: 1.0, M_BALL: 1.0, M_METAL: 1.0, M_ATLAS: 1.0}
 PADS = [M_RED, M_YEL, M_BLU, M_GRN]
@@ -108,9 +127,25 @@ for i in range(len(xs) - 1):
 for p in PITS:
     x0, x1, y0, y1 = p['r']; fz = p['floor']; rz = p['rim']; side, a, b = p['open']; c = p['col']
     rect_z(fz, x0 + RIM, x1 - RIM, y0 + RIM, y1 - RIM, M_FLOOR, 1)
-    # paredes interiores (vinilo) desde el fondo hasta el borde
-    rect_x(y0 + RIM, x0 + RIM, x1 - RIM, fz, rz, c, 1); rect_x(y1 - RIM, x0 + RIM, x1 - RIM, fz, rz, c, -1)
-    rect_y(x0 + RIM, y0 + RIM, y1 - RIM, fz, rz, c, 1); rect_y(x1 - RIM, y0 + RIM, y1 - RIM, fz, rz, c, -1)
+    # paredes interiores (vinilo) desde el fondo hasta z=0. v7.1.1: antes subían hasta el borde y eran coplanares con la cara
+    # interior de los bloques acolchados del borde (z 0..rz) y con los escalones: en el horneado de Cycles cada cara tapaba a la
+    # otra (auto-intersección) y salían negras con brillos. Ahora: pared fz..0 (bajo las bolas), sin pared en la abertura (allí
+    # la cara del escalón y una contrahuella del escalón superior a 0)
+    zt0 = fz + (-fz) * 2 / 3.0   # cara superior del escalón junto a la pared
+    def pwall(sd, lo, hi):
+        segs_ = [(lo, hi)] if sd != side else [(lo, a), (b, hi)]
+        for (u0, u1) in segs_:
+            if u1 - u0 < 1e-4: continue
+            if sd == 's': rect_x(y0 + RIM, u0, u1, fz, 0.0, c, 1)
+            elif sd == 'n': rect_x(y1 - RIM, u0, u1, fz, 0.0, c, -1)
+            elif sd == 'w': rect_y(x0 + RIM, u0, u1, fz, 0.0, c, 1)
+            else: rect_y(x1 - RIM, u0, u1, fz, 0.0, c, -1)
+        if sd == side:
+            if sd == 's': rect_x(y0 + RIM, a, b, zt0, 0.0, M_GRN, 1)
+            elif sd == 'n': rect_x(y1 - RIM, a, b, zt0, 0.0, M_GRN, -1)
+            elif sd == 'w': rect_y(x0 + RIM, a, b, zt0, 0.0, M_GRN, 1)
+            else: rect_y(x1 - RIM, a, b, zt0, 0.0, M_GRN, -1)
+    pwall('s', x0 + RIM, x1 - RIM); pwall('n', x0 + RIM, x1 - RIM); pwall('w', y0 + RIM, y1 - RIM); pwall('e', y0 + RIM, y1 - RIM)
     # borde acolchado (4 tramos, con abertura)
     segs = [('s', x0, x1, y0, y0 + RIM), ('n', x0, x1, y1 - RIM, y1), ('w', x0, x0 + RIM, y0 + RIM, y1 - RIM), ('e', x1 - RIM, x1, y0 + RIM, y1 - RIM)]
     for k, (sd, a0, a1, b0, b1) in enumerate(segs):
@@ -144,10 +179,10 @@ for i, x in enumerate(PX):
     for j, y in enumerate(PY):
         c = PADS[(i + j) % 4]
         box(x - PS / 2, x + PS / 2, y - PS / 2, y + PS / 2, 0, PTOP, c, 0.05, skip=('b',))
-        box(x - 0.17, x + 0.17, y - 0.17, y + 0.17, PTOP, PTOP + 0.16, M_YEL if c != M_YEL else M_RED, 0.06, skip=('b',))   # remate
+        box(x - 0.17, x + 0.17, y - 0.17, y + 0.17, PTOP, PTOP + 0.16, M_YEL if c != M_YEL else M_RED, 0.03, skip=('b',))   # remate (v7.1.1: bisel 3 cm, tapa el poste entero)
 # vigas del techo de la estructura
 for j, y in enumerate(PY):
-    box(PX[0], PX[-1], y - 0.09, y + 0.09, PTOP - 0.18, PTOP, PADS[(j + 1) % 4], 0.04)
+    box(PX[0], PX[-1], y - 0.09, y + 0.09, PTOP - 0.18, PTOP - 0.006, PADS[(j + 1) % 4], 0.04)   # v7.1.1: 6 mm bajo el remate (sin caras coplanarias con los postes)
 for i, x in enumerate(PX):
     box(x - 0.09, x + 0.09, PY[0], PY[-1], PTOP - 0.36, PTOP - 0.18, PADS[(i + 2) % 4], 0.04)
 D1 = 1.3; D2 = 2.6; DT = 0.16
@@ -165,10 +200,12 @@ for s in range(NST):
     x0 = PX[1] + (PX[2] - PX[1]) * s / NST
     box(x0, x0 + (PX[2] - PX[1]) / NST, PY[1] + 0.02, PY[1] + 1.2, D1, z1, PADS[(s + 1) % 4], 0.03, skip=('b',))
 # redes de seguridad (planos con alfa), barandillas acolchadas
+# v7.1.1: las dos caras de cada red se miraban entre sí (la de normal +y estaba en y y la de -y en y+2 mm): al hornear, cada
+# cara chocaba con la otra a 2 mm y la red salía casi negra. Ahora quedan espalda con espalda (cada una mira hacia fuera).
 def net_x(y, x0, x1, z0, z1):
-    rect_x(y, x0, x1, z0, z1, M_NET, 1); rect_x(y + 0.002, x0, x1, z0, z1, M_NET, -1)
+    rect_x(y + 0.002, x0, x1, z0, z1, M_NET, 1); rect_x(y, x0, x1, z0, z1, M_NET, -1)
 def net_y(x, y0, y1, z0, z1):
-    rect_y(x, y0, y1, z0, z1, M_NET, 1); rect_y(x + 0.002, y0, y1, z0, z1, M_NET, -1)
+    rect_y(x + 0.002, y0, y1, z0, z1, M_NET, 1); rect_y(x, y0, y1, z0, z1, M_NET, -1)
 net_x(PY[1], PX[0] + 1.2, PX[1], D1, D1 + 1.15)                    # planta 1, borde sur (deja paso a la escalera)
 net_x(PY[1], PX[1] + 1.25, PX[2], D1, D1 + 1.15)
 net_y(PX[0], PY[1], PY[2], D1, D1 + 1.15)                          # planta 1, borde oeste (el tobogán sale por un hueco)
@@ -181,20 +218,64 @@ net_x(PY[0], PX[0] + 1.2, PX[2], 0.0, D1 - DT)                     # bajo la pla
 for (xa, xb, ya, yb, z) in ((PX[0], PX[2], PY[1], PY[1], D1), (PX[2], PX[3], PY[0], PY[0], D2)):
     if ya == yb: box(xa, xb, ya - 0.06, ya + 0.06, z + 1.15, z + 1.27, M_YEL, 0.04)
 # tobogán abierto de planta 1 a la piscina grande: sale del borde oeste (x=2.0) hacia -x, y 4.5-5.4
-def trough(x0, z0, x1, z1, yc, w, m):
-    N = 16; prof = [(-w / 2, 0.32), (-w / 2, 0.0), (-w / 2 + 0.08, -0.05), (0, -0.07), (w / 2 - 0.08, -0.05), (w / 2, 0.0), (w / 2, 0.32)]
-    rows = []
-    for i in range(N + 1):
-        t = i / N; x = x0 + (x1 - x0) * t
-        z = z0 + (z1 - z0) * (t - 0.06 * math.sin(2 * math.pi * t * 2))   # ondulado
-        if t > 0.85: z = z1 + (z - z1) * 0.3
-        rows.append(([bm.verts.new((x, yc + a, z + b)) for (a, b) in prof], [bm.verts.new((x, yc + a * 1.03, z + b - 0.03)) for (a, b) in prof]))
-    for i in range(N):
-        for k in range(len(prof) - 1):
-            A, A2 = rows[i]; B, B2 = rows[i + 1]
-            f = bm.faces.new((A[k], B[k], B[k + 1], A[k + 1])); f.material_index = m; f.smooth = True
-            f2 = bm.faces.new((A2[k + 1], B2[k + 1], B2[k], A2[k])); f2.material_index = m; f2.smooth = True
-trough(PX[0], D1, 0.4 - 0.9, PITS[0]['ball'] + 0.18, 4.95, 0.9, M_PLY)
+# v7.1.1: tobogán de plástico realista (antes: dos láminas onduladas a 3 cm, sin cerrar y con las normales hacia dentro ->
+# negro en el horneado y forma de «cinta arrugada»). Ahora: sólido cerrado, sección en U con fondo curvo, laterales rectos y
+# labio redondeado (pasamanos), perfil suave (entrada plana, rampa recta, salida curva casi horizontal), tapas y 2 patas.
+def slide(x0, z0, x1, z1, yc, w, m):
+    tb = bmesh.new()
+    hw = w / 2; SH = 0.30; TH = 0.035; RB = 0.10
+    def arc(cx, cy, r, a0, a1, n):
+        return [(cx + r * math.cos(a0 + (a1 - a0) * k / n), cy + r * math.sin(a0 + (a1 - a0) * k / n)) for k in range(n + 1)]
+    sec = []
+    sec += [(-hw, SH)]                                                       # interior: lateral izquierdo hacia abajo
+    sec += arc(-hw + RB, RB, RB, math.pi, 1.5 * math.pi, 6)                  # esquina curva del fondo
+    sec += arc(hw - RB, RB, RB, 1.5 * math.pi, 2 * math.pi, 6)
+    sec += [(hw, SH)]
+    sec += arc(hw + TH / 2, SH, TH / 2, math.pi, 0.0, 8)[1:-1]           # labio derecho redondeado (borde recto)
+    sec += [(hw + TH, SH)]
+    sec += arc(hw - RB, RB, RB + TH, 0.0, -0.5 * math.pi, 6)                # exterior
+    sec += arc(-hw + RB, RB, RB + TH, -0.5 * math.pi, -math.pi, 6)
+    sec += [(-hw - TH, SH)]
+    sec += arc(-hw - TH / 2, SH, TH / 2, math.pi, 0.0, 8)[1:-1]          # labio izquierdo
+    # sección cerrada: quitar duplicados consecutivos
+    S = []
+    for q in sec:
+        if not S or (abs(S[-1][0] - q[0]) + abs(S[-1][1] - q[1])) > 1e-5: S.append(q)
+    L = abs(x1 - x0); dirx = -1.0 if x1 < x0 else 1.0
+    LE, LX = 0.25, 0.55                                                      # tramo de entrada plano / salida
+    def zat(d):
+        if d <= LE: return z0
+        if d >= L - LX: u = (d - (L - LX)) / LX; return z1 + (zr - z1) * (1 - u) ** 2
+        return z0 + (zr - z0) * (d - LE) / (L - LE - LX)
+    zr = z1 + 0.18                                                           # altura al empezar la curva de salida
+    # perfil suavizado: media móvil de la polilínea (entrada y salida redondeadas)
+    N = 60; ds = [L * k / N for k in range(N + 1)]
+    zs = [zat(d) for d in ds]
+    for _ in range(6): zs = [zs[0]] + [(zs[k - 1] + 2 * zs[k] + zs[k + 1]) / 4 for k in range(1, N)] + [zs[-1]]
+    rings = []
+    for k in range(N + 1):
+        x = x0 + dirx * ds[k]; z = zs[k]
+        ka, kb = max(k - 1, 0), min(k + 1, N)
+        tx = dirx * (ds[kb] - ds[ka]); tz = zs[kb] - zs[ka]; ln = math.hypot(tx, tz); tx /= ln; tz /= ln
+        ux, uz = -tz, tx                         # «arriba» de la sección, perpendicular a la tangente en el plano xz
+        if uz < 0: ux, uz = -ux, -uz
+        rings.append([tb.verts.new((x + ux * q[1], yc + q[0], z + uz * q[1])) for q in S])
+    M = len(S)
+    for k in range(N):
+        for i in range(M):
+            j = (i + 1) % M
+            f = tb.faces.new((rings[k][i], rings[k][j], rings[k + 1][j], rings[k + 1][i])); f.smooth = True
+    caps_ = [tb.faces.new(rings[0]), tb.faces.new(rings[-1][::-1])]
+    bmesh.ops.recalc_face_normals(tb, faces=list(tb.faces))
+    for f in tb.faces: f.material_index = m
+    for f in caps_: f.smooth = False
+    me_ = bpy.data.meshes.new('slide'); tb.to_mesh(me_); tb.free(); bm.from_mesh(me_)
+    # patas metálicas bajo el tramo que queda fuera de la piscina (suelo z=0)
+    for d in (L * 0.42,):
+        k = int(round(d / L * N)); x = x0 + dirx * ds[k]
+        for yy in (yc - hw * 0.6, yc + hw * 0.6):
+            cyl(x, yy, 0.035, 0.0, zs[k] - TH + 0.01, M_METAL, 10, caps=True)
+slide(PX[0], D1, 0.4 - 0.9, PITS[0]['ball'] + 0.16, 4.95, 0.62, M_PLY)
 # tobogán de tubo en espiral desde la planta 2 (sur) hasta el suelo, en la zona sureste
 def tube_spiral(cx, cy, r, z0, z1, turns, rad, m, a0):
     N = int(48 * turns); S = 14; rings = []
@@ -211,11 +292,31 @@ def tube_spiral(cx, cy, r, z0, z1, turns, rad, m, a0):
             t = i / N; a = a0 - 2 * math.pi * turns * t
             c = Vector((cx + r * math.cos(a), cy + r * math.sin(a), z0 + (z1 - z0) * t))
             vs.append([bm.verts.new(c + (q - c).normalized() * rr) for q in ring])
+        if outer: vs_out = vs
+        else: vs_in = vs
         for i in range(N):
+            t = (i + 0.5) / N; a = a0 - 2 * math.pi * turns * t
+            c = Vector((cx + r * math.cos(a), cy + r * math.sin(a), z0 + (z1 - z0) * t))
             for k in range(S):
                 k2 = (k + 1) % S
-                ff = (vs[i][k], vs[i][k2], vs[i + 1][k2], vs[i + 1][k]) if outer else (vs[i + 1][k], vs[i + 1][k2], vs[i][k2], vs[i][k])
+                ff = [vs[i][k], vs[i][k2], vs[i + 1][k2], vs[i + 1][k]]
                 f = bm.faces.new(ff); f.material_index = m; f.smooth = True
+                # v7.1.1: capa exterior hacia fuera, capa interior hacia el eje del tubo (antes se miraban entre sí a 2,5 cm:
+                # el tubo azul salía casi negro al hornear)
+                f.normal_update()
+                d = f.calc_center_median() - c
+                if (f.normal.dot(d) < 0) == outer: f.normal_flip()
+    # v7.1.1: tapas anulares en los dos extremos (cierran el hueco entre capas)
+    for i in (0, N):
+        t = i / N; a = a0 - 2 * math.pi * turns * t
+        c = Vector((cx + r * math.cos(a), cy + r * math.sin(a), z0 + (z1 - z0) * t))
+        tng = Vector((-math.sin(a) * -1, math.cos(a) * -1, 0)) * (2 * math.pi * turns * r) + Vector((0, 0, z1 - z0)); tng.normalize()
+        want = -tng if i == 0 else tng
+        for k in range(S):
+            k2 = (k + 1) % S
+            f = bm.faces.new((vs_out[i][k], vs_out[i][k2], vs_in[i][k2], vs_in[i][k])); f.material_index = m; f.smooth = False
+            f.normal_update()
+            if f.normal.dot(want) < 0: f.normal_flip()
 tube_spiral(8.0, -1.9, 1.15, D2 - 0.25, 0.45, 1.15, 0.42, M_PLB, math.radians(90))
 box(6.6, 9.4, -4.4, -3.0, 0, 0.1, M_GRN, 0.03, skip=('b',))           # colchoneta de llegada
 net_x(PY[0] - 0.01, PX[2] + 0.4, PX[3] - 0.4, D2 + 0.02, D2 + 0.9)   # (la entrada al tubo, cerrada con red: «fuera de servicio»)
@@ -273,7 +374,7 @@ aquad((-HW + 0.006, 1.0, 1.5), (0, 1.2, 0), (0, 0, 1.6), 'rules', (1, 0, 0))
 
 # sala de fiestas (esquina sureste): tabiques de 2,4 m con puerta al oeste; su fluorescente está fundido
 PR = (5.5, HW, -HD, -4.8); PH = 2.4
-box(5.5, 5.62, -HD, -6.9, 0, PH, M_WALL, 0.0, skip=('b',)); box(5.5, 5.62, -5.9, -4.8, 0, PH, M_WALL, 0.0, skip=('b',))
+box(5.5, 5.62, -HD, -6.9, 0, PH, M_WALL, 0.0, skip=('b',)); box(5.5, 5.62, -5.9, -4.92, 0, PH, M_WALL, 0.0, skip=('b',))   # v7.1.1: sin solapar el tabique norte (caras coplanarias -> negro)
 box(5.5, 5.62, -6.9, -5.9, 2.1, PH, M_WALL, 0.0)
 box(5.5, HW, -4.92, -4.8, 0, PH, M_WALL, 0.0, skip=('b',))
 aquad((5.494, -5.15, 1.25), (0, -0.6, 0), (0, 0, 0.8), 'poster', (-1, 0, 0))
@@ -295,7 +396,7 @@ box(7.6, 8.0, -5.2, -5.17, 0, 0.32, M_PLB, 0.01); box(7.6, 8.0, -5.5, -5.18, 0.0
 for k in range(6):
     px = 6.9 + k * 0.42; py = -6.7 if k % 2 == 0 else -6.1
     acyl(px, py, 0.1, 0.583, 0.592, 'plate', 14)
-acyl(7.8, -6.4, 0.16, 0.583, 0.70, 'frosting', 18); acyl(7.8, -6.4, 0.161, 0.583, 0.62, 'sponge', 18)
+acyl(7.8, -6.4, 0.168, 0.583, 0.632, 'sponge', 18); acyl(7.8, -6.4, 0.16, 0.632, 0.70, 'frosting', 18)   # v7.1.1: piso de bizcocho + glaseado sin solaparse
 for k in range(5): acyl(7.8 + 0.09 * math.cos(k * 1.26), -6.4 + 0.09 * math.sin(k * 1.26), 0.006, 0.70, 0.76, 'hatB', 5)
 for (hx, hy, hr) in ((7.1, -6.15, 'hatA'), (8.5, -6.65, 'hatB'), (9.4, -7.5, 'hatA')):
     hz = 0.592 if hr != 'hatA' or hx < 9 else 0.0
@@ -338,6 +439,12 @@ for i, x in enumerate((-6.0, 0.0, 6.0)):
 
 me = bpy.data.meshes.new('BallpitHall')
 bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.0004)
+# v7.1.1: al soldar, las tapas de bloques contiguos (p. ej. extremos de los tramos del borde acolchado contra el tramo norte/sur)
+# compartían aristas con caras opuestas -> aristas no-manifold (3-4 caras) y la normal suavizada de esos vértices se anulaba:
+# Cycles sombreaba/horneaba toda la cara interior del borde en negro (con brillos en Unity). Se separan esas aristas.
+_nm = [e for e in bm.edges if len(e.link_faces) > 2]
+if _nm: bmesh.ops.split_edges(bm, edges=_nm)
+print('NONMANIFOLD_SPLIT', len(_nm))
 bm.normal_update()
 bm.to_mesh(me); bm.free()
 ob = bpy.data.objects.new('BallpitHall', me); bpy.context.scene.collection.objects.link(ob)
@@ -422,6 +529,13 @@ mats[M_CEIL] = mat('Ceil', RTEX + 'CeilingBeige_a.jpg', tint=(0.92, 0.92, 0.95),
 for k in PADS: mats[k] = mat('Pad%d' % k, TEX + 'PadVinyl_a.jpg', tint=PAD_TINT[k], rough=0.45, normal=TEX + 'PadVinyl_n.png')
 mats[M_PLY] = mat('PlasticY', TEX + 'PlayPlastic_a.jpg', tint=(0.85, 0.62, 0.14), rough=0.35)
 mats[M_PLB] = mat('PlasticB', TEX + 'PlayPlastic_a.jpg', tint=(0.20, 0.36, 0.66), rough=0.35)
+# v7.1.1: el tubo azul es de plástico translúcido: deja pasar parte de la luz (antes su interior salía negro y se veía desde la salida)
+def _translucent(m, col, w):
+    nt = m.node_tree; b = nt.nodes['Principled BSDF']; outn = nt.nodes['Material Output']
+    tr = nt.nodes.new('ShaderNodeBsdfTranslucent'); tr.inputs['Color'].default_value = (*col, 1)
+    mx = nt.nodes.new('ShaderNodeMixShader'); mx.inputs['Fac'].default_value = w
+    nt.links.new(b.outputs['BSDF'], mx.inputs[1]); nt.links.new(tr.outputs['BSDF'], mx.inputs[2]); nt.links.new(mx.outputs['Shader'], outn.inputs['Surface'])
+_translucent(mats[M_PLB], (0.35, 0.55, 0.95), float(os.environ.get('TUBE_TRANSLUCENT', '0.65')))
 mats[M_NET] = mat('Net', TEX + 'PlayNet_a.png', rough=0.8, alpha=True)
 mats[M_EMIT] = mat('Emit', None, tint=(0.95, 0.97, 1.0), emit=6.0)
 mats[M_BALL] = mat('Balls', TEX + 'BallSurface_a.jpg', rough=0.3)
@@ -435,7 +549,7 @@ for (x, y, dead) in LIGHTS:
     L = bpy.data.lights.new('Tube', 'AREA'); L.shape = 'RECTANGLE'; L.size = 1.16; L.size_y = 0.54
     L.energy = float(os.environ.get('LAMPW', '95')); L.color = (1.0, 0.97, 0.90)
     o = bpy.data.objects.new('Tube', L); o.location = (x, y, H - 0.08); bpy.context.scene.collection.objects.link(o)
-sc = bpy.context.scene; sc.render.engine = 'CYCLES'; cy = sc.cycles; cy.device = 'CPU'; cy.samples = SPP
+sc = bpy.context.scene; sc.render.engine = 'CYCLES'; cy = sc.cycles; cycles_device(sc); cy.samples = SPP
 cy.max_bounces = 6; cy.diffuse_bounces = 4; cy.transparent_max_bounces = 8; cy.use_denoising = False
 sc.world = bpy.data.worlds.new('W'); sc.world.use_nodes = True; sc.world.node_tree.nodes['Background'].inputs[1].default_value = 0.0
 

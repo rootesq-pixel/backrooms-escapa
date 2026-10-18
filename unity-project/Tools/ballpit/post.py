@@ -1,7 +1,8 @@
 # Tras el horneado: irradiancia media de la superficie de bolas de cada piscina (para el shader de bolas instanciadas)
 # y datos de la sala para Unity (Resources/Ballpit/BallpitHall.json). Uso: python3 post.py
 import json, struct, numpy as np
-B = '/workspace/ballpit/bake/'
+import os
+B = os.environ.get('BP_OUT', '/workspace/ballpit/bake/').rstrip('/') + '/'   # v7.1.1: carpeta configurable
 lm = np.load(B + 'lm_dn.npy'); R = lm.shape[0]
 hall = json.load(open(B + 'hall.json'))
 with open(B + 'BallpitHall.bytes', 'rb') as f:

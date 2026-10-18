@@ -16,6 +16,8 @@ os.makedirs(out, exist_ok=True)
 
 for name in names:
     fn, W, H, res_a, res_d, bh = styles.STYLES[name]
+    # v7.1.1: BAKE_RES_A / BAKE_RES_D fuerzan la resolución (p. ej. 4096 / 2048 al hornear en GPU)
+    res_a = int(os.environ.get('BAKE_RES_A', res_a)); res_d = int(os.environ.get('BAKE_RES_D', res_d))
     t0 = time.time()
     for kind, res in (('albedo', res_a), ('data', res_d), ('metal', res_d)):
         bpy.ops.wm.read_factory_settings(use_empty=True)

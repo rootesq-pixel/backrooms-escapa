@@ -8,10 +8,27 @@ definen con fract() sobre (u, v), que también es periódico.
 
 Autor: proyecto BackroomsEscape (trabajo propio, sin assets externos).
 """
-import bpy, math
+import bpy, math, os
 
 TWO_PI = 2.0 * math.pi
 
+
+
+def cycles_device(sc):
+    """CYCLES_DEVICE=CPU (por defecto) | GPU | OPTIX | CUDA. GPU prueba OptiX y luego CUDA."""
+    dev = os.environ.get('CYCLES_DEVICE', 'CPU').upper()
+    if dev == 'CPU':
+        sc.cycles.device = 'CPU'; return 'CPU'
+    p = bpy.context.preferences.addons['cycles'].preferences
+    for t in (('OPTIX', 'CUDA') if dev in ('GPU', 'OPTIX') else (dev,)):
+        try:
+            p.compute_device_type = t; p.get_devices()
+        except TypeError:
+            continue
+        if any(d.type == t for d in p.devices): break
+    for d in p.devices: d.use = (d.type == p.compute_device_type)
+    sc.cycles.device = 'GPU'; print('cycles device', p.compute_device_type, [d.name for d in p.devices if d.use], flush=True)
+    return p.compute_device_type
 
 class X(object):
     """Envoltorio de un socket de salida (float)."""
@@ -241,7 +258,7 @@ def setup_scene(res):
     sc = bpy.context.scene
     for o in list(bpy.data.objects): bpy.data.objects.remove(o, do_unlink=True)
     sc.render.engine = 'CYCLES'
-    sc.cycles.device = 'CPU'
+    cycles_device(sc)
     sc.cycles.samples = 1
     sc.cycles.use_adaptive_sampling = False
     sc.cycles.use_denoising = False

@@ -1,5 +1,5 @@
 #!/bin/bash
-F=/workspace/pool-render/fixed; D=/workspace/BackroomsEscape/Assets/Resources/PoolRoom
+F=${POOL_OUT:-/workspace/pool-render/fixed}; D=${UNITY_PROJECT:-/workspace/BackroomsEscape}/Assets/Resources/PoolRoom
 cp $F/PoolRoomFixed.bytes $D/PoolRoomFixed.bytes; cp $F/PoolRoom_LM.exr $D/PoolRoom_LM.exr
 python3 -c "
 import json; j=json.load(open('$F/probes.json'))

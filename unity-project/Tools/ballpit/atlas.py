@@ -1,11 +1,11 @@
 # v7.1.0: atlas de carteles y atrezo del parque de bolas (menú de meriendas, póster de cumpleaños, normas, banderines,
 # mantel, dibujo infantil, rótulo, muestras de color). Salida: tex/PartyAtlas_a.png (RGBA, alfa = recorte de banderines)
 # y tex/atlas.json con las regiones UV (u0, v0, u1, v1; v hacia arriba como Blender/Unity).
-import json, math, random
+import json, math, random, os
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont, ImageFilter
 W, H = 2048, 1024
-OUT = '/workspace/ballpit/tex/'
+OUT = os.environ.get('BP_TEX', '/workspace/ballpit/tex/').rstrip('/') + '/'   # v7.1.1: configurable
 F = '/usr/share/fonts/truetype/dejavu/'
 def font(sz, bold=True, serif=False):
     return ImageFont.truetype(F + ('DejaVuSerif' if serif else 'DejaVuSans') + ('-Bold' if bold else '') + '.ttf', sz)
