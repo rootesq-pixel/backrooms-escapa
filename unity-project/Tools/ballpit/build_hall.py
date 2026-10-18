@@ -330,15 +330,17 @@ for (x, y) in ((-3.0, -3.4), (3.6, -3.4)):
         cyl(x, y, 0.36, 0.3 * k, 0.3 * (k + 1) - 0.02, PADS[(k + 2) % 4], 20, caps=False)
     cyl(x, y, 0.37, 1.78, 1.84, M_METAL, 20, caps=True)
 # ---------------- bloques de goma espuma (sueltos) ----------------
-rnd = random.Random(11)
+rnd = random.Random(11); FOAM = []
 for k in range(16):
     for tries in range(40):
         x = rnd.uniform(-9.0, 9.0); y = rnd.uniform(-7.4, -0.8)
         if (-9.2 < x < -5.0 and -7.2 < y < -3.6) or (6.2 < x < 9.6 and -4.6 < y < 0.4) or abs(x - DOORS['S']) < 1.6 and y < -6 or abs(x + 3.0) < 1 and abs(y + 3.4) < 1 or abs(x - 3.6) < 1 and abs(y + 3.4) < 1: continue
         if (x < -8.6 or x > 8.6) and abs(y - DOORS['W']) < 1.4: continue
         if (-5.4 < x < 1.2 and y < -5.2) or (5.0 < x and y < -4.3): continue
+        if any(abs(x - fx) < 0.36 + fs and abs(y - fy) < 0.36 + fs for (fx, fy, fs) in FOAM): continue   # v7.1.1: sin bloques metidos unos en otros (negro al hornear)
         break
-    s = rnd.choice([0.4, 0.5, 0.6]); hgt = rnd.choice([0.3, 0.4, 0.6]); c = rnd.choice(PADS)
+    s = rnd.choice([0.4, 0.5, 0.6]); FOAM.append((x, y, s / 2))
+    hgt = rnd.choice([0.3, 0.4, 0.6]); c = rnd.choice(PADS)
     kind = rnd.random()
     if kind < 0.6: box(x - s / 2, x + s / 2, y - s / 2, y + s / 2, 0, hgt, c, 0.05, skip=('b',))
     else: cyl(x, y, s * 0.45, 0, hgt * 1.3, c, 18)
@@ -392,7 +394,7 @@ for k, (cx, cy, side) in enumerate(CH):
     by = cy - 0.15 if side == 0 else cy + 0.12
     box(cx - 0.16, cx + 0.16, by, by + 0.03, 0.32, 0.62, m, 0.01)
     for (dx, dy) in ((-0.13, -0.13), (0.13, -0.13), (-0.13, 0.13), (0.13, 0.13)): cyl(cx + dx, cy + dy, 0.015, 0, 0.28, M_METAL, 6, False)
-box(7.6, 8.0, -5.2, -5.17, 0, 0.32, M_PLB, 0.01); box(7.6, 8.0, -5.5, -5.18, 0.0, 0.04, M_PLB, 0.01)   # sillita volcada
+box(7.70, 7.73, -5.45, -5.05, 0, 0.32, M_PLB, 0.01); box(7.73, 8.03, -5.45, -5.05, 0.0, 0.04, M_PLB, 0.01)   # sillita volcada (v7.1.1: piezas sin solaparse y de canto a la pared: antes se cruzaban y quedaba una rendija negra de 25 cm)
 for k in range(6):
     px = 6.9 + k * 0.42; py = -6.7 if k % 2 == 0 else -6.1
     acyl(px, py, 0.1, 0.583, 0.592, 'plate', 14)

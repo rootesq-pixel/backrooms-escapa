@@ -316,11 +316,27 @@ public static class BallpitSetPiece
         return m;
     }
 
-    private static Material[] sharedMats; private static Mesh sharedMesh, sharedCol; private static Texture sharedLm;
+    private static Material[] sharedMats; private static Mesh sharedMesh, sharedCol; private static Texture sharedLm; private static int sharedLmTier = -1;
+    // v7.1.1: lightmap de 4096 horneado en GPU; con gráficos Bajo se usa la copia reducida a 2048 (Ballpit_LM_Low, 4x menos memoria)
+    public static Texture2D LoadLightmap(string full, string low)
+    {
+        Texture2D t = GameSettings.Quality == 0 ? Resources.Load<Texture2D>(low) : null;
+        return t != null ? t : Resources.Load<Texture2D>(full);
+    }
+    public static int LightmapSize { get { return sharedLm != null ? sharedLm.width : 0; } }
     static void EnsureShared()
     {
-        if (sharedMats != null && sharedMesh != null) return;
-        sharedLm = Resources.Load<Texture2D>(Res + "Ballpit_LM");
+        int tier = GameSettings.Quality == 0 ? 0 : 1;
+        if (sharedMats != null && sharedMesh != null)
+        {
+            if (tier != sharedLmTier)
+            {   // cambió la calidad entre partidas: cambia solo el lightmap de los materiales
+                sharedLm = LoadLightmap(Res + "Ballpit_LM", Res + "Ballpit_LM_Low"); sharedLmTier = tier;
+                foreach (Material mm in sharedMats) if (mm != null && mm.HasProperty("_LightMap") && mm.GetTexture("_LightMap") != Texture2D.blackTexture) mm.SetTexture("_LightMap", sharedLm);
+            }
+            return;
+        }
+        sharedLm = LoadLightmap(Res + "Ballpit_LM", Res + "Ballpit_LM_Low"); sharedLmTier = tier;
         const string T = "Textures/", TB = "Textures/Ballpit/";
         Material emit = Mat(null, null, Texture2D.blackTexture, new Color(0.95f, 0.97f, 1f), 0.2f);
         emit.SetColor("_EmitAdd", new Color(2.3f, 2.35f, 2.4f)); emit.SetFloat("_LMScale", 0f);

@@ -8,6 +8,7 @@ using UnityEngine.Rendering;
 public static class PoolRoomSetPiece
 {
     public static GameObject Root { get; private set; }
+    public static int LightmapSize { get; private set; }   // v7.1.1 (pruebas)
 
     static Material TileMat(string n, Color tint, float smooth)
     {
@@ -81,7 +82,8 @@ public static class PoolRoomSetPiece
         root.transform.SetParent(levelRoot, false);
         Root = root;
         Vector3 ctr = new Vector3((b.x + b.width * 0.5f) * cs, 0f, (b.y + b.height * 0.5f) * cs);
-        Texture lm = Resources.Load<Texture2D>("PoolRoom/PoolRoom_LM");
+        Texture lm = BallpitSetPiece.LoadLightmap("PoolRoom/PoolRoom_LM", "PoolRoom/PoolRoom_LM_Low");   // v7.1.1: 4096 (Bajo: 2048)
+        LightmapSize = lm != null ? lm.width : 0;
         Material sky = ProceduralAssets.CreateMaterial(new Color(0.95f, 0.98f, 1f), null, Vector2.one, 0.1f);
         ProceduralAssets.SetEmission(sky, new Color(2.6f, 2.8f, 3.0f));
         Material[] mats = {

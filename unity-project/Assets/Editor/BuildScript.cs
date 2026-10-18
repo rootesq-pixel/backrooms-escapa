@@ -10,7 +10,8 @@ using UnityEngine.Rendering;
 public static class BuildScript
 {
     private const string ScenePath = "Assets/Scenes/Main.unity";
-    private const string OutputPath = "/workspace/BackroomsEscape_Build/BackroomsEscape.exe";
+    // v7.1.1: BUILD_OUTPUT (ruta del .exe) permite compilar en otra máquina (p. ej. el PC con Windows)
+    private static string OutputPath { get { string e = Environment.GetEnvironmentVariable("BUILD_OUTPUT"); return string.IsNullOrEmpty(e) ? "/workspace/BackroomsEscape_Build/BackroomsEscape.exe" : e; } }
 
     public static void BuildWindows()
     {

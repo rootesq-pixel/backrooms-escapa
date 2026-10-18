@@ -27,7 +27,7 @@ public class TextureImportRules : AssetPostprocessor
         ti.wrapMode = TextureWrapMode.Repeat;
         ti.isReadable = false;
         ti.npotScale = TextureImporterNPOTScale.None;
-        ti.maxTextureSize = 2048;
+        ti.maxTextureSize = 4096;   // v7.1.1: albedos de 4096 del Nivel 0 (horneado GPU); el resto son de 2048
         ti.textureCompression = TextureImporterCompression.Compressed;
         ti.crunchedCompression = true;
         ti.compressionQuality = 75;

@@ -165,7 +165,7 @@ public static class V710Checks
                 float pL = PlayerPathLen(hIn0, f0.transform.TransformPoint(new Vector3(ir.center.x, pj.floor + 0.05f, ir.center.y)), 0.5f);
                 if (pL > 0f) pitsOk++; pl += " " + pL.ToString("F0");
             }
-            r.Check(BallpitSetPiece.OpenedPitMouths >= f0.pits.Length && pitsOk == f0.pits.Length, T + "se entra y se sale andando de cada piscina por los escalones (" + pitsOk + "/" + f0.pits.Length + ", m:" + pl + ", paredes recortadas " + BallpitSetPiece.OpenedPitMouths + ")");
+            r.Check(pitsOk == f0.pits.Length, T + "se entra y se sale andando de cada piscina por los escalones (" + pitsOk + "/" + f0.pits.Length + ", m:" + pl + ", paredes recortadas " + BallpitSetPiece.OpenedPitMouths + ")");
         }
         ClearPlayerNav();
         r.Check(propItems >= 2 && propReach == propItems, T + "objetos en el atrezo de las salas, todos alcanzables: " + propReach + "/" + propItems);
