@@ -29,6 +29,26 @@ public static class V711Shots
     }
     private static void Finish() { SessionState.SetString("smoke_phase", ""); EditorApplication.update -= Tick; Debug.Log("[V711Shots] FIN"); EditorApplication.Exit(0); }
 
+    // v7.1.1: tiempo de render real (GPU del PC): mediana de N fotogramas renderizados a 1600x900 con espera a la GPU (ReadPixels 1x1)
+    static readonly System.Text.StringBuilder perf = new System.Text.StringBuilder();
+    static bool PerfOn { get { return System.Environment.GetEnvironmentVariable("V711_PERF") == "1"; } }
+    static System.Collections.Generic.List<double> perfT = new System.Collections.Generic.List<double>();
+    static RenderTexture perfRt; static Texture2D perfTex;
+    static void PerfFrame(Camera cam)
+    {
+        if (perfRt == null) { perfRt = new RenderTexture(1600, 900, 24); perfTex = new Texture2D(1, 1, TextureFormat.RGB24, false); }
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        RenderTexture prev = cam.targetTexture; cam.targetTexture = perfRt; cam.Render(); RenderTexture.active = perfRt;
+        perfTex.ReadPixels(new Rect(0, 0, 1, 1), 0, 0); perfTex.Apply(); RenderTexture.active = null; cam.targetTexture = prev;
+        perfT.Add(sw.Elapsed.TotalMilliseconds);
+    }
+    static void PerfEnd(string name)
+    {
+        perfT.Sort(); double med = perfT.Count > 0 ? perfT[perfT.Count / 2] : 0, p90 = perfT.Count > 0 ? perfT[(int)(perfT.Count * 0.9)] : 0;
+        perf.AppendLine(name + ";" + med.ToString("F3", System.Globalization.CultureInfo.InvariantCulture) + ";" + p90.ToString("F3", System.Globalization.CultureInfo.InvariantCulture) + ";" + perfT.Count);
+        Directory.CreateDirectory(Dir); File.WriteAllText(Dir + "/perf.txt", perf.ToString());
+        Debug.Log("[V711Perf] " + name + " mediana " + med.ToString("F2") + " ms p90 " + p90.ToString("F2")); perfT.Clear();
+    }
     private static void Shot(Camera cam, string name, int w = 1600, int h = 900)
     {
         RenderTexture rt = new RenderTexture(w, h, 24); RenderTexture prev = cam.targetTexture;
@@ -98,9 +118,57 @@ public static class V711Shots
                 foreach (View v in views)
                 {
                     Vector3 wp = root.TransformPoint(v.p), wtg = root.TransformPoint(v.t);
-                    pw.Teleport(wp - Vector3.up * 1.6f, 0f); yield return 0.6f;
+                    pw.Teleport(wp - Vector3.up * 1.6f, Mathf.Atan2(wtg.x - wp.x, wtg.z - wp.z) * Mathf.Rad2Deg);   // el jugador mira hacia la vista (recorte de bolas por baldosas)
+                    for (int k = 0; k < 15; k++) { cam.transform.position = wp; cam.transform.rotation = Quaternion.LookRotation(wtg - wp); cam.fieldOfView = v.fov; yield return 0.04f; }   // recorte de bolas con esta cámara
                     cam.transform.position = wp; cam.transform.rotation = Quaternion.LookRotation(wtg - wp); cam.fieldOfView = v.fov;
                     Shot(cam, v.n + suf);
+                    if (PerfOn && lv == 6)
+                        for (int k = 0; k < 140; k++)
+                        {
+                            cam.transform.position = wp; cam.transform.rotation = Quaternion.LookRotation(wtg - wp); cam.fieldOfView = v.fov;
+                            if (k >= 20) PerfFrame(cam); yield return 0.001f;
+                            if (k == 139) PerfEnd(v.n + suf);
+                        }
+                }
+                if (lv == 6 && BallPitField.All.Count > 0)
+                {   // v7.1.1 bolas: vadeando (superficie de cerca, con ondas) y una piscina quieta de lejos
+                    BallPitField f0 = BallPitField.All[0]; BallpitSetPiece.PitJ pit = f0.pits[0];
+                    Rect inn = BallpitSetPiece.PitInner(pit, f0.rim);
+                    Vector3 a0 = root.TransformPoint(new Vector3(inn.xMin + 1.2f, pit.floor + 0.05f, inn.center.y));
+                    Vector3 dir = root.TransformDirection(Vector3.right);
+                    pw.Teleport(a0, 90f); yield return 0.5f;
+                    for (int k = 0; k < 50; k++)
+                    {
+                        Vector3 pp = a0 + dir * (k * 0.025f); pw.Teleport(pp, 90f);
+                        cam.transform.position = pp + Vector3.up * 1.45f - dir * 0.05f;
+                        cam.transform.rotation = Quaternion.LookRotation(dir * 1.0f + Vector3.down * 0.85f); cam.fieldOfView = 70f;
+                        yield return 0.03f;
+                    }
+                    {
+                        Vector3 pp = a0 + dir * (49 * 0.025f);
+                        cam.transform.position = pp + Vector3.up * 1.45f - dir * 0.05f;
+                        cam.transform.rotation = Quaternion.LookRotation(dir * 1.0f + Vector3.down * 0.85f); cam.fieldOfView = 70f;
+                    }
+                    Shot(cam, "balls_wading" + suf);
+                    if (PerfOn)
+                    {
+                        float t0 = (float)EditorApplication.timeSinceStartup;
+                        for (int k = 0; k < 140; k++)
+                        {   // vadeando de verdad mientras se mide (ondas, bolas rodando)
+                            float tt = (float)EditorApplication.timeSinceStartup - t0;
+                            Vector3 pp = a0 + dir * (1.2f + Mathf.PingPong(tt * 1.4f, 2.5f)); pw.Teleport(pp, 90f);
+                            cam.transform.position = pp + Vector3.up * 1.45f - dir * 0.05f; cam.transform.rotation = Quaternion.LookRotation(dir * 1.0f + Vector3.down * 0.85f);
+                            if (k >= 20) PerfFrame(cam); yield return 0.001f;
+                            if (k == 139) PerfEnd("balls_wading" + suf);
+                        }
+                    }
+                    Vector3 far = root.TransformPoint(new Vector3(inn.center.x + 9.0f, 1.7f, inn.yMin - 4.0f));
+                    Vector3 tgt = root.TransformPoint(new Vector3(inn.center.x, pit.ball, inn.center.y));
+                    pw.Teleport(far - Vector3.up * 1.6f, Mathf.Atan2(tgt.x - far.x, tgt.z - far.z) * Mathf.Rad2Deg);
+                    for (int k = 0; k < 30; k++) { cam.transform.position = far; cam.transform.rotation = Quaternion.LookRotation(tgt - far); cam.fieldOfView = 50f; yield return 0.04f; }   // el recorte por baldosas usa la cámara del fotograma anterior
+                    cam.transform.position = far; cam.transform.rotation = Quaternion.LookRotation(tgt - far); cam.fieldOfView = 50f;
+                    Shot(cam, "balls_distance" + suf);
+                    if (PerfOn) for (int k = 0; k < 140; k++) { cam.transform.position = far; cam.transform.rotation = Quaternion.LookRotation(tgt - far); cam.fieldOfView = 50f; if (k >= 20) PerfFrame(cam); yield return 0.001f; if (k == 139) PerfEnd("balls_distance" + suf); }
                 }
             }
             else

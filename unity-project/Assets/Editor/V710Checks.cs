@@ -108,7 +108,7 @@ public static class V710Checks
         GameSettings.Quality = 0; yield return 0.4f;
         int visBajo = f0.LastVisible;
         GameSettings.Quality = qPrev; yield return 0.2f;
-        r.Check(visBajo > 1000 && visBajo * 2 < visAlto, T + "Bajo dibuja solo la capa superior de bolas: " + visBajo + " vs " + visAlto + " (Alto)");
+        r.Check(visBajo > 1000 && visBajo < visAlto * 0.9f, T + "Bajo dibuja menos bolas (v7.1.1: 2 capas, sin la 3.ª ni bolas rodando): " + visBajo + " vs " + visAlto + " (Alto)");
 
         // ---------------- llaves y objetos en las salas ----------------
         r.Check(gen.HallPitKeys.Count == 1, T + "una llave enterrada en una piscina de bolas");

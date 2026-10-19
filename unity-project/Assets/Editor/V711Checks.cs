@@ -96,5 +96,70 @@ public static class V711Checks
         int open = 0; foreach (var kv in edges) if (kv.Value != 2) open++;
         r.Check(slideTris > 500 && open == 0, T + "tobogán de plástico cerrado (" + slideTris + " triángulos, aristas abiertas " + open + ")");
         yield return null;
+
+        // ---------------- bolas (v7.1.1): todas se mueven, sin capa plana «foto» visible, presupuesto ----------------
+        if (BallPitField.All.Count == 0) yield break;
+        BallPitField f0 = BallPitField.All[0];
+        float cov = f0.TopCoverage(4000, 2, 0.003f);
+        r.Check(cov >= 0.975f, T + "bolas: desde arriba no se ve la capa plana ni el fondo (las 2 capas que siempre se dibujan tapan el " + (cov * 100f).ToString("F2") + " %)");
+        {
+            int[] bt = m.GetTriangles(BallpitSetPiece.M_BALL); float maxRel = -9f, minFloor = 9f; int nb = 0;
+            foreach (int i in bt)
+                foreach (BallpitSetPiece.PitJ p in d.pits)
+                    if (v[i].x > p.x0 && v[i].x < p.x1 && v[i].z > p.z0 && v[i].z < p.z1) { maxRel = Mathf.Max(maxRel, v[i].y - p.ball); minFloor = Mathf.Min(minFloor, v[i].y - p.floor); nb++; }
+            r.Check(nb > 0 && maxRel < -0.25f && minFloor > 0f, T + "bolas: la capa plana queda como fondo a " + (-maxRel).ToString("F2") + " m bajo la superficie (sobre el suelo de la piscina: " + minFloor.ToString("F2") + " m)");
+            MeshRenderer hr = null;
+            foreach (MeshRenderer mr in BallpitSetPiece.Roots[0].GetComponentsInChildren<MeshRenderer>()) if (mr.name == "BallpitHallBaked") hr = mr;
+            Color bc = hr != null && hr.sharedMaterials.Length > BallpitSetPiece.M_BALL ? hr.sharedMaterials[BallpitSetPiece.M_BALL].GetColor("_Color") : Color.white;
+            r.Check(bc.grayscale < 0.4f, T + "bolas: el fondo es oscuro (tinte " + bc.grayscale.ToString("F2") + "), no una foto de bolas");
+        }
+        int total = 0; foreach (BallPitField f in BallPitField.All) total += f.BallCount;
+        r.Check(total > 50000 && total <= 79613, T + "bolas: " + total + " instancias (v7.1.0: 79613; menos bolas, solo las capas que se ven)");
+        bool anim = true; foreach (BallPitField f in BallPitField.All) anim &= f.TilesAnimated;
+        r.Check(anim && Shader.GetGlobalFloat("_BallAmbient") > 0.5f, T + "bolas: todas las baldosas de bolas tienen vaivén (amplitud " + Shader.GetGlobalFloat("_BallAmbient").ToString("F2") + ")");
+
+        FirstPersonController fpc = gm.player;
+        Vector3 home = fpc.transform.position; float homeYaw = fpc.transform.eulerAngles.y;
+        BallpitSetPiece.PitJ pit = f0.pits[0];
+        Rect inner = BallpitSetPiece.PitInner(pit, f0.rim);
+        Vector3 a0 = f0.transform.TransformPoint(new Vector3(inner.xMin + 1.0f, pit.floor + 0.05f, inner.center.y));
+        fpc.Teleport(a0, 90f); yield return 0.5f;
+        int rip0 = BallPitField.RipplesEmitted, roll0 = BallPitField.RollingCount;
+        int maxRoll = 0;
+        Vector3 dir = f0.transform.TransformDirection(Vector3.right);
+        float t0 = Time.time;
+        while (Time.time - t0 < 2.0f)
+        {   // vadear 2 s a ~1,6 m/s (por tiempo: en batchmode los fotogramas duran ~1 ms)
+            fpc.Teleport(a0 + dir * ((Time.time - t0) * 1.6f) + Vector3.up * 0.02f, 90f);
+            maxRoll = Mathf.Max(maxRoll, BallPitField.RollingCount);
+            yield return null;
+        }
+        int rips = BallPitField.RipplesEmitted - rip0;
+        r.Check(rips >= 3 && BallPitField.RippleCount > 0, T + "bolas: al vadear salen ondas que recorren la piscina (" + rips + " ondas, activas " + BallPitField.RippleCount + ")");
+        r.Check(GameSettings.Quality == 0 || maxRoll > 0, T + "bolas: algunas salen rodando por la superficie (" + maxRoll + " a la vez)");
+        {   // un monstruo dentro de la piscina también aparta bolas y hace ondas
+            MonsterAI mon = null; foreach (MonsterAI mm in MonsterAI.Instances) if (mm != null && mm.gameObject.activeInHierarchy) { mon = mm; break; }
+            if (mon != null)
+            {
+                Vector3 mh = mon.transform.position;
+                UnityEngine.AI.NavMeshAgent ag = mon.GetComponent<UnityEngine.AI.NavMeshAgent>(); bool agOn = ag != null && ag.enabled;
+                if (ag != null) ag.enabled = false;
+                int rm0 = BallPitField.RipplesEmitted, pc = 0;
+                Vector3 b0 = f0.transform.TransformPoint(new Vector3(inner.xMax - 1.0f, pit.floor + 0.02f, inner.yMin + 1.0f));
+                float tm = Time.time;
+                while (Time.time - tm < 1.5f) { mon.transform.position = b0 + dir * (-(Time.time - tm) * 1.2f); yield return null; pc = Mathf.Max(pc, BallPitField.PusherCount); }
+                r.Check(pc >= 2 && BallPitField.RipplesEmitted - rm0 >= 2, T + "bolas: el monstruo dentro de la piscina también empuja y hace ondas (empujadores " + pc + ", ondas " + (BallPitField.RipplesEmitted - rm0) + ")");
+                mon.transform.position = mh; if (ag != null) { ag.enabled = agOn; if (agOn) ag.Warp(mh); }
+            }
+        }
+        {   // presupuesto: bolas dibujadas y llamadas mirando la piscina grande desde el borde
+            Vector3 eye = f0.transform.TransformPoint(new Vector3(inner.center.x, pit.ball + 0.05f, inner.yMin - 0.6f));
+            fpc.Teleport(f0.transform.TransformPoint(new Vector3(inner.center.x, 0.02f, inner.yMin - 0.6f)), 0f); yield return 0.4f;
+            float acc = 0f; int fr = 0, vis = 0, calls = 0;
+            for (int k = 0; k < 60; k++) { yield return null; acc += Time.unscaledDeltaTime; fr++; vis = Mathf.Max(vis, f0.LastVisible); calls = Mathf.Max(calls, f0.LastCalls); }
+            r.Info(T + "bolas: tiempo medio de fotograma mirando la piscina " + (acc / fr * 1000f).ToString("F1") + " ms (calidad " + GameSettings.Quality + "), " + vis + " bolas, " + calls + " llamadas");
+            r.Check(vis > 1000 && vis <= 26000 && calls <= 160, T + "bolas: presupuesto de dibujo (" + vis + " <= 26000 bolas, " + calls + " <= 160 llamadas; tiempo real de GPU medido en el PC)");
+        }
+        fpc.Teleport(home, homeYaw); yield return 0.3f;
     }
 }

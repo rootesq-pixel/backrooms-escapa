@@ -236,6 +236,7 @@ public static class BallpitSetPiece
         if (cut > 0) { v = V.ToArray(); n = N.ToArray(); a = A.ToArray(); b = B.ToArray(); }
         return cut;
     }
+    public const float BackingDrop = 0.30f;   // v7.1.1 (antes 0.085): capa plana a 33 cm bajo la superficie de bolas
     public static Mesh LoadBakedMesh(out Mesh collision)
     {
         collision = null;
@@ -261,9 +262,9 @@ public static class BallpitSetPiece
             // v7.1.0: la pared interior de cada piscina se exportó entera, también delante de la abertura con escalones:
             // se recorta ahí (render y colisión) para poder entrar y salir andando
             OpenedPitMouths = OpenPitMouths(ref v, ref n, ref a, ref b, subs); nv = v.Length;
-            // la superficie plana de bolas baja un poco: queda como "fondo" bajo las bolas instanciadas (hueco al vadear)
+            // la superficie plana de bolas baja: v7.1.1 queda como fondo oscuro muy por debajo de las 3 capas de bolas (nunca se ve como «foto»)
             bool[] fillV = M_ATLAS < ns ? FlattenPropLightmap(v, n, a, b, subs) : null;
-            if (M_BALL < ns) { var moved = new HashSet<int>(subs[M_BALL]); foreach (int i in moved) v[i].y -= 0.085f; }
+            if (M_BALL < ns) { var moved = new HashSet<int>(subs[M_BALL]); foreach (int i in moved) v[i].y -= BackingDrop; }
             Mesh m = new Mesh { name = "BallpitHall" };
             if (nv > 65000) m.indexFormat = IndexFormat.UInt32;
             m.vertices = v; m.normals = n; m.uv = a; m.uv2 = b; m.subMeshCount = ns;
@@ -350,7 +351,7 @@ public static class BallpitSetPiece
             Mat("PlayPlastic", TB, sharedLm, PlasticYLinear, 0.65f), Mat("PlayPlastic", TB, sharedLm, PlasticBLinear, 0.65f),
             Mat("PlayNet", TB, sharedLm, Color.white, 0.1f, 0.45f, true),
             emit,
-            Mat("BallSurface", TB, sharedLm, Color.white, 0.6f),
+            Mat("BallSurface", TB, sharedLm, new Color(0.11f, 0.10f, 0.10f), 0.05f),   // v7.1.1: fondo oscuro (sombra entre bolas)
             metal,
             Mat("PartyAtlas", TB, sharedLm, Color.white, 0.15f, 0.5f, true) };
         sharedMesh = LoadBakedMesh(out sharedCol);
@@ -409,7 +410,7 @@ public static class BallpitSetPiece
 // y 3 capas (Bajo: 1). Vadear: menos velocidad, ruido de plástico y bolas apartadas alrededor de las piernas.
 public class BallPitField : MonoBehaviour
 {
-    public const float BallR = 0.037f, Spacing = 0.071f, Tile = 1.2f;
+    public const float BallR = 0.037f, Spacing = 0.066f, Tile = 1.2f;   // v7.1.1: 0.066 (antes 0.071): 2 capas tapan el fondo
     static readonly Color[] BallColors = {
         new Color(0.78f, 0.17f, 0.14f), new Color(0.90f, 0.72f, 0.18f), new Color(0.16f, 0.38f, 0.74f),
         new Color(0.22f, 0.60f, 0.28f), new Color(0.88f, 0.42f, 0.12f), new Color(0.55f, 0.28f, 0.66f) };
@@ -453,13 +454,14 @@ public class BallPitField : MonoBehaviour
                     List<Matrix4x4> ms = new List<Matrix4x4>(); List<Vector4> cols = new List<Vector4>();
                     TileData td = new TileData { pit = pi };
                     for (int layer = 0; layer < 3; layer++)
-                    {
+                    {   // v7.1.1: capas 0 y 1 completas (tapan todo desde arriba), la 2 al 30 % (solo de cerca, para el hueco al vadear)
                         float off = layer == 1 ? Spacing * 0.5f : 0f;
                         float y0 = p.ball - BallR - layer * BallR * 1.55f;
                         for (float x = tr2.xMin + BallR + off; x < tr2.xMax - BallR * 0.3f; x += Spacing)
                             for (float z = tr2.yMin + BallR + off; z < tr2.yMax - BallR * 0.3f; z += Spacing)
                             {
-                                if (layer == 0 && rnd.NextDouble() < 0.04) continue;   // algún hueco en la superficie
+                                if (layer == 0 && rnd.NextDouble() < 0.02) continue;   // algún hueco en la superficie (lo tapa la capa 1)
+                                if (layer == 2 && rnd.NextDouble() < 0.70) continue;   // 3.ª capa al 30 %
                                 float jx = (float)(rnd.NextDouble() - 0.5) * Spacing * 0.42f, jz = (float)(rnd.NextDouble() - 0.5) * Spacing * 0.42f;
                                 float jy = (float)(rnd.NextDouble() - 0.6) * BallR * (layer == 0 ? 0.55f : 0.4f);
                                 Vector3 lp = new Vector3(Mathf.Clamp(x + jx, inner.xMin + BallR, inner.xMax - BallR), y0 + jy, Mathf.Clamp(z + jz, inner.yMin + BallR, inner.yMax - BallR));
@@ -482,6 +484,7 @@ public class BallPitField : MonoBehaviour
                     td.mpb.SetVectorArray("_Color", cols);
                     td.mpb.SetColor("_Irr", irr);
                     td.mpb.SetFloat("_TopY", tr.TransformPoint(new Vector3(0f, p.ball, 0f)).y);
+                    td.mpb.SetFloat("_Dyn", 1f);   // v7.1.1: todas las bolas de la piscina se mecen
                     tiles.Add(td);
                     BallCount += ms.Count;
                 }
@@ -529,14 +532,14 @@ public class BallPitField : MonoBehaviour
         int n = 0;
         for (int i = 0; i < pushers.Length; i++) pushers[i] = Vector4.zero;
         FirstPersonController fpc = FirstPersonController.LocalInstance;
-        if (fpc != null) { Vector3 p = fpc.transform.position; pushers[n++] = new Vector4(p.x, p.y, p.z, fpc.IsCrouching ? 0.5f : 0.42f); }
+        if (fpc != null) { Vector3 p = fpc.transform.position; pushers[n++] = new Vector4(p.x, p.y, p.z, fpc.IsCrouching ? 0.56f : 0.48f); }
         foreach (MonsterAI m in MonsterAI.Instances)
         {
             if (n >= pushers.Length) break;
             if (m == null || !m.gameObject.activeInHierarchy) continue;
             Vector3 p = m.transform.position;
             if (DepthAt(p + Vector3.up * 1.9f) > 0f && p.y < SurfaceY(p) - 1.2f) pushers[n++] = new Vector4(p.x, SurfaceY(p), p.z, -0.95f);   // sumergido: bulto
-            else if (DepthAt(p) > 0f) pushers[n++] = new Vector4(p.x, p.y, p.z, 0.55f);
+            else if (DepthAt(p) > 0f) pushers[n++] = new Vector4(p.x, p.y, p.z, 0.62f);
         }
         if (Time.time >= nextRemoteScan) { nextRemoteScan = Time.time + 1f; remotes.Clear(); foreach (RemotePlayer rp in Object.FindObjectsOfType<RemotePlayer>()) remotes.Add(rp.transform); }
         foreach (Transform t in remotes)
@@ -544,9 +547,47 @@ public class BallPitField : MonoBehaviour
             if (n >= pushers.Length) break;
             if (t == null || !t.gameObject.activeInHierarchy) continue;
             Vector3 p = t.position; if (DepthAt(p) <= 0f) continue;
-            pushers[n++] = new Vector4(p.x, p.y, p.z, 0.42f);
+            pushers[n++] = new Vector4(p.x, p.y, p.z, 0.48f);
         }
         Shader.SetGlobalVectorArray(PushersId, pushers);
+        PusherCount = n;
+        UpdateRipples(n);
+    }
+
+    // v7.1.1: ondas y bolas rodando. Cada empujador que se mueve dentro de una piscina (jugador, compañeros, monstruo; también
+    // el bulto del monstruo sumergido) suelta una onda cada ~0,3 s y, si va deprisa, alguna bola que sale rodando.
+    public static int PusherCount { get; private set; }
+    public static int RippleCount { get { int c = 0; foreach (Vector4 q in ripples) if (q.w > 0f && Time.timeSinceLevelLoad - q.w < 2.6f) c++; return c; } }
+    public static int RipplesEmitted { get; private set; }
+    static readonly Vector4[] ripples = new Vector4[8]; static int rippleNext;
+    static readonly Vector3[] lastP = new Vector3[6]; static readonly float[] lastEmit = new float[6];
+    static readonly int RipplesId = Shader.PropertyToID("_BallRipples"), AmbientId = Shader.PropertyToID("_BallAmbient");
+    static System.Random rollRnd = new System.Random(7111);
+    static float lastT = -1f;
+    static void UpdateRipples(int n)
+    {
+        float now = Time.timeSinceLevelLoad;   // = _Time.y del shader
+        if (now < lastT) { for (int i = 0; i < ripples.Length; i++) ripples[i] = Vector4.zero; lastT = -1f; }   // nivel recargado
+        float dt = lastT < 0f ? 0f : Mathf.Max(1e-4f, now - lastT); lastT = now;
+        for (int i = 0; i < pushers.Length; i++)
+        {
+            Vector4 pw = pushers[i];
+            if (i >= n || pw.w == 0f) { lastP[i] = Vector3.zero; continue; }
+            Vector3 p = new Vector3(pw.x, pw.y, pw.z);
+            Vector3 vel = lastP[i] == Vector3.zero || dt <= 0f ? Vector3.zero : (p - lastP[i]) / dt; vel.y = 0f;
+            if (vel.magnitude > 12f) vel = Vector3.zero;   // teletransporte o cambio de hueco
+            lastP[i] = p;
+            float sp = vel.magnitude;
+            bool sub = pw.w < 0f;
+            if ((sp > 0.25f || sub) && now - lastEmit[i] > (sub ? 0.55f : Mathf.Lerp(0.42f, 0.22f, Mathf.Clamp01(sp / 3f))))
+            {
+                lastEmit[i] = now;
+                ripples[rippleNext] = new Vector4(p.x, SurfaceY(p), p.z, Mathf.Max(1e-3f, now)); rippleNext = (rippleNext + 1) % ripples.Length; RipplesEmitted++;
+                if (!sub && sp > 0.6f && !lowQ) { int k = sp > 2f ? 2 : 1; for (int j = 0; j < k; j++) SpawnRoll(p, vel, SurfaceY(p), rollRnd); }
+            }
+        }
+        Shader.SetGlobalVectorArray(RipplesId, ripples);
+        Shader.SetGlobalFloat(AmbientId, lowQ ? 0.8f : 1f);
     }
 
     // altura (mundo) de la superficie de bolas sobre p (o p.y si no hay piscina)
@@ -563,7 +604,7 @@ public class BallPitField : MonoBehaviour
     }
 
     // bolas que saltan (cuando sale el monstruo o alguien se tira): balística simple, dibujadas instanciadas
-    struct Flyer { public Vector3 p, v; public float life, floorY; public Color c; }
+    struct Flyer { public Vector3 p, v; public float life, floorY; public Color c; public bool roll; public float life0; }
     static readonly List<Flyer> flyers = new List<Flyer>();
     static readonly Matrix4x4[] flyM = new Matrix4x4[256]; static readonly Vector4[] flyC = new Vector4[256];
     static MaterialPropertyBlock flyMpb;
@@ -586,23 +627,79 @@ public class BallPitField : MonoBehaviour
         for (int i = flyers.Count - 1; i >= 0; i--)
         {
             Flyer f = flyers[i];
-            f.life -= dt; f.v.y -= 9.81f * dt; f.p += f.v * dt;
-            if (f.p.y < f.floorY - 0.02f && f.v.y < 0f) { f.p.y = f.floorY - 0.02f; f.v *= 0.35f; f.v.y = -f.v.y * 0.5f; }
+            f.life -= dt;
+            if (f.roll)
+            {   // v7.1.1: bola que rueda por encima de las demás y se hunde al pararse
+                f.v *= Mathf.Max(0f, 1f - 1.8f * dt); f.p += f.v * dt;
+                float bob = Mathf.Abs(Mathf.Sin((f.life0 - f.life) * 9f)) * 0.012f * Mathf.Clamp01(f.v.magnitude * 2f);
+                f.p.y = f.floorY + BallR * 0.55f + bob - Mathf.Clamp01((0.6f - f.life) / 0.6f) * 0.09f;
+            }
+            else
+            {
+                f.v.y -= 9.81f * dt; f.p += f.v * dt;
+                if (f.p.y < f.floorY - 0.02f && f.v.y < 0f) { f.p.y = f.floorY - 0.02f; f.v *= 0.35f; f.v.y = -f.v.y * 0.5f; }
+            }
             if (f.life <= 0f) { flyers.RemoveAt(i); continue; }
             flyers[i] = f;
         }
         foreach (Flyer f in flyers)
         {
-            flyM[n] = Matrix4x4.TRS(f.p, Quaternion.Euler(f.life * 300f, f.life * 170f, 0f), Vector3.one * BallR * 2f);
+            Quaternion rq = f.roll ? Quaternion.Euler(f.p.z * 1550f, 0f, -f.p.x * 1550f) : Quaternion.Euler(f.life * 300f, f.life * 170f, 0f);
+            flyM[n] = Matrix4x4.TRS(f.p, rq, Vector3.one * BallR * 2f);
             flyC[n] = new Vector4(f.c.r, f.c.g, f.c.b, 1f); n++;
         }
         if (n == 0 || mat == null) return;
         if (flyMpb == null) flyMpb = new MaterialPropertyBlock();
-        flyMpb.SetVectorArray("_Color", flyC); flyMpb.SetColor("_Irr", new Color(0.55f, 0.53f, 0.5f)); flyMpb.SetFloat("_TopY", -1000f);   // sin oscurecer por profundidad
+        flyMpb.SetVectorArray("_Color", flyC); flyMpb.SetColor("_Irr", new Color(0.55f, 0.53f, 0.5f)); flyMpb.SetFloat("_TopY", -1000f); flyMpb.SetFloat("_Dyn", 0f);   // sin oscurecer por profundidad ni oleaje (ya se mueven solas)
         Graphics.DrawMeshInstanced(lod0, 0, mat, flyM, n, flyMpb, UnityEngine.Rendering.ShadowCastingMode.Off, false, 0, null, UnityEngine.Rendering.LightProbeUsage.Off);
     }
     public static int FlyingCount { get { return flyers.Count; } }
+    public static int RollingCount { get { int c = 0; foreach (Flyer f in flyers) if (f.roll) c++; return c; } }
+    // v7.1.1: al vadear, algunas bolas de la superficie salen rodando por delante y a los lados
+    public static void SpawnRoll(Vector3 at, Vector3 vel, float surfaceY, System.Random r)
+    {
+        if (flyers.Count >= 256) return;
+        Vector3 side = new Vector3(-vel.z, 0f, vel.x).normalized * ((float)r.NextDouble() - 0.5f) * 0.9f;
+        Vector3 v = vel * (0.55f + (float)r.NextDouble() * 0.5f) + side;
+        float life = 1.3f + (float)r.NextDouble() * 0.9f;
+        flyers.Add(new Flyer { p = new Vector3(at.x, surfaceY, at.z) + vel.normalized * 0.32f, v = new Vector3(v.x, 0f, v.z), life = life, life0 = life,
+            floorY = surfaceY, c = BallColors[r.Next(BallColors.Length)] * (0.86f + (float)r.NextDouble() * 0.16f), roll = true });
+    }
 
+    // v7.1.1 (prueba): fracción de puntos de las piscinas tapados desde arriba por las capas siempre dibujadas (0..layers-1),
+    // con margen para el vaivén. 1 = no se ve nada debajo (ni el fondo ni la capa plana).
+    public float TopCoverage(int samples, int layers, float margin)
+    {
+        var grid = new Dictionary<long, List<Vector2>>(); const float G = 0.08f;
+        foreach (TileData td in tiles)
+        {
+            int end = td.layerEnd[Mathf.Clamp(layers, 1, 3) - 1];
+            for (int i = 0; i < end; i++)
+            {
+                Vector3 c = transform.InverseTransformPoint(new Vector3(td.m[i].m03, td.m[i].m13, td.m[i].m23));
+                long key = ((long)Mathf.FloorToInt(c.x / G) << 32) ^ (uint)Mathf.FloorToInt(c.z / G);
+                if (!grid.TryGetValue(key, out List<Vector2> l)) grid[key] = l = new List<Vector2>();
+                l.Add(new Vector2(c.x, c.z));
+            }
+        }
+        System.Random rr = new System.Random(5); int hit = 0, tot = 0; float rc = BallR - margin;
+        foreach (var p in pits)
+        {
+            Rect inner = BallpitSetPiece.PitInner(p, rim);
+            for (int k = 0; k < samples; k++)
+            {
+                Vector2 q = new Vector2(inner.xMin + BallR + (float)rr.NextDouble() * (inner.width - 2 * BallR), inner.yMin + BallR + (float)rr.NextDouble() * (inner.height - 2 * BallR));
+                tot++; bool cov = false; int gx = Mathf.FloorToInt(q.x / G), gz = Mathf.FloorToInt(q.y / G);
+                for (int dx = -1; dx <= 1 && !cov; dx++)
+                    for (int dz = -1; dz <= 1 && !cov; dz++)
+                        if (grid.TryGetValue(((long)(gx + dx) << 32) ^ (uint)(gz + dz), out List<Vector2> l))
+                            foreach (Vector2 b in l) if ((b - q).sqrMagnitude < rc * rc) { cov = true; break; }
+                if (cov) hit++;
+            }
+        }
+        return tot > 0 ? hit / (float)tot : 0f;
+    }
+    public bool TilesAnimated { get { foreach (TileData td in tiles) if (td.mpb.GetFloat("_Dyn") < 0.5f) return false; return tiles.Count > 0; } }
     public int LastVisible { get; private set; }
     public int LastCalls { get; private set; }
 
@@ -623,7 +720,7 @@ public class BallPitField : MonoBehaviour
         {
             float d = Vector3.Distance(cp, td.b.ClosestPoint(cp));
             if (d > 38f || !GeometryUtility.TestPlanesAABB(planes, td.b)) continue;
-            int layers = low ? 1 : d < 7f ? 3 : d < 16f ? 2 : 1;
+            int layers = !low && d < 7f ? 3 : 2;   // v7.1.1: siempre 2 capas como mínimo (antes 1 de lejos y en Bajo: se veía el fondo plano); Bajo sin la 3.ª
             int count = td.layerEnd[layers - 1];
             Mesh mesh = d < (low ? 4f : 9f) ? lod0 : lod1;
             LastVisible += count; LastCalls++;
