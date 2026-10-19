@@ -126,6 +126,7 @@ public static class MpPlayRunner
     {
         SmokeTest.Report r = report;
         ExitLock.AutoKeyForTests = true;          // v7.0.4: la llave se prueba aparte (bloque «Llaves»)
+        NetSession.NoCatchForTests = true;        // v7.1.1: la IA real de los monstruos (en el anfitrión) no derriba por su cuenta: los derribos se provocan a mano (antes, por azar, causaba fallos intermitentes de reanimación y de la llave)
         PlayerPrefs.DeleteKey(MultiplayerUI.KName);
         GameSettings.ResetDefaults();
         yield return Wait(() => GameBootstrap.Instance != null && GameBootstrap.Instance.IsLoaded, 90, "menú principal");
@@ -762,6 +763,12 @@ public static class MpPlayRunner
         {
             BackroomsGenerator gen1 = gb.Generator; int epoch1 = ns.Epoch; Vector3 ex1 = gen1.ExitPosition;
             GameManager.Instance.player.Teleport(new Vector3(ex1.x, ExitFloorY(gen1), ex1.z), 0f);
+            for (int di = 0; di < 6; di++)
+            {   // diagnóstico v7.1.1 (prueba de llave intermitente por relay)
+                yield return 0.5f;
+                Vector3 dd = GameManager.Instance.player.transform.position - ex1; dd.y = 0f;
+                r.Info("[Llaves diag] t=" + (di * 0.5f + 0.5f) + " derribado=" + ns.LocalDowned + " abierta=" + (ExitLock.Active != null && ExitLock.Active.Unlocked) + " por=" + (ExitLock.Active != null ? ExitLock.Active.UnlockedBy : "-") + " dist=" + dd.magnitude.ToString("F2") + " enSalida=" + NetSession.LocalAtExit + " ép=" + ns.WorldEpoch + "/" + ns.Epoch + " nivel=" + gb.CurrentLevel);
+            }
             yield return Wait(() => WorldReady(gb, ns, 2) && ns.Epoch > epoch1, 240, "nivel 2 cargado (cliente)");
             yield return WaitMark("host_level2", 240);
             gm = GameManager.Instance; FirstPersonController pw = gm.player;

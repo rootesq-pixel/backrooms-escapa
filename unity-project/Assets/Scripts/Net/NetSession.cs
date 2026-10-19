@@ -1146,8 +1146,10 @@ public class NetSession : MonoBehaviour
         return best;
     }
 
+    public static bool NoCatchForTests;   // v7.1.1: pruebas MP: los monstruos de verdad no derriban (los derribos se provocan a mano)
     public bool CanCatch(Transform target)
     {
+        if (NoCatchForTests) return false;
         NetPlayer p = PlayerByTransform(target);
         return p != null && !p.downed && Time.unscaledTime >= p.graceUntil;
     }
