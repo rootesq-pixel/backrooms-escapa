@@ -29,7 +29,7 @@ Shader "Backrooms/BallInstanced"
         half _Glossiness, _Depth, _Fade; half4 _Irr; float _TopY; float _Dyn;
         float4 _BallPushers[6];
         float4 _BallRipples[8];      // v7.1.1: ondas al vadear (xyz origen en el mundo, w = instante de inicio; 0 = libre)
-        float _BallAmbient;          // v7.1.1: amplitud del vaivén de todas las bolas (Alto 1, Bajo 0.8)
+        float _BallAmbient; float _BallRippleN;   // v7.1.1: ondas activas en el shader (Alto 8, Bajo 4)          // v7.1.1: amplitud del vaivén de todas las bolas (Alto 1, Bajo 0.8)
         struct Input { half shade; half spec; fixed3 col; };
         void vert(inout appdata_full v, out Input o)
         {
@@ -48,6 +48,7 @@ Shader "Backrooms/BallInstanced"
             off.xz += amb * 0.0045 * float2(sin(t * (1.1 + h) + h * 12.1), cos(t * (1.35 + h * 0.8) + h * 9.3));
             for (int j = 0; j < 8; j++)
             {
+                if (j >= _BallRippleN) break;
                 float4 q = _BallRipples[j];
                 if (q.w <= 0 || abs(c.y - q.y) > 1.2) continue;
                 float age = t - q.w; if (age < 0 || age > 2.6) continue;

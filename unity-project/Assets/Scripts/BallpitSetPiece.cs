@@ -457,8 +457,11 @@ public class BallPitField : MonoBehaviour
                     {   // v7.1.1: capas 0 y 1 completas (tapan todo desde arriba), la 2 al 30 % (solo de cerca, para el hueco al vadear)
                         float off = layer == 1 ? Spacing * 0.5f : 0f;
                         float y0 = p.ball - BallR - layer * BallR * 1.55f;
-                        for (float x = tr2.xMin + BallR + off; x < tr2.xMax - BallR * 0.3f; x += Spacing)
-                            for (float z = tr2.yMin + BallR + off; z < tr2.yMax - BallR * 0.3f; z += Spacing)
+                        // v7.1.1: rejilla continua de toda la piscina (antes cada baldosa empezaba de nuevo y dejaba una franja hueca en sus bordes)
+                        float gx0 = inner.xMin + BallR + off, gz0 = inner.yMin + BallR + off;
+                        float xs = gx0 + Mathf.Ceil((tr2.xMin - gx0) / Spacing - 1e-4f) * Spacing, zs = gz0 + Mathf.Ceil((tr2.yMin - gz0) / Spacing - 1e-4f) * Spacing;
+                        for (float x = xs; x < tr2.xMax - 1e-4f && x < inner.xMax - BallR * 0.3f; x += Spacing)
+                            for (float z = zs; z < tr2.yMax - 1e-4f && z < inner.yMax - BallR * 0.3f; z += Spacing)
                             {
                                 if (layer == 0 && rnd.NextDouble() < 0.02) continue;   // algún hueco en la superficie (lo tapa la capa 1)
                                 if (layer == 2 && rnd.NextDouble() < 0.70) continue;   // 3.ª capa al 30 %
@@ -561,7 +564,7 @@ public class BallPitField : MonoBehaviour
     public static int RipplesEmitted { get; private set; }
     static readonly Vector4[] ripples = new Vector4[8]; static int rippleNext;
     static readonly Vector3[] lastP = new Vector3[6]; static readonly float[] lastEmit = new float[6];
-    static readonly int RipplesId = Shader.PropertyToID("_BallRipples"), AmbientId = Shader.PropertyToID("_BallAmbient");
+    static readonly int RipplesId = Shader.PropertyToID("_BallRipples"), AmbientId = Shader.PropertyToID("_BallAmbient"), RippleNId = Shader.PropertyToID("_BallRippleN");
     static System.Random rollRnd = new System.Random(7111);
     static float lastT = -1f;
     static void UpdateRipples(int n)
@@ -582,12 +585,13 @@ public class BallPitField : MonoBehaviour
             if ((sp > 0.25f || sub) && now - lastEmit[i] > (sub ? 0.55f : Mathf.Lerp(0.42f, 0.22f, Mathf.Clamp01(sp / 3f))))
             {
                 lastEmit[i] = now;
-                ripples[rippleNext] = new Vector4(p.x, SurfaceY(p), p.z, Mathf.Max(1e-3f, now)); rippleNext = (rippleNext + 1) % ripples.Length; RipplesEmitted++;
+                ripples[rippleNext] = new Vector4(p.x, SurfaceY(p), p.z, Mathf.Max(1e-3f, now)); rippleNext = (rippleNext + 1) % (lowQ ? 4 : ripples.Length); RipplesEmitted++;
                 if (!sub && sp > 0.6f && !lowQ) { int k = sp > 2f ? 2 : 1; for (int j = 0; j < k; j++) SpawnRoll(p, vel, SurfaceY(p), rollRnd); }
             }
         }
         Shader.SetGlobalVectorArray(RipplesId, ripples);
         Shader.SetGlobalFloat(AmbientId, lowQ ? 0.8f : 1f);
+        Shader.SetGlobalFloat(RippleNId, lowQ ? 4f : 8f);   // Bajo: solo las 4 primeras ondas en el shader
     }
 
     // altura (mundo) de la superficie de bolas sobre p (o p.y si no hay piscina)
@@ -719,10 +723,10 @@ public class BallPitField : MonoBehaviour
         foreach (TileData td in tiles)
         {
             float d = Vector3.Distance(cp, td.b.ClosestPoint(cp));
-            if (d > 38f || !GeometryUtility.TestPlanesAABB(planes, td.b)) continue;
+            if (d > (low ? 28f : 38f) || !GeometryUtility.TestPlanesAABB(planes, td.b)) continue;
             int layers = !low && d < 7f ? 3 : 2;   // v7.1.1: siempre 2 capas como mínimo (antes 1 de lejos y en Bajo: se veía el fondo plano); Bajo sin la 3.ª
             int count = td.layerEnd[layers - 1];
-            Mesh mesh = d < (low ? 4f : 9f) ? lod0 : lod1;
+            Mesh mesh = !low && d < 9f ? lod0 : lod1;   // v7.1.1: Bajo siempre con la bola de 20 triángulos
             LastVisible += count; LastCalls++;
             if (count == td.m.Length)
                 Graphics.DrawMeshInstanced(mesh, 0, mat, td.m, count, td.mpb, ShadowCastingMode.Off, false, 0, null, LightProbeUsage.Off);
