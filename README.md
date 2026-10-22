@@ -3,15 +3,15 @@
 Juego de terror en primera persona para PC (Windows 64 bits) hecho con **Unity**: escapa de las Backrooms a través de **7 niveles** encadenados. Cada nivel es un laberinto (o aparcamiento abierto) procedural con su propia estética, luces, dificultad y criaturas que patrullan y te persiguen. La salida es una puerta discreta que **solo se descubre explorando**: sin cartel, sin flecha, sin indicador de distancia.
 
 - 🌐 **Web:** https://rootesq-pixel.github.io/backrooms-escapa/
-- ⬇️ **Descarga directa v7.1.1 (Windows, ZIP ≈ 171 MB):** [BackroomsEscape_v7_1_1_Windows.zip](https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v7.1.1/BackroomsEscape_v7_1_1_Windows.zip)
-- 📦 **Release v7.1.1:** https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.1.1
-- 🕓 Versiones anteriores: [v7.1.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.1.0) (nivel 6: Parque de bolas) · [v7.0.4](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.4) (adrenalina, llaves señuelo) · [v7.0.3](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.3) (carga rápida del Campo infinito) · [v7.0.2](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.2) (imitador garantizado, silbido, cordura) · [v7.0.1](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.1) (Campo infinito pulido, imitadores) · [v6.9.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.9.0) (Poolrooms estilo POOLS) · [v6.5.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.5.0) (audio e intro) · [v6.4.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.4.0) (ascensor) · [v6.3.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.3.0) (5 niveles, sin ascensor) · [v6.2.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.2.0) (multijugador por Internet, 6 niveles) · [v6.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.0.0) (multijugador por IP y puerto) · [v5.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v5.0.0) (un jugador)
+- ⬇️ **Descarga directa v7.1.2 (Windows, ZIP ≈ 171 MB):** [BackroomsEscape_v7_1_2_Windows.zip](https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v7.1.2/BackroomsEscape_v7_1_2_Windows.zip)
+- 📦 **Release v7.1.2:** https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.1.2
+- 🕓 Versiones anteriores: [v7.1.1](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.1.1) (calidad GPU: luz y texturas 4K) · [v7.1.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.1.0) (nivel 6: Parque de bolas) · [v7.0.4](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.4) (adrenalina, llaves señuelo) · [v7.0.3](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.3) (carga rápida del Campo infinito) · [v7.0.2](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.2) (imitador garantizado, silbido, cordura) · [v7.0.1](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.1) (Campo infinito pulido, imitadores) · [v6.9.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.9.0) (Poolrooms estilo POOLS) · [v6.5.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.5.0) (audio e intro) · [v6.4.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.4.0) (ascensor) · [v6.3.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.3.0) (5 niveles, sin ascensor) · [v6.2.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.2.0) (multijugador por Internet, 6 niveles) · [v6.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.0.0) (multijugador por IP y puerto) · [v5.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v5.0.0) (un jugador)
 
 > ⚠️ **Build temprana.** Puede haber errores. El **multijugador** se ha probado en local y con un servidor intermedio real; **las pruebas con amigos por Internet están pendientes**. El ejecutable **no está firmado**, así que Windows SmartScreen puede avisar al abrirlo (*Más información → Ejecutar de todas formas*).
 
 ## Cómo jugar
 
-1. Descarga `BackroomsEscape_v7_1_1_Windows.zip` desde la [release v7.1.1](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.1.1).
+1. Descarga `BackroomsEscape_v7_1_2_Windows.zip` desde la [release v7.1.2](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.1.2).
 2. Descomprime el ZIP (≈ 200 MB descomprimido).
 3. Ejecuta `BackroomsEscape.exe`.
 
@@ -28,6 +28,14 @@ Juego de terror en primera persona para PC (Windows 64 bits) hecho con **Unity**
 | 6 | Parque de bolas | Parque infantil cubierto abandonado: piscinas de bolas, toboganes, redes, sala de cumpleaños y mostrador de meriendas; fluorescentes que parpadean | El Sumergido (se esconde bajo las bolas) |
 
 La puerta de salida está **cerrada con llave**: en cada nivel hay 4-6 llaves parecidas y solo una la abre. Al cruzarla con la llave buena se carga el siguiente nivel; tras el nivel 6 (Parque de bolas) aparece la pantalla de victoria (tiempo total e intentos fallidos). Si te atrapan, el nivel se reinicia.
+
+## Novedades de la v7.1.2 — bolas de verdad en el Parque de bolas
+- **Las bolas 3D ya se ven en el juego:** en la v7.1.0 y la v7.1.1, al compilar el juego se quedaba fuera la versión del shader de las bolas con instancias, así que en el ejecutable de Windows **no se dibujaba ninguna bola** y solo se veía el fondo plano, como una moqueta estampada. En el editor sí salían, y por eso no lo detectamos antes. Ahora las piscinas se llenan de **bolas 3D de verdad**.
+- **Todas las bolas se mecen** solas, un poco más que antes, y **se apartan alrededor de ti** al vadear: se abre un hueco a tu alrededor, las bolas de al lado se empujan en cadena y salen **ondas**. Pasa lo mismo con tus **compañeros** en multijugador y con el **monstruo** que se esconde entre las bolas.
+- **Coste:** en una RTX 3050, mirando una piscina a 1920 × 1080, las bolas añaden unos **0,5 ms** por fotograma.
+- **Luces:** el límite de luces en tiempo real se respeta también mientras una luz se apaga y otra se enciende al moverte (antes se colaba una de más).
+- **Pruebas nuevas:** una comprobación dentro del ejecutable de Windows confirma que las bolas se dibujan, se mecen y se apartan. También hay pruebas del desplazamiento junto al jugador y junto a un compañero.
+- **Multijugador:** sin cambios de red (protocolo MP-6). Recomendamos que todos tengáis la **v7.1.2**.
 
 ## Novedades de la v7.1.1 — calidad GPU
 - **Luz 4K horneada en la GPU:** el **Parque de bolas** y los **Poolrooms** estrenan lightmaps de **4096 × 4096** (antes 2048) horneados con Blender Cycles en la GPU (OptiX) y limpiados con OIDN en calidad alta. Sombras de contacto más finas, rebotes de color más limpios y sin grano. En calidad **Baja** se carga una versión de 2048 para ahorrar memoria.
@@ -181,7 +189,7 @@ Modo **cooperativo de 2 a 4 jugadores**. El modo de un jugador no cambia: la red
 
 **Opción A: con código (recomendada, sin abrir puertos)**
 
-1. Todos necesitáis la **misma versión** (v7.1.1). El protocolo es **MP-6** (desde la v7.1.0): la v7.0.4 y anteriores **no pueden unirse**.
+1. Todos necesitáis la **misma versión** (v7.1.2). El protocolo es **MP-6** (desde la v7.1.0): la v7.0.4 y anteriores **no pueden unirse**.
 2. **Anfitrión:** menú principal → **Multijugador** → tu nombre → **Alojar con código**. Pasa a tus amigos el código de la sala.
 3. **Clientes:** Multijugador → tu nombre → **Unirse con código** → escribe el código → entras en la sala de espera.
 4. El anfitrión elige el nivel con ◄ ► y pulsa **Empezar**. No se puede entrar en una partida ya empezada.
