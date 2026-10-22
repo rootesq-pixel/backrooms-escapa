@@ -89,14 +89,38 @@ public static class V720Checks
         r.Check(!caught, T + "persiguiéndolo 1,5 s pegado a la pared: sigue vivo (estado " + gm.State + ")");
         // al aire libre: monstruo a 1 m del jugador, sin nada en medio -> sí lo atraparía
         m.Stop();
-        Vector3 open = outP + (outP - inP).normalized * 6f;
-        if (NavMesh.SamplePosition(open, out NavMeshHit no, 2f, NavMesh.AllAreas)) open = no.position;
-        Vector3 mo = open + (outP - inP).normalized * 0.9f;
-        if (NavMesh.SamplePosition(mo, out NavMeshHit nm2, 1f, NavMesh.AllAreas)) mo = nm2.position;
-        pw.Teleport(open + Vector3.up * 0.05f, 0f);
-        m.WarpTo(mo, 0f);
-        yield return 0.3f;
-        r.Check(m.WouldCatchNow(), T + "al aire libre a " + Vector3.Distance(open, mo).ToString("F2") + " m: sí lo atraparía (camino NavMesh " + MonsterAI.LastCatchPath.ToString("F2") + " m)");
+        // v7.2.0: punto al aire libre elegido con cuidado (antes, a veces otro monstruo/poste quedaba en medio): se prueban
+        // varias direcciones y distancias y se toma el primero con línea libre a 0,5/1/1,5 m, NavMesh directa y sin otro monstruo cerca
+        foreach (MonsterAI o in gm.monsters) if (o != null && o != m) o.Stop();
+        Vector3 nrm = (outP - inP); nrm.y = 0f; nrm.Normalize();
+        Vector3 open = Vector3.zero, mo = Vector3.zero; bool ok = false; string why = "";
+        for (int tr = 0; tr < 24 && !ok; tr++)
+        {
+            float dist = 6f + (tr / 8) * 4f; Vector3 dir = Quaternion.Euler(0f, (tr % 8) * 45f, 0f) * nrm;
+            Vector3 c0 = outP + nrm * dist;
+            if (!NavMesh.SamplePosition(c0, out NavMeshHit h0, 2f, NavMesh.AllAreas)) { why = "sin NavMesh"; continue; }
+            Vector3 c1 = h0.position + dir * 0.9f;
+            if (!NavMesh.SamplePosition(c1, out NavMeshHit h1, 0.5f, NavMesh.AllAreas)) { why = "sin NavMesh (monstruo)"; continue; }
+            if (NavMesh.Raycast(h1.position, h0.position, out NavMeshHit hr, NavMesh.AllAreas)) { why = "NavMesh no directa"; continue; }
+            bool clear = true;
+            foreach (float hh in new[] { 0.5f, 1.0f, 1.5f }) { Vector3 pa = h0.position + Vector3.up * hh, pb = h1.position + Vector3.up * hh; if (Physics.Linecast(pa, pb, ~0, QueryTriggerInteraction.Ignore) || Physics.Linecast(pb, pa, ~0, QueryTriggerInteraction.Ignore)) clear = false; }
+            if (!clear) { why = "algo en medio"; continue; }
+            bool near = false; foreach (MonsterAI o in gm.monsters) if (o != null && o != m && Vector3.Distance(o.transform.position, h0.position) < 4f) near = true;
+            if (near) { why = "otro monstruo cerca"; continue; }
+            open = h0.position; mo = h1.position; ok = true;
+        }
+        r.Check(ok, T + "hay un punto al aire libre para la prueba (" + (ok ? "ok" : why) + ")");
+        if (ok)
+        {
+            pw.Teleport(open + Vector3.up * 0.05f, 0f);
+            m.WarpTo(mo, 0f);
+            yield return 0.3f;
+            Vector3 dd = pw.transform.position - m.transform.position;
+            object los = typeof(MonsterAI).GetMethod("HasLineOfSight", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic).Invoke(m, null);
+            string diag = "dist " + new Vector2(dd.x, dd.z).magnitude.ToString("F2") + " (radio " + m.killDistance.ToString("F1") + "), vista " + los + ", camino libre " + m.CatchReachable() + " (NavMesh " + MonsterAI.LastCatchPath.ToString("F2") + " m)";
+            r.Check(m.WouldCatchNow(), T + "al aire libre a " + Vector3.Distance(open, mo).ToString("F2") + " m: sí lo atraparía (" + diag + ")");
+        }
+        foreach (MonsterAI o in gm.monsters) if (o != null && o != m) o.Resume();
         // restaurar
         m.WarpTo(m0, 0f); pw.Teleport(p0, 0f); m.Resume();
         yield return 0.2f;
