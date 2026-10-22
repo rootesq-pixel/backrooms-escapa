@@ -58,10 +58,13 @@ public class BallBuildCheck : MonoBehaviour
         foreach (BallPitField f in fs) f.enabled = true;
         yield return null;
         float drawn = Diff(a0, hid, null), idle = Diff(a0, a1, null);
-        Check(drawn > 0.06f, "las bolas 3D se dibujan en el ejecutable (diferencia con las bolas ocultas " + drawn.ToString("F3") + " > 0.06)");
+        Check(drawn > 0.025f, "las bolas 3D se dibujan en el ejecutable (diferencia con las bolas ocultas " + drawn.ToString("F3") + " > 0.025; v7.1.1 daba 0,000)");
         Check(idle > 0.012f, "las bolas se mecen solas (diferencia entre dos fotogramas a 0,7 s sin nadie en la piscina " + idle.ToString("F4") + " > 0.012)");
 
         // vadeando: el jugador en la piscina; misma cámara fija, comparado con la piscina sin el jugador en el mismo instante aproximado
+        // el cuerpo y la linterna del jugador se ocultan: solo se mide cómo se mueven las bolas
+        Renderer[] body = pw.GetComponentsInChildren<Renderer>(); Light[] lights = pw.GetComponentsInChildren<Light>();
+        foreach (Renderer r in body) r.enabled = false; foreach (Light l in lights) l.enabled = false;
         pw.Teleport(wade, 90f);
         yield return new WaitForSeconds(1.2f);
         Vector3 pp = pw.transform.position;
@@ -72,8 +75,9 @@ public class BallBuildCheck : MonoBehaviour
         pw.Teleport(away, 90f);
         yield return new WaitForSeconds(1.5f);
         Texture2D w0 = Grab(cam, "fixed_after_leaving");
+        foreach (Renderer r in body) if (r != null) r.enabled = true; foreach (Light l in lights) if (l != null) l.enabled = true;
         Rect near = new Rect(sp.x - rad, sp.y - rad * 0.8f, rad * 2f, rad * 1.6f);
-        Rect farR = new Rect(sp.x - rad, Mathf.Max(0.02f, sp.y - rad * 0.8f - 0.32f), rad * 2f, rad * 1.6f);
+        Rect farR = new Rect(0.02f, sp.y - rad * 0.8f, Mathf.Max(0.05f, sp.x - rad * 1.6f - 0.02f), rad * 1.6f);   // a un lado, a la misma distancia de la cámara y en la misma ventana de tiempo
         float dn = Diff(w, w0, near), df = Diff(w, w0, farR);
         Info("jugador en " + pp + ", pantalla " + sp + ", radio " + rad.ToString("F3") + ", empujadores " + BallPitField.PusherCount);
         Check(dn > 0.05f && dn > df * 2.5f, "las bolas se apartan alrededor del jugador (diferencia cerca " + dn.ToString("F3") + " vs lejos " + df.ToString("F3") + ")");

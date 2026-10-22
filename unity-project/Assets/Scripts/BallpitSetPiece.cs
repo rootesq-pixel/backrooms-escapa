@@ -352,7 +352,7 @@ public static class BallpitSetPiece
             Mat("PlayPlastic", TB, sharedLm, PlasticYLinear, 0.65f), Mat("PlayPlastic", TB, sharedLm, PlasticBLinear, 0.65f),
             Mat("PlayNet", TB, sharedLm, Color.white, 0.1f, 0.45f, true),
             emit,
-            Mat(null, null, sharedLm, new Color(0.09f, 0.08f, 0.08f), 0.05f),   // v7.1.2: fondo oscuro liso, sin la textura de bolas (antes «BallSurface»: parecía una foto/moqueta)
+            Mat("BallSurface", TB, sharedLm, new Color(0.08f, 0.075f, 0.075f), 0.05f),   // fondo: bolas más hondas en sombra (en v7.1.1 era lo ÚNICO que se veía porque las bolas instanciadas no llegaban al build); se ve en el hueco que abre el jugador
             metal,
             Mat("PartyAtlas", TB, sharedLm, Color.white, 0.15f, 0.5f, true) };
         sharedMesh = LoadBakedMesh(out sharedCol);
