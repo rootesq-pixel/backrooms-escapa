@@ -105,9 +105,39 @@ public class BallBuildCheck : MonoBehaviour
                 mc.transform.rotation = r0;
             }
         }
-        Check(BallPitField.RipplesEmitted - rip0 > 0, "al vadear salen ondas (" + (BallPitField.RipplesEmitted - rip0) + ")");
+        BallPitField[] fs2 = fs; Check(BallPitField.RipplesEmitted - rip0 > 0, "al vadear salen ondas (" + (BallPitField.RipplesEmitted - rip0) + ")");
+        if (mc != null) yield return Perf(mc, wdir, fs2);
         Finish();
     }
+
+    // coste: 40 renders 1920x1080 de la cámara del jugador (dentro de la piscina, mirando al frente) con y sin bolas, sincronizado con ReadPixels
+    IEnumerator Perf(Camera mc, Vector3 wdir, BallPitField[] fs)
+    {
+        Quaternion r0 = mc.transform.rotation;
+        RenderTexture rt = new RenderTexture(1920, 1080, 24); Texture2D px = new Texture2D(4, 4, TextureFormat.RGB24, false);
+        RenderTexture prev = mc.targetTexture;
+        for (int pass = 0; pass < 2; pass++)
+        {
+            bool on = pass == 0;
+            foreach (BallPitField f in fs) f.enabled = on;
+            yield return null;
+            mc.transform.rotation = Quaternion.LookRotation(wdir + Vector3.down * 0.35f);
+            mc.targetTexture = rt;
+            for (int w = 0; w < 5; w++) mc.Render();
+            RenderTexture.active = rt; px.ReadPixels(new Rect(0, 0, 4, 4), 0, 0); px.Apply();
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            const int N = 40;
+            for (int i = 0; i < N; i++) mc.Render();   // los DrawMeshInstanced de este fotograma valen para todos los renders del fotograma
+            RenderTexture.active = rt; px.ReadPixels(new Rect(0, 0, 4, 4), 0, 0); px.Apply();
+            sw.Stop();
+            RenderTexture.active = null; mc.targetTexture = prev;
+            Info("coste " + (on ? "con bolas" : "sin bolas") + ": " + (sw.Elapsed.TotalMilliseconds / N).ToString("F2") + " ms por render 1920x1080 (instancias visibles " + (on ? SumVisible(fs) : 0) + ", llamadas " + (on ? SumCalls(fs) : 0) + ")");
+        }
+        foreach (BallPitField f in fs) f.enabled = true;
+        mc.transform.rotation = r0; Destroy(rt);
+    }
+    static int SumVisible(BallPitField[] fs) { int n = 0; foreach (BallPitField f in fs) n += f.LastVisible; return n; }
+    static int SumCalls(BallPitField[] fs) { int n = 0; foreach (BallPitField f in fs) n += f.LastCalls; return n; }
 
     Texture2D Grab(Camera c, string name)
     {
