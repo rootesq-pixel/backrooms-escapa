@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public enum LayoutKind { Maze, OpenPillars, Field }
+public enum LayoutKind { Maze, OpenPillars, Field, Ocean }   // v7.3.0: Ocean = Talasofobia (mar abierto, OceanWorld)
 public enum FixtureKind { Panel, Tube, Sconce, Emergency }
 public enum AmbientEvent { None, Drip, Creak, Clank }
 public enum StepKind { Carpet, Concrete, Water, Metal, Grass }
@@ -98,7 +98,7 @@ public class LevelConfig
     public Color doorColor = new Color(0.55f, 0.52f, 0.38f);
     public Color doorFrameColor = new Color(0.30f, 0.24f, 0.14f);
 
-    public const int Count = 7;
+    public const int Count = 8;   // v7.3.0: nivel 7 (Talasofobia)
     private static LevelConfig[] cache;
 
     public static LevelConfig Get(int index)
@@ -122,7 +122,8 @@ public class LevelConfig
             case 3: c = Level3(); break;
             case 4: c = Level4(); break;
             case 5: c = Level5(); break;
-            default: c = Level6(); break;
+            case 6: c = Level6(); break;
+            default: c = Level7(); break;
         }
         c.monsterModel = MonsterProfile.ForLevel(i).id;   // un monstruo distinto por nivel
         return c;
@@ -327,6 +328,37 @@ public class LevelConfig
         c.eventInterval = new Vector2(10f, 22f);
         c.step = StepKind.Carpet;
         c.doorColor = new Color(0.62f, 0.55f, 0.42f); c.doorFrameColor = new Color(0.36f, 0.30f, 0.22f);
+        return c;
+    }
+
+    // Nivel 7 (v7.3.0): Talasofobia — una casa inundada se abre a un mar gris sin orillas; casas sobre pilotes, un faro lejano
+    // y, bajo el muelle, el agua más negra. Mar abierto construido por OceanWorld (sin laberinto ni monstruo de tierra).
+    private static LevelConfig Level7()
+    {
+        LevelConfig c = new LevelConfig();
+        c.index = 7;
+        c.name = "Talasofobia";
+        c.subtitle = "Agua gris hasta donde alcanza la niebla. Las casas se sostienen sobre patas larguísimas y algo se mueve justo debajo.";
+        c.layout = LayoutKind.Ocean;
+        c.gridW = 3; c.gridH = 3; c.cellSize = 10f; c.wallHeight = 2.85f;   // la rejilla solo sitúa la cabina del ascensor (celda 1,1)
+        c.loopChance = 1f; c.roomCount = 0;
+        c.wallStyle = SurfaceStyle.ConcreteWall; c.floorStyle = SurfaceStyle.ConcreteFloor; c.ceilingStyle = SurfaceStyle.ConcreteCeiling;
+        c.water = true; c.waterLevel = 0f; c.waterColor = new Color(0.24f, 0.36f, 0.40f, 0.6f);
+        c.ambient = new Color(0.36f, 0.40f, 0.43f);
+        c.fog = new Color(0.47f, 0.52f, 0.54f);
+        c.fogDensity = 0.026f;
+        c.grade = 0.35f;
+        c.reflectionIntensity = 0.45f;
+        c.fixture = FixtureKind.Panel; c.lightSpacing = 99; c.deadChance = 0f; c.flickerChance = 0f;
+        c.lightColor = new Color(0.92f, 0.95f, 1f); c.emissionColor = Color.white;
+        c.lightIntensity = 0.5f; c.lightRange = 0f; c.maxRealtimeLights = 6; c.buzzChance = 0f;
+        c.postExposure = 0.86f; c.postBloom = 0.06f; c.postThreshold = 1.2f;
+        c.flashlightDrain = 0.45f; c.flashlightRecharge = 0.1f; c.batteries = 4; c.batteryAmount = 35f;
+        c.monsterCount = 0; c.killDistance = 1.3f;
+        c.droneHz = 31f; c.droneNoise = 0.05f; c.droneVolume = 0.16f; c.ambientEvent = AmbientEvent.Creak;
+        c.eventInterval = new Vector2(9f, 20f);
+        c.step = StepKind.Water;
+        c.doorColor = new Color(0.50f, 0.52f, 0.50f); c.doorFrameColor = new Color(0.30f, 0.28f, 0.24f);
         return c;
     }
 }

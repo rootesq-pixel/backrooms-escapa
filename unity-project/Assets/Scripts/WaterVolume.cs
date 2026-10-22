@@ -24,6 +24,11 @@ public class WaterVolume : MonoBehaviour
     public ReflectionProbe probe;
     public int chunkCount;
     public float waveAmp = 1f;
+    // v7.3.0: mar abierto (Talasofobia): sin rejilla del generador; fondo a decenas de metros; superficie que sigue a la cámara;
+    // bolsas de aire (la gruta de la salida) con su propia superficie a otra altura
+    public bool ocean;
+    public System.Func<Vector3, float> surfaceOverride;   // devuelve NaN si no hay bolsa en ese punto
+    public float oceanFloorFallback = -45f;
     public readonly List<FloatingDebris> debris = new List<FloatingDebris>();
 
     // Ondas circulares (se envían al shader como _WRip[16])
@@ -74,6 +79,105 @@ public class WaterVolume : MonoBehaviour
             Active = v;
         }
         return v;
+    }
+
+    public static WaterVolume CreateOcean(BackroomsGenerator gen, LevelConfig cfg, Transform parent, SurfaceSet normalSet, float halfSize)
+    {
+        GameObject go = new GameObject("WaterVolume");
+        go.transform.SetParent(parent, false);
+        WaterVolume v = go.AddComponent<WaterVolume>();
+        v.generator = gen;
+        v.ocean = true;
+        v.surfaceLocalY = cfg.waterLevel;
+        v.surfaceY = gen.Root.TransformPoint(new Vector3(0f, cfg.waterLevel, 0f)).y;
+        v.waveAmp = OceanWaveAmp;
+        v.BuildMaterial(cfg, normalSet);
+        if (!v.usingFallback)
+        {   // mismo aspecto que el agua de las Poolrooms (v7.1.3), con más absorción (agua profunda)
+            PoolLook.ApplyLevelWide();
+            Shader.SetGlobalVector("_PoolWaterAbs", new Vector4(0.16f, 0.06f, 0.05f, 1f));
+            Shader.SetGlobalVector("_PoolCausticK", Vector4.zero);
+            Shader.SetGlobalVector("_PoolEdgeP", Vector4.zero);
+            PoolPlanarReflection.Ensure(go, v.surfaceY);
+        }
+        v.BuildOceanSurface(go.transform, halfSize);
+        if (Application.isPlaying)
+        {
+            v.BuildFx(gen, cfg);
+            Active = v;
+        }
+        return v;
+    }
+
+    public const float OceanWaveAmp = 7f;
+    public Transform oceanSurface;
+
+    // malla de superficie: densa en el centro (1 m) y cada vez más gruesa hacia fuera; sigue a la cámara a saltos de 8 m
+    private void BuildOceanSurface(Transform parent, float halfSize)
+    {
+        List<float> ticks = new List<float>();
+        float x = 0f; ticks.Add(0f);
+        while (x < halfSize) { float st = x < 48f ? 1f : (x < 120f ? 3f : (x < 260f ? 10f : 40f)); x = Mathf.Min(halfSize, x + st); ticks.Add(x); }
+        List<float> axis = new List<float>();
+        for (int i = ticks.Count - 1; i > 0; i--) axis.Add(-ticks[i]);
+        axis.AddRange(ticks);
+        int n = axis.Count;
+        Vector3[] vs = new Vector3[n * n]; Vector3[] ns = new Vector3[vs.Length]; Color32[] cols = new Color32[vs.Length];
+        for (int j = 0; j < n; j++) for (int i = 0; i < n; i++)
+        {
+            int k = j * n + i;
+            vs[k] = new Vector3(axis[i], 0f, axis[j]); ns[k] = Vector3.up; cols[k] = new Color32(0, 255, 0, 255);
+        }
+        int[] tris = new int[(n - 1) * (n - 1) * 6]; int t = 0;
+        for (int j = 0; j < n - 1; j++) for (int i = 0; i < n - 1; i++)
+        {
+            int a = j * n + i, b = a + 1, c = a + n, d = c + 1;
+            tris[t++] = a; tris[t++] = c; tris[t++] = d; tris[t++] = a; tris[t++] = d; tris[t++] = b;
+        }
+        Mesh m = Own(new Mesh());
+        m.name = "OceanSurface";
+        m.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+        m.vertices = vs; m.normals = ns; m.colors32 = cols; m.triangles = tris;
+        m.bounds = new Bounds(Vector3.zero, new Vector3(halfSize * 2f, 2f, halfSize * 2f));
+        GameObject g = new GameObject("OceanSurface");
+        g.layer = WaterLayer;
+        g.transform.SetParent(parent, false);
+        g.transform.localPosition = new Vector3(0f, surfaceLocalY, 0f);
+        g.AddComponent<MeshFilter>().sharedMesh = m;
+        MeshRenderer mr = g.AddComponent<MeshRenderer>();
+        mr.sharedMaterial = material;
+        mr.shadowCastingMode = ShadowCastingMode.Off; mr.receiveShadows = false;
+        mr.lightProbeUsage = LightProbeUsage.Off; mr.reflectionProbeUsage = ReflectionProbeUsage.BlendProbes;
+        oceanSurface = g.transform;
+        chunkCount = 1;
+    }
+
+    // superficie extra (bolsa de aire de la gruta): un plano pequeño con el mismo material
+    public GameObject AddPocketSurface(Vector3 center, Vector2 size)
+    {
+        GameObject g = new GameObject("PocketSurface");
+        g.layer = WaterLayer;
+        g.transform.SetParent(transform, false);
+        g.transform.position = center;
+        int qx = Mathf.Max(1, Mathf.CeilToInt(size.x)), qz = Mathf.Max(1, Mathf.CeilToInt(size.y));
+        Vector3[] vs = new Vector3[(qx + 1) * (qz + 1)]; Vector3[] ns = new Vector3[vs.Length]; Color32[] cols = new Color32[vs.Length];
+        for (int j = 0; j <= qz; j++) for (int i = 0; i <= qx; i++)
+        {
+            int k = j * (qx + 1) + i;
+            vs[k] = new Vector3((i / (float)qx - 0.5f) * size.x, 0f, (j / (float)qz - 0.5f) * size.y); ns[k] = Vector3.up; cols[k] = new Color32(0, 200, 0, 255);
+        }
+        int[] tris = new int[qx * qz * 6]; int t = 0;
+        for (int j = 0; j < qz; j++) for (int i = 0; i < qx; i++)
+        {
+            int a = j * (qx + 1) + i, b = a + 1, c = a + qx + 1, d = c + 1;
+            tris[t++] = a; tris[t++] = c; tris[t++] = d; tris[t++] = a; tris[t++] = d; tris[t++] = b;
+        }
+        Mesh m = Own(new Mesh()); m.name = "PocketSurface";
+        m.vertices = vs; m.normals = ns; m.colors32 = cols; m.triangles = tris; m.RecalculateBounds();
+        g.AddComponent<MeshFilter>().sharedMesh = m;
+        MeshRenderer mr = g.AddComponent<MeshRenderer>(); mr.sharedMaterial = material;
+        mr.shadowCastingMode = ShadowCastingMode.Off; mr.receiveShadows = false;
+        return g;
     }
 
     private T Own<T>(T o) where T : Object { owned.Add(o); return o; }
@@ -398,6 +502,15 @@ public class WaterVolume : MonoBehaviour
 
         UpdateSpecularLights();
         UpdateCaustics();
+        if (oceanSurface != null)
+        {
+            Camera oc = Camera.main;
+            if (oc != null)
+            {
+                Vector3 cp = oc.transform.position;
+                oceanSurface.position = new Vector3(Mathf.Round(cp.x / 8f) * 8f, surfaceY, Mathf.Round(cp.z / 8f) * 8f);
+            }
+        }
         // profundidad de escena para el grosor del agua (refracción/absorción)
         Camera mc = Camera.main;
         if (mc != null && !usingFallback && (mc.depthTextureMode & DepthTextureMode.Depth) == 0) mc.depthTextureMode |= DepthTextureMode.Depth;
@@ -489,7 +602,23 @@ public class WaterVolume : MonoBehaviour
 
     public float SurfaceHeightAt(Vector3 world)
     {
+        if (surfaceOverride != null)
+        {
+            float o = surfaceOverride(world);
+            if (!float.IsNaN(o)) return o + WaveHeight(world.x, world.z) * 0.15f;
+        }
         return surfaceY + WaveHeight(world.x, world.z);
+    }
+
+    // superficie en reposo en ese punto (mar o bolsa de aire)
+    public float RestSurfaceAt(Vector3 world)
+    {
+        if (surfaceOverride != null)
+        {
+            float o = surfaceOverride(world);
+            if (!float.IsNaN(o)) return o;
+        }
+        return surfaceY;
     }
 
     // Altura del suelo bajo un punto (raycast hacia abajo; ignora capas "Ignore Raycast" y agua)
@@ -497,8 +626,9 @@ public class WaterVolume : MonoBehaviour
     {
         RaycastHit hit;
         int mask = ~((1 << 2) | (1 << WaterLayer));
-        if (Physics.Raycast(new Vector3(world.x, world.y + 0.7f, world.z), Vector3.down, out hit, 6f, mask, QueryTriggerInteraction.Ignore))
+        if (Physics.Raycast(new Vector3(world.x, world.y + 0.7f, world.z), Vector3.down, out hit, ocean ? 120f : 6f, mask, QueryTriggerInteraction.Ignore))
             return hit.point.y;
+        if (ocean) return oceanFloorFallback;
         return generator != null && generator.HasLevel ? generator.Root.position.y + generator.FloorHeightLocal(
             generator.Root.InverseTransformPoint(world).x, generator.Root.InverseTransformPoint(world).z) : surfaceY - 5f;
     }
@@ -506,13 +636,15 @@ public class WaterVolume : MonoBehaviour
     // Profundidad del agua en el punto (metros; 0 si no hay agua)
     public float DepthAt(Vector3 feetWorld)
     {
-        if (feetWorld.y > surfaceY + 2.2f) return 0f;   // altillo, escaleras altas...
+        float sy = ocean ? RestSurfaceAt(feetWorld) : surfaceY;
+        if (feetWorld.y > sy + 2.2f) return 0f;   // altillo, escaleras altas...
         float g = GroundY(feetWorld);
-        return Mathf.Max(0f, surfaceY - g);
+        return Mathf.Max(0f, sy - g);
     }
 
     public bool IsUnderwater(Vector3 cameraWorld)
     {
+        if (ocean) return cameraWorld.y < SurfaceHeightAt(cameraWorld) - 0.02f;
         return cameraWorld.y < SurfaceHeightAt(cameraWorld) - 0.02f && DepthAt(new Vector3(cameraWorld.x, cameraWorld.y - 1.6f, cameraWorld.z) ) >= 0f
             && cameraWorld.y > surfaceY - 6f;
     }
@@ -555,7 +687,7 @@ public class WaterVolume : MonoBehaviour
             {
                 float ang = Random.value * Mathf.PI * 2f;
                 float sp = Random.Range(0.4f, 1.1f) * (0.6f + strength);
-                ep.position = new Vector3(world.x, surfaceY + 0.02f, world.z) + new Vector3(Mathf.Cos(ang), 0f, Mathf.Sin(ang)) * Random.Range(0.02f, 0.18f);
+                ep.position = new Vector3(world.x, RestSurfaceAt(world) + 0.02f, world.z) + new Vector3(Mathf.Cos(ang), 0f, Mathf.Sin(ang)) * Random.Range(0.02f, 0.18f);
                 ep.velocity = new Vector3(Mathf.Cos(ang) * sp * 0.5f, Random.Range(1.2f, 2.4f) * (0.5f + strength * 0.6f), Mathf.Sin(ang) * sp * 0.5f);
                 ep.startSize = Random.Range(0.025f, 0.055f);
                 ep.startLifetime = Random.Range(0.45f, 0.8f);
@@ -567,7 +699,7 @@ public class WaterVolume : MonoBehaviour
         {
             AudioSource a = splashSources[splashSrcIndex];
             splashSrcIndex = (splashSrcIndex + 1) % splashSources.Length;
-            a.transform.position = new Vector3(world.x, surfaceY, world.z);
+            a.transform.position = new Vector3(world.x, RestSurfaceAt(world), world.z);
             a.pitch = Random.Range(0.85f, 1.25f);
             a.volume = Mathf.Clamp01(0.25f + strength * 0.6f) * AudioMix.Sfx;
             a.Play();

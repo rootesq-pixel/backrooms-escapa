@@ -237,6 +237,7 @@ public class BackroomsGenerator : MonoBehaviour
     public float FloorHeightLocal(float x, float z)
     {
         if (FieldHeight.Active) return FieldHeight.H(x, z);
+        if (IsOcean && OceanWorld.Active != null) return OceanWorld.Active.SeabedY(x, z);
         if (Garage != null) return Garage.Y(x, z);
         if (Halls.Count > 0)
         {
@@ -441,6 +442,14 @@ public class BackroomsGenerator : MonoBehaviour
         {
             Garage = GaragePlan.Make(new System.Random(UsedSeed * 313 + 41), w, h, cellSize, wallHeight, config.decks, config.deckDrop, wallsV, wallsH);
             StartDoorRepairs = EnsureReachFromStartDoor();
+        }
+
+        // v7.3.0 Talasofobia: sin muros; la rejilla (3x3 de 10 m) solo sitúa la cabina del ascensor en la casa inundada
+        if (config.layout == LayoutKind.Ocean)
+        {
+            for (int i = 0; i <= w; i++) for (int j = 0; j < h; j++) wallsV[i, j] = false;
+            for (int i = 0; i < w; i++) for (int j = 0; j <= h; j++) wallsH[i, j] = false;
+            startCell = new Vector2Int(w / 2, h / 2);
         }
 
         // v7.0 Campo infinito: sin muros (ni siquiera el borde: el campo se repite), salida desde el centro
@@ -698,6 +707,7 @@ public class BackroomsGenerator : MonoBehaviour
         decorRoot = decorGo.transform;
 
         if (cfg.layout == LayoutKind.Field) { BuildFieldGeometry(rng); return; }
+        if (cfg.layout == LayoutKind.Ocean) { BuildOceanGeometry(rng); return; }
 
         float cs = cellSize;
         float totalW = w * cs;
@@ -1356,6 +1366,27 @@ public class BackroomsGenerator : MonoBehaviour
     // ------------------------------------------------------------------
     // Puerta de salida: discreta (marco distinto, LED verde tenue visible solo de cerca)
     // ------------------------------------------------------------------
+
+    // v7.3.0 Talasofobia: todo el nivel lo construye OceanWorld (casa inundada, mar, casas sobre pilotes, faro, jaula y gruta)
+    public bool IsOcean { get { return config != null && config.layout == LayoutKind.Ocean; } }
+    private void BuildOceanGeometry(System.Random rng)
+    {
+        LevelConfig cfg = config;
+        TextureLibrary.ReleaseAllExcept(new HashSet<string> { TextureLibrary.Key(SurfaceStyle.WaterNormal, wallHeight) });
+        WallSegmentCount = 0; PillarCount = 0;
+        SurfaceSet ripple = TextureLibrary.Get(SurfaceStyle.WaterNormal, wallHeight);
+        OceanWorld ow = OceanWorld.Build(this, cfg, levelRoot, UsedSeed, o => Track(o));
+        Water = WaterVolume.CreateOcean(this, cfg, decorRoot, ripple, 520f);
+        ow.BindWater(Water);
+        PlayerStart = ow.PlayerStart; PlayerStartYaw = 0f;
+        MonsterSpawns = new List<Vector3>(ow.MonsterSpawns);
+        MonsterSpawn = MonsterSpawns.Count > 0 ? MonsterSpawns[0] : PlayerStart;
+        BatterySpots = new List<Vector3>(ow.BatterySpots);
+        ExtraSpots = new List<Vector3>(ow.ExtraSpots);
+        KeySpots = new List<Vector3>();
+        ExitTransform = ow.ExitTransform;
+        ExitPosition = ow.ExitTransform.position;
+    }
 
     // v7.0 Campo infinito: terreno, casas y accesorios (FieldWorld); sin muros, techo ni luces de techo
     private void BuildFieldGeometry(System.Random rng)
