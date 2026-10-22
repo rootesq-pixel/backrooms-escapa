@@ -37,6 +37,7 @@ La puerta de salida está **cerrada con llave**: en cada nivel hay 4-6 llaves pa
 - **El monstruo ya no te atrapa a través de las paredes** (las casas del campo y el resto de niveles): necesita verte y poder llegar hasta ti por un camino libre.
 - **Multijugador: reanimar con E.** Mantén **E** junto a un compañero derribado («Mantén E para reanimar», con un anillo de progreso, unos 4 s). Te arrodillas y le tiendes la mano; los demás te ven agachado sobre él y él se incorpora. Soltar E, moverte o alejarte lo cancela. Lo decide el anfitrión.
 - **Fuera el inclinarse con Q/E:** E queda para reanimar (y saltar el ascensor) y Q ya no hace nada.
+- **Piscina sin «rescate» automático:** quedarse quieto pulsando saltar ya no te teletransporta a la playa; se sale por las escaleras (o trepando por el borde).
 - **Sin música junto a la salida del Campo:** el farol de la puerta tenía una «radio» con una melodía de 8 notas. Ahora solo zumba.
 - **Sin «aire / soplido»:** se ha quitado el siseo de cinta VHS, que subía y bajaba con cada interferencia en todos los niveles, y el bucle de viento con ráfagas del Campo (la hierba se sigue moviendo). Se mantienen los pasos, los monstruos, los efectos, la respiración (se puede desactivar en Opciones) y el roce de la hierba y las bolas al moverte.
 - **Menú:** el lema cuenta los niveles reales: «Siete niveles. Una salida. Algo te está buscando.».

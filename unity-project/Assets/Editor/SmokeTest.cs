@@ -3194,18 +3194,32 @@ public static class SmokePlayRunner
                             r.Check(pw.LadderClimbCount == l0 + 1 && !PoolExit.InPool(fp) && fp.y > PoolExit.DeckY - 0.1f, pt + "sube por la escalera con «saltar» y pisa la playa");
                             r.Check(!pw.IsClimbingLadder && !pw.IsSwimming, pt + "tras la escalera: andando normal, sin nadar");
                         }
-                        // rescate: en el centro, lejos de bordes y escalera, pulsando saltar
+                        // v7.2.0: SIN rescate. En el centro, lejos de bordes y escalera, pulsando saltar 6 s: sigue en el agua
+                        // (antes, a los ~3,5 s se le teletransportaba a la playa); de ahí sale nadando hasta la escalera
                         pw.Teleport(pc0, 0f);
                         yield return 0.5f;
-                        int rs0 = pw.PoolRescueCount;
+                        int cA = pw.ClimbOutCount, lA = pw.LadderClimbCount;
                         pw.debugInput = true; pw.debugJump = true;
-                        float tr = 0f;
-                        while (tr < 8f && pw.PoolRescueCount == rs0) { yield return 0.1f; tr += 0.1f; }
+                        float tStart = Time.time; bool leftPool = false;
+                        while (Time.time - tStart < 6f) { if (!PoolExit.InPool(pw.transform.position)) leftPool = true; yield return 0.1f; }
                         pw.debugJump = false; pw.debugInput = false;
-                        yield return 0.3f;
-                        Vector3 rp = pw.transform.position;
-                        r.Check(pw.PoolRescueCount == rs0 + 1 && tr >= PoolExit.RescueSeconds - 0.6f && !PoolExit.InPool(rp) && rp.y > PoolExit.DeckY - 0.1f,
-                            pt + "rescate: atascado y pulsando saltar, a los " + tr.ToString("F1") + " s se le saca a la playa");
+                        r.Check(!leftPool && PoolExit.InPool(pw.transform.position) && pw.ClimbOutCount == cA && pw.LadderClimbCount == lA,
+                            pt + "sin rescate: atascado en el centro pulsando saltar " + (Time.time - tStart).ToString("F1") + " s, sigue en el vaso (no se le saca a la playa)");
+                        if (PoolExit.HasLadder)
+                        {
+                            pw.Teleport(PoolExit.LadderPos - PoolExit.LadderOut * 0.5f + Vector3.up * 0.05f, Quaternion.LookRotation(PoolExit.LadderOut).eulerAngles.y);
+                            yield return 0.8f;
+                            int lB = pw.LadderClimbCount;
+                            pw.debugInput = true; pw.debugMove = new Vector2(0f, 1f);
+                            float tl = Time.time;
+                            while (Time.time - tl < 5f && pw.LadderClimbCount == lB) yield return 0.1f;
+                            pw.debugMove = Vector2.zero; pw.debugInput = false;
+                            yield return 0.3f;
+                            Vector3 lp = pw.transform.position;
+                            r.Check(pw.LadderClimbCount == lB + 1 && !PoolExit.InPool(lp) && lp.y > PoolExit.DeckY - 0.1f, pt + "sin rescate: la escalera sigue sacando al jugador a la playa");
+                        }
+                        string fpcSrc = File.ReadAllText(Application.dataPath + "/Scripts/FirstPersonController.cs") + File.ReadAllText(Application.dataPath + "/Scripts/PoolRoomSetPiece.cs");
+                        r.Check(!fpcSrc.Contains("RescuePoint") && !fpcSrc.Contains("RescueSeconds") && !fpcSrc.Contains("PoolRescueCount"), pt + "sin rescate: el código del rescate automático ya no existe");
                         pw.Teleport(gm.generator.PlayerStart, 0f);
                         yield return 0.5f;
                     }

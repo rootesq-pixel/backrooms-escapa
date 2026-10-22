@@ -142,10 +142,8 @@ public class FirstPersonController : MonoBehaviour
         return Physics.SphereCast(o + Vector3.up * 0.05f, r, Vector3.down, out RaycastHit h, 0.2f + controller.skinWidth, ~0, QueryTriggerInteraction.Ignore) && h.normal.y > 0.55f;
     }
     public int LadderClimbCount { get; private set; }
-    public int PoolRescueCount { get; private set; }
     public bool IsClimbingLadder { get { return ladderT >= 0f; } }
-    public float PoolStuckTime { get { return poolStuckT; } }
-    private float ladderT = -1f, poolStuckT;
+    private float ladderT = -1f;
     private Vector3 ladderFrom, ladderMid, ladderTo;
 
     private bool ClearAt(Vector3 feet)
@@ -162,7 +160,7 @@ public class FirstPersonController : MonoBehaviour
         controller.enabled = false;
         transform.position = feet;
         controller.enabled = true;
-        verticalVelocity = 0f; moveVel = Vector3.zero; IsSwimming = false; poolStuckT = 0f;
+        verticalVelocity = 0f; moveVel = Vector3.zero; IsSwimming = false;
     }
 
     private bool TryClimbOut(Vector3 dir)
@@ -227,29 +225,21 @@ public class FirstPersonController : MonoBehaviour
     private void UpdatePoolExit(Vector3 input, bool jump, float dt)
     {
         Vector3 feet = transform.position;
-        if (!PoolExit.InPool(feet)) { poolStuckT = 0f; return; }
-        poolStuckT += dt;
+        if (!PoolExit.InPool(feet)) return;
         if (IsDiving) return;
         Vector3 wish = transform.TransformDirection(input); wish.y = 0f;
         bool pushing = wish.sqrMagnitude > 0.01f;
         if (pushing) wish.Normalize();
         // escalera: cerca de ella, empujando hacia la playa o pulsando saltar
         if (PoolExit.NearLadder(feet) && (jump || (pushing && Vector3.Dot(wish, PoolExit.LadderOut) > 0.3f))) { StartLadder(); return; }
-        Vector3 outDir; Vector3 edge = PoolExit.NearestEdge(feet, out outDir);
+        Vector3 outDir; PoolExit.NearestEdge(feet, out outDir);
         if (!pushing && !jump) return;
         // borde: en cualquier punto, empujando contra él (o saltar junto al borde)
         Vector3 d = pushing ? wish : outDir;
         if (TryClimbOut(d)) return;
         // esquinas: probar la normal del borde más cercano si se empuja más o menos hacia él
         if (pushing && Vector3.Dot(wish, outDir) > 0.35f && TryClimbOut(outDir)) return;
-        // rescate: lleva un rato en el vaso y sigue pulsando saltar / empujando hacia el borde
-        Vector3 toEdge = edge - feet; toEdge.y = 0f;
-        bool atWall = toEdge.magnitude < controller.radius + 0.6f;
-        if (poolStuckT > PoolExit.RescueSeconds && (jump || (atWall && pushing && Vector3.Dot(wish, outDir) > 0.3f)))
-        {
-            PlaceAt(PoolExit.RescuePoint(feet));
-            PoolRescueCount++;
-        }
+        // v7.2.0: sin «rescate» automático (antes, atascado + saltar te llevaba a la playa): se sale por las escaleras o trepando por el borde
     }
     private Camera cam;
     private float baseFov = 70f;
@@ -703,7 +693,7 @@ public class FirstPersonController : MonoBehaviour
     public void Teleport(Vector3 position, float yaw)
     {
         if (controller == null) controller = GetComponent<CharacterController>();
-        ladderT = -1f; poolStuckT = 0f;
+        ladderT = -1f;
         controller.enabled = false;
         transform.position = position;
         transform.rotation = Quaternion.Euler(0f, yaw, 0f);

@@ -422,7 +422,7 @@ public static class MpPlayRunner
             yield return Wait(() => { NetPlayer q = ns.Players.Find(p => !p.isLocal); return q != null && q.avatar != null; }, 60, "avatar remoto en el nivel 2");
             NetPlayer remote2 = ns.Players.Find(p => !p.isLocal);
             r.Check(remote2 != null && remote2.avatar != null, "[Piscina MP] avatar remoto del cliente en el nivel 2");
-            string[] steps = { "borde_norte", "borde_sur", "borde_oeste", "borde_este", "escalera", "rescate" };
+            string[] steps = { "borde_norte", "borde_sur", "borde_oeste", "borde_este", "escalera" };
             foreach (string st in steps)
             {
                 yield return WaitMark("client_pool_" + st + "_in", 90);
@@ -801,7 +801,7 @@ public static class MpPlayRunner
             }
         }
 
-        // ---- v6.8.1: nivel 2, salir de la piscina fija (borde 4 lados, escalera, rescate) ----
+        // ---- v6.8.1: nivel 2, salir de la piscina fija (borde 4 lados, escalera; v7.2.0: sin rescate) ----
         {
             BackroomsGenerator gen1 = gb.Generator; int epoch1 = ns.Epoch; Vector3 ex1 = gen1.ExitPosition;
             GameManager.Instance.player.Teleport(new Vector3(ex1.x, ExitFloorY(gen1), ex1.z), 0f);
@@ -819,7 +819,7 @@ public static class MpPlayRunner
             r.Check(gb.Generator.PoolFixed && PoolExit.Active, "[Piscina MP] la sala de piscina fija existe en el cliente");
             Rect pr = PoolExit.PoolXZ; Vector3 pc0 = new Vector3(pr.center.x, PoolExit.DeckY - 1.35f, pr.center.y);
             Vector3[] sides = { Vector3.forward, Vector3.back, Vector3.left, Vector3.right };
-            string[] steps = { "borde_norte", "borde_sur", "borde_oeste", "borde_este", "escalera", "rescate" };
+            string[] steps = { "borde_norte", "borde_sur", "borde_oeste", "borde_este", "escalera" };
             for (int si = 0; si < steps.Length; si++)
             {
                 Vector3 start; float yaw;
@@ -830,21 +830,20 @@ public static class MpPlayRunner
                     start = PoolExit.HasLadder && (s1 - PoolExit.LadderPos).sqrMagnitude < (s2 - PoolExit.LadderPos).sqrMagnitude ? s2 : s1;
                     yaw = Quaternion.LookRotation(d).eulerAngles.y;
                 }
-                else if (si == 4) { start = PoolExit.LadderPos - PoolExit.LadderOut * 0.5f + Vector3.up * 0.05f; yaw = Quaternion.LookRotation(PoolExit.LadderOut).eulerAngles.y; }
-                else { start = pc0; yaw = 0f; }
+                else { start = PoolExit.LadderPos - PoolExit.LadderOut * 0.5f + Vector3.up * 0.05f; yaw = Quaternion.LookRotation(PoolExit.LadderOut).eulerAngles.y; }
                 pw.Teleport(start, yaw);
                 yield return 1.0f;
                 r.Check(PoolExit.InPool(pw.transform.position), "[Piscina MP] " + steps[si] + ": el cliente está dentro del vaso");
                 Mark("client_pool_" + steps[si] + "_in");
                 yield return 1.5f;
-                int c0 = pw.ClimbOutCount + pw.LadderClimbCount + pw.PoolRescueCount;
+                int c0 = pw.ClimbOutCount + pw.LadderClimbCount;
                 pw.debugInput = true;
-                if (si == 5) pw.debugJump = true; else pw.debugMove = new Vector2(0f, 1f);
+                pw.debugMove = new Vector2(0f, 1f);
                 float tt = 0f;
                 while (tt < 8f && (PoolExit.InPool(pw.transform.position) || pw.IsClimbingLadder)) { yield return 0.1f; tt += 0.1f; }
                 yield return 0.3f;
                 pw.debugMove = Vector2.zero; pw.debugJump = false; pw.debugInput = false;
-                int c1 = pw.ClimbOutCount + pw.LadderClimbCount + pw.PoolRescueCount;
+                int c1 = pw.ClimbOutCount + pw.LadderClimbCount;
                 r.Check(!PoolExit.InPool(pw.transform.position) && pw.transform.position.y > PoolExit.DeckY - 0.1f && c1 > c0, "[Piscina MP] " + steps[si] + ": el cliente sale a la playa (" + tt.ToString("F1") + " s)");
                 yield return 1.0f;
                 Mark("client_pool_" + steps[si] + "_out");

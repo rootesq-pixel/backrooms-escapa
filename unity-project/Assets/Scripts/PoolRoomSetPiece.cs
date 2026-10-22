@@ -495,7 +495,6 @@ public class PoolRoomProbes : MonoBehaviour
 // v6.8.1: salida de la piscina de la sala fija. El vaso tiene 1,4 m de profundidad y la playa queda a 0,28 m sobre el pasillo.
 public static class PoolExit
 {
-    public const float RescueSeconds = 4f;
     public static bool Active { get { return owner != null; } }
     public static Rect PoolXZ { get; private set; }
     public static float DeckY { get; private set; }
@@ -548,12 +547,5 @@ public static class PoolExit
         if (!HasLadder || !InPool(feet)) return false;
         Vector3 d = feet - LadderPos; d.y = 0f;
         return d.magnitude < 1.0f;
-    }
-
-    // punto seguro en la playa frente al borde más cercano (rescate)
-    public static Vector3 RescuePoint(Vector3 feet)
-    {
-        Vector3 n; Vector3 e = NearestEdge(feet, out n);
-        return new Vector3(e.x, DeckY + 0.03f, e.z) + n * 0.7f;
     }
 }
