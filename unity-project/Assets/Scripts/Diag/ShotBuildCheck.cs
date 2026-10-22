@@ -53,7 +53,9 @@ public class ShotBuildCheck : MonoBehaviour
     IEnumerator View(FirstPersonController pw, Camera mc, string n, Vector3 p, Vector3 t, float fov, Vector3 stand)
     {
         pw.Teleport(stand, Mathf.Atan2(t.x - p.x, t.z - p.z) * Mathf.Rad2Deg);
-        for (int k = 0; k < 30; k++) { mc.transform.position = p; mc.transform.rotation = Quaternion.LookRotation(t - p); mc.fieldOfView = fov; yield return null; }
+        // al menos 2 s reales: en -batchmode los fotogramas duran ~2 ms y las luces (LightCuller) tardan en encenderse
+        float t0 = Time.realtimeSinceStartup;
+        for (int k = 0; k < 30 || Time.realtimeSinceStartup - t0 < 2f; k++) { mc.transform.position = p; mc.transform.rotation = Quaternion.LookRotation(t - p); mc.fieldOfView = fov; yield return null; }
         yield return new WaitForSeconds(0.3f);
         mc.transform.position = p; mc.transform.rotation = Quaternion.LookRotation(t - p); mc.fieldOfView = fov;
         if (PoolPlanarReflection.Instance != null) PoolPlanarReflection.Instance.Refresh(mc);
