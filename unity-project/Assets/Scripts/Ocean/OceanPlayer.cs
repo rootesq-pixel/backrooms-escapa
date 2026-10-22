@@ -55,7 +55,7 @@ public class OceanPlayer : MonoBehaviour
             if (on)
             {
                 savedRange = flashlight.range; savedAngle = flashlight.spotAngle; savedIntensity = flashlight.maxIntensity; savedDrain = flashlight.drainPerSecond;
-                flashlight.range = 16f; flashlight.spotAngle = 58f; flashlight.maxIntensity = Mathf.Max(2.2f, savedIntensity); flashlight.drainPerSecond = 0f;
+                flashlight.range = 22f; flashlight.spotAngle = 64f; flashlight.maxIntensity = Mathf.Max(3.2f, savedIntensity); flashlight.drainPerSecond = 0f;
                 flashlight.AddBattery(100f);
                 flashlight.Reconfigure();
                 if (!flashlight.IsOn) flashlight.Toggle();
@@ -67,11 +67,26 @@ public class OceanPlayer : MonoBehaviour
             }
         }
         if (vignette != null) vignette.enabled = on;
+        if (on && halo == null && cam != null)
+        {
+            // halo de la lámpara del casco: luz difusa corta que simula la dispersión en el agua (la cónica sola deja negras las paredes cercanas)
+            GameObject hg = new GameObject("HelmetHalo");
+            hg.transform.SetParent(cam.transform, false);
+            hg.transform.localPosition = new Vector3(0f, 0.05f, 0.6f);
+            halo = hg.AddComponent<Light>();
+            halo.type = LightType.Point; halo.range = 14f; halo.intensity = 1.6f;
+            halo.color = new Color(0.8f, 0.95f, 1f); halo.shadows = LightShadows.None;
+            halo.renderMode = LightRenderMode.ForcePixel;
+        }
+        if (halo != null) halo.enabled = on && flashlight != null && flashlight.IsOn;
         Air01 = 1f;
     }
 
+    private Light halo;
+
     private void Update()
     {
+        if (halo != null) halo.enabled = HasHelmet && flashlight != null && flashlight.IsOn;
         if (fpc == null) return;
         float dt = Time.deltaTime;
         GameManager gm = GameManager.Instance;

@@ -570,7 +570,8 @@ public class OceanWorld : MonoBehaviour
             PlaceRock(cg.transform, mouth + dir * 3.1f + (TunnelPath[1] - TunnelPath[0]).normalized * 0.8f, 1.4f + (i % 3) * 0.5f, i * 77f, i % 3);
         }
         // brillo débil de la poza (algas luminosas): se ve al subir por la chimenea
-        AddPoint(cg.transform, PocketCenter + Vector3.up * 1.5f, new Color(0.45f, 0.85f, 0.8f), 0.9f, 9f).renderMode = LightRenderMode.ForcePixel;
+        AddPoint(cg.transform, PocketCenter + Vector3.up * 1.5f, new Color(0.45f, 0.85f, 0.8f), 1.6f, 11f).renderMode = LightRenderMode.ForcePixel;
+        AddPoint(cg.transform, PocketCenter + Vector3.down * 4.5f, new Color(0.35f, 0.8f, 0.75f), 1.1f, 9f).renderMode = LightRenderMode.ForcePixel;   // resplandor que baja por el pozo: guía desde el túnel
         GameObject ex = new GameObject("Exit"); ex.transform.SetParent(cg.transform, false); ex.transform.position = PocketCenter + Vector3.up * 0.1f;
         ExitTransform = ex.transform;
         GameManager.ExitTest = AtExit;

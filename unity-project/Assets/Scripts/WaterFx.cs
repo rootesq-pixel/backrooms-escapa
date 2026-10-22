@@ -158,6 +158,7 @@ public class WaterFx : MonoBehaviour
     {
         if (flashlight == null || flashlight.spot == null) return;
         if (WaterVolume.Active == null) return;
+        if (WaterVolume.Active.ocean) return;   // v7.3.0: mar abierto: sin cáusticas en la linterna ni en la lámpara del casco (hondo y oscuro)
         if (cookies == null || cookies.Length == 0 || cookies[0] == null) cookies = BuildCookies(8, 96);
         flashlight.spot.cookie = cookies[0];
         flashlight.intensityMultiplier = 1.45f;   // el cookie quita luz de media
@@ -223,9 +224,9 @@ public class WaterFx : MonoBehaviour
                 float depth = Mathf.Max(0f, wvo.RestSurfaceAt(cam.transform.position) - cam.transform.position.y);
                 Depth01 = Mathf.Clamp01(depth / 45f);
                 float d = Mathf.SmoothStep(0f, 1f, Depth01);
-                uc = Color.Lerp(new Color(0.07f, 0.23f, 0.26f), new Color(0.003f, 0.012f, 0.02f), d);
-                uwDensity = Mathf.Lerp(0.075f, 0.12f, d);
-                RenderSettings.ambientLight = Color.Lerp(baseAmbient, baseAmbient * (1f - 0.93f * d), Underwater01);
+                uc = Color.Lerp(new Color(0.07f, 0.23f, 0.26f), new Color(0.008f, 0.03f, 0.04f), d);
+                uwDensity = Mathf.Lerp(0.055f, 0.048f, d);   // hondo: menos denso para que la lámpara del casco alcance las paredes
+                RenderSettings.ambientLight = Color.Lerp(baseAmbient, baseAmbient * (1f - 0.85f * d), Underwater01);
                 if (OceanWorld.Active != null && OceanWorld.Active.sun != null)
                 {
                     if (baseSun < 0f) baseSun = OceanWorld.Active.sun.intensity;
