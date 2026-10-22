@@ -64,7 +64,9 @@ public class BallBuildCheck : MonoBehaviour
         // vadeando: el jugador en la piscina; misma cámara fija, comparado con la piscina sin el jugador en el mismo instante aproximado
         // el cuerpo y la linterna del jugador se ocultan: solo se mide cómo se mueven las bolas
         Renderer[] body = pw.GetComponentsInChildren<Renderer>(); Light[] lights = pw.GetComponentsInChildren<Light>();
-        foreach (Renderer r in body) r.enabled = false; foreach (Light l in lights) l.enabled = false;
+        bool[] bodyOn = new bool[body.Length], lightOn = new bool[lights.Length];
+        for (int i = 0; i < body.Length; i++) { bodyOn[i] = body[i].enabled; body[i].enabled = false; }
+        for (int i = 0; i < lights.Length; i++) { lightOn[i] = lights[i].enabled; lights[i].enabled = false; }
         // tiempo congelado (el vaivén usa _Time): la única diferencia entre las dos capturas es la presencia del jugador
         pw.Teleport(wade, 90f);
         yield return new WaitForSeconds(1.2f);
@@ -79,7 +81,8 @@ public class BallBuildCheck : MonoBehaviour
         yield return null; yield return null; yield return null;
         Texture2D w0 = Grab(cam, "fixed_after_leaving");
         Time.timeScale = ts;
-        foreach (Renderer r in body) if (r != null) r.enabled = true; foreach (Light l in lights) if (l != null) l.enabled = true;
+        for (int i = 0; i < body.Length; i++) if (body[i] != null) body[i].enabled = bodyOn[i];
+        for (int i = 0; i < lights.Length; i++) if (lights[i] != null) lights[i].enabled = lightOn[i];
         Rect near = new Rect(sp.x - rad, sp.y - rad * 0.8f, rad * 2f, rad * 1.6f);
         Rect farR = new Rect(0.02f, sp.y - rad * 0.8f, Mathf.Max(0.05f, sp.x - rad * 1.6f - 0.02f), rad * 1.6f);   // a un lado, a la misma distancia de la cámara y en la misma ventana de tiempo
         float dn = Diff(w, w0, near), df = Diff(w, w0, farR);
