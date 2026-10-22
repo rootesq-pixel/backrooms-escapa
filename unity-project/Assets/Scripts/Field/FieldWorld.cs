@@ -600,7 +600,7 @@ public class FieldWorld : MonoBehaviour
             m.SetTexture("_MainTex", Resources.Load<Texture2D>("Field/Props/FieldRock" + k + "_a"));
             if (m.HasProperty("_BumpMap")) m.SetTexture("_BumpMap", Resources.Load<Texture2D>("Field/Props/FieldRock" + k + "_n"));
             if (m.HasProperty("_RoughTex")) m.SetTexture("_RoughTex", Resources.Load<Texture2D>("Field/Props/FieldRock" + k + "_m"));
-            m.SetColor("_Color", k == 2 ? new Color(0.95f, 0.95f, 0.95f) : new Color(0.80f, 0.84f, 0.86f));   // menos rojizo (cielo nublado)
+            m.SetColor("_Color", k == 2 ? new Color(0.85f, 0.86f, 0.86f) : new Color(0.70f, 0.74f, 0.77f));   // menos rojizo (cielo nublado)
             if (m.HasProperty("_Gloss")) m.SetFloat("_Gloss", 0.25f);
             if (m.HasProperty("_UseLM")) m.SetFloat("_UseLM", 0f);
             if (m.HasProperty("_DirtH")) m.SetFloat("_DirtH", 0.05f);

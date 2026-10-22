@@ -287,9 +287,9 @@ public class ElevatorCabin : MonoBehaviour
     private void BuildFieldShell(float frontExtent)
     {
         float sx = ScaleX, sz = ScaleZ;
-        Material m = Mat(new Color(0.78f, 0.76f, 0.72f), Resources.Load<Texture2D>("Field/house_wall_a"), 0.08f, 0f);
-        m.mainTextureScale = new Vector2(1.5f, 1.5f);
-        Texture2D n = Resources.Load<Texture2D>("Field/house_wall_n");
+        Material m = Mat(new Color(0.86f, 0.85f, 0.82f), Resources.Load<Texture2D>("Field/House/hw2_a"), 0.08f, 0f);   // v7.2.0: yeso gastado CC0 como las casas
+        m.mainTextureScale = new Vector2(1.7f, 1.7f);
+        Texture2D n = Resources.Load<Texture2D>("Field/House/hw2_n");
         if (n != null) { m.SetTexture("_BumpMap", n); m.EnableKeyword("_NORMALMAP"); }
         Material roof = Mat(new Color(0.3f, 0.3f, 0.3f), null, 0.2f, 0.3f);
         float zBack = -1.01f * sz, zFront = frontExtent + 0.02f, len = zFront - zBack + 0.3f, zc = (zBack + zFront) * 0.5f - 0.12f;
