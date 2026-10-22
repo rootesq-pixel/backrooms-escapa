@@ -65,22 +65,26 @@ public class BallBuildCheck : MonoBehaviour
         // el cuerpo y la linterna del jugador se ocultan: solo se mide cómo se mueven las bolas
         Renderer[] body = pw.GetComponentsInChildren<Renderer>(); Light[] lights = pw.GetComponentsInChildren<Light>();
         foreach (Renderer r in body) r.enabled = false; foreach (Light l in lights) l.enabled = false;
+        // tiempo congelado (el vaivén usa _Time): la única diferencia entre las dos capturas es la presencia del jugador
         pw.Teleport(wade, 90f);
         yield return new WaitForSeconds(1.2f);
+        float ts = Time.timeScale; Time.timeScale = 0f;
+        yield return null; yield return null;
         Vector3 pp = pw.transform.position;
         Texture2D w = Grab(cam, "fixed_wading");
         Vector3 sp = cam.WorldToViewportPoint(new Vector3(pp.x, BallPitField.SurfaceY(pp), pp.z));
         Vector3 sp2 = cam.WorldToViewportPoint(new Vector3(pp.x, BallPitField.SurfaceY(pp) + 0.55f, pp.z));
         float rad = Mathf.Abs(sp2.y - sp.y) * 1.2f + 0.03f;
         pw.Teleport(away, 90f);
-        yield return new WaitForSeconds(1.5f);
+        yield return null; yield return null; yield return null;
         Texture2D w0 = Grab(cam, "fixed_after_leaving");
+        Time.timeScale = ts;
         foreach (Renderer r in body) if (r != null) r.enabled = true; foreach (Light l in lights) if (l != null) l.enabled = true;
         Rect near = new Rect(sp.x - rad, sp.y - rad * 0.8f, rad * 2f, rad * 1.6f);
         Rect farR = new Rect(0.02f, sp.y - rad * 0.8f, Mathf.Max(0.05f, sp.x - rad * 1.6f - 0.02f), rad * 1.6f);   // a un lado, a la misma distancia de la cámara y en la misma ventana de tiempo
         float dn = Diff(w, w0, near), df = Diff(w, w0, farR);
         Info("jugador en " + pp + ", pantalla " + sp + ", radio " + rad.ToString("F3") + ", empujadores " + BallPitField.PusherCount);
-        Check(dn > 0.05f && dn > df * 2.5f, "las bolas se apartan alrededor del jugador (diferencia cerca " + dn.ToString("F3") + " vs lejos " + df.ToString("F3") + ")");
+        Check(dn > 0.03f && dn > df * 4f, "las bolas se apartan alrededor del jugador (diferencia cerca " + dn.ToString("F3") + " vs lejos " + df.ToString("F3") + ")");
 
         // desde los ojos del jugador: secuencia vadeando por la piscina (con ondas), andando de forma continua a 1,8 m/s
         BallPitField.CullCameraOverride = null;
