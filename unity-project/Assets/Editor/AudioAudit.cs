@@ -29,20 +29,20 @@ public static class AudioAudit
     }
 
 
-    // v7.2.0: fracción TONAL de un clip (energía en el 3 % de bins más fuertes, 20 Hz-8 kHz, fotogramas de 4096 con Hann).
-    // Senos/zumbidos ≳ 0,9; ruido filtrado (viento, siseo, olas, roce) ≲ 0,4. Detecta también ruido GRAVE, que la planitud
-    // de 100 Hz-8 kHz no veía (el viento del campo daba planitud 0,007).
-    public static float TonalFraction(AudioClip c)
+    // v7.2.0: planitud espectral en la banda que ocupa el 95 % de la energía del clip (desde 20 Hz; FFT de 16384 con Hann).
+    // Senos/zumbidos ≈ 0 (drone 0,000; rumor del ascensor 0,06); ruido filtrado ≳ 0,3 (viento 0,61, siseo 0,51). A diferencia de
+    // Flatness (100 Hz-8 kHz) también detecta el ruido GRAVE: el viento del campo daba allí planitud 0,007.
+    public static float BandFlatness(AudioClip c)
     {
         float[] raw = new float[c.samples * c.channels];
-        if (!c.GetData(raw, 0)) return 1f;
-        float[] d = new float[c.samples];
-        for (int i = 0; i < c.samples; i++) { float v = 0f; for (int k = 0; k < c.channels; k++) v += raw[i * c.channels + k]; d[i] = v / c.channels; }
-        const int N = 4096;
-        if (d.Length < N) return 1f;
+        if (!c.GetData(raw, 0)) return 0f;
+        const int N = 16384;
+        int len = Math.Max(c.samples, N + 1);
+        float[] d = new float[len];
+        for (int i = 0; i < len; i++) { int j = i % c.samples; float v = 0f; for (int k = 0; k < c.channels; k++) v += raw[j * c.channels + k]; d[i] = v / c.channels; }
         int sr = c.frequency;
         int lo = Math.Max(1, (int)(20f * N / sr)), hi = Math.Min(N / 2 - 1, (int)(8000f * N / sr));
-        int frames = Math.Min(24, d.Length / N);
+        int frames = Math.Max(1, Math.Min(24, d.Length / N));
         int step = Math.Max(N, (d.Length - N) / Math.Max(1, frames));
         float[] re = new float[N], im = new float[N];
         double[] acc = new double[hi - lo + 1];
@@ -54,11 +54,13 @@ public static class AudioAudit
             for (int k = lo; k <= hi; k++) acc[k - lo] += re[k] * re[k] + im[k] * im[k];
         }
         double tot = 0; foreach (double v in acc) tot += v;
-        if (tot < 1e-12) return 1f;
-        double[] sorted = (double[])acc.Clone(); Array.Sort(sorted); Array.Reverse(sorted);
-        int top = Math.Max(4, (int)(sorted.Length * 0.03f)); double t = 0;
-        for (int i = 0; i < top; i++) t += sorted[i];
-        return (float)(t / tot);
+        if (tot < 1e-12) return 0f;
+        double cum = 0; int k95 = acc.Length;
+        for (int i = 0; i < acc.Length; i++) { cum += acc[i]; if (cum >= 0.95 * tot) { k95 = i + 1; break; } }
+        k95 = Math.Max(8, Math.Min(acc.Length, k95));
+        double logSum = 0, sum = 0;
+        for (int i = 0; i < k95; i++) { double p = acc[i] + 1e-20; logSum += Math.Log(p); sum += p; }
+        return (float)(Math.Exp(logSum / k95) / (sum / k95));
     }
 
     // Planitud espectral (geométrica/aritmética) de 100 Hz a 8 kHz, mediana de varios fotogramas de 1024 muestras con ventana de Hann.

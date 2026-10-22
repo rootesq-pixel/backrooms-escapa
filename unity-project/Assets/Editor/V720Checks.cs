@@ -140,16 +140,16 @@ public static class V720Checks
             if (foley) continue;
             bool isWater = false; foreach (string w in WaterNames) if (cn.Contains(w)) isWater = true;
             bool named = false; foreach (string w in NoiseNames) if (cn.Contains(w) && !(w == "air" && cn == "elevatorair")) named = true;   // ElevatorAir es tonal desde la v6.5 (se mide abajo)
-            float tonal = 1f;
-            if (!tonalCache.TryGetValue(x.clip, out tonal))
+            float flat = 0f;
+            if (!tonalCache.TryGetValue(x.clip, out flat))
             {
-                tonal = 1f;
-                foreach (AudioSource a in Object.FindObjectsOfType<AudioSource>()) if (a.clip != null && a.clip.name == x.clip) { tonal = AudioAudit.TonalFraction(a.clip); break; }
-                tonalCache[x.clip] = tonal;
+                flat = 0f;
+                foreach (AudioSource a in Object.FindObjectsOfType<AudioSource>()) if (a.clip != null && a.clip.name == x.clip) { flat = AudioAudit.BandFlatness(a.clip); break; }
+                tonalCache[x.clip] = flat;
             }
-            bool noisy = tonal < 0.6f;
+            bool noisy = flat > 0.15f;
             bool fail = named || (!water && (isWater || noisy)) || (water && noisy && !isWater);
-            if (fail) { bad++; bads += x.clip + "(tonal " + tonal.ToString("0.00") + ", ef " + x.effective.ToString("0.0000") + ") "; }
+            if (fail) { bad++; bads += x.clip + "(planitud " + flat.ToString("0.00") + ", ef " + x.effective.ToString("0.0000") + ") "; }
         }
         r.Check(bad == 0, T + (water ? "nivel con agua: ningún bucle de siseo de banda ancha" : "nivel sin agua: ningún bucle de agua/viento/ruido") + " (" + loops + " bucles audibles: " + list.Trim() + (bad > 0 ? " · MAL: " + bads : "") + ")");
         if (lv == 0)
@@ -157,10 +157,12 @@ public static class V720Checks
             r.Check(!FieldWorld.WindAudio, T + "el Campo ya no tiene bucle de viento (soplido con ráfagas)");
             bool tapeHiss = false; foreach (AudioCensus.Row x in AudioCensus.Take()) if (x.clip == "TapeHiss") tapeHiss = true;
             r.Check(!tapeHiss, T + "la cámara VHS ya no crea el siseo de cinta (solo el zumbido tonal)");
-            AudioClip w = FieldWorld.CreateWind(1); float tw = AudioAudit.TonalFraction(w); Object.DestroyImmediate(w);
-            AudioClip hz = FieldExitBeacon.CreateHum(1); float th = AudioAudit.TonalFraction(hz); Object.DestroyImmediate(hz);
-            AudioClip dr = ProceduralAudio.CreateDrone(48f, 0.3f, 1); float td = AudioAudit.TonalFraction(dr); Object.DestroyImmediate(dr);
-            r.Check(tw < 0.6f && th > 0.85f && td > 0.85f, T + "medidor: el viento antiguo cuenta como ruido (" + tw.ToString("0.00") + "), el zumbido del farol (" + th.ToString("0.00") + ") y el drone (" + td.ToString("0.00") + ") como tonales");
+            AudioClip w = FieldWorld.CreateWind(1); float tw = AudioAudit.BandFlatness(w); Object.DestroyImmediate(w);
+            AudioClip ts = ProceduralAudio.CreateTapeHiss(); float tt = AudioAudit.BandFlatness(ts); Object.DestroyImmediate(ts);
+            AudioClip hz = FieldExitBeacon.CreateHum(1); float th = AudioAudit.BandFlatness(hz); Object.DestroyImmediate(hz);
+            AudioClip dr = ProceduralAudio.CreateDrone(48f, 0.3f, 1); float td = AudioAudit.BandFlatness(dr); Object.DestroyImmediate(dr);
+            AudioClip er = ElevatorAudio.CreateRumble(); float te = AudioAudit.BandFlatness(er); Object.DestroyImmediate(er);
+            r.Check(tw > 0.3f && tt > 0.3f && th < 0.05f && td < 0.05f && te < 0.15f, T + "medidor (planitud en banda): viento antiguo " + tw.ToString("0.000") + " y siseo " + tt.ToString("0.000") + " = ruido; farol " + th.ToString("0.000") + ", drone " + td.ToString("0.000") + ", rumor del ascensor " + te.ToString("0.000") + " = tonales");
         }
     }
 }
