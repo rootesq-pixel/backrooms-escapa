@@ -3,15 +3,15 @@
 Juego de terror en primera persona para PC (Windows 64 bits) hecho con **Unity**: escapa de las Backrooms a través de **7 niveles** encadenados. Cada nivel es un laberinto (o aparcamiento abierto) procedural con su propia estética, luces, dificultad y criaturas que patrullan y te persiguen. La salida es una puerta discreta que **solo se descubre explorando**: sin cartel, sin flecha, sin indicador de distancia.
 
 - 🌐 **Web:** https://rootesq-pixel.github.io/backrooms-escapa/
-- ⬇️ **Descarga directa v7.1.2 (Windows, ZIP ≈ 171 MB):** [BackroomsEscape_v7_1_2_Windows.zip](https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v7.1.2/BackroomsEscape_v7_1_2_Windows.zip)
-- 📦 **Release v7.1.2:** https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.1.2
-- 🕓 Versiones anteriores: [v7.1.1](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.1.1) (calidad GPU: luz y texturas 4K) · [v7.1.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.1.0) (nivel 6: Parque de bolas) · [v7.0.4](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.4) (adrenalina, llaves señuelo) · [v7.0.3](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.3) (carga rápida del Campo infinito) · [v7.0.2](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.2) (imitador garantizado, silbido, cordura) · [v7.0.1](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.1) (Campo infinito pulido, imitadores) · [v6.9.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.9.0) (Poolrooms estilo POOLS) · [v6.5.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.5.0) (audio e intro) · [v6.4.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.4.0) (ascensor) · [v6.3.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.3.0) (5 niveles, sin ascensor) · [v6.2.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.2.0) (multijugador por Internet, 6 niveles) · [v6.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.0.0) (multijugador por IP y puerto) · [v5.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v5.0.0) (un jugador)
+- ⬇️ **Descarga directa v7.1.3 (Windows, ZIP ≈ 171 MB):** [BackroomsEscape_v7_1_3_Windows.zip](https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v7.1.3/BackroomsEscape_v7_1_3_Windows.zip)
+- 📦 **Release v7.1.3:** https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.1.3
+- 🕓 Versiones anteriores: [v7.1.2](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.1.2) (bolas 3D en el Parque de bolas) · [v7.1.1](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.1.1) (calidad GPU: luz y texturas 4K) · [v7.1.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.1.0) (nivel 6: Parque de bolas) · [v7.0.4](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.4) (adrenalina, llaves señuelo) · [v7.0.3](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.3) (carga rápida del Campo infinito) · [v7.0.2](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.2) (imitador garantizado, silbido, cordura) · [v7.0.1](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.1) (Campo infinito pulido, imitadores) · [v6.9.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.9.0) (Poolrooms estilo POOLS) · [v6.5.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.5.0) (audio e intro) · [v6.4.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.4.0) (ascensor) · [v6.3.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.3.0) (5 niveles, sin ascensor) · [v6.2.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.2.0) (multijugador por Internet, 6 niveles) · [v6.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.0.0) (multijugador por IP y puerto) · [v5.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v5.0.0) (un jugador)
 
 > ⚠️ **Build temprana.** Puede haber errores. El **multijugador** se ha probado en local y con un servidor intermedio real; **las pruebas con amigos por Internet están pendientes**. El ejecutable **no está firmado**, así que Windows SmartScreen puede avisar al abrirlo (*Más información → Ejecutar de todas formas*).
 
 ## Cómo jugar
 
-1. Descarga `BackroomsEscape_v7_1_2_Windows.zip` desde la [release v7.1.2](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.1.2).
+1. Descarga `BackroomsEscape_v7_1_3_Windows.zip` desde la [release v7.1.3](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.1.3).
 2. Descomprime el ZIP (≈ 200 MB descomprimido).
 3. Ejecuta `BackroomsEscape.exe`.
 
@@ -28,6 +28,14 @@ Juego de terror en primera persona para PC (Windows 64 bits) hecho con **Unity**
 | 6 | Parque de bolas | Parque infantil cubierto abandonado: piscinas de bolas, toboganes, redes, sala de cumpleaños y mostrador de meriendas; fluorescentes que parpadean | El Sumergido (se esconde bajo las bolas) |
 
 La puerta de salida está **cerrada con llave**: en cada nivel hay 4-6 llaves parecidas y solo una la abre. Al cruzarla con la llave buena se carga el siguiente nivel; tras el nivel 6 (Parque de bolas) aparece la pantalla de victoria (tiempo total e intentos fallidos). Si te atrapan, el nivel se reinicia.
+
+## Novedades de la v7.1.3 — el agua de los Poolrooms, como en los renders
+- **Agua nueva en todo el nivel Poolrooms:** la sala de la piscina, los pasillos y las salas inundadas usan la misma agua, ajustada para parecerse a los renders de Blender (Cycles). Es **clara y de color azul acero** (antes era turquesa y lechosa). Tiene un **oleaje fino** que deforma de verdad las juntas del fondo, **refracción** según la profundidad y la distancia, y **reflejos planares** de ventanas, tragaluces y luces que se rompen con las olas y dejan brillos.
+- **Cáusticas solo bajo el agua:** desde fuera ya no se ve la red de cáusticas nítidas en el fondo. Al bucear sí se ven enteras, en el fondo y en las paredes.
+- **Suelo brillante:** la playa de la piscina refleja las ventanas y los tragaluces como la baldosa barnizada de los renders, más nítido en la baldosa y más borroso en las juntas. La luz horneada es un poco más fría, la baldosa del vaso es más grande (≈ 11 cm, como en los renders) y una **línea oscura** marca dónde el agua toca la pared del vaso.
+- **Calidad Baja:** sin reflejo planar y con la mitad de ondas, para que siga siendo ligera.
+- **Coste:** en una RTX 3050 a 1920 × 1080, el agua nueva cuesta entre **0 y 0,3 ms** más que antes en la sala de la piscina. Fuera de la sala, el reflejo planar en todo el nivel añade en torno a **1-2 ms** en Medio y Alto.
+- **Multijugador:** sin cambios de red (protocolo MP-6). Recomendamos que todos tengáis la **v7.1.3**.
 
 ## Novedades de la v7.1.2 — bolas de verdad en el Parque de bolas
 - **Las bolas 3D ya se ven en el juego:** en la v7.1.0 y la v7.1.1, al compilar el juego se quedaba fuera la versión del shader de las bolas con instancias, así que en el ejecutable de Windows **no se dibujaba ninguna bola** y solo se veía el fondo plano, como una moqueta estampada. En el editor sí salían, y por eso no lo detectamos antes. Ahora las piscinas se llenan de **bolas 3D de verdad**.
@@ -189,7 +197,7 @@ Modo **cooperativo de 2 a 4 jugadores**. El modo de un jugador no cambia: la red
 
 **Opción A: con código (recomendada, sin abrir puertos)**
 
-1. Todos necesitáis la **misma versión** (v7.1.2). El protocolo es **MP-6** (desde la v7.1.0): la v7.0.4 y anteriores **no pueden unirse**.
+1. Todos necesitáis la **misma versión** (v7.1.3). El protocolo es **MP-6** (desde la v7.1.0): la v7.0.4 y anteriores **no pueden unirse**.
 2. **Anfitrión:** menú principal → **Multijugador** → tu nombre → **Alojar con código**. Pasa a tus amigos el código de la sala.
 3. **Clientes:** Multijugador → tu nombre → **Unirse con código** → escribe el código → entras en la sala de espera.
 4. El anfitrión elige el nivel con ◄ ► y pulsa **Empezar**. No se puede entrar en una partida ya empezada.
