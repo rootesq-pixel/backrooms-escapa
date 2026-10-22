@@ -50,10 +50,11 @@ public class BallBuildCheck : MonoBehaviour
         Texture2D a0 = Grab(cam, "fixed_idle_a");
         yield return new WaitForSeconds(0.7f);
         Texture2D a1 = Grab(cam, "fixed_idle_b");
-        foreach (BallPitField f in BallPitField.All) f.enabled = false;
+        BallPitField[] fs = BallPitField.All.ToArray();   // OnDisable quita el campo de All
+        foreach (BallPitField f in fs) f.enabled = false;
         yield return null; yield return null;
         Texture2D hid = Grab(cam, "fixed_balls_hidden");
-        foreach (BallPitField f in BallPitField.All) f.enabled = true;
+        foreach (BallPitField f in fs) f.enabled = true;
         yield return null;
         float drawn = Diff(a0, hid, null), idle = Diff(a0, a1, null);
         Check(drawn > 0.06f, "las bolas 3D se dibujan en el ejecutable (diferencia con las bolas ocultas " + drawn.ToString("F3") + " > 0.06)");
