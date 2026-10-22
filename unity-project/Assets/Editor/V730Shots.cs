@@ -46,6 +46,15 @@ public static class V730Shots
         Info(name + " " + fli + " (" + sw.ElapsedMilliseconds + " ms) cam " + cam.transform.position.ToString("F1") + " under " + (GameManager.Instance != null && GameManager.Instance.player.IsUnderwater));
     }
 
+    // cámara libre (sin mover al jugador): para planos de presentación por encima del agua
+    static void ShotAt(Camera cam, Vector3 pos, Vector3 target, string name)
+    {
+        Transform ct = cam.transform; Vector3 lp = ct.localPosition; Quaternion lr = ct.localRotation;
+        ct.position = pos; ct.rotation = Quaternion.LookRotation(target - pos);
+        Shot(cam, name);
+        ct.localPosition = lp; ct.localRotation = lr;
+    }
+
     static void Look(FirstPersonController p, Vector3 feet, Vector3 target)
     {
         p.Teleport(feet, 0f);
@@ -85,8 +94,11 @@ public static class V730Shots
         // 3) barca junto a la primera casa sobre pilotes (desde el agua)
         Vector3 stop = w.BoatStops.Count > 1 ? w.BoatStops[1] : OceanWorld.BoatHome;
         w.boat.ApplyNet(new Vector2(stop.x + 1.5f, stop.z), 200f, 0f, new[] { -1, -1, -1, -1 });
-        Look(p, new Vector3(1.5f, -1.2f, 44.5f), new Vector3(13f, 2.5f, 57f));
-        yield return 1.5f; Shot(cam, "03_barca_casa_pilotes");
+        Look(p, new Vector3(15f, -0.3f, 30.6f), new Vector3(13f, 1.2f, 70f));   // jugador en el porche (fuera del agua): la cámara libre no hereda la niebla submarina
+        yield return 1.5f; ShotAt(cam, new Vector3(stop.x - 6f, 2.4f, stop.z - 9f), new Vector3(stop.x + 4f, 1.2f, stop.z + 6f), "03_barca_casa_pilotes");
+        // 3b) bengala en el cielo con niebla (visible desde lejos)
+        OceanFlare.Spawn(0, new Vector3(stop.x, 1.5f, stop.z + 4f), Vector3.up);
+        yield return 2.2f; ShotAt(cam, new Vector3(stop.x - 14f, 1.8f, stop.z - 22f), new Vector3(stop.x, 18f, stop.z + 4f), "03b_bengala");
         // 4) faro y muelle (faro encendido)
         w.lighthouse.SetOn(true);
         Look(p, new Vector3(55.2f, OceanWorld.PierY + 0.02f, 247f), new Vector3(0f, 14f, 250f));
