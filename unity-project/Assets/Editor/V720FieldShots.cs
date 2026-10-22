@@ -109,7 +109,7 @@ public static class V720FieldShots
             views.Add(new View("campo_colinas", P(a.x - 10f, a.z - 8f, 3.2f), P(a.x + 40f, a.z + 50f, 0f), 60f));
             Transform rocks = fw.transform.Find("Props/Rocks"); Transform best = null; float bd = 1e9f;
             if (rocks != null) foreach (Transform t in rocks) { if (!t.name.EndsWith("1")) continue; float dd = (t.localPosition - a).sqrMagnitude; if (dd < bd) { bd = dd; best = t; } }
-            if (best != null) { Vector3 q = best.localPosition; views.Add(new View("campo_rocas", P(q.x - 3.2f, q.z - 2.4f, 1.6f), P(q.x, q.z, 0.15f), 60f)); }
+            if (best != null) { Vector3 rq = best.localPosition; views.Add(new View("campo_rocas", P(rq.x - 3.2f, rq.z - 2.4f, 1.6f), P(rq.x, rq.z, 0.15f), 60f)); }
         }
         foreach (var hh in new[] { hc, ho })
         {
