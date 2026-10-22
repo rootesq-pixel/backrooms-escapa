@@ -580,7 +580,62 @@ public class FieldWorld : MonoBehaviour
             }
             propCount++;
         }
+        BuildRocks(proot, track);
         GhostTree(proot);
+    }
+
+    // v7.2.0: rocas escaneadas CC0 (Poly Haven) medio enterradas entre la hierba, sueltas y en grupos. Solo visuales (sin colisión,
+    // no cambian el plan ni la red): semilla propia para no alterar el resto del nivel.
+    public int RockCount { get; private set; }
+    public static bool RocksOn = true;
+    private void BuildRocks(Transform proot, System.Action<Object> track)
+    {
+        if (!RocksOn || Resources.Load<GameObject>("Field/Props/FieldRock0") == null) return;
+        Shader sh = Shader.Find("Backrooms/FieldHouse");
+        Material[] mats = new Material[3];
+        for (int k = 0; k < 3; k++)
+        {
+            Material m = sh != null ? new Material(sh) : ProceduralAssets.CreateMaterial(Color.gray, null, Vector2.one, 0.1f); track(m);
+            m.name = "FieldRock" + k;
+            m.SetTexture("_MainTex", Resources.Load<Texture2D>("Field/Props/FieldRock" + k + "_a"));
+            if (m.HasProperty("_BumpMap")) m.SetTexture("_BumpMap", Resources.Load<Texture2D>("Field/Props/FieldRock" + k + "_n"));
+            if (m.HasProperty("_RoughTex")) m.SetTexture("_RoughTex", Resources.Load<Texture2D>("Field/Props/FieldRock" + k + "_m"));
+            m.SetColor("_Color", k == 2 ? new Color(0.95f, 0.95f, 0.95f) : new Color(0.80f, 0.84f, 0.86f));   // menos rojizo (cielo nublado)
+            if (m.HasProperty("_Gloss")) m.SetFloat("_Gloss", 0.25f);
+            if (m.HasProperty("_UseLM")) m.SetFloat("_UseLM", 0f);
+            if (m.HasProperty("_DirtH")) m.SetFloat("_DirtH", 0.05f);
+            mats[k] = m;
+        }
+        Transform rr = new GameObject("Rocks").transform; rr.SetParent(proot, false);
+        System.Random r = new System.Random(gen.UsedSeed * 31 + 7);
+        float cs = gen.CellSize; Vector3 st = new Vector3((gen.StartCell.x + 0.5f) * cs, 0f, (gen.StartCell.y + 0.5f) * cs), ex = new Vector3((gen.ExitCell.x + 0.5f) * cs, 0f, (gen.ExitCell.y + 0.5f) * cs);
+        int want = Mathf.Clamp(Mathf.RoundToInt(L * L / 650f), 40, 120), guard = 0;
+        System.Func<Vector2, bool> free = q =>
+        {
+            if ((q - new Vector2(st.x, st.z)).sqrMagnitude < cs * cs * 1.2f || (q - new Vector2(ex.x, ex.z)).sqrMagnitude < cs * cs * 1.2f) return false;
+            foreach (Rect f in plan.footprints) { Rect g = f; g.xMin -= 1f; g.yMin -= 1f; g.xMax += 1f; g.yMax += 1f; if (g.Contains(q)) return false; }
+            foreach (Vector3 c in plan.clearings) if ((q - new Vector2(c.x, c.y)).sqrMagnitude < (c.z + 1.2f) * (c.z + 1.2f)) return false;
+            return true;
+        };
+        while (RockCount < want && guard++ < want * 20)
+        {
+            Vector2 c = new Vector2((float)r.NextDouble() * L, (float)r.NextDouble() * L);
+            int n = r.NextDouble() < 0.55 ? 2 + r.Next(3) : 1;   // grupos de 2-4
+            for (int i = 0; i < n && RockCount < want; i++)
+            {
+                Vector2 q = c + (i == 0 ? Vector2.zero : new Vector2((float)r.NextDouble() - 0.5f, (float)r.NextDouble() - 0.5f) * 3.2f);
+                q.x = Mathf.Repeat(q.x, L); q.y = Mathf.Repeat(q.y, L);
+                if (!free(q)) continue;
+                double kr = r.NextDouble(); int kind = kr < 0.4 ? 0 : kr < 0.62 ? 1 : 2;
+                float sc = kind == 2 ? 1.3f + (float)r.NextDouble() * 1.4f : 0.7f + (float)r.NextDouble() * 0.6f;
+                float sink = (kind == 1 ? 0.2f : kind == 0 ? 0.07f : 0.04f) * sc;
+                GameObject go = new GameObject("Rock" + kind); go.transform.SetParent(rr, false);
+                go.transform.localPosition = new Vector3(q.x, FieldHeight.H(q.x, q.y) - sink, q.y);
+                go.transform.localRotation = Quaternion.Euler((float)r.NextDouble() * 10f - 5f, (float)r.NextDouble() * 360f, (float)r.NextDouble() * 10f - 5f);
+                go.transform.localScale = Vector3.one * sc;
+                if (SpawnModel("FieldRock" + kind, go.transform, new[] { mats[kind] }, new[] { "Rock" }, track) != null) RockCount++;
+            }
+        }
     }
 
     // cable combado como malla de tubo (4 caras): sin depender de la cámara y con copia en el borde

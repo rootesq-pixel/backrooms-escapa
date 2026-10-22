@@ -110,6 +110,10 @@ public class ShotBuildCheck : MonoBehaviour
         Info("casas horneadas " + FieldWorld.HouseBaked + ", casas " + fw.houseCount);
         yield return View(pw, mc, "exe_campo_vista", P(a.x + 4.8f, a.z + 6.4f, 1.65f), P(a.x + 22.8f, a.z + 30.4f, 1.2f), 60f, P(a.x + 4.8f, a.z + 6.4f, 0.05f));
         yield return View(pw, mc, "exe_campo_colinas", P(a.x - 10f, a.z - 8f, 3.2f), P(a.x + 40f, a.z + 50f, 0f), 60f, P(a.x - 10f, a.z - 8f, 0.05f));
+        Transform rocks = fw.transform.Find("Props/Rocks"); Transform best = null; float bd = 1e9f;
+        if (rocks != null) foreach (Transform t in rocks) { if (!t.name.EndsWith("1")) continue; float dd = (t.localPosition - a).sqrMagnitude; if (dd < bd) { bd = dd; best = t; } }
+        Info("rocas " + fw.RockCount);
+        if (best != null) { Vector3 q = best.localPosition; yield return View(pw, mc, "exe_campo_rocas", P(q.x - 3.2f, q.z - 2.4f, 1.6f), P(q.x, q.z, 0.15f), 60f, P(q.x - 3.2f, q.z - 2.4f, 0.05f)); }
         foreach (FieldPlan.House h in fw.plan.houses)
         {
             Quaternion rot = Quaternion.Euler(0f, h.rot * 90f, 0f); Vector2 sz = FieldPlan.TemplateSize[h.template];

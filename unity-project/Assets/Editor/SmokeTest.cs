@@ -1377,6 +1377,8 @@ public static class SmokeTest
                 if (inside && mf.sharedMesh.subMeshCount == FieldWorld.HouseSubs && mr.sharedMaterials[0].shader.name == "Backrooms/FieldHouse" && mr.sharedMaterials[0].GetTexture("_LightMap") != null) ok++;
             }
             r.Check(n == plan.houses.Count && ok == n, tag + "v7.2.0: todas las casas con UV2 en [0,1], 6 submallas y lightmap (" + ok + "/" + n + ")");
+            r.Check(fw.RockCount >= 30 && fw.transform.Find("Props/Rocks") != null && fw.transform.Find("Props/Rocks").GetComponentsInChildren<Collider>(true).Length == 0,
+                tag + "v7.2.0: rocas CC0 dispersas y sin colisión (" + fw.RockCount + ")");
         }
         // casas casi idénticas (mismo modelo, giro y tinte) y algunas visitables
         var groups = new Dictionary<int, int>(); int enter = 0;
