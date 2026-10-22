@@ -168,6 +168,18 @@ public static class V711Checks
             int mv = 0; float sm = 0f;
             for (int i = 0; i < cs.Count; i++) { float dm = (BallPitField.OffsetAt(cs[i], tt + 0.5f, tops[i], 1f) - BallPitField.OffsetAt(cs[i], tt, tops[i], 1f)).magnitude; sm += dm; if (dm > 0.002f) mv++; }
             r.Check(cs.Count >= 20 && mv >= cs.Count * 0.97f && sm / cs.Count > 0.006f, T + "bolas: lejos de todos, todas se mecen solas (" + mv + "/" + cs.Count + " se mueven > 2 mm en 0,5 s, media " + (cs.Count > 0 ? sm / cs.Count * 1000f : 0f).ToString("F1") + " mm)");
+            {   // MP: un compañero (RemotePlayer) metido en la piscina también aparta las bolas
+                Vector3 pr = f0.transform.TransformPoint(new Vector3(inner.xMax - 0.8f, pit.floor + 0.05f, inner.yMin + 0.8f));
+                GameObject rgo = new GameObject("TestRemoteInPit"); rgo.transform.position = pr; rgo.AddComponent<RemotePlayer>();
+                yield return 1.3f;   // los cuerpos remotos se buscan cada segundo
+                cs.Clear(); tops.Clear(); f0.TopBallsNear(pr, 0.3f, cs, tops);
+                float tr = Time.timeSinceLevelLoad, sh = 0f;
+                for (int i = 0; i < cs.Count; i++) { Vector3 o = BallPitField.OffsetAt(cs[i], tr, tops[i], 1f); sh += new Vector2(o.x, o.z).magnitude; }
+                bool farFromLocal = new Vector2(pr.x - fpc.transform.position.x, pr.z - fpc.transform.position.z).magnitude > 1.5f;
+                r.Check(farFromLocal && cs.Count >= 5 && sh / cs.Count > 0.12f, T + "bolas: también se apartan alrededor de otro jugador en MP (" + cs.Count + " bolas a < 0,3 m del compañero: media " + (cs.Count > 0 ? sh / cs.Count : 0f).ToString("F2") + " m, empujadores " + BallPitField.PusherCount + ")");
+                Object.Destroy(rgo);
+                yield return null;
+            }
         }
         {   // un monstruo dentro de la piscina también aparta bolas y hace ondas
             MonsterAI mon = null; foreach (MonsterAI mm in MonsterAI.Instances) if (mm != null && mm.gameObject.activeInHierarchy) { mon = mm; break; }
