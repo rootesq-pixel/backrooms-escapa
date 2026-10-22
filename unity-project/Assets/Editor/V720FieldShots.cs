@@ -50,10 +50,13 @@ public static class V720FieldShots
         RenderTexture rt = new RenderTexture(1920, 1080, 24); Texture2D px = new Texture2D(1, 1, TextureFormat.RGB24, false);
         RenderTexture prev = cam.targetTexture; cam.targetTexture = rt;
         System.Collections.Generic.List<double> ts = new System.Collections.Generic.List<double>();
+        // las órdenes DrawMesh*/Indirect se acumulan hasta el fin del fotograma: se encolan UNA vez y todos los render las dibujan
+        if (FieldGrass.Active != null) FieldGrass.Active.Submit();
+        if (FieldWorld.Active != null) FieldWorld.Active.DrawGhosts();
         for (int i = 0; i < n + 5; i++)
         {
             var sw = System.Diagnostics.Stopwatch.StartNew();
-            Render(cam); RenderTexture.active = rt; px.ReadPixels(new Rect(0, 0, 1, 1), 0, 0); px.Apply();
+            cam.Render(); RenderTexture.active = rt; px.ReadPixels(new Rect(0, 0, 1, 1), 0, 0); px.Apply();
             if (i >= 5) ts.Add(sw.Elapsed.TotalMilliseconds);
         }
         RenderTexture.active = null; cam.targetTexture = prev; Object.DestroyImmediate(rt);
@@ -99,7 +102,7 @@ public static class V720FieldShots
         Vector3 start = root.InverseTransformPoint(pw.transform.position);
         {
             Vector3 a = new Vector3(start.x, 0, start.z); Vector3 d = new Vector3(0.6f, 0f, 0.8f);
-            views.Add(new View("campo_vista", P(a.x, a.z, 1.65f), P(a.x + d.x * 30f, a.z + d.z * 30f, 1.2f), 60f));
+            views.Add(new View("campo_vista", P(a.x + d.x * 8f, a.z + d.z * 8f, 1.65f), P(a.x + d.x * 38f, a.z + d.z * 38f, 1.2f), 60f));   // fuera del ascensor
             Vector3 sd = new Vector3(sunDir.x, 0f, sunDir.z).normalized;   // mirando hacia el sol (contraluz)
             views.Add(new View("campo_contraluz", P(a.x + 6f, a.z, 0.9f), P(a.x + 6f - sd.x * 20f, a.z - sd.z * 20f, 1.6f), 60f));
             views.Add(new View("campo_cerca", P(a.x + 3f, a.z + 5f, 1.5f), P(a.x + 4.5f, a.z + 7f, 0.1f), 60f));
@@ -153,7 +156,12 @@ public static class V720FieldShots
                 for (int k = 0; k < 25; k++) { cam.transform.position = v.p; cam.transform.rotation = Quaternion.LookRotation(v.t - v.p); cam.fieldOfView = v.fov; yield return 0.04f; }
                 cam.transform.position = v.p; cam.transform.rotation = Quaternion.LookRotation(v.t - v.p); cam.fieldOfView = v.fov;
                 Shot(cam, v.n + vsuf);
-                if (perfOn && vi == 0) Info("coste " + v.n + suf + ": " + PerfMs(cam, 60).ToString("F2") + " ms por render 1920x1080 (mediana)");
+                if (perfOn && vi == 0)
+                {
+                    yield return 0.04f;   // fotograma nuevo: sin las órdenes de dibujo de la captura
+                    cam.transform.position = v.p; cam.transform.rotation = Quaternion.LookRotation(v.t - v.p); cam.fieldOfView = v.fov;
+                    Info("coste " + v.n + suf + ": " + PerfMs(cam, 60).ToString("F2") + " ms por render 1920x1080 (mediana)");
+                }
             }
         }
         Info("FIN");

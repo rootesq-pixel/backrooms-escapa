@@ -141,7 +141,7 @@ public static class V720Shots
         string vn = variants[vi].Split(':')[0], spec = variants[vi].Length > vn.Length ? variants[vi].Substring(vn.Length + 1) : "";
         PoolLook.WaterTint = t0; PoolLook.WaterAbs = a0; PoolLook.WaterScatter = s0; PoolLook.WaveP = w0; PoolLook.CausticK = c0; PoolLook.DeckP = d0; PoolLook.WindowEmission = e0; PoolLook.LMTint = l0; PoolLook.WaveK = k0; PoolLook.WallTint = wt0; PoolLook.EdgeP = ed0; PoolLook.PoolTileScale = ts0;
         PostStack.Exposure = ex0; PostStack.BloomInt = bl0; PostStack.Threshold = th0; RenderSettings.fogDensity = fd0; RenderSettings.ambientLight = am0; PoolLook.WallLMTint = wl0; PoolLook.GrimeColor = gc0; PoolLook.WallGrime = g0; PoolLook.DeckGrime = g1; PoolLook.CeilGrime = g3;
-        PoolLook.Override(spec); PoolLook.Apply();
+        PoolLook.Override("Lights=1"); PoolLook.Override(spec); PoolLook.Apply();
         if (bmr != null) PoolLook.ApplyMaterials(bmr.sharedMaterials);
         string vsuf = suf + (vn.Length > 0 ? "_" + vn : "");
         if (vn.Length > 0) Info("variante " + vn + ": " + spec);

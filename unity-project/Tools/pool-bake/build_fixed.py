@@ -27,8 +27,10 @@ BX=2*CS; BY=1.5*CS                              # block half extents (wall centr
 sx=(4*CS-T)/14; sz=(3*CS-T)/10
 PX=4*sx; PY=2*sz; PD=1.4
 DW=2.0; DH=2.5-DECK                             # door width / top (local)
-DOORS={'S':-2.0,'N':2.0,'W':0.0,'E':0.0}
-WIN_S=[-6.0,2.0,6.0]; WIN_N=[-6.0,-2.0,6.0]; WIN_W=1.68; WIN_Z0=1.9-0.95; WIN_Z1=1.9+0.95
+# v7.2.0: como pool-render/build.py: 3 ventanas en la pared +x (E) y sin puertas a la vista de las cámaras de Blender;
+# puertas solo en W (centro) y S (celda 0, detrás de Cam_Wide/Cam_Low)
+DOORS={'S':-6.0,'N':None,'W':0.0,'E':None}
+WIN_S=[]; WIN_N=[]; WIN_E=[-3.0*sz,0.0,3.0*sz]; WIN_W=1.2*sz; WIN_Z0=0.90; WIN_Z1=2.62
 SKY=[(-2.5*sx,0.0),(2.5*sx,0.0)]; SKW=2*sx; SKD=2*sz
 quads=[]  # (verts[4], mat)  mats: 0 wall 1 deck 2 pool 3 ceiling 4 emissive
 def q(v,m): quads.append(([tuple(map(float,p)) for p in v],m))
@@ -57,6 +59,7 @@ def wall_x(y,inward,dx):
     rect_z(DH-0.002,dx-DW/2,dx+DW/2,a,b,0,-1)
     yb=-BY if inward>0 else BY; rect_x(yb,dx-DW/2,dx+DW/2,-DECK,0,1,-inward)
 def wall_y(x,inward,dy):
+    if dy is None: rect_y(x,-HD,HD,0,H,0,inward); return
     rect_y(x,-HD,dy-DW/2,0,H,0,inward); rect_y(x,dy+DW/2,HD,0,H,0,inward); rect_y(x,dy-DW/2,dy+DW/2,DH,H,0,inward)
     xo=x-inward*(T+0.001); a,b=sorted((x,xo))
     rect_x(dy-DW/2+0.002,a,b,-DECK,DH,0,1); rect_x(dy+DW/2-0.002,a,b,-DECK,DH,0,-1)
@@ -66,6 +69,7 @@ wall_x(-HD,1,DOORS['S']); wall_x(HD,-1,DOORS['N']); wall_y(-HW,1,DOORS['W']); wa
 # emissive windows / skylights (geometry for Unity look; light comes from area lights)
 for x in WIN_S: rect_x(-HD+0.006,x-WIN_W/2,x+WIN_W/2,WIN_Z0,WIN_Z1,4,1)
 for x in WIN_N: rect_x(HD-0.006,x-WIN_W/2,x+WIN_W/2,WIN_Z0,WIN_Z1,4,-1)
+for y in WIN_E: rect_y(HW-0.006,y-WIN_W/2,y+WIN_W/2,WIN_Z0,WIN_Z1,4,-1)
 for (x,y) in SKY: rect_z(H-0.006,x-SKW/2,x+SKW/2,y-SKD/2,y+SKD/2,4,-1)
 
 me=bpy.data.meshes.new('PoolRoomFixed'); bm=bmesh.new()
@@ -105,9 +109,10 @@ for m in [mat('Wall',(0.62,0.66,0.67)),mat('Deck',(0.64,0.67,0.66)),mat('Pool',(
 def area(name,loc,rot,sxv,syv,W):
     L=bpy.data.lights.new(name,'AREA'); L.shape='RECTANGLE'; L.size=sxv; L.size_y=syv; L.energy=W; L.spread=math.radians(float(os.environ.get('SPREAD','180')) if name!='Sky' else 180); L.color=(0.88,0.95,1.0)
     o=bpy.data.objects.new(name,L); o.location=loc; o.rotation_euler=rot; bpy.context.scene.collection.objects.link(o)
-WINW=float(os.environ.get('WINW','120')); SKYW=float(os.environ.get('SKYW','260'))
+WINW=float(os.environ.get('WINW','200')); SKYW=float(os.environ.get('SKYW','260'))
 for x in WIN_S: area('WinS',(x,-HD+0.03,(WIN_Z0+WIN_Z1)/2),(math.radians(-90),0,0),WIN_W,WIN_Z1-WIN_Z0,WINW)
 for x in WIN_N: area('WinN',(x,HD-0.03,(WIN_Z0+WIN_Z1)/2),(math.radians(90),0,0),WIN_W,WIN_Z1-WIN_Z0,WINW)
+for y in WIN_E: area('WinE',(HW-0.03,y,(WIN_Z0+WIN_Z1)/2),(0,math.radians(90),0),WIN_Z1-WIN_Z0,WIN_W,WINW)
 for (x,y) in SKY: area('Sky',(x,y,H-0.03),(0,0,0),SKW,SKD,SKYW)
 sc=bpy.context.scene; sc.render.engine='CYCLES'; cy=sc.cycles; cycles_device(sc); cy.samples=SPP
 cy.max_bounces=6; cy.diffuse_bounces=4; cy.use_denoising=False

@@ -61,6 +61,12 @@ public class ShotBuildCheck : MonoBehaviour
         Texture2D tex = Grab(mc, n);
         Check(Mean(tex) > 0.03f, "captura " + n + " no negra (media " + Mean(tex).ToString("F3") + ")");
         Destroy(tex);
+        // tiempo real de fotograma del ejecutable en esta vista (sin vsync), mediana de 120 fotogramas
+        int vs0 = QualitySettings.vSyncCount, tf0 = Application.targetFrameRate; QualitySettings.vSyncCount = 0; Application.targetFrameRate = -1;
+        var ft = new System.Collections.Generic.List<float>();
+        for (int k = 0; k < 150; k++) { mc.transform.position = p; mc.transform.rotation = Quaternion.LookRotation(t - p); mc.fieldOfView = fov; yield return null; if (k >= 30) ft.Add(Time.unscaledDeltaTime * 1000f); }
+        QualitySettings.vSyncCount = vs0; Application.targetFrameRate = tf0;
+        ft.Sort(); Info("fotograma " + n + ": mediana " + ft[ft.Count / 2].ToString("F2") + " ms, p90 " + ft[ft.Count * 9 / 10].ToString("F2") + " ms (" + Screen.width + "x" + Screen.height + ")");
     }
 
     IEnumerator Pool(GameManager gm, FirstPersonController pw, Camera mc)
@@ -102,7 +108,7 @@ public class ShotBuildCheck : MonoBehaviour
         System.Func<float, float, float, Vector3> P = (x, z, up) => root.TransformPoint(new Vector3(x, FieldHeight.H(x, z) + up, z));
         Vector3 a = root.InverseTransformPoint(pw.transform.position);
         Info("casas horneadas " + FieldWorld.HouseBaked + ", casas " + fw.houseCount);
-        yield return View(pw, mc, "exe_campo_vista", P(a.x, a.z, 1.65f), P(a.x + 18f, a.z + 24f, 1.2f), 60f, P(a.x, a.z, 0.05f));
+        yield return View(pw, mc, "exe_campo_vista", P(a.x + 4.8f, a.z + 6.4f, 1.65f), P(a.x + 22.8f, a.z + 30.4f, 1.2f), 60f, P(a.x + 4.8f, a.z + 6.4f, 0.05f));
         yield return View(pw, mc, "exe_campo_colinas", P(a.x - 10f, a.z - 8f, 3.2f), P(a.x + 40f, a.z + 50f, 0f), 60f, P(a.x - 10f, a.z - 8f, 0.05f));
         foreach (FieldPlan.House h in fw.plan.houses)
         {

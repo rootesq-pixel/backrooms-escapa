@@ -125,6 +125,10 @@ public class FlickeringLight : MonoBehaviour
         Apply(f);
     }
 
+    // v7.2.0 (ajuste de capturas): escala la intensidad base respecto a la original
+    float origBase = -1f;
+    public void ScaleBase(float s) { if (origBase < 0f) origBase = baseIntensity; baseIntensity = origBase * s; appliedFactor = -1f; }
+
     private void ScheduleNextFlicker()
     {
         nextFlickerTimer = Random.Range(timeBetweenFlickers.x, timeBetweenFlickers.y);

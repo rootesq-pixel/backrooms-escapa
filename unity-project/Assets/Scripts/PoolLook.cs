@@ -104,6 +104,7 @@ public static class PoolLook
                 case "Bloom": PostStack.BloomInt = x.x; PostStack.Threshold = x.y; break;
                 case "Ambient": RenderSettings.ambientLight = new Color(x.x, x.y, x.z); break;
                 case "Fog": RenderSettings.fogDensity = x.x; break;
+                case "Lights": foreach (FlickeringLight fl in Object.FindObjectsOfType<FlickeringLight>(true)) fl.ScaleBase(x.x); break;
             }
         }
         Apply();
