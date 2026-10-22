@@ -854,13 +854,13 @@ public static class SmokeTest
     private static void TestV4Assets(Report r)
     {
         // Niveles
-        r.Check(LevelConfig.Count == 7 && LevelConfig.Get(5).name == "Campo infinito" && LevelConfig.Get(5).layout == LayoutKind.Field && LevelConfig.Get(6).name == "Parque de bolas" && LevelConfig.Get(6).halls > 0, "hay 7 niveles; el 5 es el Campo infinito y el 6 el Parque de bolas (" + LevelConfig.Count + ")");
+        r.Check(LevelConfig.Count == 8 && LevelConfig.Get(5).name == "Campo infinito" && LevelConfig.Get(5).layout == LayoutKind.Field && LevelConfig.Get(6).name == "Parque de bolas" && LevelConfig.Get(6).halls > 0 && LevelConfig.Get(7).name == "Talasofobia" && LevelConfig.Get(7).layout == LayoutKind.Ocean, "hay 8 niveles; el 5 es el Campo infinito, el 6 el Parque de bolas y el 7 Talasofobia (" + LevelConfig.Count + ")");
         r.Check(LevelConfig.Get(2).water && LevelConfig.Get(2).name == "Poolrooms", "nivel 2 = Poolrooms (antes «Salas inundadas»: agua realista)");
         bool onlyOneWater = true; for (int i = 0; i < LevelConfig.Count; i++) if (i != 2 && LevelConfig.Get(i).water) onlyOneWater = false;
         r.Check(onlyOneWater && LevelConfig.Get(3).name == "Hotel abandonado" && LevelConfig.Get(4).name == "Complejo industrial", "sin otro nivel de agua; nivel 3 = hotel, nivel 4 = industrial");
         r.Check(MonsterProfile.ForLevel(2).id == "DrownedZombie", "el Ahogado es el monstruo del nivel de agua (Poolrooms)");
         r.Check(Resources.Load<GameObject>("Poolrooms/PoolHall") == null && MonsterProfile.ById("AlienBug") == null, "el modelo PoolHall y El Reptador ya no existen");
-        r.Check(LoreNotes.Total == 21 && !LoreNotes.Valid(70) && LoreNotes.Valid(62) && LoreNotes.Valid(52), "21 notas de ambiente (3 por nivel, 7 niveles)");
+        r.Check(LoreNotes.Total == 24 && !LoreNotes.Valid(80) && LoreNotes.Valid(72) && LoreNotes.Valid(62) && LoreNotes.Valid(52), "24 notas de ambiente (3 por nivel, 8 niveles)");
         var seenMonsters = new HashSet<string>();
         for (int i = 0; i < LevelConfig.Count; i++)
         {
