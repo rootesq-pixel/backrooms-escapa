@@ -95,17 +95,33 @@ public static class V713Shots
             new View("pool_1", B(-6.3f, -4.4f, 1.65f), B(1.5f, 0.8f, -0.4f), VFov(20f)),
             new View("pool_2", new Vector3(-3.7f * SX, lowY, 0.9f * SZ), new Vector3(2f * SX, lowY - 0.2f, -0.4f * SZ), VFov(24f)),
             new View("pool_3", B(-1.8f, -0.9f, 2.6f), B(-0.6f, 0.1f, -1.4f), VFov(28f)),
+            new View("under", new Vector3(-2.5f * SX, lowY - 0.75f, -0.6f * SZ), new Vector3(2.5f * SX, lowY - 1.0f, 0.6f * SZ), 60f),   // cáusticas bajo el agua
         };
+        // variantes de ajuste: V713_VARIANTS="nombre:Clave=a,b,c,d;Clave=...|nombre2:..." (PoolLook.Override)
+        string vs = System.Environment.GetEnvironmentVariable("V713_VARIANTS");
+        string[] variants = string.IsNullOrEmpty(vs) ? new[] { ":" } : vs.Split('|');
+        MeshRenderer bmr = root.GetComponent<MeshRenderer>();
+        Info("PoolLook por defecto: tinte " + PoolLook.WaterTint + " abs " + PoolLook.WaterAbs + " disp " + PoolLook.WaterScatter + " ondas " + PoolLook.WaveP + " cáust " + PoolLook.CausticK + " playa " + PoolLook.DeckP + " ventanas " + PoolLook.WindowEmission);
+        Vector4 t0 = PoolLook.WaterTint, a0 = PoolLook.WaterAbs, s0 = PoolLook.WaterScatter, w0 = PoolLook.WaveP, c0 = PoolLook.CausticK, d0 = PoolLook.DeckP; Color e0 = PoolLook.WindowEmission;
+        for (int vi = 0; vi < variants.Length; vi++)
+        {
+        string vn = variants[vi].Split(':')[0], spec = variants[vi].Length > vn.Length ? variants[vi].Substring(vn.Length + 1) : "";
+        PoolLook.WaterTint = t0; PoolLook.WaterAbs = a0; PoolLook.WaterScatter = s0; PoolLook.WaveP = w0; PoolLook.CausticK = c0; PoolLook.DeckP = d0; PoolLook.WindowEmission = e0;
+        PoolLook.Override(spec); PoolLook.Apply();
+        if (bmr != null && bmr.sharedMaterials.Length > 4 && bmr.sharedMaterials[4] != null) ProceduralAssets.SetEmission(bmr.sharedMaterials[4], PoolLook.WindowEmission);
+        string vsuf = suf + (vn.Length > 0 ? "_" + vn : "");
+        if (vn.Length > 0) Info("variante " + vn + ": " + spec);
         foreach (View v in views)
         {
             Vector3 wp = root.TransformPoint(v.p), wtg = root.TransformPoint(v.t);
             pw.Teleport(root.TransformPoint(new Vector3(v.p.x, DECK + 0.02f, v.p.z)) , Mathf.Atan2(wtg.x - wp.x, wtg.z - wp.z) * Mathf.Rad2Deg);
             for (int k = 0; k < 20; k++) { cam.transform.position = wp; cam.transform.rotation = Quaternion.LookRotation(wtg - wp); cam.fieldOfView = v.fov; yield return 0.04f; }
             cam.transform.position = wp; cam.transform.rotation = Quaternion.LookRotation(wtg - wp); cam.fieldOfView = v.fov;
-            Shot(cam, v.n + suf);
-            if (perfOn) Info("coste " + v.n + suf + ": " + PerfMs(cam, 60).ToString("F2") + " ms por render 1920x1080 (mediana)");
+            Shot(cam, v.n + vsuf);
+            if (perfOn && vi == 0) Info("coste " + v.n + suf + ": " + PerfMs(cam, 60).ToString("F2") + " ms por render 1920x1080 (mediana)");
         }
-        // secuencia corta de la ola (Cam_Wide), 6 fotogramas a 0,25 s
+        }
+        // secuencia corta de la ola (Cam_Wide), 6 fotogramas a 0,25 s (última variante)
         {
             View v = views[0]; Vector3 wp = root.TransformPoint(v.p), wtg = root.TransformPoint(v.t);
             for (int k = 0; k < 6; k++)

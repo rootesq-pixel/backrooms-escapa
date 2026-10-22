@@ -49,6 +49,11 @@ Shader "Hidden/BackroomsWater"
             float4 _WLPos[4];       // xyz, rango
             float4 _WLCol[4];       // rgb * intensidad
             float _WTime;
+            // v7.1.3: aspecto de la sala de piscina ajustado a los renders de Cycles (pool-render/pool_1..3)
+            float4 _PoolWaterTint;     // rgb: tinte del fondo visto a través del agua
+            float4 _PoolWaterAbs;      // rgb: absorción por metro (pared/fondo), w: claridad global
+            float4 _PoolWaterScatter;  // rgb: color de dispersión (luz que vuelve del agua), w: cantidad
+            float4 _PoolWaveP;         // x: fuerza de las normales pequeñas, y: refracción física, z: distorsión del reflejo, w: brillo del reflejo
 
             struct appdata { float4 vertex : POSITION; float4 color : COLOR; };
             struct v2f
@@ -123,6 +128,14 @@ Shader "Hidden/BackroomsWater"
                 {
                     float3 n3 = UnpackNormal(tex2D(_NormalMap, i.wpos.xz * 0.12 + _WTime * float2(0.011, -0.008)));
                     N = normalize(N + float3(n3.x, 0, n3.y) * 0.22);
+                    // v7.1.3: rizado fino como el de Cycles (40 ondas de 0,2 a 1,3 m): 3 capas más pequeñas y rápidas
+                    float2 pw = i.wpos.xz;
+                    float3 nA = UnpackNormal(tex2D(_NormalMap, pw * 0.95 + _WTime * float2(0.045, 0.028)));
+                    float3 nB = UnpackNormal(tex2D(_NormalMap, float2(pw.y, -pw.x) * 1.9 + _WTime * float2(-0.05, 0.062)));
+                    float3 nC = UnpackNormal(tex2D(_NormalMap, pw * 0.42 + _WTime * float2(-0.021, 0.026)));
+                    float2 sl = nA.xy * 0.55 + nB.xy * 0.35 + nC.xy * 0.6;
+                    float nNear = saturate(1.35 - length(_WorldSpaceCameraPos - i.wpos) / 22.0);
+                    N = normalize(N + float3(sl.x, 0, sl.y) * _PoolWaveP.x * nNear);
                 }
 
                 // ondas circulares (pisadas, chapoteos, objetos)
@@ -184,7 +197,10 @@ Shader "Hidden/BackroomsWater"
                     thick = max(0.0, sceneZ - surfZ) * saturate(dot(V, float3(0, 1, 0)) + 0.25);
                 }
                 // refracción: el fondo desplazado por la normal de las ondas (menos en aguas muy someras)
+                float inRoomR = (i.wpos.x > _PoolRoomRect.x && i.wpos.x < _PoolRoomRect.z && i.wpos.z > _PoolRoomRect.y && i.wpos.z < _PoolRoomRect.w) ? 1.0 : 0.0;
                 float2 off = N.xz * _Refract * saturate(thick * 3.0 + 0.15);
+                // v7.1.3: en la sala, desplazamiento físico: en el fondo ~ profundidad × pendiente × (1 - 1/1,33), en pantalla / distancia
+                if (inRoomR > 0.5 && _PoolWaterAbs.w > 0.0) off = N.xz * _PoolWaveP.y * 0.25 * min(thick, 2.0) / max(surfZ, 0.35);
                 float2 guv = i.grabPos.xy / i.grabPos.w + off;
                 if (_WDepthOn > 0.5)
                 {
@@ -200,6 +216,11 @@ Shader "Hidden/BackroomsWater"
                 float3 trans = exp(-thick * float3(1.10, 0.36, 0.30) * _Absorb);
                 float3 scatter = lerp(lerp(_Color.rgb, float3(0.74, 0.90, 0.92), inRoom), lerp(_Deep.rgb, float3(0.40, 0.66, 0.74), inRoom), saturate(thick / 2.0)) * diff;
                 float3 baseCol = refr * trans * lerp(float3(1,1,1), _Color.rgb * 1.6, 0.35) + scatter * (1.0 - trans);
+                if (inRoom > 0.5 && _PoolWaterAbs.w > 0.0)
+                {   // v7.1.3: agua de la sala: azul acero (fondo azul visto a través, absorción del rojo, poca dispersión)
+                    float3 tr2 = exp(-min(rawThick, 3.0) * _PoolWaterAbs.rgb);
+                    baseCol = refr * tr2 * _PoolWaterTint.rgb + _PoolWaterScatter.rgb * _PoolWaterScatter.w * (1.0 - tr2) * diff;
+                }
                 float alpha = 1.0;
 
                 float f = 0.02 + 0.98 * pow(1.0 - saturate(dot(N, V)), 5.0);
@@ -210,13 +231,13 @@ Shader "Hidden/BackroomsWater"
                 {
                     if (_PoolPlanarOn > 0.5)
                     {
-                        float2 puv = i.scrPos.xy / i.scrPos.w + N.xz * 0.035;
-                        env = lerp(env, tex2D(_PoolPlanarTex, puv).rgb, 0.9);
+                        float2 puv = i.scrPos.xy / i.scrPos.w + N.xz * (_PoolWaterAbs.w > 0.0 ? _PoolWaveP.z : 0.035);
+                        env = lerp(env, tex2D(_PoolPlanarTex, puv).rgb * (_PoolWaterAbs.w > 0.0 ? _PoolWaveP.w : 1.0), 0.9);
                     }
                     f = max(f, 0.05);
-                    baseCol *= 1.12;   // agua de piscina iluminada por los tragaluces
+                    if (_PoolWaterAbs.w <= 0.0) baseCol *= 1.12;   // agua de piscina iluminada por los tragaluces
                 }
-                float3 col = lerp(baseCol, env, saturate(f * _Smooth));
+                float3 col = lerp(baseCol, env, saturate(f * (inRoom > 0.5 && _PoolWaterAbs.w > 0.0 ? 1.0 : _Smooth)));
                 col += spec;
                 // v6.9: línea de agua suave (se funde con el fondo en el borde) en la sala de piscina
                 if (inRoom > 0.5 && _WDepthOn > 0.5) col = lerp(refr, col, saturate(rawThick / 0.09));

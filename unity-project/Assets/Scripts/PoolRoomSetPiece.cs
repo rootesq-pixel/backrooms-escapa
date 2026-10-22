@@ -85,10 +85,14 @@ public static class PoolRoomSetPiece
         Texture lm = BallpitSetPiece.LoadLightmap("PoolRoom/PoolRoom_LM", "PoolRoom/PoolRoom_LM_Low");   // v7.1.1: 4096 (Bajo: 2048)
         LightmapSize = lm != null ? lm.width : 0;
         Material sky = ProceduralAssets.CreateMaterial(new Color(0.95f, 0.98f, 1f), null, Vector2.one, 0.1f);
-        ProceduralAssets.SetEmission(sky, new Color(2.6f, 2.8f, 3.0f));
+        ProceduralAssets.SetEmission(sky, PoolLook.WindowEmission);   // v7.1.3: ventanas casi blancas como en Cycles (antes 2,6-3,0)
         Material[] mats = {
             BakedMat("WallTile", lm, 0.85f, Color.white), BakedMat("DeckTile", lm, 0.9f, Color.white),
             BakedMat("PoolTile", lm, 0.9f, Color.white), BakedMat("WallTile", lm, 0.35f, new Color(0.97f, 0.97f, 0.97f)), sky };
+        mats[1].SetFloat("_PlanarK", PoolLook.DeckPlanar);       // v7.1.3: playa brillante con reflejo planar
+        mats[2].SetFloat("_PlanarK", PoolLook.DeckPlanar);       // (borde superior del vaso)
+        mats[2].SetFloat("_WaterBand", PoolLook.PoolWaterBand);  // banda oscura sobre el agua
+        PoolLook.Apply();
         Mesh mesh = LoadBakedMesh();
         GameObject g = new GameObject("PoolRoomBaked");
         g.transform.SetParent(root.transform, false);
@@ -318,13 +322,16 @@ public class PoolPlanarReflection : MonoBehaviour
 {
     public float waterY; public Vector3 center;
     private Camera rc; private RenderTexture rt; private int size;
-    private static readonly int TexId = Shader.PropertyToID("_PoolPlanarTex"), OnId = Shader.PropertyToID("_PoolPlanarOn");
+    private static readonly int TexId = Shader.PropertyToID("_PoolPlanarTex"), OnId = Shader.PropertyToID("_PoolPlanarOn"), CkId = Shader.PropertyToID("_PoolCausticK");
 
-    private void OnDisable() { Shader.SetGlobalFloat(OnId, 0f); if (rt != null) { rt.Release(); Destroy(rt); rt = null; } if (rc != null) Destroy(rc.gameObject); }
+    private void OnDisable() { Shader.SetGlobalFloat(OnId, 0f); PoolLook.Clear(); if (rt != null) { rt.Release(); Destroy(rt); rt = null; } if (rc != null) Destroy(rc.gameObject); }
 
     private void LateUpdate()
     {
         Camera cam = Camera.main;
+        // v7.1.3: cáusticas del fondo enteras solo con la cámara bajo el agua
+        Vector4 ck = PoolLook.CausticK; ck.z = cam != null && cam.transform.position.y < waterY ? 1f : 0f;
+        Shader.SetGlobalVector(CkId, ck);
         int q = GameSettings.Quality;
         int want = q >= 2 ? 512 : q == 1 ? 256 : 0;
         if (cam == null || want == 0 || SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null
@@ -334,6 +341,7 @@ public class PoolPlanarReflection : MonoBehaviour
         {
             if (rt != null) { rt.Release(); Destroy(rt); }
             size = want; rt = new RenderTexture(want * 16 / 9, want, 16, RenderTextureFormat.DefaultHDR); rt.name = "PoolPlanar";
+            rt.useMipMap = true; rt.autoGenerateMips = true;   // v7.1.3: mips para el reflejo borroso de la playa
         }
         if (rc == null)
         {

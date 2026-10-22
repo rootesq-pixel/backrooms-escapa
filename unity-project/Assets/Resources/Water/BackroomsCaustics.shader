@@ -26,7 +26,8 @@ Shader "Hidden/BackroomsCaustics"
             #include "UnityCG.cginc"
             sampler2D _CausticTex, _CausticTex2;
             float _Blend, _Scale, _WaterY;
-            float4 _PoolRoomRect, _PoolWaterRect; float _PoolCausticsUp, _PoolWaterY;   // v6.9: reflejos en paredes/techo de la sala
+            float4 _PoolRoomRect, _PoolWaterRect; float _PoolCausticsUp, _PoolWaterY;
+            float4 _PoolCausticK;   // v7.1.3: x: fondo con la cámara fuera del agua, y: paredes/techo, z: cámara bajo el agua (0/1); w: activo   // v6.9: reflejos en paredes/techo de la sala
             fixed4 _CausticCol;
             struct v2f { float4 pos : SV_POSITION; float3 wpos : TEXCOORD0; float3 wn : TEXCOORD1; UNITY_FOG_COORDS(2) };
             v2f vert(appdata_base v)
@@ -60,7 +61,7 @@ Shader "Hidden/BackroomsCaustics"
                     float cu = Samp(p.xz * sc + hgt * 0.07) * wu.y + Samp(p.zy * sc) * wu.x + Samp(p.xy * sc) * wu.z;
                     float face = saturate(-un.y) * 1.0 + (1 - an.y) * 0.75 + saturate(un.y) * 0.25;   // techo > paredes > suelo
                     float fu2 = exp(-dPool * 0.55) * saturate(hgt * 3.0) * face;
-                    fixed4 cu4 = fixed4(_CausticCol.rgb * cu * fu2 * 0.20, 0);
+                    fixed4 cu4 = fixed4(_CausticCol.rgb * cu * fu2 * 0.20 * (_PoolCausticK.w > 0.5 ? _PoolCausticK.y : 1.0), 0);
                     UNITY_APPLY_FOG_COLOR(i.fogCoord, cu4, fixed4(0, 0, 0, 0));
                     return cu4;
                 }
@@ -72,6 +73,9 @@ Shader "Hidden/BackroomsCaustics"
                 float cw = Samp(i.wpos.zy * _Scale) * w.x + Samp(i.wpos.xy * _Scale) * w.z;
                 float3 c = cf * w.y + cw;
                 float fade = saturate(under * 6.0) * exp(-under * 0.35);
+                // v7.1.3: en la sala de piscina, vistas desde fuera del agua casi no se ven (como en Cycles); bajo el agua, enteras
+                if (_PoolCausticK.w > 0.5 && i.wpos.x > _PoolRoomRect.x && i.wpos.x < _PoolRoomRect.z && i.wpos.z > _PoolRoomRect.y && i.wpos.z < _PoolRoomRect.w)
+                    fade *= lerp(_PoolCausticK.x, 1.0, _PoolCausticK.z);
                 fixed4 col = fixed4(_CausticCol.rgb * c * fade, 0);
                 UNITY_APPLY_FOG_COLOR(i.fogCoord, col, fixed4(0, 0, 0, 0));
                 return col;

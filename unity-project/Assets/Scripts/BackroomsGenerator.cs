@@ -458,6 +458,7 @@ public class BackroomsGenerator : MonoBehaviour
     {
         HasPoolRoom = false; PoolFixed = false;
         Shader.SetGlobalVector("_PoolRoomRect", new Vector4(1e6f, 1e6f, -1e6f, -1e6f));
+        PoolLook.Clear();   // v7.1.3
         if (config == null || !config.water || config.index != 2 || w < PoolBlockW + 2 || h < PoolBlockH + 2) return;
         System.Random pr = new System.Random(UsedSeed * 131 + 17);
         int bx = 1 + pr.Next(w - PoolBlockW - 1), bz = 1 + pr.Next(h - PoolBlockH - 1);
