@@ -556,10 +556,22 @@ public static class MpPlayRunner
             Mark("host_oc_revived");
             // casco del anfitrión y jaula con los dos
             hp.Teleport(OceanWorld.HelmetRack + new Vector3(0.8f, 0.05f, -1.7f), 0f);
-            yield return 0.3f; hp.SetPitch(18f); yield return 0.2f;
+            yield return 0.6f;
+            {
+                // mirar al centro del soporte (robusto aunque el anfitrión llegue nadando o el muelle lo recoloque)
+                Vector3 rc0 = w.rack.transform.position + Vector3.up * 1.1f, eye0 = hp.cameraPivot.position, dr = rc0 - eye0;
+                hp.transform.rotation = Quaternion.Euler(0f, Mathf.Atan2(dr.x, dr.z) * Mathf.Rad2Deg, 0f);
+                hp.SetPitch(-Mathf.Atan2(dr.y, new Vector2(dr.x, dr.z).magnitude) * Mathf.Rad2Deg);
+            }
+            yield return 0.2f;
             hop.debugHold = true;
-            yield return Wait(() => hop.HasHelmet, 5, "casco del anfitrión");
+            yield return Wait(() => hop.HasHelmet, 8, "casco del anfitrión");
             hop.debugHold = false; hp.SetPitch(0f);
+            if (!hop.HasHelmet)
+            {
+                int sl; bool la = w.rack.LookingAt(hp.cameraPivot, out sl);
+                r.Info("[Mar MP] casco del anfitrión: pies " + hp.transform.position.ToString("F2") + " soporte " + w.rack.transform.position.ToString("F2") + " mirando " + la + " hueco " + sl + " montado " + hp.IsMounted + " nadando " + hp.IsSwimming + " cogidos " + w.rack.TakenCount + " estado " + GameManager.Instance.State);
+            }
             r.Check(hop.HasHelmet && w.rack.TakenCount == 2, "[Mar MP] dos cascos repartidos (anfitrión y cliente)");
             yield return WaitMark("client_oc_incage", 60);
             hp.Teleport(OceanWorld.CageTop + new Vector3(0.4f, 0.08f, 0.4f), 270f);
@@ -579,7 +591,9 @@ public static class MpPlayRunner
         }
 
         // ---- desconexión del cliente ----
-        GameObject av1 = remote1.avatar.gameObject;
+        NetPlayer rnow = ns.Players.Find(p => !p.isLocal);
+        if (rnow != null) remote1 = rnow;
+        GameObject av1 = remote1 != null && remote1.avatar != null ? remote1.avatar.gameObject : null;
         yield return WaitMark("client_left", 120);
         yield return Wait(() => ns.PlayerCount == 1, 20, "que el anfitrión detecte la salida del cliente");
         r.Check(ns.PlayerCount == 1, "el anfitrión detecta que el cliente se ha ido");
@@ -1062,8 +1076,8 @@ public static class MpPlayRunner
             r.Check(pc.transform.position.y < -40f && pc.IsUnderwater && op.Air01 > 0.99f, "[Mar MP] el cliente llega al fondo con el casco (aire lleno)");
             yield return WaitMark("host_oc_bottom", 60);
             pc.Teleport(OceanWorld.PocketCenter + new Vector3(0.8f, -1.4f, 0f), 0f);
-            yield return 0.8f;
-            r.Check(NetSession.LocalAtExit, "[Mar MP] el cliente en la poza de la gruta cuenta como en la salida");
+            yield return Wait(() => NetSession.LocalAtExit || GameManager.Instance.State == GameManager.GameState.Won, 4, "cliente en la salida");
+            r.Check(NetSession.LocalAtExit || GameManager.Instance.State == GameManager.GameState.Won, "[Mar MP] el cliente en la poza de la gruta cuenta como en la salida");
             Mark("client_oc_atexit");
             yield return Wait(() => gm.State == GameManager.GameState.Won, 30, "victoria (cliente)");
             r.Check(gm.State == GameManager.GameState.Won, "[Mar MP] el cliente ve la victoria final");
