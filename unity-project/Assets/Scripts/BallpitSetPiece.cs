@@ -769,12 +769,14 @@ public class BallPitField : MonoBehaviour
 
     void Update() { Submit(); }
 
+    // solo para pruebas (BallBuildCheck): recorta y elige LOD con otra cámara distinta de la del jugador
+    public static Camera CullCameraOverride;
     public void Submit()
     {
         UpdatePushers();
         UpdateFlyers();
         LastVisible = 0; LastCalls = 0;
-        Camera cam = Camera.main;
+        Camera cam = CullCameraOverride != null ? CullCameraOverride : Camera.main;
         if (cam == null || tiles.Count == 0 || mat == null) return;
         GeometryUtility.CalculateFrustumPlanes(cam, planes);
         Vector3 cp = cam.transform.position;

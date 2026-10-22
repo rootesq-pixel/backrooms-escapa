@@ -45,6 +45,7 @@ public class BallBuildCheck : MonoBehaviour
         GameObject cg = new GameObject("BallCheckCam"); Camera cam = cg.AddComponent<Camera>();
         Camera mc = Camera.main; if (mc != null) { cam.CopyFrom(mc); }
         cam.enabled = false; cam.fieldOfView = 70f; cam.transform.position = edge; cam.transform.rotation = Quaternion.LookRotation(look - edge);
+        BallPitField.CullCameraOverride = cam;   // las bolas se recortan con la cámara del jugador; para la fija, con la fija
         pw.Teleport(away, 90f);
         yield return new WaitForSeconds(1.0f);
         Texture2D a0 = Grab(cam, "fixed_idle_a");
@@ -77,13 +78,17 @@ public class BallBuildCheck : MonoBehaviour
         Info("jugador en " + pp + ", pantalla " + sp + ", radio " + rad.ToString("F3") + ", empujadores " + BallPitField.PusherCount);
         Check(dn > 0.05f && dn > df * 2.5f, "las bolas se apartan alrededor del jugador (diferencia cerca " + dn.ToString("F3") + " vs lejos " + df.ToString("F3") + ")");
 
-        // desde los ojos del jugador: secuencia vadeando por la piscina (con ondas)
+        // desde los ojos del jugador: secuencia vadeando por la piscina (con ondas), andando de forma continua a 1,8 m/s
+        BallPitField.CullCameraOverride = null;
         Vector3 wdir = tr.TransformDirection(Vector3.right);
+        float yaw = Mathf.Atan2(wdir.x, wdir.z) * Mathf.Rad2Deg;
+        pw.Teleport(wade, yaw);
+        yield return new WaitForSeconds(0.6f);
+        Vector3 cur = wade; int rip0 = BallPitField.RipplesEmitted;
         for (int k = 0; k < 8; k++)
         {
-            Vector3 p = wade + wdir * (k * 0.22f);
-            pw.Teleport(p, Mathf.Atan2(wdir.x, wdir.z) * Mathf.Rad2Deg);
-            yield return new WaitForSeconds(0.12f);
+            float tk = 0f;
+            while (tk < 0.15f) { yield return null; tk += Time.deltaTime; cur += wdir * (1.8f * Time.deltaTime); pw.Teleport(cur, yaw); }
             if (mc != null)
             {
                 Quaternion r0 = mc.transform.rotation;
@@ -92,7 +97,7 @@ public class BallBuildCheck : MonoBehaviour
                 mc.transform.rotation = r0;
             }
         }
-        Check(BallPitField.RipplesEmitted > 0, "al vadear salen ondas (" + BallPitField.RipplesEmitted + ")");
+        Check(BallPitField.RipplesEmitted - rip0 > 0, "al vadear salen ondas (" + (BallPitField.RipplesEmitted - rip0) + ")");
         Finish();
     }
 
@@ -134,6 +139,7 @@ public class BallBuildCheck : MonoBehaviour
 
     void Finish()
     {
+        BallPitField.CullCameraOverride = null;
         rep.AppendLine("RESULT passed=" + pass + " failed=" + fail);
         File.WriteAllText(Path.Combine(dir, "ballcheck.txt"), rep.ToString());
         Debug.Log("[BallBuildCheck] RESULT passed=" + pass + " failed=" + fail);
