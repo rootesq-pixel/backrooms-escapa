@@ -35,6 +35,13 @@ public class FieldImport : AssetPostprocessor
             ti.sRGBTexture = false;
             ti.maxTextureSize = 1024;
         }
+        else if (p.EndsWith(".exr"))
+        {
+            // v7.2.0: lightmap horneado de las casas (3072x2048, HDR): sin reducir, sin repetir en los bordes, BC6H
+            ti.wrapMode = TextureWrapMode.Clamp;
+            ti.textureCompression = TextureImporterCompression.CompressedHQ;
+            ti.maxTextureSize = 4096;
+        }
         else if (p.EndsWith(".hdr"))
         {
             ti.mipmapEnabled = false;

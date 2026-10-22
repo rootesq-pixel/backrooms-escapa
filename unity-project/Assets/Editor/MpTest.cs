@@ -304,14 +304,44 @@ public static class MpPlayRunner
         yield return Wait(() => Marked("client_downed_seen"), 30, "el cliente ve que está derribado");
         yield return 0.4f;
         r.Check(remote.avatar.Downed, "el avatar del derribado se tumba");
-        // el anfitrión se queda a su lado ~4 s y lo reanima
+        // v7.2.0: reanimar = mantener E junto al derribado. Quedarse al lado sin E ya no basta.
         Vector3 ap = remote.avatar.transform.position;
         GameManager.Instance.player.Teleport(new Vector3(ap.x + 0.9f, ap.y + 0.05f, ap.z), 0f);
+        NetSession.DebugHoldRevive = false;
+        yield return 1.2f;
+        r.Check(remote.revive < 0.01f && remote.downed, "sin mantener E, quedarse al lado no reanima (" + remote.revive.ToString("0.00") + ")");
+        r.Check(ns.LocalReviveTarget == remote, "el derribado al alcance es el objetivo de reanimación");
+        r.Check(ui.Multiplayer.HudReviveText.Contains("Mantén") && ui.Multiplayer.HudReviveText.Contains("E"), "aviso «Mantén E para reanimar» en el HUD («" + ui.Multiplayer.HudReviveText + "»)");
+        // mantener E 1.5 s y soltar: progresa y se cancela
+        NetSession.DebugHoldRevive = true;
+        Mark("host_hold_revive");
         yield return 1.5f;
-        r.Check(remote.revive > 0.1f && remote.downed, "la reanimación progresa mientras el compañero está al lado (" + remote.revive.ToString("0.00") + ")");
+        r.Check(ns.LocalReviving && remote.revive > 0.2f && remote.downed, "manteniendo E la reanimación progresa (" + remote.revive.ToString("0.00") + ")");
+        r.Check(ui.Multiplayer.HudReviveFill > 0.15f, "anillo de progreso en el HUD (" + ui.Multiplayer.HudReviveFill.ToString("0.00") + ")");
+        r.Check(GameManager.Instance.player.IsCrouching, "el que reanima se arrodilla (primera persona agachado)");
+        r.Check(PlayerBody.ReachK > 0.5f, "la mano se alarga hacia el derribado (" + PlayerBody.ReachK.ToString("0.00") + ")");
+        yield return Wait(() => Marked("client_saw_reviver"), 15, "el cliente ve al anfitrión agachado sobre él");
+        int cancels0 = ns.ReviveCancels;
+        NetSession.DebugHoldRevive = false;
+        Mark("host_release_revive");
+        yield return 0.6f;
+        r.Check(remote.downed && remote.revive < 0.01f && ns.ReviveCancels > cancels0, "soltar E cancela la reanimación (progreso " + remote.revive.ToString("0.00") + ", sigue derribado)");
+        r.Check(!ns.LocalReviving, "soltar E: deja de reanimar");
+        // mantener E y alejarse: también cancela
+        NetSession.DebugHoldRevive = true;
+        yield return 1.0f;
+        float before = remote.revive;
+        GameManager.Instance.player.Teleport(new Vector3(ap.x + 4.5f, ap.y + 0.05f, ap.z), 0f);
+        yield return 0.6f;
+        r.Check(before > 0.1f && remote.downed && remote.revive < 0.01f && !ns.LocalReviving, "alejarse con E mantenida cancela (" + before.ToString("0.00") + " -> " + remote.revive.ToString("0.00") + ")");
+        // completa: volver y mantener E ~4 s
+        GameManager.Instance.player.Teleport(new Vector3(ap.x + 0.9f, ap.y + 0.05f, ap.z), 0f);
         yield return Wait(() => !remote.downed, 20, "reanimación completada");
-        r.Check(!remote.downed, "el compañero reanima al derribado tras ~4 s");
+        NetSession.DebugHoldRevive = false;
+        r.Check(!remote.downed, "manteniendo E unos 4 s el compañero reanima al derribado");
+        yield return 0.3f;
         r.Check(!remote.avatar.Downed, "el avatar vuelve a levantarse");
+        r.Check(ui.Multiplayer.HudReviveText == "", "el aviso de reanimar desaparece al levantarse");
         Mark("host_revived");
         yield return Wait(() => Marked("client_revived_seen"), 30, "el cliente confirma la reanimación");
 
@@ -688,6 +718,18 @@ public static class MpPlayRunner
         r.Check(gm.playerCamera.localPosition.y < 1.0f, "derribado: la cámara cae al suelo (" + gm.playerCamera.localPosition.y.ToString("0.00") + ")");
         r.Check(ui.Multiplayer.HudDownedText.Contains("DERRIBADO"), "aviso «ESTÁS DERRIBADO» en el HUD");
         Mark("client_downed_seen");
+        // v7.2.0: el anfitrión mantiene E a mi lado: lo veo agachado alargando la mano, y el progreso me llega
+        yield return WaitMark("host_hold_revive", 40);
+        NetPlayer hostP2 = hostP;
+        yield return Wait(() => hostP2 != null && hostP2.avatar.Reviving && ns.LocalRevive01 > 0.1f, 10, "ver al compañero reanimándome");
+        r.Check(hostP2 != null && hostP2.avatar.Reviving && hostP2.avatar.Crouching, "el compañero que reanima se ve agachado sobre mí");
+        yield return 0.5f;
+        r.Check(hostP2 != null && hostP2.avatar.ReviveK > 0.5f, "el compañero se inclina y alarga la mano (" + (hostP2 != null ? hostP2.avatar.ReviveK.ToString("0.00") : "-") + ")");
+        r.Check(ns.LocalRevive01 > 0.1f && ui.Multiplayer.HudDownedText.Contains("%"), "el progreso de la reanimación llega al derribado (" + ns.LocalRevive01.ToString("0.00") + ")");
+        Mark("client_saw_reviver");
+        yield return WaitMark("host_release_revive", 30);
+        yield return Wait(() => ns.LocalRevive01 < 0.01f, 5, "progreso cancelado");
+        r.Check(ns.LocalDowned && ns.LocalRevive01 < 0.01f, "al soltar E el compañero, la reanimación se cancela y sigo derribado");
         yield return Wait(() => !ns.LocalDowned, 40, "ser reanimado");
         r.Check(!ns.LocalDowned && gm.player.InputEnabled, "reanimado: vuelve a moverse");
         yield return 0.8f;
@@ -766,6 +808,8 @@ public static class MpPlayRunner
             for (int di = 0; di < 6; di++)
             {   // diagnóstico v7.1.1 (prueba de llave intermitente por relay)
                 yield return 0.5f;
+                // v7.2.0: el nivel 2 puede empezar a cargarse durante el diagnóstico (GameManager/jugador recreados): sin esto, NRE intermitente
+                if (GameManager.Instance == null || GameManager.Instance.player == null || ns.Epoch > epoch1) break;
                 Vector3 dd = GameManager.Instance.player.transform.position - ex1; dd.y = 0f;
                 r.Info("[Llaves diag] t=" + (di * 0.5f + 0.5f) + " derribado=" + ns.LocalDowned + " abierta=" + (ExitLock.Active != null && ExitLock.Active.Unlocked) + " por=" + (ExitLock.Active != null ? ExitLock.Active.UnlockedBy : "-") + " dist=" + dd.magnitude.ToString("F2") + " enSalida=" + NetSession.LocalAtExit + " ép=" + ns.WorldEpoch + "/" + ns.Epoch + " nivel=" + gb.CurrentLevel);
             }

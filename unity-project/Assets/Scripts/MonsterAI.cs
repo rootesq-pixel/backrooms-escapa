@@ -350,7 +350,7 @@ public class MonsterAI : MonoBehaviour
         bool hears = CanHear(distance, lineOfSight);
 
         // Matar: muy cerca y con línea de visión directa
-        if (CurrentState != State.Kill && flatDistance < killDistance && Mathf.Abs(toTarget.y) < 2f && lineOfSight && (!NetSession.IsHost || NetSession.Instance.CanCatch(target)))
+        if (CurrentState != State.Kill && flatDistance < killDistance && Mathf.Abs(toTarget.y) < 2f && lineOfSight && CatchReachable() && (!NetSession.IsHost || NetSession.Instance.CanCatch(target)))
         {
             EnterKill();
             return;
@@ -679,6 +679,51 @@ public class MonsterAI : MonoBehaviour
         {
             return hit.transform == target || hit.transform.IsChildOf(target);
         }
+        // v7.2.0: también al revés (paredes de una sola cara vistas por detrás)
+        if (Physics.Linecast(to, from, out hit, sightMask & ~PlayerBody.LayerMaskBit, QueryTriggerInteraction.Ignore))
+            return hit.transform == transform || hit.transform.IsChildOf(transform) || hit.transform == target || hit.transform.IsChildOf(target);
+        return true;
+    }
+
+    // v7.2.0: atrapar exige además que no haya pared entre los dos a la altura del cuerpo (en ambos sentidos: las mallas de
+    // colisión de una cara no se detectan por detrás) y un camino corto por la NavMesh (no a través de una pared de casa ni de
+    // una ventana: antes bastaba la distancia + la línea de los ojos, que pasaba por los huecos)
+    public static float LastCatchPath { get; private set; }
+    // pruebas: ¿atraparía ahora mismo al objetivo? (misma condición que Update)
+    public bool WouldCatchNow()
+    {
+        Vector3 d = TargetPos - transform.position;
+        return new Vector2(d.x, d.z).magnitude < killDistance && Mathf.Abs(d.y) < 2f && HasLineOfSight() && CatchReachable();
+    }
+    public bool CatchReachable()
+    {
+        Vector3 a = transform.position, b = TargetPos;
+        int mask = sightMask & ~PlayerBody.LayerMaskBit;
+        foreach (float h in CatchHeights)
+        {
+            Vector3 pa = new Vector3(a.x, Mathf.Max(a.y, b.y) + h, a.z), pb = new Vector3(b.x, Mathf.Max(a.y, b.y) + h, b.z);
+            if (BlockedBy(pa, pb, mask) || BlockedBy(pb, pa, mask)) return false;
+        }
+        LastCatchPath = -1f;
+        if (useNav && agent != null && agent.enabled && agent.isOnNavMesh)
+        {
+            if (!NavMesh.SamplePosition(b, out NavMeshHit hb, 1.2f, agent.areaMask)) return true;   // jugador fuera de la NavMesh (p. ej. saltando): basta lo físico
+            if (!NavMesh.Raycast(agent.nextPosition, hb.position, out NavMeshHit hr, agent.areaMask)) { LastCatchPath = Vector3.Distance(agent.nextPosition, hb.position); return true; }
+            NavMeshPath path = catchPath ?? (catchPath = new NavMeshPath());
+            if (!NavMesh.CalculatePath(agent.nextPosition, hb.position, agent.areaMask, path) || path.status != NavMeshPathStatus.PathComplete) return false;
+            float len = 0f; Vector3[] c = path.corners; for (int i = 1; i < c.Length; i++) len += Vector3.Distance(c[i - 1], c[i]);
+            LastCatchPath = len;
+            return len <= killDistance + 1.2f;
+        }
+        return true;
+    }
+    static readonly float[] CatchHeights = { 0.5f, 1.0f, 1.5f };
+    NavMeshPath catchPath;
+    bool BlockedBy(Vector3 from, Vector3 to, int mask)
+    {
+        if (!Physics.Linecast(from, to, out RaycastHit hit, mask, QueryTriggerInteraction.Ignore)) return false;
+        if (target != null && (hit.transform == target || hit.transform.IsChildOf(target))) return false;
+        if (hit.transform == transform || hit.transform.IsChildOf(transform)) return false;
         return true;
     }
 

@@ -1,7 +1,7 @@
 using UnityEngine;
 
 // Jugador local derribado (multijugador): no puede moverse, la cámara cae al suelo y se inclina, tinte rojo.
-// Un compañero lo reanima quedándose a su lado unos segundos (lo decide el anfitrión).
+// Un compañero lo reanima manteniendo E a su lado unos segundos (v7.2.0; lo decide el anfitrión).
 public class NetDownedFx : MonoBehaviour
 {
     public FirstPersonController fpc;
@@ -22,11 +22,15 @@ public class NetDownedFx : MonoBehaviour
 
     private void LateUpdate()
     {
-        Blend = Mathf.MoveTowards(Blend, Down ? 1f : 0f, Time.unscaledDeltaTime * 2.2f);
+        // v7.2.0: al ser reanimado se incorpora más despacio (apoyándose: primero se endereza y luego sube)
+        Blend = Mathf.MoveTowards(Blend, Down ? 1f : 0f, Time.unscaledDeltaTime * (Down ? 2.2f : 1.4f));
         if (Blend <= 0f || fpc == null || fpc.cameraPivot == null) return;
         Transform cam = fpc.cameraPivot;
-        cam.localPosition = new Vector3(basePos.x, Mathf.Lerp(basePos.y, 0.28f, Blend), basePos.z);
-        cam.localRotation = baseRot * Quaternion.Euler(0f, 0f, 62f * Blend);
+        float hk = Down ? Blend : Mathf.SmoothStep(0f, 1f, Blend);
+        float rk = Down ? Blend : Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(Blend * 1.6f - 0.6f));
+        float lean = Down ? 0f : Mathf.Sin(Blend * Mathf.PI) * 14f;
+        cam.localPosition = new Vector3(basePos.x, Mathf.Lerp(basePos.y, 0.28f, hk), basePos.z);
+        cam.localRotation = baseRot * Quaternion.Euler(lean, 0f, 62f * rk);
         if (VhsEffect.Active != null) VhsEffect.Active.Spike(0.18f * Blend);
     }
 

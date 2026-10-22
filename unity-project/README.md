@@ -59,7 +59,7 @@ se reinicia solo a los pocos segundos (o al instante con **R**). Cada nivel empi
 | Correr (stamina limitada; FOV más abierto y respiración más pesada al cansarte) | `Shift` |
 | Agacharse (mantener / alternar) | `Ctrl` / `C` |
 | Saltar el ascensor (solo tras morir y reiniciar el nivel) | `Espacio` / `E` |
-| Asomarse a izquierda / derecha (no atraviesa paredes) | `Q` / `E` |
+| Reanimar a un compañero derribado (multijugador, mantener cerca) | `E` |
 | Linterna on/off | `F` |
 | Inventario en rejilla 5×3 + notas (pausa el juego; `I` o `Esc` lo cierra; flechas / clic para elegir, `Tab` cambia Objetos/Notas, botones Usar / Soltar) | `I` |
 | Barra rápida: usar el objeto de la casilla 1-5 (1 = linterna, resto según lo recogido) | `1`-`5` |
@@ -69,7 +69,6 @@ se reinicia solo a los pocos segundos (o al instante con **R**). Cada nivel empi
 | Nadar / bucear en agua profunda: avanzar + `Ctrl`/`C` para sumergirte | `W` + `Ctrl` |
 | Menú de pausa (Continuar / Reiniciar nivel / Opciones / Menú principal / Salir). En multijugador la partida **no** se detiene | `Esc` |
 | Chat de texto (solo multijugador; `Enter` envía, `Esc` cancela) | `Enter` |
-| Reanimar a un compañero derribado (multijugador): quédate a su lado ~4 s | (automático) |
 | Reiniciar el nivel actual (en la pantalla final: volver al Nivel 0) | `R` |
 
 Menús (todo en español, construido por código con `UnityEngine.UI`): **menú principal** «BACKROOMS: ESCAPA» (Jugar, Seleccionar nivel,
@@ -136,8 +135,8 @@ invertir eje Y, balanceo de cabeza (head-bob) on/off, suavizado del ratón (apag
 - **Menú principal, pausa, opciones y créditos** (ver Controles) y **inventario** (`I`): pilas recogidas, % de batería de la linterna,
   nivel actual y botón para usar una pila. Las pilas recogidas van al componente `Inventory` (se conservan entre niveles).
 - **Movimiento realista** (`FirstPersonController`): aceleración/frenado suaves, head-bob sincronizado con las pisadas (sonido por
-  superficie), balanceo e inclinación lateral al hacer strafe, FOV kick al correr, respiración según la stamina, agacharse, asomarse
-  (Q/E), caída con rebote, linterna con retardo/balanceo, más lento y con chapoteos en el nivel inundado. Todo sutil, con head-bob
+  superficie), balanceo e inclinación lateral al hacer strafe, FOV kick al correr, respiración según la stamina, agacharse
+  (v7.2.0: ya no hay inclinación con Q/E), caída con rebote, linterna con retardo/balanceo, más lento y con chapoteos en el nivel inundado. Todo sutil, con head-bob
   desactivable en Opciones.
 - **Modo cámara VHS / found-footage** (tecla `V`, activado por defecto): post-efecto `OnRenderImage` + `Graphics.Blit` con un `Material`
   creado en runtime desde `Assets/Resources/VHS/VhsPost.shader` (scanlines, sangrado de color/aberración cromática horizontal, ruido de
@@ -224,8 +223,9 @@ El modo de un jugador **no cambia** (la red solo se activa desde «Multijugador�
   derribado; posición interpolada (20 Hz, con ~0,1 s de retardo de interpolación). Pasos y chapoteos con sonido 3D.
 - **Monstruos:** la IA solo corre en el **anfitrión**; los clientes ven «proxies» interpolados (posición, rotación, estado y velocidad para animar).
   El monstruo persigue al jugador más cercano / visible (con histéresis para no cambiar a cada rato) y oye/ve a los remotos (linterna, ruido).
-- **Derribado y reanimación:** si te atrapan, caes («derribado», cámara en el suelo, no puedes moverte); un compañero que se quede a menos de
-  ~2 m durante ~4 s te levanta (barra de reanimación). Si caen **todos**, screamer para todos y se reinicia el nivel.
+- **Derribado y reanimación:** si te atrapan, caes («derribado», cámara en el suelo, no puedes moverte); un compañero que **mantenga E** a menos de
+  ~2 m durante ~4 s te levanta (aviso «Mantén E para reanimar» con anillo de progreso; el que reanima se arrodilla y alarga la mano, los demás lo
+  ven agachado sobre ti y tú te incorporas). Soltar E, moverse o alejarse lo cancela; lo decide el anfitrión. Si caen **todos**, screamer para todos y se reinicia el nivel.
 - **Salida:** el nivel termina cuando **todos los jugadores vivos** están en la puerta («Jugadores en la salida: X/Y»); entonces carga el
   siguiente nivel para todos.
 - **Objetos:** el primero en llegar se lleva la pila / objeto (se retira para todos); las notas se comparten; cada jugador tiene su inventario.
@@ -355,7 +355,7 @@ presente y sin cartel/TextMesh, BFS inicio → salida/pilas/monstruos, camino li
 triángulos. `RunPlayMode` comprueba además HUD sin pistas, luces reales ≤ N, recoger pila, derrota → reinicio, puerta → siguiente nivel,
 victoria final y reinicio total, y además: menú principal / opciones / créditos / pausa (Esc) / inventario (I, usar pila) / sin
 conflictos con derrota y victoria, modelos de monstruo reales (sin fallback) por nivel, animaciones, movimiento (aceleración,
-head-bob on/off, correr, agacharse, asomarse, linterna con retardo), VHS (material no nulo, ON/OFF con `V`, overlay REC/timecode,
+head-bob on/off, correr, agacharse, linterna con retardo), VHS (material no nulo, ON/OFF con `V`, overlay REC/timecode,
 glitch según cercanía del monstruo) jump-scare / screamer (fases, corte a negro, foto, grito, pantalla final con botones), cuerpo del jugador (Animator, capas, IK, estados Idle/Walk/Run/Duck, opción), agua (shader propio, vadeo, aguas profundas, bajo el agua, burbujas, gotas, cáusticas). `RunEditMode` valida además prefabs/clips/avatares/créditos de los monstruos,
 el shader VHS (carga, compila, material, `VhsPostKeeper`) y la persistencia de opciones. Los informes se escriben en `/workspace/logs/smoke-*.txt`.
 `Assets/Resources/ShaderVariantKeeper` contiene materiales que fuerzan a incluir en el build las variantes de Standard usadas en runtime

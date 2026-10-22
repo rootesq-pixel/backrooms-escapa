@@ -396,7 +396,7 @@ public class GameManager : MonoBehaviour
             string name = config != null ? config.name : string.Empty;
             infoText.text = "Nivel " + levelIndex + " · " + name + "   Tiempo: " + FormatTime(total)
                 + (ExitLock.Active != null && !ExitLock.Active.Unlocked ? "\nEncuentra la salida y la llave que la abre (solo una de las llaves sirve)" : "\nEncuentra la salida")
-                + "\nWASD mover · Shift correr · Espacio saltar · Ctrl/C agacharse · Q/E asomarse · F linterna · G silbar"
+                + "\nWASD mover · Shift correr · Espacio saltar · Ctrl/C agacharse · E reanimar (multijugador) · F linterna · G silbar"
                 + "\nB usar pila · I inventario · V VHS · R reiniciar · Esc pausa";
         }
     }

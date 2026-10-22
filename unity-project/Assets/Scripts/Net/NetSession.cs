@@ -50,6 +50,14 @@ public class NetSession : MonoBehaviour
     public const float TimeoutSeconds = 20f;
     public const float ReviveSeconds = 4f;
     public const float ReviveRadius = 2.2f;
+    // v7.2.0: reanimar = mantener E junto al derribado (antes bastaba con quedarse al lado). Moverse o soltar E cancela.
+    public const KeyCode ReviveKey = KeyCode.E;
+    public const float ReviveMoveCancel = 0.9f;          // m/s: moverse más rápido que esto cancela
+    public static bool DebugHoldRevive;                  // pruebas: simula mantener E
+    public bool LocalReviving { get; private set; }      // el jugador local está reanimando (E mantenida, quieto, junto a un derribado)
+    public NetPlayer LocalReviveTarget { get; private set; }   // derribado más cercano al alcance (para el aviso)
+    public float LocalReviveProgress { get; private set; }     // progreso (0-1) del derribado al que reanimo (lo dicta el anfitrión)
+    public int ReviveCancels { get; private set; }       // nº de reanimaciones canceladas (anfitrión)
 
     public static NetSession Instance { get; private set; }
     public static bool Active { get { return Instance != null && Instance.Role != NetRole.None; } }
@@ -267,6 +275,7 @@ public class NetSession : MonoBehaviour
         float now = Time.unscaledTime;
         if (Role == NetRole.Host) HostUpdate(now); else ClientUpdate(now);
         if (Role == NetRole.None) return;
+        UpdateLocalRevive();
 
         // carga de nivel pendiente (tras recibir StartLevel)
         if (pendingStart != null && bootstrap != null && bootstrap.CanLoadNow)
@@ -562,11 +571,16 @@ public class NetSession : MonoBehaviour
             foreach (NetPlayer l in Players)
             {
                 if (l == d || l.downed) continue;
+                // v7.2.0: solo cuenta quien mantiene E (lo informa cada jugador en sus flags; el anfitrión decide)
+                bool holding = l.isLocal ? LocalReviving : ((l.flags & RemotePlayer.FlagRevive) != 0 && l.epoch == WorldEpoch);
+                if (!holding) continue;
                 Vector3 lp = PosOf(l);
                 Vector3 diff = FieldWrap.Delta(dp, lp); diff.y = 0f;
                 if (diff.magnitude <= ReviveRadius) { near = true; break; }
             }
-            d.revive = near ? d.revive + dt / ReviveSeconds : Mathf.Max(0f, d.revive - dt * 0.5f);
+            if (!near && d.revive > 0f) { d.revive = 0f; ReviveCancels++; }   // soltar E o alejarse: se cancela (vuelve a 0)
+            else if (near) d.revive += dt / ReviveSeconds;
+            if (d.isLocal) LocalRevive01 = d.revive;
             if (d.revive >= 1f) HostRevive(d);
         }
 
@@ -1000,6 +1014,33 @@ public class NetSession : MonoBehaviour
         if (fl != null && fl.IsOn) flags |= RemotePlayer.FlagFlash;
         if (LocalAtExit) flags |= RemotePlayer.FlagExit;
         if (fpc.IsSwimming) flags |= RemotePlayer.FlagSwim;
+        if (LocalReviving) flags |= RemotePlayer.FlagRevive;
+    }
+
+    // v7.2.0: mantener E junto a un compañero derribado. Cada jugador lo calcula para sí y lo envía (flag); el anfitrión
+    // es quien avanza/cancela el progreso y ordena la reanimación.
+    private void UpdateLocalRevive()
+    {
+        NetPlayer target = null; float best = ReviveRadius;
+        bool playing = InGame && WorldEpoch != 0 && WorldEpoch == Epoch && gm != null && gm.State == GameManager.GameState.Playing;
+        if (playing && !LocalDowned && localPlayer != null)
+        {
+            foreach (NetPlayer p in Players)
+            {
+                if (p.isLocal || !p.downed) continue;
+                Vector3 diff = FieldWrap.Delta(PosOf(p), localPlayer.position); diff.y = 0f;
+                if (Mathf.Abs(PosOf(p).y - localPlayer.position.y) > 1.6f) continue;
+                float dd = diff.magnitude;
+                if (dd <= best) { best = dd; target = p; }
+            }
+        }
+        LocalReviveTarget = target;
+        bool hold = DebugHoldRevive || (!UIManager.InputBlocked && Input.GetKey(ReviveKey));
+        bool still = fpc == null || fpc.FlatSpeed < ReviveMoveCancel;
+        LocalReviving = target != null && hold && still;
+        LocalReviveProgress = target != null ? (Role == NetRole.Host ? target.revive : (target.avatar != null ? target.avatar.Revive01 : 0f)) : 0f;
+        if (fpc != null) fpc.reviveKneel = LocalReviving;
+        PlayerBody.ReachK = Mathf.MoveTowards(PlayerBody.ReachK, LocalReviving ? 1f : 0f, Time.unscaledDeltaTime * 3f);
     }
 
     // ------------------------------------------------------------------
@@ -1191,7 +1232,7 @@ public class NetSession : MonoBehaviour
         {
             LocalDowned = true;
             if (downedFx != null) downedFx.SetDown(true);
-            if (gm != null) gm.ShowToast("¡Te han derribado! Un compañero puede reanimarte quedándose a tu lado");
+            if (gm != null) gm.ShowToast("¡Te han derribado! Un compañero puede reanimarte manteniendo E a tu lado");
             if (VhsEffect.Active != null) VhsEffect.Active.Spike(1f);
         }
         else

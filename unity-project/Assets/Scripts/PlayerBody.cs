@@ -29,6 +29,7 @@ public class PlayerBody : MonoBehaviour
     public Transform Head { get { return head; } }
     public Transform RightHand { get { return hand; } }
     public Vector3 HandTarget { get; private set; }
+    public static float ReachK;   // v7.2.0: 0-1, mano alargada hacia un derribado (reanimar)
     public GameObject FlashlightProp { get { return prop; } }
     public int RendererCount { get; private set; }
     public int ShadowOnlyCount { get; private set; }
@@ -534,6 +535,8 @@ public class PlayerBody : MonoBehaviour
         hl.z = hz;
         hl.y -= ClipPull * 0.05f;
         hl.x -= ClipPull * 0.06f;
+        // v7.2.0: reanimando, la mano baja y se alarga hacia el compañero derribado
+        if (ReachK > 0.001f) hl = Vector3.Lerp(hl, new Vector3(0.10f, -0.38f, 0.62f), ReachK);
         Vector3 target = cam.TransformPoint(hl);
         // balanceo: la mano sigue con retraso la orientación de la linterna
         if (flashlight != null && flashlight.spot != null)

@@ -1,7 +1,7 @@
 using UnityEngine;
 
 // Controlador en primera persona basado en CharacterController.
-// WASD + ratón, correr (Shift, stamina limitada), agacharse (Ctrl mantener / C alternar), inclinarse (Q/E),
+// WASD + ratón, correr (Shift, stamina limitada), agacharse (Ctrl mantener / C alternar), (v7.2.0: sin inclinarse con Q/E),
 // aceleración suave, balanceo de cabeza sincronizado con los pasos, inclinación al desplazarse de lado, patada de FOV
 // al correr, respiración según la stamina y caída con "dip". Usa el Input Manager clásico.
 [RequireComponent(typeof(CharacterController))]
@@ -73,6 +73,7 @@ public class FirstPersonController : MonoBehaviour
     [HideInInspector] public bool debugInput;
     [HideInInspector] public Vector2 debugMove;
     [HideInInspector] public bool debugSprint, debugCrouch;
+    [HideInInspector] public bool reviveKneel;   // v7.2.0: arrodillado reanimando a un compañero (lo pone NetSession)
     [HideInInspector] public float debugLean;
     // Respiración: volumen de la última respiración si está sonando (0 si no suena nada), necesidad 0..1 y si hay alguna sonando
     public float BreathVolume { get { return BreathAudible ? breathVol : 0f; } }
@@ -415,7 +416,7 @@ public class FirstPersonController : MonoBehaviour
 
         // --- Agacharse (Ctrl mantener, C alternar). Nadando, Ctrl = bucear ---
         if (Input.GetKeyDown(KeyCode.C)) crouchToggled = !crouchToggled;
-        bool wantsCrouch = debugCrouch || Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl) || crouchToggled;
+        bool wantsCrouch = debugCrouch || reviveKneel || Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl) || crouchToggled;
         IsDiving = IsSwimming && wantsCrouch;
         if (IsSwimming) wantsCrouch = false;
         if (wantsCrouch) IsCrouching = true;
@@ -551,17 +552,8 @@ public class FirstPersonController : MonoBehaviour
             }
         }
 
-        // --- Inclinarse (Q/E) ---
-        float lt = 0f;
-        if (Input.GetKey(KeyCode.Q)) lt -= 1f;
-        if (Input.GetKey(KeyCode.E)) lt += 1f;
-        lt += debugLean;
-        leanTarget = lt;
-        if (lt != 0f && cameraPivot != null)
-        {
-            Vector3 origin = transform.position + Vector3.up * eyeHeightCurrent;
-            if (Physics.Raycast(origin, transform.right * lt, leanDistance + 0.25f, ~PlayerBody.LayerMaskBit, QueryTriggerInteraction.Ignore)) leanTarget = 0f;
-        }
+        // v7.2.0: sin inclinarse con Q/E (petición del usuario): E es solo interactuar/reanimar y Q no hace nada
+        leanTarget = 0f;
         leanValue = Mathf.Lerp(leanValue, leanTarget, 1f - Mathf.Exp(-9f * dt));
 
         // Para el tilt

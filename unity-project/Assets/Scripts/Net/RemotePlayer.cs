@@ -6,7 +6,7 @@ using UnityEngine.UI;
 // Sin colliders: no estorba al jugador ni a la visión del monstruo (que lo trata como objetivo por posición).
 public class RemotePlayer : MonoBehaviour
 {
-    public const int FlagCrouch = 1, FlagSprint = 2, FlagFlash = 4, FlagExit = 8, FlagSwim = 16, FlagDowned = 32;
+    public const int FlagCrouch = 1, FlagSprint = 2, FlagFlash = 4, FlagExit = 8, FlagSwim = 16, FlagDowned = 32, FlagRevive = 64;   // v7.2.0: FlagRevive = mantiene E sobre un derribado
 
     public static readonly System.Collections.Generic.List<RemotePlayer> All = new System.Collections.Generic.List<RemotePlayer>();   // v7.0
     public int playerId;
@@ -17,6 +17,8 @@ public class RemotePlayer : MonoBehaviour
     public bool AtExit { get; private set; }
     public float FlatSpeed { get; private set; }
     public bool Crouching { get; private set; }
+    public bool Reviving { get; private set; }            // v7.2.0: agachado sobre un derribado, alargando la mano
+    public float ReviveK { get; private set; }
     public bool Sprinting { get; private set; }
     public string CurrentState { get; private set; }
     public Animator animator;
@@ -303,7 +305,7 @@ public class RemotePlayer : MonoBehaviour
         transform.position = s.pos;
         transform.rotation = Quaternion.Euler(0f, s.yaw, 0f);
         int f = buf[(head + count - 1) % N].flags;
-        Crouching = (f & FlagCrouch) != 0; Sprinting = (f & FlagSprint) != 0;
+        Reviving = (f & FlagRevive) != 0 && !Downed; Crouching = (f & FlagCrouch) != 0 || Reviving; Sprinting = (f & FlagSprint) != 0;
         FlashOn = (f & FlagFlash) != 0; AtExit = (f & FlagExit) != 0;
         FlatSpeed = Mathf.Lerp(FlatSpeed, s.speed, 1f - Mathf.Exp(-12f * dt));
         bool swim = (f & FlagSwim) != 0;
@@ -329,6 +331,8 @@ public class RemotePlayer : MonoBehaviour
         float a = Vector3.Distance(armU.position, armL.position), b = Vector3.Distance(armL.position, armH.position);
         if (a < 0.01f || b < 0.01f) return;
         Vector3 T = lamp.position - lamp.forward * 0.1f - transform.up * 0.03f;
+        // v7.2.0: al reanimar alarga la mano hacia el derribado (abajo y delante)
+        if (ReviveK > 0.001f) T = Vector3.Lerp(T, transform.position + transform.forward * 0.55f + transform.up * 0.28f + transform.right * 0.12f, ReviveK);
         Vector3 toT = T - S; float d = Mathf.Clamp(toT.magnitude, Mathf.Abs(a - b) + 0.01f, (a + b) * 0.995f);
         Vector3 dir = toT.normalized;
         Vector3 pole = -transform.up + transform.right * 0.7f - transform.forward * 0.2f;
@@ -369,10 +373,13 @@ public class RemotePlayer : MonoBehaviour
     // Derribado: el cuerpo se tumba en el suelo
     private void UpdatePose(float dt)
     {
-        downK = Mathf.MoveTowards(downK, Downed ? 1f : 0f, dt * 2.5f);
+        // v7.2.0: levantarse es más lento (se ve cómo se incorpora) y el que reanima se inclina hacia delante
+        downK = Mathf.MoveTowards(downK, Downed ? 1f : 0f, dt * (Downed ? 2.5f : 1.1f));
+        ReviveK = Mathf.MoveTowards(ReviveK, Reviving ? 1f : 0f, dt * 3f);
         if (model != null)
         {
-            model.localRotation = Quaternion.Euler(Mathf.Lerp(0f, -82f, downK), 0f, 0f);
+            float rise = Downed ? 0f : Mathf.Sin(downK * Mathf.PI) * 12f;   // al incorporarse se apoya hacia delante
+            model.localRotation = Quaternion.Euler(Mathf.Lerp(0f, -82f, downK) + rise + ReviveK * 24f, 0f, 0f);
             model.localPosition = new Vector3(0f, Mathf.Lerp(0f, 0.16f, downK), Mathf.Lerp(0f, -0.35f, downK));
         }
     }
@@ -450,6 +457,7 @@ public class RemotePlayer : MonoBehaviour
             tagText.enabled = Mathf.PerlinNoise(Time.time * 6f, 3.1f) > 0.18f;
             tagRoot.localPosition = new Vector3(g > 0.75f ? 0.06f : 0f, 2.4f, 0f);
         }
+        if (Reviving) t += "\n<color=#9dff9d>reanimando…</color>";
         if (Downed) t += "\n<color=#ff6a5a>DERRIBADO" + (Revive01 > 0.01f ? " · reanimando " + Mathf.RoundToInt(Revive01 * 100f) + "%" : "") + "</color>";
         if (tagText.text != t) { tagText.supportRichText = true; tagText.text = t; }
     }

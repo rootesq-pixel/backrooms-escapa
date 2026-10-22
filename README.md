@@ -215,7 +215,7 @@ Modo **cooperativo de 2 a 4 jugadores**. El modo de un jugador no cambia: la red
 
 - Sala de espera con lista de jugadores (2-4) y selección de nivel por el anfitrión.
 - Avatares remotos con traje hazmat, linterna y nombre; monstruos y objetos **sincronizados** (el primero en llegar se lleva la pila; lo que sueltas lo ven todos).
-- **Reanimación:** si te derriban, un compañero que se quede a tu lado unos 4 s te levanta; si caen todos, se reinicia el nivel.
+- **Reanimación:** si te derriban, un compañero que **mantenga `E`** a tu lado unos 4 s (aviso «Mantén E para reanimar» con anillo de progreso; se arrodilla y te tiende la mano) te levanta; soltar E o alejarse lo cancela; si caen todos, se reinicia el nivel.
 - **Chat** de texto con `Enter`. En multijugador, la pausa y el inventario no detienen la partida.
 - El nivel termina cuando todos los jugadores vivos llegan a la salida. Con 3-4 jugadores aparece **un monstruo extra** a partir del nivel 3.
 
@@ -231,7 +231,7 @@ Sin reconexión a mitad de partida, sin voz, sin migración de anfitrión (si el
 | Mirar | Ratón |
 | Correr (stamina limitada) | `Shift` |
 | Agacharse (mantener / alternar) | `Ctrl` / `C` |
-| Asomarse a izquierda / derecha | `Q` / `E` |
+| Reanimar a un compañero derribado (multijugador, mantener) | `E` |
 | Linterna on/off | `F` |
 | Inventario y notas (pausa el juego) | `I` |
 | Probar una llave en la puerta de salida | acércate a la puerta (se prueban solas) o úsala desde el inventario / barra rápida |
@@ -244,7 +244,6 @@ Sin reconexión a mitad de partida, sin voz, sin migración de anfitrión (si el
 | Menú de pausa (en multijugador la partida **no** se detiene) | `Esc` |
 | Chat de texto (solo multijugador; `Enter` envía, `Esc` cancela) | `Enter` |
 | Reiniciar el nivel actual | `R` |
-| Reanimar a un compañero derribado (multijugador): quédate a su lado ~4 s | (automático) |
 
 ## Características
 

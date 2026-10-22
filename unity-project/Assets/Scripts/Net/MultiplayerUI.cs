@@ -255,6 +255,49 @@ public class MultiplayerUI : MonoBehaviour
         return t;
     }
 
+    // v7.2.0: aviso «Mantén E para reanimar» con un anillo de progreso (Image radial) en el centro de la pantalla
+    private Text reviveText; private Image reviveRing, reviveRingBg; private GameObject reviveRoot;
+    public string HudReviveText { get { return reviveText != null && reviveRoot != null && reviveRoot.activeSelf ? reviveText.text : ""; } }
+    public float HudReviveFill { get { return reviveRing != null && reviveRoot != null && reviveRoot.activeSelf ? reviveRing.fillAmount : -1f; } }
+    private static Sprite ringSprite;
+    private static Sprite RingSprite()
+    {
+        if (ringSprite != null) return ringSprite;
+        const int N = 128; Texture2D t = new Texture2D(N, N, TextureFormat.RGBA32, false); t.wrapMode = TextureWrapMode.Clamp;
+        Color32[] px = new Color32[N * N];
+        for (int y = 0; y < N; y++) for (int x = 0; x < N; x++)
+        {
+            float dx = (x + 0.5f) / N * 2f - 1f, dy = (y + 0.5f) / N * 2f - 1f, d = Mathf.Sqrt(dx * dx + dy * dy);
+            float a = Mathf.Clamp01((0.98f - d) * N * 0.5f) * Mathf.Clamp01((d - 0.74f) * N * 0.5f);
+            px[y * N + x] = new Color32(255, 255, 255, (byte)Mathf.RoundToInt(a * 255f));
+        }
+        t.SetPixels32(px); t.Apply();
+        ringSprite = Sprite.Create(t, new Rect(0, 0, N, N), new Vector2(0.5f, 0.5f), 100f);
+        return ringSprite;
+    }
+    private void BuildRevivePrompt(Transform r)
+    {
+        reviveRoot = new GameObject("RevivePrompt", typeof(RectTransform));
+        reviveRoot.transform.SetParent(r, false);
+        RectTransform rt = (RectTransform)reviveRoot.transform;
+        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f); rt.anchoredPosition = new Vector2(0f, -90f); rt.sizeDelta = new Vector2(900f, 200f);
+        reviveRingBg = RingImage(reviveRoot.transform, "RingBg", new Color(0f, 0f, 0f, 0.55f));
+        reviveRing = RingImage(reviveRoot.transform, "Ring", new Color(0.62f, 1f, 0.62f, 0.95f));
+        reviveRing.type = Image.Type.Filled; reviveRing.fillMethod = Image.FillMethod.Radial360; reviveRing.fillOrigin = (int)Image.Origin360.Top; reviveRing.fillClockwise = true; reviveRing.fillAmount = 0f;
+        reviveText = Corner(reviveRoot.transform, "ReviveText", 30, TextAnchor.UpperCenter, new Vector2(0.5f, 0.5f), new Vector2(0f, -40f), new Vector2(900f, 90f));
+        reviveText.color = new Color(0.9f, 1f, 0.9f);
+        reviveRoot.SetActive(false);
+    }
+    private Image RingImage(Transform parent, string name, Color c)
+    {
+        GameObject g = new GameObject(name, typeof(RectTransform), typeof(Image));
+        g.transform.SetParent(parent, false);
+        RectTransform rt = (RectTransform)g.transform;
+        rt.anchorMin = rt.anchorMax = rt.pivot = new Vector2(0.5f, 0.5f); rt.anchoredPosition = new Vector2(0f, 40f); rt.sizeDelta = new Vector2(86f, 86f);
+        Image im = g.GetComponent<Image>(); im.sprite = RingSprite(); im.color = c; im.raycastTarget = false;
+        return im;
+    }
+
     private void BuildHud()
     {
         hudCanvas = UiStyle.NewOverlayCanvas(transform, "MultiplayerHud", 40);
@@ -264,6 +307,7 @@ public class MultiplayerUI : MonoBehaviour
         exitText.color = UiStyle.Good;
         downedText = Corner(r, "Downed", 40, TextAnchor.MiddleCenter, new Vector2(0.5f, 0f), new Vector2(0f, 240f), new Vector2(1500f, 150f));
         downedText.color = new Color(1f, 0.45f, 0.35f);
+        BuildRevivePrompt(r);
         chatLog = Corner(r, "ChatLog", 22, TextAnchor.LowerLeft, new Vector2(0f, 0f), new Vector2(24f, 150f), new Vector2(900f, 260f));
         pauseNote = Corner(r, "PauseNote", 26, TextAnchor.UpperCenter, new Vector2(0.5f, 1f), new Vector2(0f, -100f), new Vector2(900f, 40f));
         pauseNote.color = Gold;
@@ -638,9 +682,25 @@ public class MultiplayerUI : MonoBehaviour
 
         if (ns.LocalDowned && playing)
         {
-            downedText.text = "ESTÁS DERRIBADO\n<size=28>Espera a que un compañero se quede a tu lado para reanimarte" + (ns.LocalRevive01 > 0.01f ? "  ·  " + Mathf.RoundToInt(ns.LocalRevive01 * 100f) + "%" : "") + "</size>";
+            downedText.text = "ESTÁS DERRIBADO\n<size=28>Espera a que un compañero mantenga E a tu lado para reanimarte" + (ns.LocalRevive01 > 0.01f ? "  ·  " + Mathf.RoundToInt(ns.LocalRevive01 * 100f) + "%" : "") + "</size>";
         }
         else downedText.text = "";
+
+        // v7.2.0: aviso para reanimar
+        if (reviveRoot != null)
+        {
+            NetPlayer tgt = playing && !ns.LocalDowned ? ns.LocalReviveTarget : null;
+            bool on = tgt != null;
+            if (reviveRoot.activeSelf != on) reviveRoot.SetActive(on);
+            if (on)
+            {
+                float pr = Mathf.Clamp01(ns.LocalReviving ? ns.LocalReviveProgress : 0f);
+                reviveRing.fillAmount = pr;
+                reviveText.text = ns.LocalReviving
+                    ? "Reanimando a " + tgt.name + "…  " + Mathf.RoundToInt(pr * 100f) + "%\n<size=22>Suelta E o aléjate para cancelar</size>"
+                    : "Mantén <b>E</b> para reanimar a " + tgt.name;
+            }
+        }
 
         pauseNote.text = cur == UIManager.Screen.Pause ? "Pausa (la partida sigue)" : "";
 

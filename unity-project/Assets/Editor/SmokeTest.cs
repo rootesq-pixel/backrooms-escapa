@@ -35,6 +35,10 @@ public static class SmokeTest
             ScanSourcesForExitHints(r);
             V711Checks.AssetChecks(r);   // v7.1.1: lightmaps/texturas GPU
             V713Checks.AssetChecks(r);   // v7.1.3: agua/playa de la Poolrooms
+            {   // v7.2.0: Q/E no mueven al jugador (sin inclinarse); E queda para interactuar/reanimar
+                string fpcSrc = System.IO.File.ReadAllText("Assets/Scripts/FirstPersonController.cs");
+                r.Check(!fpcSrc.Contains("KeyCode.Q") && !fpcSrc.Contains("KeyCode.E"), "v7.2.0: el controlador del jugador no lee Q ni E (sin inclinarse)");
+            }
 
             for (int lv = 0; lv < LevelConfig.Count; lv++)
             {
@@ -2578,14 +2582,13 @@ public static class SmokePlayRunner
             pc.debugMove = Vector2.zero;
             yield return 1.2f;
             r.Check(!pc.IsCrouching && pc.EyeHeightNow > eye0 - 0.05f, "se levanta de nuevo");
-            // lean
+            // v7.2.0: Q/E ya no inclinan (antes «asomarse»): ni la cámara se desplaza ni rueda
             pc.Teleport(gm0.generator.PlayerStart, 0f);
             yield return 0.3f;
             pc.debugLean = 1f;
             yield return 0.8f;
-            r.Check(pc.Lean > 0.3f || true, "inclinación Q/E (valor " + pc.Lean.ToString("F2") + ", puede anularse junto a una pared)");
             float roll = Mathf.Abs(Mathf.DeltaAngle(0f, pcam.transform.localEulerAngles.z));
-            if (pc.Lean > 0.3f) r.Check(roll > 1f, "al inclinarse la cámara rueda (" + roll.ToString("F1") + "°)");
+            r.Check(Mathf.Abs(pc.Lean) < 0.01f && roll < 1.5f, "v7.2.0: sin inclinación con Q/E (valor " + pc.Lean.ToString("F2") + ", balanceo " + roll.ToString("F1") + "°)");
             pc.debugLean = 0f;
             // sway de linterna
             yield return 0.5f;
@@ -2978,6 +2981,11 @@ public static class SmokePlayRunner
             {   // v7.1.3: agua y playa de la Poolrooms
                 IEnumerator v13 = V713Checks.LevelChecks(r, tag, lv, cfg, gm);
                 while (v13.MoveNext()) yield return v13.Current;
+                gm = GameManager.Instance;
+            }
+            {   // v7.2.0: captura solo con camino libre (no a través de paredes de casa)
+                IEnumerator v20 = V720Checks.LevelChecks(r, tag, lv, cfg, gm);
+                while (v20.MoveNext()) yield return v20.Current;
                 gm = GameManager.Instance;
             }
 
