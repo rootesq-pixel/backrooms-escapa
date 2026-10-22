@@ -288,6 +288,14 @@ public static class V730Checks
                 Vector3 e = p.cameraPivot.position, dd = route[k] - e;
                 foreach (RaycastHit h in Physics.SphereCastAll(e - Vector3.up * 0.8f, 0.4f, dd.normalized, 2f, ~0, QueryTriggerInteraction.Ignore)) blk += h.collider.name + "@" + h.point.ToString("F1") + " ";
                 foreach (Collider c in Physics.OverlapSphere(p.transform.position + Vector3.up * 0.4f, 0.6f, ~0, QueryTriggerInteraction.Ignore)) blk += "[" + c.name + "]";
+                CharacterController cc = p.GetComponent<CharacterController>();
+                if (cc != null)
+                {
+                    Vector3 f0 = p.transform.position;
+                    foreach (Collider c in Physics.OverlapCapsule(f0 + Vector3.up * cc.radius, f0 + Vector3.up * (cc.height - cc.radius), cc.radius + 0.12f, ~0, QueryTriggerInteraction.Ignore)) if (c != cc) blk += "{cap:" + c.name + "}";
+                    blk += " h=" + cc.height.ToString("F2") + " r=" + cc.radius.ToString("F2") + " vel=" + cc.velocity.ToString("F2") + " flags=" + cc.collisionFlags;
+                }
+                blk += " swim=" + p.IsSwimming + " under=" + p.IsUnderwater + " free=" + p.freeSwim + " camfwd=" + p.cameraPivot.forward.ToString("F2") + " surf=" + WaterVolume.Active.SurfaceHeightAt(p.transform.position).ToString("F1");
                 r.Info(T + "atasco: objetivo " + route[k].ToString("F1") + ", choques: " + blk);
             }
             p.debugInput = false; p.debugJump = false; p.debugMove = Vector2.zero;
