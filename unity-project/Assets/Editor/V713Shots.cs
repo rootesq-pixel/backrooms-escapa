@@ -105,11 +105,11 @@ public static class V713Shots
         MeshRenderer bmr = root.GetComponent<MeshRenderer>();
         planar = PoolRoomSetPiece.Root.GetComponent<PoolPlanarReflection>();
         Info("PoolLook por defecto: tinte " + PoolLook.WaterTint + " abs " + PoolLook.WaterAbs + " disp " + PoolLook.WaterScatter + " ondas " + PoolLook.WaveP + " cáust " + PoolLook.CausticK + " playa " + PoolLook.DeckP + " ventanas " + PoolLook.WindowEmission);
-        Color l0 = PoolLook.LMTint; Vector4 t0 = PoolLook.WaterTint, a0 = PoolLook.WaterAbs, s0 = PoolLook.WaterScatter, w0 = PoolLook.WaveP, c0 = PoolLook.CausticK, d0 = PoolLook.DeckP; Color e0 = PoolLook.WindowEmission;
+        Color l0 = PoolLook.LMTint; Vector4 k0 = PoolLook.WaveK, t0 = PoolLook.WaterTint, a0 = PoolLook.WaterAbs, s0 = PoolLook.WaterScatter, w0 = PoolLook.WaveP, c0 = PoolLook.CausticK, d0 = PoolLook.DeckP; Color e0 = PoolLook.WindowEmission;
         for (int vi = 0; vi < variants.Length; vi++)
         {
         string vn = variants[vi].Split(':')[0], spec = variants[vi].Length > vn.Length ? variants[vi].Substring(vn.Length + 1) : "";
-        PoolLook.WaterTint = t0; PoolLook.WaterAbs = a0; PoolLook.WaterScatter = s0; PoolLook.WaveP = w0; PoolLook.CausticK = c0; PoolLook.DeckP = d0; PoolLook.WindowEmission = e0; PoolLook.LMTint = l0;
+        PoolLook.WaterTint = t0; PoolLook.WaterAbs = a0; PoolLook.WaterScatter = s0; PoolLook.WaveP = w0; PoolLook.CausticK = c0; PoolLook.DeckP = d0; PoolLook.WindowEmission = e0; PoolLook.LMTint = l0; PoolLook.WaveK = k0;
         PoolLook.Override(spec); PoolLook.Apply();
         if (bmr != null) PoolLook.ApplyMaterials(bmr.sharedMaterials);
         string vsuf = suf + (vn.Length > 0 ? "_" + vn : "");
@@ -117,7 +117,8 @@ public static class V713Shots
         foreach (View v in views)
         {
             Vector3 wp = root.TransformPoint(v.p), wtg = root.TransformPoint(v.t);
-            pw.Teleport(root.TransformPoint(new Vector3(v.p.x, DECK + 0.02f, v.p.z)) , Mathf.Atan2(wtg.x - wp.x, wtg.z - wp.z) * Mathf.Rad2Deg);
+            pw.Teleport(root.TransformPoint(B(-6.2f, -4.3f, 0.02f)),   // jugador en una esquina de la playa (sin ondas de chapuzón en las capturas)
+                 Mathf.Atan2(wtg.x - wp.x, wtg.z - wp.z) * Mathf.Rad2Deg);
             for (int k = 0; k < 20; k++) { cam.transform.position = wp; cam.transform.rotation = Quaternion.LookRotation(wtg - wp); cam.fieldOfView = v.fov; yield return 0.04f; }
             cam.transform.position = wp; cam.transform.rotation = Quaternion.LookRotation(wtg - wp); cam.fieldOfView = v.fov;
             if (planar != null) planar.Refresh(cam);

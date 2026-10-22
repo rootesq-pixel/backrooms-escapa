@@ -34,6 +34,7 @@ public static class SmokeTest
             TextureLibrary.ReleaseAll();
             ScanSourcesForExitHints(r);
             V711Checks.AssetChecks(r);   // v7.1.1: lightmaps/texturas GPU
+            V713Checks.AssetChecks(r);   // v7.1.3: agua/playa de la Poolrooms
 
             for (int lv = 0; lv < LevelConfig.Count; lv++)
             {
@@ -2951,6 +2952,11 @@ public static class SmokePlayRunner
             {   // v7.1.1: calidad GPU (lightmap en uso, paredes de piscina, tobogán)
                 IEnumerator v11 = V711Checks.LevelChecks(r, tag, lv, cfg, gm);
                 while (v11.MoveNext()) yield return v11.Current;
+                gm = GameManager.Instance;
+            }
+            {   // v7.1.3: agua y playa de la Poolrooms
+                IEnumerator v13 = V713Checks.LevelChecks(r, tag, lv, cfg, gm);
+                while (v13.MoveNext()) yield return v13.Current;
                 gm = GameManager.Instance;
             }
 

@@ -53,6 +53,7 @@ Shader "Hidden/BackroomsWater"
             float4 _PoolWaterTint;     // rgb: tinte del fondo visto a través del agua
             float4 _PoolWaterAbs;      // rgb: absorción por metro (pared/fondo), w: claridad global
             float4 _PoolWaterScatter;  // rgb: color de dispersión (luz que vuelve del agua), w: cantidad
+            float4 _PoolWaveK;         // x: k de la primera onda (rad/m), y: razón entre ondas, z: peso de los normal maps genéricos
             float4 _PoolWaveP;         // x: fuerza de las normales pequeñas, y: refracción física, z: distorsión del reflejo, w: brillo del reflejo
 
             struct appdata { float4 vertex : POSITION; float4 color : COLOR; };
@@ -136,14 +137,14 @@ Shader "Hidden/BackroomsWater"
                         float nNear = saturate(1.35 - length(_WorldSpaceCameraPos - i.wpos) / 24.0);
                         [unroll] for (int w = 0; w < 8; w++)
                         {
-                            float k = 5.5 * pow(1.27, w);
+                            float k = _PoolWaveK.x * pow(_PoolWaveK.y, w);
                             float ang = w * 2.39996 + 0.4;
                             float2 dir = float2(cos(ang), sin(ang));
                             float A = 0.0028 * 2.236 / pow(k / 6.0, 0.8);
                             float ph = dot(dir, i.wpos.xz) * k - sqrt(9.81 * k) * 0.55 * _WTime + w * 1.7;
                             sl += dir * (A * k * cos(ph));
                         }
-                        N = normalize(float3(0, 1, 0) * 0.35 + N * 0.65 - float3(sl.x, 0, sl.y) * _PoolWaveP.x * nNear);
+                        N = normalize(float3(0, 1, 0) * (1.0 - _PoolWaveK.z) + N * _PoolWaveK.z - float3(sl.x, 0, sl.y) * _PoolWaveP.x * nNear);
                     }
                 }
 

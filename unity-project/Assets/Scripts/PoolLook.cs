@@ -5,13 +5,14 @@ using UnityEngine;
 // (pool-render/pool_1..3.png) con capturas desde las mismas cámaras (Editor/V713Shots.cs).
 public static class PoolLook
 {
-    public static Vector4 WaterTint = new Vector4(0.90f, 1.04f, 1.29f, 1f);
+    public static Vector4 WaterTint = new Vector4(0.82f, 0.99f, 1.26f, 1f);
     public static Vector4 WaterAbs = new Vector4(0.10f, 0.03f, 0.025f, 1f);       // w = 1: modo v7.1.3 activo
     public static Vector4 WaterScatter = new Vector4(0.05f, 0.12f, 0.18f, 1f);
-    public static Vector4 WaveP = new Vector4(1.0f, 1.0f, 0.2f, 1.0f);          // normales finas, refracción, distorsión y brillo del reflejo
+    public static Vector4 WaveP = new Vector4(1.4f, 1.2f, 0.22f, 1.1f);          // normales finas, refracción, distorsión y brillo del reflejo
     public static Vector4 CausticK = new Vector4(0.12f, 0.35f, 0f, 1f);           // fondo desde fuera del agua, paredes, (cámara bajo el agua), activo
-    public static Vector4 DeckP = new Vector4(3.0f, 0.04f, 0.02f, 5f);            // reflejo planar del suelo: fuerza, F0, distorsión, mip por rugosidad
-    public static Color LMTint = new Color(1.02f, 1.1f, 1.3f);   // luz horneada algo más fría (Cycles: AgX, cielo Nishita)
+    public static Vector4 DeckP = new Vector4(2.5f, 0.04f, 0.02f, 5f);            // reflejo planar del suelo: fuerza, F0, distorsión, mip por rugosidad
+    public static Vector4 WaveK = new Vector4(3.2f, 1.25f, 0.2f, 0f);         // oleaje: k inicial, razón (8 ondas: 3,2-15 rad/m), peso de los normal maps
+    public static Color LMTint = new Color(0.94f, 1.03f, 1.32f);   // luz horneada algo más fría (Cycles: AgX, cielo Nishita)
     public static Color WindowEmission = new Color(3.4f, 3.55f, 3.7f);
     public const float DeckPlanar = 1f, PoolWaterBand = 0.85f;
 
@@ -21,6 +22,7 @@ public static class PoolLook
         Shader.SetGlobalVector("_PoolWaterAbs", WaterAbs);
         Shader.SetGlobalVector("_PoolWaterScatter", WaterScatter);
         Shader.SetGlobalVector("_PoolWaveP", WaveP);
+        Shader.SetGlobalVector("_PoolWaveK", WaveK);
         Shader.SetGlobalVector("_PoolCausticK", CausticK);
         Shader.SetGlobalVector("_PoolDeckP", DeckP);
     }
@@ -61,6 +63,7 @@ public static class PoolLook
                 case "WaterAbs": WaterAbs = x; break;
                 case "WaterScatter": WaterScatter = x; break;
                 case "WaveP": WaveP = x; break;
+                case "WaveK": WaveK = x; break;
                 case "CausticK": CausticK = x; break;
                 case "DeckP": DeckP = x; break;
                 case "LMTint": LMTint = new Color(x.x, x.y, x.z); break;
