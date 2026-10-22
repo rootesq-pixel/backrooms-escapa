@@ -3,7 +3,8 @@ using UnityEngine.Rendering;
 
 // v7.0 Campo infinito: pistas sutiles de la salida (solo la puerta real las tiene; los señuelos y las casas no):
 //  - un farol viejo en un poste junto a la puerta, con una bombilla que parpadea débilmente (visible entre la bruma de lejos);
-//  - un zumbido eléctrico con una emisora de radio mal sintonizada, 3D, audible desde ~80 m.
+//  - un zumbido eléctrico con estática de radio mal sintonizada, 3D, audible desde ~80 m.
+//    v7.2.0: sin la melodía que sonaba de fondo en la «radio» (petición del usuario: nada de música junto a la salida).
 // Es determinista por semilla salvo el parpadeo (cosmético, local).
 public class FieldExitBeacon : MonoBehaviour
 {
@@ -72,14 +73,15 @@ public class FieldExitBeacon : MonoBehaviour
         if (bulbMat != null) bulbMat.SetColor("_EmissionColor", new Color(2.2f, 1.8f, 1.1f) * k);
     }
 
-    // zumbido de red (50 Hz y armónicos) + radio lejana: ruido de banda estrecha con una melodía apagada y cortes
+    // zumbido de red (50 Hz y armónicos) + estática de radio (ruido de banda estrecha). v7.2.0: quitada la melodía de 8 notas
+    // (La3-Si3-Do4-Sol3-La3-Fa3-Sol3-Mi3, una por segundo) que se oía como música cerca de la puerta.
+    public const bool HasMelody = false;
     public static AudioClip CreateHum(int seed)
     {
         const int SR = 22050; int n = SR * 8;
         float[] d = new float[n];
         System.Random r = new System.Random(seed * 11 + 5);
-        float bp = 0f, bpv = 0f, ph = 0f;
-        float[] notes = { 220f, 246.9f, 261.6f, 196f, 220f, 174.6f, 196f, 164.8f };
+        float bp = 0f, bpv = 0f;
         for (int i = 0; i < n; i++)
         {
             float tt = i / (float)SR;
@@ -87,11 +89,8 @@ public class FieldExitBeacon : MonoBehaviour
             float w = (float)(r.NextDouble() * 2.0 - 1.0);
             float f = 1400f, wc = 2f * Mathf.Sin(Mathf.PI * f / SR);
             bp += wc * bpv; bpv += wc * (w * 0.08f - bp - 0.35f * bpv);
-            float note = notes[(int)(tt / 1f) % notes.Length];
-            ph += note / SR;
-            float tone = (Mathf.Sin(2f * Mathf.PI * ph) + 0.4f * Mathf.Sin(4f * Mathf.PI * ph)) * 0.18f * (0.5f + 0.5f * Mathf.Sin(2f * Mathf.PI * tt * 0.5f));
             float fade = Mathf.Clamp01(Mathf.Min(tt, 8f - tt) * 20f);   // sin clic en el bucle
-            d[i] = (hm * 0.55f + bp * 0.6f + tone) * (0.4f + 0.6f * fade);
+            d[i] = (hm * 0.55f + bp * 0.6f) * (0.4f + 0.6f * fade);
         }
         float mx = 1e-4f; for (int i = 0; i < n; i++) mx = Mathf.Max(mx, Mathf.Abs(d[i]));
         for (int i = 0; i < n; i++) d[i] *= 0.7f / mx;
