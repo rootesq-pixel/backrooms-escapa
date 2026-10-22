@@ -166,6 +166,15 @@ public static class V710Checks
                 if (pL > 0f) pitsOk++; pl += " " + pL.ToString("F0");
             }
             r.Check(pitsOk == f0.pits.Length, T + "se entra y se sale andando de cada piscina por los escalones (" + pitsOk + "/" + f0.pits.Length + ", m:" + pl + ", paredes recortadas " + BallpitSetPiece.OpenedPitMouths + ")");
+            {   // v7.1.1: TODOS los sitios de atrezo (no solo los dos que tocan con esta semilla) se alcanzan andando
+                int spOk = 0; string bad = "";
+                foreach (Vector3 sp in BallpitSetPiece.PropSpots)
+                {
+                    Vector3 w = f0.transform.TransformPoint(sp + new Vector3(0f, 0.1f, 0f));
+                    if (PathLen(home, w, 1.6f) > 0f || PlayerPathLen(hIn0, w) > 0f) spOk++; else bad += " " + sp;
+                }
+                r.Check(spOk == BallpitSetPiece.PropSpots.Length, T + "todos los sitios de atrezo para objetos se alcanzan andando: " + spOk + "/" + BallpitSetPiece.PropSpots.Length + bad);
+            }
         }
         ClearPlayerNav();
         r.Check(propItems >= 2 && propReach == propItems, T + "objetos en el atrezo de las salas, todos alcanzables: " + propReach + "/" + propItems);

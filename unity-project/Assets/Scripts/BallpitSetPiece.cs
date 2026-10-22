@@ -40,7 +40,8 @@ public static class BallpitSetPiece
     // atrezo (comprobado con una malla de navegación del tamaño del jugador): junto al mostrador, encima del mostrador, mesa y
     // rincón de la sala de fiestas, bajo la estructura, rincones de la zona infantil y de la sala
     public static readonly Vector3[] PropSpots = {
-        new Vector3(1.3f, 0f, -7.4f), new Vector3(-1.5f, 1.05f, -6.32f), new Vector3(6.75f, 0.6f, -6.4f), new Vector3(9.45f, 0f, -7.45f),
+        new Vector3(2.3f, 0f, -7.5f),   // v7.1.1: antes (1.3, -7.4), encajado entre la pared y un bloque de espuma que se movió al quitar los solapes
+        new Vector3(-1.5f, 1.05f, -6.32f), new Vector3(6.75f, 0.6f, -6.4f), new Vector3(9.45f, 0f, -7.45f),
         new Vector3(8.0f, 0.1f, -3.75f), new Vector3(-9.3f, 0f, -7.35f), new Vector3(3.0f, 0f, -3.0f), new Vector3(-8.0f, 0f, -3.5f) };
     // llave enterrada: dentro de una piscina, lejos de los escalones; asoma por la superficie de bolas
     public static Vector3 PitKeySpot(System.Random rng)
