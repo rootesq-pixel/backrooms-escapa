@@ -67,6 +67,19 @@ public static class ShaderVariantKeeper
         }
         else Debug.LogWarning("[ShaderVariantKeeper] No se encontró Assets/Resources/VHS/VhsPost.shader");
 
+        // v7.1.2: bolas instanciadas del Parque de bolas (el material se crea en runtime a partir de este .mat: sin él el build
+        // quitaba la variante INSTANCING_ON y en el ejecutable no se dibujaba ninguna bola)
+        Shader balls = AssetDatabase.LoadAssetAtPath<Shader>("Assets/Resources/Ballpit/BallInstanced.shader");
+        if (balls != null)
+        {
+            string bp = "Assets/Resources/Ballpit/BallInstancedKeeper.mat";
+            Material ex = AssetDatabase.LoadAssetAtPath<Material>(bp);   // se conserva (mismo GUID) y solo se corrige
+            if (ex == null) AssetDatabase.CreateAsset(new Material(balls) { enableInstancing = true }, bp);
+            else { ex.shader = balls; ex.enableInstancing = true; EditorUtility.SetDirty(ex); }
+            created++;
+        }
+        else Debug.LogError("[ShaderVariantKeeper] No se encontró Assets/Resources/Ballpit/BallInstanced.shader");
+
         AssetDatabase.SaveAssets();
         AssetDatabase.Refresh();
         Debug.Log("[ShaderVariantKeeper] Materiales de variantes: " + created);

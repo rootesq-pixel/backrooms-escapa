@@ -352,7 +352,7 @@ public static class BallpitSetPiece
             Mat("PlayPlastic", TB, sharedLm, PlasticYLinear, 0.65f), Mat("PlayPlastic", TB, sharedLm, PlasticBLinear, 0.65f),
             Mat("PlayNet", TB, sharedLm, Color.white, 0.1f, 0.45f, true),
             emit,
-            Mat("BallSurface", TB, sharedLm, new Color(0.11f, 0.10f, 0.10f), 0.05f),   // v7.1.1: fondo oscuro (sombra entre bolas)
+            Mat(null, null, sharedLm, new Color(0.09f, 0.08f, 0.08f), 0.05f),   // v7.1.2: fondo oscuro liso, sin la textura de bolas (antes «BallSurface»: parecía una foto/moqueta)
             metal,
             Mat("PartyAtlas", TB, sharedLm, Color.white, 0.15f, 0.5f, true) };
         sharedMesh = LoadBakedMesh(out sharedCol);
@@ -422,6 +422,7 @@ public class BallPitField : MonoBehaviour
     public static readonly List<BallPitField> All = new List<BallPitField>();
     static Mesh lod0, lod1; static Material mat;
     public static Material SharedMaterial { get { return mat; } }
+    public static bool MaterialFromKeeper { get; private set; }
     static readonly int PushersId = Shader.PropertyToID("_BallPushers");
     static readonly Vector4[] pushers = new Vector4[6];
     static int pusherFrame = -1, lowFrame = -1; static bool lowQ;
@@ -437,8 +438,13 @@ public class BallPitField : MonoBehaviour
         if (lod0 == null) { lod0 = Ico(1); lod1 = Ico(0); }
         if (mat == null)
         {
+            // v7.1.2: el material sale de un .mat de Resources con instancing activado. Antes se creaba solo en runtime y el build
+            // (GraphicsSettings: Instancing Variants = Strip Unused) eliminaba la variante INSTANCING_ON: en el ejecutable no se
+            // dibujaba ninguna bola y se veía el fondo plano. Con el .mat referenciado la variante va siempre en el build.
+            Material keep = Resources.Load<Material>("Ballpit/BallInstancedKeeper");
             Shader sh = Shader.Find("Backrooms/BallInstanced");
-            mat = new Material(sh != null ? sh : Shader.Find("Standard")) { name = "BallInstanced", enableInstancing = true };
+            mat = keep != null ? new Material(keep) : new Material(sh != null ? sh : Shader.Find("Standard"));
+            mat.name = "BallInstanced"; mat.enableInstancing = true; MaterialFromKeeper = keep != null;
         }
         System.Random rnd = new System.Random(seed);
         Transform tr = transform;
@@ -704,6 +710,58 @@ public class BallPitField : MonoBehaviour
             }
         }
         return tot > 0 ? hit / (float)tot : 0f;
+    }
+    // v7.1.2 (pruebas): réplica exacta en CPU del desplazamiento que hace BallInstanced.shader en el vértice (bola de centro c)
+    public static Vector3 OffsetAt(Vector3 c, float t, float topY, float dyn)
+    {
+        Vector3 off = Vector3.zero;
+        float h = Frac(Mathf.Sin(c.x * 12.9898f + c.z * 78.233f) * 43758.5453f);
+        float sink = Mathf.Clamp01((topY - c.y) / 0.2f);
+        float amb = Shader.GetGlobalFloat(AmbientId) * dyn * (1f - 0.55f * sink);
+        float sw = Mathf.Sin(c.x * 1.9f + c.z * 1.2f - t * 0.85f) * 0.6f + Mathf.Sin(-c.x * 1.1f + c.z * 2.6f - t * 1.27f + 1.3f) * 0.4f;
+        off.y += amb * (0.016f * sw + 0.009f * Mathf.Sin(t * (1.5f + h * 1.6f) + h * 6.2832f));
+        off.x += amb * 0.007f * Mathf.Sin(t * (1.1f + h) + h * 12.1f); off.z += amb * 0.007f * Mathf.Cos(t * (1.35f + h * 0.8f) + h * 9.3f);
+        int rn = (int)Shader.GetGlobalFloat(RippleNId);
+        for (int j = 0; j < 8 && j < rn; j++)
+        {
+            Vector4 q = ripples[j];
+            if (q.w <= 0f || Mathf.Abs(c.y - q.y) > 1.2f) continue;
+            float age = t - q.w; if (age < 0f || age > 2.6f) continue;
+            Vector2 dq = new Vector2(c.x - q.x, c.z - q.z); float rq = dq.magnitude + 1e-4f;
+            float x = rq - (0.35f + age * 1.15f);
+            float env = Mathf.Exp(-x * x * 22f) * Mathf.Exp(-age * 1.35f) * Mathf.Clamp01(1.5f - rq * 0.32f) * dyn * (1f - 0.5f * sink);
+            off.y += 0.032f * env * Mathf.Cos(x * 16f);
+            off.x += dq.x / rq * 0.014f * env; off.z += dq.y / rq * 0.014f * env;
+        }
+        for (int i = 0; i < 6; i++)
+        {
+            Vector4 p = pushers[i];
+            if (p.w == 0f || Mathf.Abs(c.y - p.y) > 1.2f) continue;
+            Vector2 d = new Vector2(c.x - p.x, c.z - p.z); float r = d.magnitude + 1e-4f, R = Mathf.Abs(p.w);
+            float k = Mathf.Clamp01(1f - r / R);
+            if (p.w < 0f) { off.y += k * k * (3f - 2f * k) * 0.24f * dyn; off.x += d.x / r * k * (1f - k) * 0.12f * dyn; off.z += d.y / r * k * (1f - k) * 0.12f * dyn; continue; }
+            float ring = Mathf.Clamp01(1f - Mathf.Abs(r - R * 1.1f) / (R * 0.5f));
+            float k2 = Mathf.Clamp01(1f - r / (R * 2.2f));
+            float hor = (Mathf.Pow(k, 1.3f) * R * 0.85f + k2 * k2 * 0.05f) * dyn;
+            off.x += d.x / r * hor; off.z += d.y / r * hor;
+            off.y += (ring * 0.07f - k * 0.17f + k2 * k2 * 0.02f) * dyn;
+        }
+        return off;
+    }
+    static float Frac(float v) { return v - Mathf.Floor(v); }
+    // centros (mundo) de las bolas de la capa de arriba a menos de rmax (en planta) de p, con la altura de su superficie
+    public void TopBallsNear(Vector3 p, float rmax, List<Vector3> centers, List<float> tops)
+    {
+        foreach (TileData td in tiles)
+        {
+            if (td.b.SqrDistance(new Vector3(p.x, td.b.center.y, p.z)) > rmax * rmax) continue;
+            float top = td.mpb.GetFloat("_TopY");
+            for (int i = 0; i < td.layerEnd[0]; i++)
+            {
+                Vector3 c = new Vector3(td.m[i].m03, td.m[i].m13, td.m[i].m23);
+                if (new Vector2(c.x - p.x, c.z - p.z).sqrMagnitude <= rmax * rmax) { centers.Add(c); tops.Add(top); }
+            }
+        }
     }
     public bool TilesAnimated { get { foreach (TileData td in tiles) if (td.mpb.GetFloat("_Dyn") < 0.5f) return false; return tiles.Count > 0; } }
     public int LastVisible { get; private set; }

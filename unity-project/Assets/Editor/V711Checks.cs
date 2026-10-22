@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 
 // v7.1.1 «calidad GPU»: lightmaps de 4096 horneados en la GPU (Bajo: 2048), texturas PBR de 4096 en el Nivel 0, sondas y
@@ -41,6 +42,12 @@ public static class V711Checks
                 if (g / Mathf.Max(1, cnt) / 255.0 > 0.4) good++; else bad += " " + n;
             }
             r.Check(good == all.Length, T + "máscaras PBR con oclusión válida (G media > 0.4): " + good + "/" + all.Length + bad);
+        }
+        {   // v7.1.2: sin este .mat el build quitaba la variante con instancing y en el ejecutable no se dibujaba ninguna bola
+            Material km = Resources.Load<Material>("Ballpit/BallInstancedKeeper");
+            r.Check(km != null && km.enableInstancing && km.shader != null && km.shader.name == "Backrooms/BallInstanced", T + "bolas: Resources/Ballpit/BallInstancedKeeper.mat existe con instancing (conserva INSTANCING_ON en el build)");
+            string gs = System.IO.File.ReadAllText("ProjectSettings/GraphicsSettings.asset");
+            r.Info(T + "GraphicsSettings: " + (gs.Contains("m_InstancingStripping: 0") ? "Instancing Variants = Strip Unused (por eso hace falta el .mat)" : "Instancing Variants distinto de Strip Unused"));
         }
     }
     [System.Serializable] class ProbesJ { public ProbeJ[] probes; }
@@ -100,7 +107,7 @@ public static class V711Checks
         // ---------------- bolas (v7.1.1): todas se mueven, sin capa plana «foto» visible, presupuesto ----------------
         if (BallPitField.All.Count == 0) yield break;
         BallPitField f0 = BallPitField.All[0];
-        float cov = f0.TopCoverage(4000, 2, 0.003f);
+        float cov = f0.TopCoverage(4000, 2, 0.007f);   // v7.1.2: margen = vaivén lateral propio de cada bola
         r.Check(cov >= 0.975f, T + "bolas: desde arriba no se ve la capa plana ni el fondo (las 2 capas que siempre se dibujan tapan el " + (cov * 100f).ToString("F2") + " %)");
         {
             int[] bt = m.GetTriangles(BallpitSetPiece.M_BALL); float maxRel = -9f, minFloor = 9f; int nb = 0;
@@ -137,6 +144,30 @@ public static class V711Checks
         int rips = BallPitField.RipplesEmitted - rip0;
         r.Check(rips >= 3 && BallPitField.RippleCount > 0, T + "bolas: al vadear salen ondas que recorren la piscina (" + rips + " ondas, activas " + BallPitField.RippleCount + ")");
         r.Check(GameSettings.Quality == 0 || maxRoll > 0, T + "bolas: algunas salen rodando por la superficie (" + maxRoll + " a la vez)");
+        {   // v7.1.2: desplazamiento real de las bolas (réplica en CPU del shader) junto al jugador parado en la piscina y vaivén lejos
+            Material bm = BallPitField.SharedMaterial;
+            r.Check(bm != null && bm.enableInstancing && BallPitField.MaterialFromKeeper && bm.shader != null && bm.shader.name == "Backrooms/BallInstanced",
+                T + "bolas: material instanciado creado desde Resources/Ballpit/BallInstancedKeeper.mat (la variante con instancing va en el build)");
+            yield return 0.4f;
+            Vector3 pp = fpc.transform.position;
+            List<Vector3> cs = new List<Vector3>(); List<float> tops = new List<float>();
+            f0.TopBallsNear(pp, 1.2f, cs, tops);
+            float tt = Time.timeSinceLevelLoad; int nN = 0, nR = 0; float sN = 0f, sR = 0f, minN = 9f;
+            for (int i = 0; i < cs.Count; i++)
+            {
+                float rr = new Vector2(cs[i].x - pp.x, cs[i].z - pp.z).magnitude;
+                Vector3 o = BallPitField.OffsetAt(cs[i], tt, tops[i], 1f); float hz = new Vector2(o.x, o.z).magnitude;
+                if (rr < 0.3f) { nN++; sN += hz; minN = Mathf.Min(minN, hz); }
+                else if (rr > 0.7f && rr < 1.1f) { nR++; sR += hz; }
+            }
+            r.Check(nN >= 5 && sN / nN > 0.15f && minN > 0.05f, T + "bolas: junto al jugador se apartan de verdad (" + nN + " bolas a < 0,3 m: media " + (nN > 0 ? sN / nN : 0f).ToString("F2") + " m, mín. " + minN.ToString("F2") + " m)");
+            r.Check(nR >= 5 && sR / nR > 0.012f, T + "bolas: a 0,7-1,1 m también se apartan en cadena (" + nR + " bolas, media " + (nR > 0 ? sR / nR : 0f).ToString("F3") + " m)");
+            Vector3 pf = f0.transform.TransformPoint(new Vector3(inner.xMax - 0.8f, pit.ball, inner.yMax - 0.8f));
+            cs.Clear(); tops.Clear(); f0.TopBallsNear(pf, 0.6f, cs, tops);
+            int mv = 0; float sm = 0f;
+            for (int i = 0; i < cs.Count; i++) { float dm = (BallPitField.OffsetAt(cs[i], tt + 0.5f, tops[i], 1f) - BallPitField.OffsetAt(cs[i], tt, tops[i], 1f)).magnitude; sm += dm; if (dm > 0.002f) mv++; }
+            r.Check(cs.Count >= 20 && mv >= cs.Count * 0.97f && sm / cs.Count > 0.008f, T + "bolas: lejos de todos, todas se mecen solas (" + mv + "/" + cs.Count + " se mueven > 2 mm en 0,5 s, media " + (cs.Count > 0 ? sm / cs.Count * 1000f : 0f).ToString("F1") + " mm)");
+        }
         {   // un monstruo dentro de la piscina también aparta bolas y hace ondas
             MonsterAI mon = null; foreach (MonsterAI mm in MonsterAI.Instances) if (mm != null && mm.gameObject.activeInHierarchy) { mon = mm; break; }
             if (mon != null)

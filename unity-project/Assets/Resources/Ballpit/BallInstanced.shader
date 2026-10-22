@@ -44,8 +44,8 @@ Shader "Backrooms/BallInstanced"
             float amb = _BallAmbient * _Dyn * (1 - 0.55 * sink);
             // v7.1.1: ninguna bola quieta: oleaje lento que recorre la piscina + vaivén propio de cada bola (fase por instancia)
             float sw = sin(dot(c.xz, float2(1.9, 1.2)) - t * 0.85) * 0.6 + sin(dot(c.xz, float2(-1.1, 2.6)) - t * 1.27 + 1.3) * 0.4;
-            off.y += amb * (0.0075 * sw + 0.0055 * sin(t * (1.5 + h * 1.6) + h * 6.2832));
-            off.xz += amb * 0.0045 * float2(sin(t * (1.1 + h) + h * 12.1), cos(t * (1.35 + h * 0.8) + h * 9.3));
+            off.y += amb * (0.016 * sw + 0.009 * sin(t * (1.5 + h * 1.6) + h * 6.2832));   // v7.1.2: más amplitud (antes 0.0075 / 0.0055: no se notaba)
+            off.xz += amb * 0.007 * float2(sin(t * (1.1 + h) + h * 12.1), cos(t * (1.35 + h * 0.8) + h * 9.3));
             for (int j = 0; j < 8; j++)
             {
                 if (j >= _BallRippleN) break;
