@@ -18,6 +18,9 @@ public class LightCuller : MonoBehaviour
     private bool[] wanted = new bool[0];
 
     public int FixtureCount { get { return fixtures.Count; } }
+    const float LitThreshold = 0.01f;   // = umbral con el que FlickeringLight enciende la luz real
+    // luces que pueden estar encendidas ahora mismo según el fundido (no depende del orden de Update con FlickeringLight)
+    public int LitByFade { get { int c = 0; foreach (FlickeringLight f in fixtures) if (f != null && f.externalFade > LitThreshold) c++; return c; } }
 
     public int ActiveCount
     {
@@ -53,16 +56,24 @@ public class LightCuller : MonoBehaviour
             Evaluate(false);
         }
 
+        // v7.1.2: el límite se respeta también durante el fundido. Antes la luz que se apagaba y la que se encendía
+        // estaban a la vez encendidas (maxActive + 1 luces reales al moverse). Ahora una luz nueva solo empieza a
+        // encenderse cuando hay hueco: primero se apagan las que sobran y después se encienden las nuevas.
         float step = fadeSpeed * Time.deltaTime;
+        int lit = 0;
         for (int i = 0; i < fixtures.Count && i < wanted.Length; i++)
         {
             FlickeringLight f = fixtures[i];
             if (f == null) continue;
-            float target = wanted[i] ? 1f : 0f;
-            if (!Mathf.Approximately(f.externalFade, target))
-            {
-                f.externalFade = Mathf.MoveTowards(f.externalFade, target, step);
-            }
+            if (!wanted[i] && f.externalFade > 0f) f.externalFade = Mathf.MoveTowards(f.externalFade, 0f, step);
+            if (f.externalFade > LitThreshold) lit++;
+        }
+        for (int i = 0; i < fixtures.Count && i < wanted.Length; i++)
+        {
+            FlickeringLight f = fixtures[i];
+            if (f == null || !wanted[i] || f.externalFade >= 1f) continue;
+            if (f.externalFade <= LitThreshold) { if (lit >= maxActive) continue; lit++; }
+            f.externalFade = Mathf.MoveTowards(f.externalFade, 1f, step);
         }
     }
 

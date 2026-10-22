@@ -2908,6 +2908,21 @@ public static class SmokePlayRunner
             {
                 int active = culler.ActiveCount;
                 r.Check(active <= cfg.maxRealtimeLights, tag + "luces de accesorios activas " + active + " <= " + cfg.maxRealtimeLights + " (de " + culler.FixtureCount + ")");
+                // v7.1.2: también al moverse (antes, durante el fundido, la luz que se apagaba y la nueva iban a la vez: N+1)
+                // se mueve solo el punto de vista del limitador (el jugador no se teletransporta: nada de salidas, pilas ni monstruos)
+                Transform v0 = culler.viewer; Vector3 home = v0 != null ? v0.position : gm.player.transform.position;
+                Transform probe = new GameObject("LightCullerProbe").transform; probe.position = home; culler.viewer = probe;
+                int maxLit = 0, maxEnabled = 0; float tw = 0f;
+                while (tw < 3f)
+                {
+                    tw += Time.deltaTime;
+                    probe.position = home + new Vector3(Mathf.Sin(tw * 1.3f), 0f, Mathf.Cos(tw * 0.9f)) * (tw * 8f);   // espiral de 24 m
+                    yield return null;
+                    maxLit = Mathf.Max(maxLit, culler.LitByFade); maxEnabled = Mathf.Max(maxEnabled, culler.ActiveCount);
+                }
+                culler.viewer = v0; UnityEngine.Object.Destroy(probe.gameObject);
+                yield return 1.0f;
+                r.Check(maxLit <= cfg.maxRealtimeLights && maxEnabled <= cfg.maxRealtimeLights, tag + "luces de accesorios al moverse: máximo " + maxEnabled + " encendidas (" + maxLit + " por fundido) <= " + cfg.maxRealtimeLights);
             }
             else r.Check(cfg.layout == LayoutKind.Field, tag + "sin accesorios de techo solo en el campo (exterior)");
             int allLights = 0;
