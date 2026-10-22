@@ -326,9 +326,10 @@ public class PoolPlanarReflection : MonoBehaviour
 
     private void OnDisable() { Shader.SetGlobalFloat(OnId, 0f); PoolLook.Clear(); if (rt != null) { rt.Release(); Destroy(rt); rt = null; } if (rc != null) Destroy(rc.gameObject); }
 
-    private void LateUpdate()
+    private void LateUpdate() { Refresh(Camera.main); }
+
+    public void Refresh(Camera cam)   // v7.1.3: público para las capturas (Editor/V713Shots.cs)
     {
-        Camera cam = Camera.main;
         // v7.1.3: cáusticas del fondo enteras solo con la cámara bajo el agua
         Vector4 ck = PoolLook.CausticK; ck.z = cam != null && cam.transform.position.y < waterY ? 1f : 0f;
         Shader.SetGlobalVector(CkId, ck);

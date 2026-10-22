@@ -41,6 +41,7 @@ public static class V713Shots
         Directory.CreateDirectory(Dir); File.WriteAllBytes(Dir + "/" + name + ".png", t.EncodeToPNG());
         RenderTexture.active = null; cam.targetTexture = prev; Object.DestroyImmediate(rt); Object.DestroyImmediate(t);
     }
+    static PoolPlanarReflection planar;
     static double PerfMs(Camera cam, int n)
     {
         RenderTexture rt = new RenderTexture(1920, 1080, 24); Texture2D px = new Texture2D(1, 1, TextureFormat.RGB24, false);
@@ -49,6 +50,7 @@ public static class V713Shots
         for (int i = 0; i < n + 5; i++)
         {
             var sw = System.Diagnostics.Stopwatch.StartNew();
+            if (planar != null) { cam.targetTexture = null; planar.Refresh(cam); cam.targetTexture = rt; }
             cam.Render(); RenderTexture.active = rt; px.ReadPixels(new Rect(0, 0, 1, 1), 0, 0); px.Apply();
             if (i >= 5) ts.Add(sw.Elapsed.TotalMilliseconds);
         }
@@ -101,6 +103,7 @@ public static class V713Shots
         string vs = System.Environment.GetEnvironmentVariable("V713_VARIANTS");
         string[] variants = string.IsNullOrEmpty(vs) ? new[] { ":" } : vs.Split('|');
         MeshRenderer bmr = root.GetComponent<MeshRenderer>();
+        planar = PoolRoomSetPiece.Root.GetComponent<PoolPlanarReflection>();
         Info("PoolLook por defecto: tinte " + PoolLook.WaterTint + " abs " + PoolLook.WaterAbs + " disp " + PoolLook.WaterScatter + " ondas " + PoolLook.WaveP + " cáust " + PoolLook.CausticK + " playa " + PoolLook.DeckP + " ventanas " + PoolLook.WindowEmission);
         Color l0 = PoolLook.LMTint; Vector4 t0 = PoolLook.WaterTint, a0 = PoolLook.WaterAbs, s0 = PoolLook.WaterScatter, w0 = PoolLook.WaveP, c0 = PoolLook.CausticK, d0 = PoolLook.DeckP; Color e0 = PoolLook.WindowEmission;
         for (int vi = 0; vi < variants.Length; vi++)
@@ -117,6 +120,7 @@ public static class V713Shots
             pw.Teleport(root.TransformPoint(new Vector3(v.p.x, DECK + 0.02f, v.p.z)) , Mathf.Atan2(wtg.x - wp.x, wtg.z - wp.z) * Mathf.Rad2Deg);
             for (int k = 0; k < 20; k++) { cam.transform.position = wp; cam.transform.rotation = Quaternion.LookRotation(wtg - wp); cam.fieldOfView = v.fov; yield return 0.04f; }
             cam.transform.position = wp; cam.transform.rotation = Quaternion.LookRotation(wtg - wp); cam.fieldOfView = v.fov;
+            if (planar != null) planar.Refresh(cam);
             Shot(cam, v.n + vsuf);
             if (vi == 0)
             {   // depuración: textura del reflejo planar tal como la ve el agua
@@ -141,6 +145,7 @@ public static class V713Shots
                 cam.transform.position = wp; cam.transform.rotation = Quaternion.LookRotation(wtg - wp); cam.fieldOfView = v.fov;
                 yield return 0.25f;
                 cam.transform.position = wp; cam.transform.rotation = Quaternion.LookRotation(wtg - wp); cam.fieldOfView = v.fov;
+                if (planar != null) planar.Refresh(cam);
                 Shot(cam, "seq_" + k + suf, 960, 540);
             }
         }
