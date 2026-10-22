@@ -11,16 +11,18 @@ public static class V730Checks
     // espera hasta cond o tope (segundos de juego)
     static IEnumerator WaitFor(System.Func<bool> cond, float max)
     {
-        float t = 0f;
-        while (t < max && !cond()) { yield return null; t += Time.deltaTime; }
+        float end = Time.time + max;   // tiempo de juego (el editor puede dar varias vueltas por fotograma)
+        while (Time.time < end && !cond()) yield return null;
     }
 
     static IEnumerator Reload(SmokeTest.Report r, string T, string why)
     {
         GameBootstrap gb = GameBootstrap.Instance;
         int loads = gb.LoadCount;
-        yield return WaitFor(() => gb.LoadCount > loads && gb.IsLoaded && GameManager.Instance != null && OceanWorld.Active != null && OceanPlayer.Local != null, 90f);
-        r.Check(gb.CurrentLevel == 7 && OceanWorld.Active != null && GameManager.Instance.State == GameManager.GameState.Playing, T + "tras " + why + " se reinicia Talasofobia");
+        float rt0 = Time.realtimeSinceStartup;
+        while (gb.LoadCount == loads && Time.realtimeSinceStartup - rt0 < 30f) yield return null;
+        { IEnumerator wf1 = WaitFor(() => gb.LoadCount > loads && gb.IsLoaded && GameManager.Instance != null && OceanWorld.Active != null && OceanPlayer.Local != null, 90f); while (wf1.MoveNext()) yield return wf1.Current; }
+        r.Check(gb.LoadCount > loads && gb.CurrentLevel == 7 && OceanWorld.Active != null && GameManager.Instance.State == GameManager.GameState.Playing, T + "tras " + why + " se reinicia Talasofobia");
         yield return 0.6f;
         GameManager.Instance.lostRestartSeconds = 0.3f;
     }
@@ -71,7 +73,7 @@ public static class V730Checks
             p.Teleport(new Vector3(11.25f, -0.8f, 28.1f), 180f);
             yield return 0.4f;
             p.debugInput = true; p.debugMove = new Vector2(0f, 1f);
-            float t0 = 0f, ymax = -9f; while (t0 < 7f) { yield return null; t0 += Time.deltaTime; ymax = Mathf.Max(ymax, p.transform.position.y); }
+            float t0 = Time.time + 7f, ymax = -9f; while (Time.time < t0) { yield return null; ymax = Mathf.Max(ymax, p.transform.position.y); }
             p.debugInput = false; p.debugMove = Vector2.zero;
             r.Check(ymax > 2.6f, T + "la escalera de la casa inundada sube al piso de arriba (altura " + ymax.ToString("F2") + ")");
         }
@@ -80,7 +82,7 @@ public static class V730Checks
         {
             Inventory inv = Inventory.Instance;
             p.Teleport(w.FlareSpot + Vector3.up * 0.05f, 0f);
-            yield return WaitFor(() => inv.GetCount(ItemType.FlareGun) > 0, 3f);
+            { IEnumerator wf2 = WaitFor(() => inv.GetCount(ItemType.FlareGun) > 0, 3f); while (wf2.MoveNext()) yield return wf2.Current; }
             int n = inv.GetCount(ItemType.FlareGun);
             r.Check(n == 3, T + "se recoge la pistola de bengalas (" + n + " bengalas)");
             int slot = -1; for (int i = 0; i < Inventory.SlotCount; i++) if (inv.GetSlot(i).type == ItemType.FlareGun) slot = i;
@@ -123,8 +125,8 @@ public static class V730Checks
             float air = op.Air01;
             r.Check(p.IsUnderwater && air < 0.9f && air > 0.6f, T + "buceando sin casco se gasta el aire (" + air.ToString("F2") + ")");
             p.debugCrouch = false;
-            yield return 2.5f;
-            r.Check(!p.IsUnderwater && op.Air01 > air + 0.1f, T + "en la superficie se recupera el aire (" + op.Air01.ToString("F2") + ")");
+            { IEnumerator wf3 = WaitFor(() => op.Air01 > air + 0.15f, 6f); while (wf3.MoveNext()) yield return wf3.Current; }
+            r.Check(!p.IsUnderwater && op.Air01 > air + 0.1f, T + "en la superficie se recupera el aire (" + op.Air01.ToString("F2") + ", bajo el agua " + p.IsUnderwater + ", pies " + p.transform.position.y.ToString("F2") + ")");
             p.debugInput = false;
         }
 
@@ -140,7 +142,7 @@ public static class V730Checks
             r.Check(b.LocalSeat == 0 && p.IsMounted, T + "E: sube a la barca (asiento del conductor)");
             Vector3 b0 = b.transform.position;
             p.debugInput = true; p.debugMove = new Vector2(0f, 1f);
-            float vmax = 0f, tt = 0f; while (tt < 6f) { yield return null; tt += Time.deltaTime; vmax = Mathf.Max(vmax, b.speed); }
+            float vmax = 0f, tt = Time.time + 6f; while (Time.time < tt) { yield return null; vmax = Mathf.Max(vmax, b.speed); }
             float dist = Vector3.Distance(b0, b.transform.position);
             r.Check(dist > 3f && vmax <= OceanBoat.MaxSpeed + 0.05f && vmax < p.swimSpeed, T + "conduce la barca (" + dist.ToString("F1") + " m; máx " + vmax.ToString("F2") + " m/s, nadando " + p.swimSpeed.ToString("F1") + ")");
             r.Check(Vector3.Distance(p.transform.position, b.transform.position) < 2.5f, T + "el jugador va en la barca");
@@ -169,8 +171,8 @@ public static class V730Checks
             Freeze(w, true, false);
             OceanFishSchool.Fish fz = w.fish.fish[1];
             fz.pos = p.transform.position + new Vector3(5f, -1.5f, 0f); fz.state = OceanFishSchool.FishState.Charge; fz.target = OceanNet.LocalId; fz.t = 0f;
-            yield return WaitFor(() => gm.State != GameManager.GameState.Playing, 5f);
-            r.Check(gm.State == GameManager.GameState.Lost && gm.LastDeathReason == OceanNet.KillText(OceanNet.KillFish), T + "un pez que embiste muerde y mata (\"" + gm.LastDeathReason + "\")");
+            { IEnumerator wf4 = WaitFor(() => gm.State != GameManager.GameState.Playing, 5f); while (wf4.MoveNext()) yield return wf4.Current; }
+            r.Check(gm.State == GameManager.GameState.Lost && gm.LastDeathReason == OceanNet.KillText(OceanNet.KillFish), T + "un pez que embiste muerde y mata (\"" + gm.LastDeathReason + "\"; " + gm.State + ", pez " + fz.state + " a " + Vector3.Distance(fz.pos, p.transform.position).ToString("F1") + " m, nadando " + p.IsSwimming + ", mordiscos " + w.fish.Bites + ")");
             IEnumerator rl = Reload(r, T, "el mordisco"); while (rl.MoveNext()) yield return rl.Current;
             gm = GameManager.Instance; w = OceanWorld.Active; p = gm.player; op = OceanPlayer.Local; Freeze(w, false, false);
         }
@@ -180,9 +182,9 @@ public static class V730Checks
             p.Teleport(open, 0f);
             yield return 0.8f;
             p.debugInput = true; p.debugCrouch = true;
-            yield return WaitFor(() => gm.State != GameManager.GameState.Playing, OceanPlayer.BreathSeconds + OceanPlayer.DrownGrace + 6f);
+            { IEnumerator wf5 = WaitFor(() => gm.State != GameManager.GameState.Playing, OceanPlayer.BreathSeconds + OceanPlayer.DrownGrace + 6f); while (wf5.MoveNext()) yield return wf5.Current; }
             p.debugCrouch = false; p.debugInput = false;
-            r.Check(gm.State == GameManager.GameState.Lost && gm.LastDeathReason == OceanNet.KillText(OceanNet.KillDrown), T + "sin aire te ahogas (\"" + gm.LastDeathReason + "\")");
+            r.Check(gm.State == GameManager.GameState.Lost && gm.LastDeathReason == OceanNet.KillText(OceanNet.KillDrown), T + "sin aire te ahogas (\"" + gm.LastDeathReason + "\"; " + gm.State + ", aire " + op.Air01.ToString("F2") + ", bajo el agua " + p.IsUnderwater + ", pies " + p.transform.position.y.ToString("F2") + ")");
             IEnumerator rl = Reload(r, T, "ahogarse"); while (rl.MoveNext()) yield return rl.Current;
             gm = GameManager.Instance; w = OceanWorld.Active; p = gm.player; op = OceanPlayer.Local; Freeze(w, false, false);
         }
@@ -193,7 +195,7 @@ public static class V730Checks
             yield return 0.5f;
             r.Check(w.lighthouse.On, T + "el faro se enciende al acercarse");
             p.debugInput = true; p.debugMove = new Vector2(0f, 1f);
-            float t0 = 0f, ymax = -9f; while (t0 < 6f) { yield return null; t0 += Time.deltaTime; ymax = Mathf.Max(ymax, p.transform.position.y); }
+            float t0 = Time.time + 6f, ymax = -9f; while (Time.time < t0) { yield return null; ymax = Mathf.Max(ymax, p.transform.position.y); }
             p.debugInput = false; p.debugMove = Vector2.zero;
             r.Check(ymax > OceanWorld.PierY - 0.2f && !p.IsSwimming, T + "la escalera del muelle saca del agua (altura " + ymax.ToString("F2") + ")");
         }
@@ -212,18 +214,18 @@ public static class V730Checks
             op.debugHold = true;
             yield return 0.5f;
             bool partial = !op.HasHelmet && op.HelmetHold01 > 0.2f;
-            yield return WaitFor(() => op.HasHelmet, 3f);
+            { IEnumerator wf6 = WaitFor(() => op.HasHelmet, 3f); while (wf6.MoveNext()) yield return wf6.Current; }
             op.debugHold = false;
-            r.Check(partial && op.HasHelmet && w.rack.TakenCount == 1, T + "manteniendo clic izquierdo se pone el casco de buzo");
+            r.Check(partial && op.HasHelmet && w.rack.TakenCount == 1, T + "manteniendo clic izquierdo se pone el casco de buzo (parcial " + partial + ", aviso \"" + op.Prompt + "\", cámara " + op.cam.transform.position.ToString("F2") + ")");
             r.Check(op.flashlight != null && op.flashlight.IsOn && op.flashlight.range >= 15f && p.freeSwim, T + "el casco lleva lámpara encendida y permite nadar bajo el agua");
             p.SetPitch(0f);
         }
         {
             p.Teleport(OceanWorld.CageTop + Vector3.up * 0.08f, 270f);
-            yield return WaitFor(() => cage.State == OceanCage.CageState.Descending, 8f);
+            { IEnumerator wf7 = WaitFor(() => cage.State == OceanCage.CageState.Descending, 8f); while (wf7.MoveNext()) yield return wf7.Current; }
             r.Check(cage.State == OceanCage.CageState.Descending && p.IsMounted, T + "con casco la jaula se cierra y baja (con el jugador dentro)");
             float tD = Clock();
-            yield return WaitFor(() => cage.State == OceanCage.CageState.BottomOpen, 40f);
+            { IEnumerator wf8 = WaitFor(() => cage.State == OceanCage.CageState.BottomOpen, 40f); while (wf8.MoveNext()) yield return wf8.Current; }
             yield return 1.6f;
             Vector3 pp = p.transform.position;
             r.Check(cage.State == OceanCage.CageState.BottomOpen && !p.IsMounted && pp.y < -40f, T + "la jaula llega al fondo y se abre (" + pp.y.ToString("F1") + " m, " + (Clock() - tD).ToString("F0") + " s)");
@@ -241,7 +243,7 @@ public static class V730Checks
             r.Check(an.State != OceanAngler.AState.Hunt, T + "El Farolero no ve a 10 m con la lámpara apagada (" + an.State + ")");
             op.flashlight.SetOn(true);
             an.ForceForTests(ap, OceanAngler.AState.Patrol);
-            yield return WaitFor(() => an.State == OceanAngler.AState.Hunt, 2f);
+            { IEnumerator wf9 = WaitFor(() => an.State == OceanAngler.AState.Hunt, 2f); while (wf9.MoveNext()) yield return wf9.Current; }
             r.Check(an.State == OceanAngler.AState.Hunt, T + "con la lámpara encendida El Farolero te detecta a 10 m y caza");
             Freeze(w, false, false);
             an.ForceForTests(OceanAngler.Region.center + new Vector3(25f, 0f, 30f), OceanAngler.AState.Patrol);
@@ -259,21 +261,31 @@ public static class V730Checks
             route.AddRange(OceanWorld.TunnelPath);
             route.Add(OceanWorld.PocketCenter + Vector3.down * 0.5f);
             p.debugInput = true; p.debugMove = new Vector2(0f, 1f);
-            int k = 0; float tt = 0f, stuck = 0f; Vector3 last = p.transform.position;
+            int k = 0; float tt = 0f, stuck = 0f, t0 = Time.time, lastT = Time.time; Vector3 last = p.transform.position;
             while (k < route.Count && tt < 90f && gm.State == GameManager.GameState.Playing)
             {
                 Vector3 eye = p.cameraPivot.position;
                 Face(p, route[k]);
                 p.debugJump = route[k].y > eye.y + 2f;
                 if (Vector3.Distance(eye, route[k]) < 1.6f) k++;
-                yield return null; tt += Time.deltaTime;
-                stuck = (p.transform.position - last).magnitude < 0.004f ? stuck + Time.deltaTime : 0f; last = p.transform.position;
+                yield return null; tt = Time.time - t0;
+                if (Time.time - lastT > 0.5f) { stuck = (p.transform.position - last).magnitude < 0.1f ? stuck + (Time.time - lastT) : 0f; last = p.transform.position; lastT = Time.time; }
                 if (stuck > 4f) break;
+            }
+            string blk = "";
+            if (stuck > 4f && k < route.Count)
+            {
+                Vector3 e = p.cameraPivot.position, dd = route[k] - e;
+                foreach (RaycastHit h in Physics.SphereCastAll(e - Vector3.up * 0.8f, 0.4f, dd.normalized, 2f, ~0, QueryTriggerInteraction.Ignore)) blk += h.collider.name + "@" + h.point.ToString("F1") + " ";
+                foreach (Collider c in Physics.OverlapSphere(p.transform.position + Vector3.up * 0.4f, 0.6f, ~0, QueryTriggerInteraction.Ignore)) blk += "[" + c.name + "]";
+                r.Info(T + "atasco: objetivo " + route[k].ToString("F1") + ", choques: " + blk);
             }
             p.debugInput = false; p.debugJump = false; p.debugMove = Vector2.zero;
             r.Check(k >= route.Count - 1 || gm.State == GameManager.GameState.Won, T + "se nada por el túnel hasta la poza de la gruta (punto " + k + "/" + route.Count + ", " + tt.ToString("F0") + " s" + (stuck > 4f ? ", atascado en " + p.transform.position.ToString("F1") : "") + ")");
-            yield return WaitFor(() => gm.State != GameManager.GameState.Playing, 4f);
-            r.Check(gm.State == GameManager.GameState.Won, T + "salir a la superficie en la poza de la gruta completa el nivel (" + gm.State + ")");
+            p.debugInput = true; p.debugJump = true; p.debugMove = Vector2.zero;   // Espacio: subir a respirar
+            { IEnumerator wfx = WaitFor(() => gm.State != GameManager.GameState.Playing, 5f); while (wfx.MoveNext()) yield return wfx.Current; }
+            p.debugJump = false; p.debugInput = false;
+            r.Check(gm.State == GameManager.GameState.Won, T + "salir a la superficie en la poza de la gruta completa el nivel (" + gm.State + "; pies " + p.transform.position.ToString("F2") + ", AtExit " + OceanWorld.AtExit(p.transform.position) + ", ExitTest " + (GameManager.ExitTest != null) + ", exit " + (gm.exit != null) + ", nadando " + p.IsSwimming + ")");
         }
     }
 }
