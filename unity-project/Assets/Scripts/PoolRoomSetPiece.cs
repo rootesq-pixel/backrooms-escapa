@@ -322,7 +322,7 @@ public class PoolPlanarReflection : MonoBehaviour
 {
     public float waterY; public Vector3 center;
     private Camera rc; private RenderTexture rt; private int size;
-    private static readonly int TexId = Shader.PropertyToID("_PoolPlanarTex"), OnId = Shader.PropertyToID("_PoolPlanarOn"), CkId = Shader.PropertyToID("_PoolCausticK");
+    private static readonly int TexId = Shader.PropertyToID("_PoolPlanarTex"), OnId = Shader.PropertyToID("_PoolPlanarOn"), CkId = Shader.PropertyToID("_PoolCausticK"), WkId = Shader.PropertyToID("_PoolWaveK");
 
     private void OnDisable() { Shader.SetGlobalFloat(OnId, 0f); PoolLook.Clear(); if (rt != null) { rt.Release(); Destroy(rt); rt = null; } if (rc != null) Destroy(rc.gameObject); }
 
@@ -334,6 +334,7 @@ public class PoolPlanarReflection : MonoBehaviour
         Vector4 ck = PoolLook.CausticK; ck.z = cam != null && cam.transform.position.y < waterY ? 1f : 0f;
         Shader.SetGlobalVector(CkId, ck);
         int q = GameSettings.Quality;
+        Vector4 wk = PoolLook.WaveK; wk.w = q == 0 ? 4f : 8f; Shader.SetGlobalVector(WkId, wk);   // Bajo: la mitad de ondas en el agua
         int want = q >= 2 ? 512 : q == 1 ? 256 : 0;
         if (cam == null || want == 0 || SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null
             || (cam.transform.position - center).sqrMagnitude > 26f * 26f || cam.transform.position.y < waterY)

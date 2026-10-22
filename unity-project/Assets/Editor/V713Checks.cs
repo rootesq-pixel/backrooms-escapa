@@ -49,6 +49,8 @@ public static class V713Checks
             cam.transform.position = new Vector3(pl.center.x, pl.waterY - 0.6f, pl.center.z);
             pl.Refresh(cam);
             Vector4 kb = Shader.GetGlobalVector("_PoolCausticK");
+            float nw = Shader.GetGlobalVector("_PoolWaveK").w;
+            r.Check(nw == (GameSettings.Quality == 0 ? 4f : 8f), T + "oleaje: " + nw + " ondas (Bajo 4, resto 8)");
             r.Check(ka.z == 0f && kb.z == 1f && ka.x < 0.5f, T + "cáusticas del fondo: atenuadas con la cámara fuera del agua (" + ka.x + "), enteras bajo el agua");
             bool gfx = SystemInfo.graphicsDeviceType != UnityEngine.Rendering.GraphicsDeviceType.Null;
             if (gfx && GameSettings.Quality >= 1)

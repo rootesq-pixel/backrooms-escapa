@@ -135,7 +135,8 @@ Shader "Hidden/BackroomsWater"
                     {
                         float2 sl = 0;
                         float nNear = saturate(1.35 - length(_WorldSpaceCameraPos - i.wpos) / 24.0);
-                        [unroll] for (int w = 0; w < 8; w++)
+                        int nw = _PoolWaveK.w >= 1.0 ? (int)_PoolWaveK.w : 8;   // Bajo: 4 ondas
+                        for (int w = 0; w < nw; w++)
                         {
                             float k = _PoolWaveK.x * pow(_PoolWaveK.y, w);
                             float ang = w * 2.39996 + 0.4;
@@ -144,6 +145,7 @@ Shader "Hidden/BackroomsWater"
                             float ph = dot(dir, i.wpos.xz) * k - sqrt(9.81 * k) * 0.55 * _WTime + w * 1.7;
                             sl += dir * (A * k * cos(ph));
                         }
+                        sl *= sqrt(8.0 / nw);
                         N = normalize(float3(0, 1, 0) * (1.0 - _PoolWaveK.z) + N * _PoolWaveK.z - float3(sl.x, 0, sl.y) * _PoolWaveP.x * nNear);
                     }
                 }
