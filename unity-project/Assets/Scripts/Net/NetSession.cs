@@ -42,7 +42,7 @@ public class NetStart
 // Los clientes generan el mismo mundo a partir de la semilla que envía el anfitrión. Transporte: TCP propio (NetTransport).
 public class NetSession : MonoBehaviour
 {
-    public const string Protocol = "BackroomsEscape-MP-6";   // v7.1.0: nivel 6 (Parque de bolas); v7.0.4: llaves de la salida (UnlockReq / ExitUnlocked)
+    public const string Protocol = "BackroomsEscape-MP-7";   // v7.2.0: reanimar manteniendo E (bit FlagRevive en el estado); v7.1.0: nivel 6 (Parque de bolas); v7.0.4: llaves de la salida (UnlockReq / ExitUnlocked)
     // antes: "BackroomsEscape-MP-4"   // v7.0.2: silbido (G) y un imitador extra por nivel (más monstruos en la red)
     public const int MaxPlayers = 4;
     public const int DefaultPort = 7777;
