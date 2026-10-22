@@ -32,7 +32,7 @@ La puerta de salida está **cerrada con llave**: en cada nivel hay 4-6 llaves pa
 ## Novedades de la v7.1.2 — bolas de verdad en el Parque de bolas
 - **Las bolas 3D ya se ven en el juego:** en la v7.1.0 y la v7.1.1, al compilar el juego se quedaba fuera la versión del shader de las bolas con instancias, así que en el ejecutable de Windows **no se dibujaba ninguna bola** y solo se veía el fondo plano, como una moqueta estampada. En el editor sí salían, y por eso no lo detectamos antes. Ahora las piscinas se llenan de **bolas 3D de verdad**.
 - **Todas las bolas se mecen** solas, un poco más que antes, y **se apartan alrededor de ti** al vadear: se abre un hueco a tu alrededor, las bolas de al lado se empujan en cadena y salen **ondas**. Pasa lo mismo con tus **compañeros** en multijugador y con el **monstruo** que se esconde entre las bolas.
-- **Coste:** en una RTX 3050, mirando una piscina a 1920 × 1080, las bolas añaden unos **0,5 ms** por fotograma.
+- **Coste:** en una RTX 3050, mirando una piscina a 1920 × 1080, las bolas añaden entre **0,5 y 2,3 ms** por fotograma, según cuántas se vean.
 - **Luces:** el límite de luces en tiempo real se respeta también mientras una luz se apaga y otra se enciende al moverte (antes se colaba una de más).
 - **Pruebas nuevas:** una comprobación dentro del ejecutable de Windows confirma que las bolas se dibujan, se mecen y se apartan. También hay pruebas del desplazamiento junto al jugador y junto a un compañero.
 - **Multijugador:** sin cambios de red (protocolo MP-6). Recomendamos que todos tengáis la **v7.1.2**.
