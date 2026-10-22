@@ -63,6 +63,7 @@ public class GameBootstrap : MonoBehaviour
         BuildLoadingScreen();
         NetSession.Create(this);
         BuildPersistentUi();
+        BallBuildCheck.MaybeStart(gameObject);   // v7.1.2: prueba de las bolas en el ejecutable (solo con -ballcheck)
     }
 
     // Menús (UIManager) y overlay de camcorder: persisten durante toda la sesión

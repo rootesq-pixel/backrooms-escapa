@@ -421,6 +421,7 @@ public class BallPitField : MonoBehaviour
     public int BallCount { get; private set; }
     public static readonly List<BallPitField> All = new List<BallPitField>();
     static Mesh lod0, lod1; static Material mat;
+    public static Material SharedMaterial { get { return mat; } }
     static readonly int PushersId = Shader.PropertyToID("_BallPushers");
     static readonly Vector4[] pushers = new Vector4[6];
     static int pusherFrame = -1, lowFrame = -1; static bool lowQ;

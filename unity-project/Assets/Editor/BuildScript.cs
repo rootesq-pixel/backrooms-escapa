@@ -13,6 +13,22 @@ public static class BuildScript
     // v7.1.1: BUILD_OUTPUT (ruta del .exe) permite compilar en otra máquina (p. ej. el PC con Windows)
     private static string OutputPath { get { string e = Environment.GetEnvironmentVariable("BUILD_OUTPUT"); return string.IsNullOrEmpty(e) ? "/workspace/BackroomsEscape_Build/BackroomsEscape.exe" : e; } }
 
+    // v7.1.2: build de Linux solo para pruebas en el box (BallBuildCheck con llvmpipe); mismas preparaciones que el de Windows
+    public static void BuildLinuxTest()
+    {
+        ConfigurePlayerSettings();
+        EnsureAlwaysIncludedShaders();
+        ShaderVariantKeeper.Generate();
+        EnsureFogVariantsKept();
+        string outp = Environment.GetEnvironmentVariable("BUILD_OUTPUT"); if (string.IsNullOrEmpty(outp)) outp = "/workspace/BackroomsEscape_LinuxTest/BackroomsEscape.x86_64";
+        string outDir = Path.GetDirectoryName(outp);
+        if (Directory.Exists(outDir)) Directory.Delete(outDir, true);
+        Directory.CreateDirectory(outDir);
+        BuildReport report = BuildPipeline.BuildPlayer(new BuildPlayerOptions { scenes = new[] { ScenePath }, locationPathName = outp, target = BuildTarget.StandaloneLinux64, targetGroup = BuildTargetGroup.Standalone, options = BuildOptions.None });
+        Debug.Log("Build result (Linux test): " + report.summary.result + " size=" + report.summary.totalSize);
+        if (report.summary.result != BuildResult.Succeeded) EditorApplication.Exit(1);
+    }
+
     public static void BuildWindows()
     {
         ConfigurePlayerSettings();
