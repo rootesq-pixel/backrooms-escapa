@@ -680,7 +680,9 @@ public class BallPitField : MonoBehaviour
 
     // v7.1.1 (prueba): fracción de puntos de las piscinas tapados desde arriba por las capas siempre dibujadas (0..layers-1),
     // con margen para el vaivén. 1 = no se ve nada debajo (ni el fondo ni la capa plana).
-    public float TopCoverage(int samples, int layers, float margin)
+    public float TopCoverage(int samples, int layers, float margin) { return TopCoverage(samples, layers, margin, float.NaN); }
+    // v7.1.2: con t (segundos del shader) las bolas se colocan donde las pone el vaivén en ese instante (peor caso: sin hundirse)
+    public float TopCoverage(int samples, int layers, float margin, float t)
     {
         var grid = new Dictionary<long, List<Vector2>>(); const float G = 0.08f;
         foreach (TileData td in tiles)
@@ -688,7 +690,9 @@ public class BallPitField : MonoBehaviour
             int end = td.layerEnd[Mathf.Clamp(layers, 1, 3) - 1];
             for (int i = 0; i < end; i++)
             {
-                Vector3 c = transform.InverseTransformPoint(new Vector3(td.m[i].m03, td.m[i].m13, td.m[i].m23));
+                Vector3 wc = new Vector3(td.m[i].m03, td.m[i].m13, td.m[i].m23);
+                if (!float.IsNaN(t)) wc += IdleOffset(wc, t, wc.y, 1f);
+                Vector3 c = transform.InverseTransformPoint(wc);
                 long key = ((long)Mathf.FloorToInt(c.x / G) << 32) ^ (uint)Mathf.FloorToInt(c.z / G);
                 if (!grid.TryGetValue(key, out List<Vector2> l)) grid[key] = l = new List<Vector2>();
                 l.Add(new Vector2(c.x, c.z));
@@ -712,6 +716,17 @@ public class BallPitField : MonoBehaviour
         return tot > 0 ? hit / (float)tot : 0f;
     }
     // v7.1.2 (pruebas): réplica exacta en CPU del desplazamiento que hace BallInstanced.shader en el vértice (bola de centro c)
+    public static Vector3 IdleOffset(Vector3 c, float t, float topY, float dyn)
+    {
+        Vector3 off = Vector3.zero;
+        float h = Frac(Mathf.Sin(c.x * 12.9898f + c.z * 78.233f) * 43758.5453f);
+        float sink = Mathf.Clamp01((topY - c.y) / 0.2f);
+        float amb = Shader.GetGlobalFloat(AmbientId) * dyn * (1f - 0.55f * sink);
+        float sw = Mathf.Sin(c.x * 1.9f + c.z * 1.2f - t * 0.85f) * 0.6f + Mathf.Sin(-c.x * 1.1f + c.z * 2.6f - t * 1.27f + 1.3f) * 0.4f;
+        off.y += amb * (0.016f * sw + 0.009f * Mathf.Sin(t * (1.5f + h * 1.6f) + h * 6.2832f));
+        off.x += amb * 0.007f * Mathf.Sin(t * (1.1f + h) + h * 12.1f); off.z += amb * 0.007f * Mathf.Cos(t * (1.35f + h * 0.8f) + h * 9.3f);
+        return off;
+    }
     public static Vector3 OffsetAt(Vector3 c, float t, float topY, float dyn)
     {
         Vector3 off = Vector3.zero;

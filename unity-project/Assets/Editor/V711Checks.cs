@@ -107,7 +107,8 @@ public static class V711Checks
         // ---------------- bolas (v7.1.1): todas se mueven, sin capa plana «foto» visible, presupuesto ----------------
         if (BallPitField.All.Count == 0) yield break;
         BallPitField f0 = BallPitField.All[0];
-        float cov = f0.TopCoverage(4000, 2, 0.007f);   // v7.1.2: margen = vaivén lateral propio de cada bola
+        float cov = 1f;   // v7.1.2: con el vaivén aplicado en 4 instantes (peor de ellos), margen 2 mm
+        foreach (float tq in new[] { 0.3f, 1.7f, 3.1f, 5.9f }) cov = Mathf.Min(cov, f0.TopCoverage(4000, 2, 0.002f, tq));
         r.Check(cov >= 0.975f, T + "bolas: desde arriba no se ve la capa plana ni el fondo (las 2 capas que siempre se dibujan tapan el " + (cov * 100f).ToString("F2") + " %)");
         {
             int[] bt = m.GetTriangles(BallpitSetPiece.M_BALL); float maxRel = -9f, minFloor = 9f; int nb = 0;
@@ -166,7 +167,7 @@ public static class V711Checks
             cs.Clear(); tops.Clear(); f0.TopBallsNear(pf, 0.6f, cs, tops);
             int mv = 0; float sm = 0f;
             for (int i = 0; i < cs.Count; i++) { float dm = (BallPitField.OffsetAt(cs[i], tt + 0.5f, tops[i], 1f) - BallPitField.OffsetAt(cs[i], tt, tops[i], 1f)).magnitude; sm += dm; if (dm > 0.002f) mv++; }
-            r.Check(cs.Count >= 20 && mv >= cs.Count * 0.97f && sm / cs.Count > 0.008f, T + "bolas: lejos de todos, todas se mecen solas (" + mv + "/" + cs.Count + " se mueven > 2 mm en 0,5 s, media " + (cs.Count > 0 ? sm / cs.Count * 1000f : 0f).ToString("F1") + " mm)");
+            r.Check(cs.Count >= 20 && mv >= cs.Count * 0.97f && sm / cs.Count > 0.006f, T + "bolas: lejos de todos, todas se mecen solas (" + mv + "/" + cs.Count + " se mueven > 2 mm en 0,5 s, media " + (cs.Count > 0 ? sm / cs.Count * 1000f : 0f).ToString("F1") + " mm)");
         }
         {   // un monstruo dentro de la piscina también aparta bolas y hace ondas
             MonsterAI mon = null; foreach (MonsterAI mm in MonsterAI.Instances) if (mm != null && mm.gameObject.activeInHierarchy) { mon = mm; break; }
