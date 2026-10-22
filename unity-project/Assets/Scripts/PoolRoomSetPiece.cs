@@ -324,9 +324,18 @@ public class PoolPlanarReflection : MonoBehaviour
     private Camera rc; private RenderTexture rt; private int size;
     private static readonly int TexId = Shader.PropertyToID("_PoolPlanarTex"), OnId = Shader.PropertyToID("_PoolPlanarOn"), CkId = Shader.PropertyToID("_PoolCausticK"), WkId = Shader.PropertyToID("_PoolWaveK");
 
-    private void OnDisable() { Shader.SetGlobalFloat(OnId, 0f); PoolLook.Clear(); if (rt != null) { rt.Release(); Destroy(rt); rt = null; } if (rc != null) Destroy(rc.gameObject); }
+    private void OnDisable() { Camera.onPreCull -= PreCull; Shader.SetGlobalFloat(OnId, 0f); PoolLook.Clear(); if (rt != null) { rt.Release(); Destroy(rt); rt = null; } if (rc != null) Destroy(rc.gameObject); }
 
-    private void LateUpdate() { Refresh(Camera.main); }
+    // v7.1.3: se renderiza justo antes de la cámara principal (onPreCull) para usar su pose final del fotograma
+    // (antes iba en LateUpdate y podía ir un fotograma por detrás al girar); LateUpdate queda de reserva si no hay render.
+    private int lastFrame = -10;
+    private void OnEnable() { Camera.onPreCull += PreCull; }
+    private void PreCull(Camera c)
+    {
+        if (c == null || c != Camera.main || c.cameraType != CameraType.Game || lastFrame == Time.frameCount) return;
+        lastFrame = Time.frameCount; Refresh(c);
+    }
+    private void LateUpdate() { if (Time.frameCount - lastFrame > 2) Refresh(Camera.main); }
 
     public void Refresh(Camera cam)   // v7.1.3: público para las capturas (Editor/V713Shots.cs)
     {
