@@ -264,10 +264,12 @@ public static class V730Checks
             int k = 0; float tt = 0f, stuck = 0f, t0 = Time.time, lastT = Time.time; Vector3 last = p.transform.position;
             while (k < route.Count && tt < 90f && gm.State == GameManager.GameState.Playing)
             {
-                Vector3 eye = p.cameraPivot.position;
-                Face(p, route[k]);
-                p.debugJump = route[k].y > eye.y + 2f;
-                if (Vector3.Distance(eye, route[k]) < 1.6f) k++;
+                Vector3 eye = p.cameraPivot.position, body = p.transform.position + Vector3.up * 0.9f;
+                // apunta el centro del cuerpo (no los ojos) al eje del túnel; si se atasca, mira un poco más arriba/al eje
+                Vector3 aim = route[k] + (eye - body) + (stuck > 1f ? Vector3.up * 1.5f : Vector3.zero);
+                Face(p, aim);
+                p.debugJump = route[k].y > body.y + 2f;
+                if (Vector3.Distance(body, route[k]) < 1.6f || (k == route.Count - 1 && Vector3.Distance(eye, route[k]) < 1.6f)) k++;
                 yield return null; tt = Time.time - t0;
                 if (Time.time - lastT > 0.5f) { stuck = (p.transform.position - last).magnitude < 0.1f ? stuck + (Time.time - lastT) : 0f; last = p.transform.position; lastT = Time.time; }
                 if (stuck > 4f) break;

@@ -127,6 +127,12 @@ public class OceanWorld : MonoBehaviour
     private void OnDestroy()
     {
         if (Active == this) Active = null;
+        // los avatares remotos sobreviven al cambio de nivel: quitarles el casco
+        if (NetSession.Instance != null)
+            foreach (NetPlayer p in NetSession.Instance.Players)
+                if (p.avatar != null)
+                    foreach (Transform c in p.avatar.GetComponentsInChildren<Transform>(true))
+                        if (c != null && c.name == "RemoteHelmet") Destroy(c.gameObject);
         if (GameManager.ExitTest == (System.Func<Vector3, bool>)AtExit) GameManager.ExitTest = null;
     }
 
@@ -788,12 +794,20 @@ public class OceanWorld : MonoBehaviour
 
     // casco en la cabeza de los compañeros (sólo aspecto)
     private Material helmetBrass, helmetGlass;
+    private static bool HasRemoteHelmet(Transform t) { foreach (Transform c in t.GetComponentsInChildren<Transform>(true)) if (c.name == "RemoteHelmet") return true; return false; }
+
+    private static Transform FindDeep(Transform t, string n)
+    {
+        foreach (Transform c in t.GetComponentsInChildren<Transform>(true)) if (c.name == n || c.name.EndsWith(":" + n) || c.name.EndsWith("_" + n)) return c;
+        return null;
+    }
+
     private void AttachRemoteHelmet(int id)
     {
         if (NetSession.Instance == null) return;
         foreach (NetPlayer p in NetSession.Instance.Players)
         {
-            if (p.id != id || p.avatar == null || p.avatar.transform.Find("RemoteHelmet") != null) continue;
+            if (p.id != id || p.avatar == null || p.avatar.GetComponentsInChildren<Transform>(true).Length > 0 && HasRemoteHelmet(p.avatar.transform)) continue;
             if (helmetBrass == null)
             {
                 helmetBrass = ProceduralAssets.CreateMaterial(new Color(0.62f, 0.46f, 0.24f), Resources.Load<Texture2D>("Textures/MetalWall_a"), Vector2.one, 0.62f); track(helmetBrass);
@@ -803,6 +817,17 @@ public class OceanWorld : MonoBehaviour
             h.name = "RemoteHelmet";
             h.transform.localPosition = new Vector3(0f, 1.38f, 0.02f);
             h.transform.localScale = Vector3.one * 1.05f;
+            // sigue al hueso de la cabeza (nadando, agachado o derribado) si el modelo lo tiene
+            Transform head = FindDeep(p.avatar.transform, "Head");
+            if (head != null)
+            {
+                Vector3 up = p.avatar.transform.up;
+                h.transform.SetParent(head, true);
+                h.transform.position = head.position - up * 0.13f;
+                h.transform.rotation = p.avatar.transform.rotation;
+                float ls = Mathf.Max(0.0001f, head.lossyScale.x);
+                h.transform.localScale = Vector3.one * (1.05f / ls);
+            }
         }
     }
 

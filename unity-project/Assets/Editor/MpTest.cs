@@ -501,6 +501,83 @@ public static class MpPlayRunner
             Mark("host_bp_done");
         }
 
+        // ---- v7.3.0: nivel 7 (Talasofobia): barca, casco, bengala, pez que derriba, reanimar en el agua, jaula y salida por la gruta ----
+        {
+            int epoch7 = ns.Epoch;
+            ns.HostLoadLevel(7, false, false);
+            yield return Wait(() => WorldReady(gb, ns, 7) && ns.Epoch > epoch7, 240, "nivel 7 cargado (anfitrión)");
+            yield return Wait(() => ns.AllReady(), 180, "todos listos en el nivel 7");
+            OceanWorld w = OceanWorld.Active;
+            r.Check(gb.CurrentLevel == 7 && ns.HashesMatch() && ns.HashMismatches == 0 && w != null && MonsterAI.Instances.Count == 0, "[Mar MP] nivel 7 con la misma huella en los dos equipos y sin monstruo de NavMesh");
+            ElevatorCabin cab7 = ElevatorCabin.Current;
+            yield return Wait(() => cab7 == null || cab7.Released, 40, "puertas del ascensor abiertas (mar)");
+            NetPlayer rc = ns.Players.Find(p => !p.isLocal);
+            FirstPersonController hp = GameManager.Instance.player;
+            OceanPlayer hop = OceanPlayer.Local;
+            if (w != null) { w.fish.enabled = false; w.angler.enabled = false; }
+            hp.Teleport(OceanWorld.PierLadderTop + new Vector3(0f, 0.05f, 0.6f), 90f);   // a salvo en el muelle
+            yield return 0.5f;
+            Mark("host_level7");
+            // barca: la conduce el cliente, la autoridad la mueve
+            yield return WaitMark("client_oc_boarded", 90);
+            r.Check(w.boat.SeatOf(rc.id) == 0 && w.IsMountedHost(rc.id), "[Mar MP] el cliente sube a la barca (asiento del conductor según el anfitrión)");
+            Vector3 b0 = w.boat.transform.position;
+            yield return WaitMark("client_oc_drove", 60);
+            float bd = Vector3.Distance(b0, w.boat.transform.position);
+            r.Check(bd > 2f, "[Mar MP] el cliente conduce la barca y el anfitrión la mueve (" + bd.ToString("F1") + " m)");
+            yield return WaitMark("client_oc_left", 30);
+            r.Check(w.boat.SeatOf(rc.id) < 0 && !w.IsMountedHost(rc.id), "[Mar MP] el cliente baja de la barca");
+            // casco
+            yield return WaitMark("client_oc_helmet", 60);
+            yield return 0.5f;
+            bool rh = false; if (rc.avatar != null) foreach (Transform c in rc.avatar.GetComponentsInChildren<Transform>(true)) if (c.name == "RemoteHelmet") rh = true;
+            r.Check(w.HasHelmetHost(rc.id) && w.rack.TakenCount == 1 && rh, "[Mar MP] el anfitrión concede el casco al cliente y lo ve en su avatar");
+            // bengala del cliente
+            yield return WaitMark("client_oc_flare", 60);
+            yield return Wait(() => OceanFlare.All.Exists(f => f != null && f.owner == rc.id), 5, "bengala del cliente en el anfitrión");
+            r.Check(OceanFlare.All.Exists(f => f != null && f.owner == rc.id), "[Mar MP] el anfitrión ve la bengala del cliente");
+            // un pez derriba al cliente que nada (en multijugador: derribado, no muerto)
+            yield return WaitMark("client_oc_swim", 60);
+            yield return 0.5f;
+            NetSession.NoCatchForTests = false; w.fish.enabled = true;
+            OceanFishSchool.Fish fz = w.fish.fish[0];
+            fz.pos = rc.avatar.LatestPos + new Vector3(5f, -1.5f, 0f); fz.state = OceanFishSchool.FishState.Charge; fz.target = rc.id; fz.t = 0f;
+            yield return Wait(() => rc.downed, 10, "el pez derriba al cliente");
+            NetSession.NoCatchForTests = true; w.fish.enabled = false;
+            r.Check(rc.downed && w.fish.Bites >= 1 && GameManager.Instance.State == GameManager.GameState.Playing, "[Mar MP] un pez derriba al cliente que nada (los demás siguen jugando)");
+            // reanimar en el agua (mantener E al lado)
+            Vector3 cpos = rc.avatar.LatestPos;
+            hp.Teleport(new Vector3(cpos.x + 1.3f, -0.6f, cpos.z), 270f);
+            yield return 1.0f;
+            NetSession.DebugHoldRevive = true;
+            yield return Wait(() => !rc.downed, 20, "reanimación en el agua");
+            NetSession.DebugHoldRevive = false;
+            r.Check(!rc.downed, "[Mar MP] se reanima al compañero en el agua manteniendo E");
+            Mark("host_oc_revived");
+            // casco del anfitrión y jaula con los dos
+            hp.Teleport(OceanWorld.HelmetRack + new Vector3(0.8f, 0.05f, -1.7f), 0f);
+            yield return 0.3f; hp.SetPitch(18f); yield return 0.2f;
+            hop.debugHold = true;
+            yield return Wait(() => hop.HasHelmet, 5, "casco del anfitrión");
+            hop.debugHold = false; hp.SetPitch(0f);
+            r.Check(hop.HasHelmet && w.rack.TakenCount == 2, "[Mar MP] dos cascos repartidos (anfitrión y cliente)");
+            yield return WaitMark("client_oc_incage", 60);
+            hp.Teleport(OceanWorld.CageTop + new Vector3(0.4f, 0.08f, 0.4f), 270f);
+            yield return Wait(() => w.cage.State == OceanCage.CageState.Descending, 15, "la jaula baja con los dos");
+            r.Check(w.cage.State == OceanCage.CageState.Descending && w.cage.IsRiderHost(rc.id), "[Mar MP] con los dos dentro y con casco la jaula baja (el cliente va dentro)");
+            yield return Wait(() => w.cage.State == OceanCage.CageState.BottomOpen, 45, "la jaula llega al fondo");
+            yield return 1.6f;
+            r.Check(hp.transform.position.y < -40f && !hp.IsMounted, "[Mar MP] el anfitrión sale de la jaula en el fondo");
+            Mark("host_oc_bottom");
+            // salida: los dos en la poza de la gruta
+            yield return WaitMark("client_oc_atexit", 60);
+            hp.Teleport(OceanWorld.PocketCenter + new Vector3(-0.8f, -1.4f, 0f), 0f);
+            yield return Wait(() => GameManager.Instance.State == GameManager.GameState.Won, 20, "victoria (anfitrión)");
+            r.Check(GameManager.Instance.State == GameManager.GameState.Won, "[Mar MP] los dos en la poza de la gruta: victoria final (8 niveles)");
+            yield return WaitMark("client_oc_done", 60);
+            Mark("host_oc_done");
+        }
+
         // ---- desconexión del cliente ----
         GameObject av1 = remote1.avatar.gameObject;
         yield return WaitMark("client_left", 120);
@@ -920,6 +997,78 @@ public static class MpPlayRunner
             r.Check(BallPitMonsterFx.Bursts > b0 && fx != null && !fx.Under, "[Parque MP] el cliente ve y oye el estallido de bolas al emerger (" + (BallPitMonsterFx.Bursts - b0) + ")");
             Mark("client_bp_done");
             yield return WaitMark("host_bp_done", 60);
+        }
+
+        // ---- v7.3.0: nivel 7 (Talasofobia) en el cliente ----
+        {
+            yield return Wait(() => WorldReady(gb, ns, 7) && gb.IsLoaded, 240, "nivel 7 cargado (cliente)");
+            yield return WaitMark("host_level7", 240);
+            OceanWorld w = OceanWorld.Active;
+            gm = GameManager.Instance; FirstPersonController pc = gm.player; OceanPlayer op = OceanPlayer.Local;
+            r.Check(w != null && op != null && w.boat != null && w.cage != null && w.rack != null && w.fish != null && w.angler != null, "[Mar MP] el cliente tiene el mar con barca, jaula, cascos y criaturas");
+            // barca
+            Vector3 bp = w.boat.transform.position;
+            pc.Teleport(bp + new Vector3(-2.1f, -0.6f, 0f), 90f);
+            yield return 0.8f;
+            op.debugInteract = true; yield return 0.2f; op.debugInteract = false;
+            yield return Wait(() => w.boat.LocalSeat == 0 && pc.IsMounted, 6, "subir a la barca (cliente)");
+            r.Check(w.boat.LocalSeat == 0 && pc.IsMounted, "[Mar MP] el cliente sube a la barca (lo confirma el anfitrión)");
+            Mark("client_oc_boarded");
+            Vector3 cb0 = w.boat.transform.position;
+            pc.debugInput = true; pc.debugMove = new Vector2(0f, 1f);
+            yield return 5f;
+            pc.debugMove = Vector2.zero; pc.debugInput = false;
+            float cbd = Vector3.Distance(cb0, w.boat.transform.position);
+            r.Check(cbd > 2f && Vector3.Distance(pc.transform.position, w.boat.transform.position) < 2.6f, "[Mar MP] en el cliente la barca avanza y le lleva consigo (" + cbd.ToString("F1") + " m)");
+            Mark("client_oc_drove");
+            op.debugInteract = true; yield return 0.2f; op.debugInteract = false;
+            yield return Wait(() => w.boat.LocalSeat < 0 && !pc.IsMounted, 6, "bajar de la barca (cliente)");
+            r.Check(w.boat.LocalSeat < 0 && !pc.IsMounted, "[Mar MP] el cliente baja de la barca");
+            Mark("client_oc_left");
+            // casco
+            pc.Teleport(OceanWorld.HelmetRack + new Vector3(0f, 0.05f, -1.7f), 0f);
+            yield return 0.3f; pc.SetPitch(18f); yield return 0.2f;
+            op.debugHold = true;
+            yield return Wait(() => op.HasHelmet, 6, "casco (cliente)");
+            op.debugHold = false; pc.SetPitch(0f);
+            r.Check(op.HasHelmet && w.rack.TakenCount == 1 && op.flashlight.IsOn, "[Mar MP] el cliente se pone el casco (concedido por el anfitrión) con la lámpara encendida");
+            Mark("client_oc_helmet");
+            // bengala
+            Inventory inv = Inventory.Instance; inv.Add(ItemType.FlareGun, 1);
+            int sl = -1; for (int i = 0; i < Inventory.SlotCount; i++) if (inv.GetSlot(i).type == ItemType.FlareGun) sl = i;
+            pc.SetPitch(-60f);
+            bool used = sl >= 0 && inv.UseSlot(sl);
+            yield return Wait(() => OceanFlare.All.Exists(f => f != null && f.owner == ns.LocalId), 5, "bengala propia (cliente)");
+            pc.SetPitch(0f);
+            r.Check(used && OceanFlare.All.Exists(f => f != null && f.owner == ns.LocalId), "[Mar MP] el cliente dispara una bengala (la difunde el anfitrión)");
+            Mark("client_oc_flare");
+            // nadar en mar abierto: un pez le derriba; el anfitrión le reanima en el agua
+            pc.Teleport(new Vector3(-8f, -0.6f, 46f), 0f);
+            yield return 1.2f;
+            Mark("client_oc_swim");
+            yield return Wait(() => ns.LocalDowned, 15, "derribado por un pez (cliente)");
+            r.Check(ns.LocalDowned && gm.State == GameManager.GameState.Playing, "[Mar MP] el cliente ve que un pez le ha derribado (sigue la partida)");
+            yield return Wait(() => !ns.LocalDowned, 40, "reanimado (cliente)");
+            r.Check(!ns.LocalDowned, "[Mar MP] el cliente es reanimado en el agua");
+            yield return WaitMark("host_oc_revived", 30);
+            // jaula
+            pc.Teleport(OceanWorld.CageTop + new Vector3(-0.4f, 0.08f, -0.4f), 270f);
+            yield return 1.0f;
+            Mark("client_oc_incage");
+            yield return Wait(() => w.cage.State == OceanCage.CageState.Descending && pc.IsMounted, 25, "jaula bajando (cliente)");
+            r.Check(w.cage.State == OceanCage.CageState.Descending && pc.IsMounted, "[Mar MP] el cliente baja dentro de la jaula");
+            yield return Wait(() => w.cage.State == OceanCage.CageState.BottomOpen && !pc.IsMounted, 50, "jaula en el fondo (cliente)");
+            yield return 1.0f;
+            r.Check(pc.transform.position.y < -40f && pc.IsUnderwater && op.Air01 > 0.99f, "[Mar MP] el cliente llega al fondo con el casco (aire lleno)");
+            yield return WaitMark("host_oc_bottom", 60);
+            pc.Teleport(OceanWorld.PocketCenter + new Vector3(0.8f, -1.4f, 0f), 0f);
+            yield return 0.8f;
+            r.Check(NetSession.LocalAtExit, "[Mar MP] el cliente en la poza de la gruta cuenta como en la salida");
+            Mark("client_oc_atexit");
+            yield return Wait(() => gm.State == GameManager.GameState.Won, 30, "victoria (cliente)");
+            r.Check(gm.State == GameManager.GameState.Won, "[Mar MP] el cliente ve la victoria final");
+            Mark("client_oc_done");
+            yield return WaitMark("host_oc_done", 60);
         }
 
         // ---- salir, reintentar con la partida en marcha, reunirse y ver el cierre del anfitrión ----
