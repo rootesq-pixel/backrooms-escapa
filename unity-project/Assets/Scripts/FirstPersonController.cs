@@ -102,6 +102,39 @@ public class FirstPersonController : MonoBehaviour
     [Header("Agua")]
     public float swimDepth = 1.15f;          // a partir de esta profundidad se nada
     public float swimSpeed = 2.0f;
+    // v7.3.0 Talasofobia: montado (barca / jaula), nado libre con casco de buzo, cansancio al nadar y escaleras externas
+    [System.NonSerialized] public Transform mount;
+    [System.NonSerialized] public Vector3 mountLocal;
+    [System.NonSerialized] public bool freeSwim;
+    [System.NonSerialized] public float swimStaminaDrain;
+    [System.NonSerialized] public float freeSwimSpeed = 2.4f;
+    public bool IsMounted { get { return mount != null; } }
+    public Vector3 WishDir { get; private set; }
+    public bool JumpHeld { get; private set; }
+    public bool CrouchHeld { get; private set; }
+    public bool SwimExhausted { get { return IsSwimming && exhausted; } }
+    public void Mount(Transform t, Vector3 local)
+    {
+        mount = t; mountLocal = local;
+        controller.enabled = false; ladderT = -1f;
+        moveVel = Vector3.zero; verticalVelocity = 0f; IsSwimming = false; IsDiving = false;
+        transform.position = t.TransformPoint(local);
+    }
+    public void Dismount(Vector3 feet)
+    {
+        mount = null;
+        PlaceAt(feet);
+    }
+    public bool StartExternalLadder(Vector3 foot, float midY, Vector3 top)
+    {
+        if (ladderT >= 0f || mount != null) return false;
+        ladderFrom = transform.position;
+        ladderMid = new Vector3(foot.x, midY, foot.z);
+        ladderTo = top;
+        ladderT = 0f; moveVel = Vector3.zero; verticalVelocity = 0f;
+        controller.enabled = false;
+        return true;
+    }
     public float WaterDepth { get; private set; }
     public float WaterFactor { get; private set; }
     // v7.1.0: vadear en una piscina de bolas (profundidad de bolas sobre los pies)
@@ -390,8 +423,20 @@ public class FirstPersonController : MonoBehaviour
         Vector3 input = debugInput ? new Vector3(debugMove.x, 0f, debugMove.y) : new Vector3(Input.GetAxisRaw("Horizontal"), 0f, Input.GetAxisRaw("Vertical"));
         input = Vector3.ClampMagnitude(input, 1f);
         bool hasInput = input.sqrMagnitude > 0.01f;
+        if (mount != null)
+        {
+            transform.position = mount.TransformPoint(mountLocal);
+            moveVel = Vector3.zero; verticalVelocity = 0f; FlatSpeed = 0f; IsMoving = false; IsSwimming = false; IsDiving = false;
+            IsSprinting = false; CurrentNoiseRadius = 0f; WishDir = Vector3.zero;
+            WaterDepth = 0f; WaterFactor = 1f;
+            stamina = Mathf.Min(maxStamina, stamina + staminaRegenPerSecond * dt);
+            if (exhausted && stamina >= minStaminaToSprint) exhausted = false;
+            return;
+        }
         if (ladderT >= 0f) { StepLadder(dt); return; }
         bool wantsJump = debugJump || Input.GetKey(KeyCode.Space);
+        JumpHeld = wantsJump;
+        { Vector3 wd = transform.TransformDirection(input); wd.y = 0f; WishDir = wd.sqrMagnitude > 0.01f ? wd.normalized : Vector3.zero; }
         bool jumpPressed = wantsJump && !prevJumpHeld; prevJumpHeld = wantsJump;
         if (jumpPressed) jumpBufT = jumpBuffer; else if (jumpBufT >= 0f) jumpBufT -= dt;
 
@@ -407,7 +452,8 @@ public class FirstPersonController : MonoBehaviour
         // --- Agacharse (Ctrl mantener, C alternar). Nadando, Ctrl = bucear ---
         if (Input.GetKeyDown(KeyCode.C)) crouchToggled = !crouchToggled;
         bool wantsCrouch = debugCrouch || reviveKneel || Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl) || crouchToggled;
-        IsDiving = IsSwimming && wantsCrouch;
+        CrouchHeld = wantsCrouch;
+        IsDiving = IsSwimming && (wantsCrouch || (freeSwim && IsUnderwater));
         if (IsSwimming) wantsCrouch = false;
         if (wantsCrouch) IsCrouching = true;
         else if (IsCrouching && CanStandUp()) IsCrouching = false;
@@ -418,7 +464,14 @@ public class FirstPersonController : MonoBehaviour
         IsSprinting = wantsSprint && hasInput && !exhausted && stamina > 0f && !IsCrouching && input.z > -0.1f && !IsSwimming;
         if (IsSprinting && IsCrouching) IsSprinting = false;
 
-        if (IsSprinting)
+        bool swimTiring = IsSwimming && hasInput && swimStaminaDrain > 0f && !freeSwim;
+        if (swimTiring && !IsSprinting)
+        {
+            stamina -= swimStaminaDrain * staminaDrainMul * dt;
+            regenTimer = staminaRegenDelay;
+            if (stamina <= 0f) { stamina = 0f; exhausted = true; }
+        }
+        else if (IsSprinting)
         {
             stamina -= staminaDrainPerSecond * staminaDrainMul * dt;
             regenTimer = staminaRegenDelay;
@@ -448,8 +501,17 @@ public class FirstPersonController : MonoBehaviour
         // --- Velocidad con aceleración / deceleración suaves ---
         float baseSpeed = IsCrouching ? crouchSpeed : (IsSprinting ? sprintSpeed * sprintMul : walkSpeed);
         float speed = baseSpeed * speedFactor * WaterFactor * BallWadeFactor;
-        if (IsSwimming) speed = swimSpeed * speedFactor;
+        if (IsSwimming) speed = (freeSwim ? freeSwimSpeed : swimSpeed) * speedFactor * (exhausted && swimStaminaDrain > 0f ? 0.55f : 1f);
         Vector3 desired = transform.TransformDirection(input) * speed;
+        float freeVy = 0f;
+        if (IsSwimming && freeSwim && cameraPivot != null)
+        {
+            // casco de buzo: se nada hacia donde se mira (W/S), Espacio sube y Ctrl baja; flotabilidad casi neutra (se hunde despacio)
+            Vector3 look = cameraPivot.forward;
+            Vector3 d3 = (look * input.z + transform.right * input.x) * speed;
+            desired = new Vector3(d3.x, 0f, d3.z);
+            freeVy = d3.y + (wantsJump ? 1.7f : 0f) - (CrouchHeld ? 1.7f : 0f) - 0.12f;
+        }
         bool grounded = controller.isGrounded;
         float rate = hasInput ? acceleration : deceleration;
         if (!grounded) rate = airControl;
@@ -479,7 +541,16 @@ public class FirstPersonController : MonoBehaviour
             grounded = false;
             if (Jumped != null) Jumped();
         }
-        if (IsSwimming)
+        if (IsSwimming && freeSwim)
+        {
+            float surfF = wv.SurfaceHeightAt(transform.position);
+            float topFeet = surfF - standEyeHeight + 0.14f;
+            float vy = freeVy;
+            if (transform.position.y > topFeet - 0.05f && vy > -0.3f) vy = Mathf.Clamp((topFeet - transform.position.y) * 3.2f, -2.6f, 2.6f);
+            verticalVelocity = Mathf.Lerp(verticalVelocity, vy, 1f - Mathf.Exp(-5f * dt));
+            airTime = 0f; lastFallSpeed = 0f;
+        }
+        else if (IsSwimming)
         {
             // flotación: los ojos quedan justo sobre la superficie (o bajo ella al bucear)
             float surf = wv.SurfaceHeightAt(transform.position);
@@ -504,7 +575,7 @@ public class FirstPersonController : MonoBehaviour
 
         // salir del agua: en la sala fija (v6.8.1) borde/escalera/rescate; en el resto, nadando hacia un borde (v6.7.1)
         if (PoolExit.Active) UpdatePoolExit(input, wantsJump, dt);
-        else if (IsSwimming && !IsDiving && moveVel.sqrMagnitude > 0.5f) TryClimbOut(moveVel.normalized);
+        else if (IsSwimming && !IsDiving && moveVel.sqrMagnitude > 0.5f && (!freeSwim || transform.position.y > wv.RestSurfaceAt(transform.position) - standEyeHeight - 0.3f)) TryClimbOut(moveVel.normalized);
 
         // Aterrizaje
         bool nowGrounded = controller.isGrounded;

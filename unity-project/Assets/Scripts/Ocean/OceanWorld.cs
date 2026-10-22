@@ -662,5 +662,199 @@ public class OceanWorld : MonoBehaviour
         MonsterSpawns.Add(new Vector3(70f, -38f, 270f));
     }
 
+
+    // ---------------------------------------------------------------- autoridad: peticiones de los jugadores
+    public void HostRequest(int id, int op, int a, float x, float y, Vector3 p, Vector3 d)
+    {
+        switch (op)
+        {
+            case OceanNet.OpBoard:
+            {
+                if (boat == null || (cage != null && cage.IsRiderHost(id))) return;
+                Vector3 from = PlayerPos(id);
+                if (boat.HostBoard(id, from)) OceanNet.Event(OceanNet.EvSeat, id, boat.SeatOf(id), Vector3.zero, Vector3.zero);
+                break;
+            }
+            case OceanNet.OpLeave:
+                if (boat != null && boat.HostLeave(id)) OceanNet.Event(OceanNet.EvSeat, id, -1, Vector3.zero, Vector3.zero);
+                break;
+            case OceanNet.OpDrive:
+                if (boat != null) boat.HostDrive(id, x, y);
+                break;
+            case OceanNet.OpHelmet:
+                if (rack == null || rack.OwnerSlot(id) >= 0) return;
+                if (a < 0 || a >= OceanHelmetRack.Count || rack.owner[a] >= 0) a = rack.FreeSlot();
+                if (a < 0) return;
+                OceanNet.Event(OceanNet.EvHelmet, a, id, Vector3.zero, Vector3.zero);
+                break;
+            case OceanNet.OpFlare:
+                OceanNet.Event(OceanNet.EvFlare, id, 0, p, d);
+                break;
+            case OceanNet.OpDrown:
+                OceanNet.HostKill(id, OceanNet.KillDrown);
+                break;
+        }
+    }
+
+    private Vector3 PlayerPos(int id)
+    {
+        foreach (OceanNet.Target t in OceanNet.Targets()) if (t.id == id) return t.pos;
+        return new Vector3(9999f, 0f, 9999f);
+    }
+
+    public bool IsMountedHost(int id) { return (boat != null && boat.SeatOf(id) >= 0) || (cage != null && cage.IsRiderHost(id)); }
+    public bool HasHelmetHost(int id) { return rack != null && rack.OwnerSlot(id) >= 0; }
+    public int HelmetEvents { get; private set; }
+
+    // ---------------------------------------------------------------- eventos (en todos los equipos)
+    public void ApplyEvent(int ev, int a, int b, Vector3 p, Vector3 d)
+    {
+        GameManager gm = GameManager.Instance;
+        int me = OceanNet.LocalId;
+        switch (ev)
+        {
+            case OceanNet.EvSeat:
+                if (boat == null) return;
+                if (!OceanNet.Authority)
+                {
+                    for (int i = 0; i < OceanBoat.Seats; i++) if (boat.seat[i] == a) boat.seat[i] = -1;
+                    if (b >= 0 && b < OceanBoat.Seats) boat.seat[b] = a;
+                }
+                if (a == me) LocalSeatChanged(b);
+                break;
+            case OceanNet.EvHelmet:
+                if (rack == null) return;
+                rack.SetOwner(a, b);
+                HelmetEvents++;
+                if (b == me && OceanPlayer.Local != null)
+                {
+                    OceanPlayer.Local.SetHelmet(true);
+                    if (gm != null) gm.ShowToast("Casco de buzo puesto: aire ilimitado · F: lámpara · Espacio/Ctrl: subir/bajar");
+                }
+                else if (b != me) AttachRemoteHelmet(b);
+                break;
+            case OceanNet.EvFlare:
+                OceanFlare.Spawn(a, p, d);
+                if (a != me && NetSession.Active && gm != null) gm.ShowToast(PlayerName(a) + " ha disparado una bengala");
+                break;
+            case OceanNet.EvLighthouse:
+                if (lighthouse != null) lighthouse.SetOn(a != 0);
+                break;
+        }
+    }
+
+    private void LocalSeatChanged(int seatIdx)
+    {
+        OceanPlayer lp = OceanPlayer.Local;
+        if (lp == null || lp.fpc == null || boat == null) return;
+        if (seatIdx >= 0)
+        {
+            lp.fpc.Mount(boat.transform, OceanBoat.SeatLocal[seatIdx]);
+            if (GameManager.Instance != null) GameManager.Instance.ShowToast(seatIdx == 0 ? "Al timón: W/S avanzar · A/D girar · E bajar" : "En la barca: los peces no te alcanzan · E bajar");
+        }
+        else if (lp.fpc.mount == boat.transform) lp.fpc.Dismount(DismountSpot(boat.transform.position));
+    }
+
+    // al bajar de la barca: a la tabla más cercana (porche, muelle) si hay una a mano; si no, al agua junto a la barca
+    public Vector3 DismountSpot(Vector3 c)
+    {
+        int mask = ~((1 << 2) | (1 << WaterVolume.WaterLayer) | (1 << 8));
+        Vector3 best = Vector3.zero; float bd = 99f;
+        for (int ring = 0; ring < 3; ring++)
+        {
+            float r = 1.9f + ring * 1.2f;
+            for (int k = 0; k < 16; k++)
+            {
+                float a = k * Mathf.PI / 8f;
+                Vector3 q = c + new Vector3(Mathf.Cos(a) * r, 0f, Mathf.Sin(a) * r);
+                if (!Physics.Raycast(new Vector3(q.x, 3.2f, q.z), Vector3.down, out RaycastHit h, 4.5f, mask, QueryTriggerInteraction.Ignore)) continue;
+                if (h.normal.y < 0.8f || h.point.y < -0.7f || h.point.y > 2.2f) continue;
+                if (boat != null && h.collider.transform.IsChildOf(boat.transform)) continue;
+                if (Physics.CheckCapsule(h.point + Vector3.up * 0.45f, h.point + Vector3.up * 1.5f, 0.32f, mask, QueryTriggerInteraction.Ignore)) continue;
+                float dd = (h.point - c).magnitude;
+                if (dd < bd) { bd = dd; best = h.point + Vector3.up * 0.03f; }
+            }
+            if (bd < 99f) return best;
+        }
+        Vector3 side = boat != null ? boat.transform.right : Vector3.right;
+        return c + side * 1.8f + Vector3.down * 1.3f;
+    }
+
+    private static string PlayerName(int id)
+    {
+        if (NetSession.Instance != null) foreach (NetPlayer p in NetSession.Instance.Players) if (p.id == id) return p.name;
+        return "Alguien";
+    }
+
+    // casco en la cabeza de los compañeros (sólo aspecto)
+    private Material helmetBrass, helmetGlass;
+    private void AttachRemoteHelmet(int id)
+    {
+        if (NetSession.Instance == null) return;
+        foreach (NetPlayer p in NetSession.Instance.Players)
+        {
+            if (p.id != id || p.avatar == null || p.avatar.transform.Find("RemoteHelmet") != null) continue;
+            if (helmetBrass == null)
+            {
+                helmetBrass = ProceduralAssets.CreateMaterial(new Color(0.62f, 0.46f, 0.24f), Resources.Load<Texture2D>("Textures/MetalWall_a"), Vector2.one, 0.62f); track(helmetBrass);
+                helmetGlass = ProceduralAssets.CreateMaterial(new Color(0.12f, 0.16f, 0.18f), null, Vector2.one, 0.95f); track(helmetGlass);
+            }
+            GameObject h = OceanHelmetRack.BuildHelmet(p.avatar.transform, helmetBrass, helmetGlass, track);
+            h.name = "RemoteHelmet";
+            h.transform.localPosition = new Vector3(0f, 1.38f, 0.02f);
+            h.transform.localScale = Vector3.one * 1.05f;
+        }
+    }
+
+
+    // ---------------------------------------------------------------- red: bloque «mar» del snapshot (anfitrión → clientes)
+    public void WriteNet(NetWriter w)
+    {
+        w.Byte(73);   // marca
+        w.Float(boat.pos.x).Float(boat.pos.y).Float(boat.yaw).Float(boat.speed).Byte(boat.nextStop);
+        for (int i = 0; i < OceanBoat.Seats; i++) w.Int(boat.seat[i]);
+        w.Byte((int)cage.State).Float(cage.Y).Float(cage.stateT);
+        w.Bool(lighthouse != null && lighthouse.On);
+        for (int i = 0; i < OceanHelmetRack.Count; i++) w.Int(rack.owner[i]);
+        w.Byte(fish.fish.Count);
+        foreach (OceanFishSchool.Fish f in fish.fish) w.Vec3(f.pos).Vec3(f.vel).Byte((int)f.state).Int(f.target);
+        w.Vec3(angler.pos).Vec3(angler.vel).Byte((int)angler.State).Int(angler.target);
+    }
+
+    private readonly int[] netSeats = new int[OceanBoat.Seats];
+    public void ReadNet(NetReader r)
+    {
+        if (r.Byte() != 73) return;
+        Vector2 bp = new Vector2(r.Float(), r.Float()); float by = r.Float(), bs = r.Float(); int ns = r.Byte();
+        for (int i = 0; i < OceanBoat.Seats; i++) netSeats[i] = r.Int();
+        int cs = r.Byte(); float cy = r.Float(), ct = r.Float();
+        bool lh = r.Bool();
+        int[] own = new int[OceanHelmetRack.Count];
+        for (int i = 0; i < own.Length; i++) own[i] = r.Int();
+        int nf = r.Byte();
+        for (int i = 0; i < nf; i++) { Vector3 fp = r.Vec3(), fv = r.Vec3(); int st = r.Byte(), tg = r.Int(); fish.ApplyNet(i, fp, fv, st, tg); }
+        Vector3 ap = r.Vec3(), av = r.Vec3(); int ast = r.Byte(), atg = r.Int();
+        if (OceanNet.Authority) return;
+        boat.ApplyNet(bp, by, bs, netSeats); boat.nextStop = ns;
+        cage.ApplyNet(cs, cy, ct);
+        if (lighthouse != null && lh && !lighthouse.On) lighthouse.SetOn(true);
+        angler.ApplyNet(ap, av, ast, atg);
+        int me = OceanNet.LocalId;
+        for (int i = 0; i < own.Length; i++)
+        {
+            if (rack.owner[i] != own[i]) { rack.SetOwner(i, own[i]); if (own[i] >= 0 && own[i] != me) AttachRemoteHelmet(own[i]); }
+            if (own[i] == me && OceanPlayer.Local != null && !OceanPlayer.Local.HasHelmet) OceanPlayer.Local.SetHelmet(true);
+        }
+        // reconciliar la plaza en la barca
+        OceanPlayer lp = OceanPlayer.Local;
+        if (lp != null && lp.fpc != null)
+        {
+            int seatIdx = boat.LocalSeat;
+            bool onBoat = lp.fpc.mount == boat.transform;
+            if (seatIdx >= 0 && !onBoat && !lp.fpc.IsMounted) LocalSeatChanged(seatIdx);
+            else if (seatIdx < 0 && onBoat) LocalSeatChanged(-1);
+        }
+    }
+
     public int StructureCount { get { return Stilts.Count + 3; } }
 }

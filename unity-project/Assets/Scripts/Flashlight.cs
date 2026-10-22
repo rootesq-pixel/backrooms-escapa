@@ -105,6 +105,8 @@ public class Flashlight : MonoBehaviour
         battery = Mathf.Min(batteryMax, battery + amount);
     }
 
+    public void Reconfigure() { if (spot != null) ConfigureLight(); }   // v7.3.0: lámpara del casco de buzo
+
     private void ConfigureLight()
     {
         spot.type = LightType.Spot;

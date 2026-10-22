@@ -256,6 +256,17 @@ public static class ItemIcons
                 c.Stroke((x, y) => Box(x, y, 48, 48, 26f, 34f, 1.5f, -4f), 1.3f, ink);
                 break;
             }
+            case "FlareGun":
+            {
+                c.Fill((x, y) => Box(x, y, 51, 52, 26f, 8f, 3f, 0f), new Color(0, 0, 0, 0.35f));
+                c.Fill((x, y) => Box(x, y, 36, 34, 7f, 16f, 3f, -18f), Hex(200, 84, 24));       // empuñadura
+                c.Fill((x, y) => Box(x, y, 50, 55, 26f, 8.5f, 3f, 0f), Hex(226, 104, 30));     // cuerpo
+                c.Fill((x, y) => Box(x, y, 74, 55, 6f, 10.5f, 2f, 0f), Hex(240, 124, 40));      // boca ancha
+                c.Fill((x, y) => Box(x, y, 46, 42, 4f, 5f, 1f, 0f), Hex(30, 26, 22));          // gatillo
+                c.Fill((x, y) => Box(x, y, 52, 59, 18f, 1.6f, 0f, 0f), new Color(1, 1, 1, 0.18f));
+                c.Stroke((x, y) => Box(x, y, 50, 55, 26f, 8.5f, 3f, 0f), 1.3f, ink);
+                break;
+            }
             case "Lock":
             {
                 c.Fill((x, y) => Box(x, y, 48, 38, 18f, 14f, 3f, 0f), Hex(60, 56, 40, 200));

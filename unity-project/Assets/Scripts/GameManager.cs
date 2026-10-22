@@ -184,10 +184,20 @@ public class GameManager : MonoBehaviour
     }
 
     // Victoria del nivel: el jugador está cerca de la puerta de salida
+    // v7.3.0: salida con forma propia (Talasofobia: salir a la superficie en la poza de la gruta; no basta la distancia en planta)
+    public static System.Func<Vector3, bool> ExitTest;
+
     private void CheckExit()
     {
         if (player == null || exit == null)
         {
+            return;
+        }
+        if (ExitTest != null)
+        {
+            bool at = ExitTest(player.transform.position);
+            if (NetSession.Active) { NetSession.LocalAtExit = at && !NetSession.Instance.LocalDowned; return; }
+            if (at) Win();
             return;
         }
 
@@ -244,9 +254,24 @@ public class GameManager : MonoBehaviour
     }
 
     // Derrota: lo llama MonsterAI cuando alcanza al jugador
+    // v7.3.0: muerte sin monstruo «de tierra» (ahogado, mordisco de los peces, el Farolero): sin screamer, con su propio texto
+    public string LastDeathReason { get; private set; }
+    public void PlayerKilled(string reason)
+    {
+        if (State != GameState.Playing) return;
+        LastDeathReason = reason;
+        killReason = string.IsNullOrEmpty(reason) ? "TE HAN ATRAPADO" : reason;
+        bool was = Screamer.Enabled;
+        Screamer.Enabled = false;
+        try { PlayerCaught(null); }
+        finally { Screamer.Enabled = was; killReason = null; }
+    }
+    private string killReason;
+
     public void PlayerCaught(MonsterAI by)
     {
         if (State != GameState.Playing) return;
+        if (killReason == null) LastDeathReason = null;
         State = GameState.Lost;
         stateTimer = 0f;
         if (player != null) player.InputEnabled = false;
@@ -277,7 +302,7 @@ public class GameManager : MonoBehaviour
             SetOverlayColor(new Color(0.4f, 0f, 0f, 0.55f));
             if (messageText != null)
             {
-                messageText.text = "TE HAN ATRAPADO\n\nReiniciando el nivel...  (R para reintentar ya)";
+                messageText.text = (killReason ?? "TE HAN ATRAPADO") + "\n\nReiniciando el nivel...  (R para reintentar ya)";
             }
         }
     }

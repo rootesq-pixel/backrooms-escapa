@@ -201,6 +201,18 @@ public class ItemPickup : MonoBehaviour
                 ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "Label", r, new Vector3(0f, 0.0315f, -0.015f), new Vector3(0.14f, 0.002f, 0.05f), M("vh_label", new Color(0.85f, 0.8f, 0.62f), 0.1f, new Color(0.2f, 0.18f, 0.1f)), false);
                 break;
             }
+            case ItemType.FlareGun:
+            {
+                Material o = M("fg_body", new Color(0.86f, 0.36f, 0.08f), 0.45f, new Color(0.12f, 0.04f, 0f));
+                Material d = M("fg_dark", new Color(0.12f, 0.1f, 0.09f), 0.4f);
+                ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "Body", r, new Vector3(0f, 0.045f, 0.02f), new Vector3(0.05f, 0.05f, 0.16f), o, false);
+                GameObject b = ProceduralAssets.CreatePrimitive(PrimitiveType.Cylinder, "Barrel", r, new Vector3(0f, 0.05f, 0.12f), new Vector3(0.05f, 0.06f, 0.05f), o, false);
+                b.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+                GameObject g = ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "Grip", r, new Vector3(0f, 0.025f, -0.06f), new Vector3(0.042f, 0.11f, 0.045f), o, false);
+                g.transform.localRotation = Quaternion.Euler(-70f, 0f, 0f);
+                ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "Trigger", r, new Vector3(0f, 0.012f, -0.005f), new Vector3(0.01f, 0.03f, 0.02f), d, false);
+                break;
+            }
             default:     // nota de papel
             {
                 GameObject p = ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "Paper", r, new Vector3(0f, 0.004f, 0f), new Vector3(0.17f, 0.004f, 0.22f), M("note_paper", new Color(0.86f, 0.8f, 0.6f), 0.1f, new Color(0.32f, 0.28f, 0.14f)), false);

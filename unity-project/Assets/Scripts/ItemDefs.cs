@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public enum ItemType { None = 0, Flashlight = 1, Battery = 2, AlmondWater = 3, Glowstick = 4, VhsTape = 5, Key0 = 6, Key1 = 7, Key2 = 8, Key3 = 9, Key4 = 10 }
+public enum ItemType { None = 0, Flashlight = 1, Battery = 2, AlmondWater = 3, Glowstick = 4, VhsTape = 5, Key0 = 6, Key1 = 7, Key2 = 8, Key3 = 9, Key4 = 10, FlareGun = 11 }
 
 // Datos de los objetos del inventario (textos en español)
 public static class ItemDefs
@@ -42,6 +42,9 @@ public static class ItemDefs
             description = "Llave de bronce con la cabeza de trébol y «ACE» grabado. Solo una de las llaves que hay por el nivel abre la puerta de salida. Al llegar a la puerta se prueban solas; si no es, queda marcada." },
         new Def { type = ItemType.Key4, name = "Llave niquelada", weight = 0.013f, condition = "Brillante", useLabel = "Probar en la puerta", maxStack = 1, usable = true, droppable = true, preferredSlot = 0,
             description = "Llave niquelada con un llavero de cartón: un «4» escrito a boli. Solo una de las llaves que hay por el nivel abre la puerta de salida. Al llegar a la puerta se prueban solas; si no es, queda marcada." },
+        // v7.3.0 Talasofobia: pistola de bengalas (cada unidad es un cartucho). No pasa al nivel siguiente.
+        new Def { type = ItemType.FlareGun, name = "Pistola de bengalas", weight = 0.6f, condition = "Naranja, descolorida", useLabel = "Disparar al cielo", maxStack = 3, usable = true, droppable = true, preferredSlot = 3,
+            description = "Pistola de señales de plástico naranja con tres cartuchos. Dispara una bengala roja que sube muy alto y se ve a través de la niebla: tus compañeros sabrán dónde estás." },
     };
     public static bool IsKey(ItemType t) { return t >= ItemType.Key0 && t <= ItemType.Key4; }
     public static readonly ItemType[] Keys = { ItemType.Key0, ItemType.Key1, ItemType.Key2, ItemType.Key3, ItemType.Key4 };
@@ -100,6 +103,11 @@ public static class LoreNotes
             "Pulsera de entrada|Pulsera de papel, color naranja: «Niño 4-8 años · Entrada 17:05 · Salida ____». Tiene una mancha de batido seca. Nadie rellenó la hora de salida.",
             "Hoja de incidencias|Día 12: falta una bola roja. Día 13: faltan doce. Día 14: la piscina grande tiene MÁS bolas que ayer y está más honda. No meter la mano hasta el fondo.",
             "Nota infantil a lápiz|Mi amigo vive debajo de las bolas. Si te quedas muy quieto en el borde sale a jugar. No le gusta que le pisen. Las llaves las guarda él." },
+        // Nivel 7 — Talasofobia (v7.3.0)
+        new[] {
+            "Libreta hinchada de agua|El agua entró por debajo de la puerta sin hacer ruido y ya no se fue. Desde la ventana de arriba se ve una luz muy lejos, entre la niebla. Se enciende cuando te acercas, como si te esperara.",
+            "Etiqueta de un bidón|NO NADAR ENTRE LAS CASAS. Lo blanco que asoma no es espuma. Si da vueltas a tu alrededor, ya te ha elegido: agárrate a una escalera o sube a la barca. Ahí no llegan.",
+            "Cuaderno de bitácora|Bajé con el casco hasta el fondo de la fosa. Abajo hay una luz pequeña, verdosa, que se mueve sola. NO es una luz. Apaga la lámpara si la ves. La gruta está a la izquierda de la puerta de la jaula, un poco a la izquierda, y sube." },
     };
 
     public static int Total { get { return data.Length * PerLevel; } }

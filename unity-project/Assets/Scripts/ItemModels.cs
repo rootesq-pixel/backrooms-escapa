@@ -36,6 +36,7 @@ public static class ItemModels
             case ItemType.Key2: return "Key2";
             case ItemType.Key3: return "Key3";
             case ItemType.Key4: return "Key4";
+            case ItemType.FlareGun: return "FlareGun";   // v7.3.0: sin modelo horneado (figura de primitivas)
             default: return "Note";
         }
     }

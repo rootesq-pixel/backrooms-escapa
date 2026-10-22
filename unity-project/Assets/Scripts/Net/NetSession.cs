@@ -8,10 +8,10 @@ public enum NetRole { None, Host, Client }
 public static class NetMsg
 {
     // cliente -> anfitrión
-    public const byte Hello = 1, State = 2, PickupReq = 3, Chat = 4, Glow = 5, DropItem = 6, Ready = 7, Ping = 8, Bye = 9, WhistleReq = 10, UnlockReq = 11, DbgMonsters = 20;
+    public const byte Hello = 1, State = 2, PickupReq = 3, Chat = 4, Glow = 5, DropItem = 6, Ready = 7, Ping = 8, Bye = 9, WhistleReq = 10, UnlockReq = 11, OceanReq = 12, DbgMonsters = 20;
     // anfitrión -> cliente
     public const byte Welcome = 101, Reject = 102, Lobby = 103, StartLevel = 104, Snapshot = 105, PickupTaken = 106, ItemSpawned = 107,
-        Downed = 108, Revived = 109, AllDown = 110, LevelComplete = 111, ChatFrom = 112, GlowFrom = 113, PlayerLeft = 114, HostLeft = 115, Resync = 117, Descend = 118, WhistleFrom = 119, ExitUnlocked = 120;
+        Downed = 108, Revived = 109, AllDown = 110, LevelComplete = 111, ChatFrom = 112, GlowFrom = 113, PlayerLeft = 114, HostLeft = 115, Resync = 117, Descend = 118, WhistleFrom = 119, ExitUnlocked = 120, OceanEvent = 121;
 }
 
 public class NetPlayer
@@ -42,7 +42,7 @@ public class NetStart
 // Los clientes generan el mismo mundo a partir de la semilla que envía el anfitrión. Transporte: TCP propio (NetTransport).
 public class NetSession : MonoBehaviour
 {
-    public const string Protocol = "BackroomsEscape-MP-7";   // v7.2.0: reanimar manteniendo E (bit FlagRevive en el estado); v7.1.0: nivel 6 (Parque de bolas); v7.0.4: llaves de la salida (UnlockReq / ExitUnlocked)
+    public const string Protocol = "BackroomsEscape-MP-8";   // v7.3.0: nivel 7 (Talasofobia): OceanReq / OceanEvent y bloque «mar» en el snapshot; antes MP-7: v7.2.0: reanimar manteniendo E (bit FlagRevive en el estado); v7.1.0: nivel 6 (Parque de bolas); v7.0.4: llaves de la salida (UnlockReq / ExitUnlocked)
     // antes: "BackroomsEscape-MP-4"   // v7.0.2: silbido (G) y un imitador extra por nivel (más monstruos en la red)
     public const int MaxPlayers = 4;
     public const int DefaultPort = 7777;
@@ -433,6 +433,15 @@ public class NetSession : MonoBehaviour
                 case NetMsg.DropItem:
                     if (p != null) HostDrop((ItemType)r.Int(), r.Int(), r.Vec3());
                     break;
+                case NetMsg.OceanReq:
+                {
+                    // v7.3.0: barca, timón, casco, bengala, ahogado (el anfitrión decide)
+                    int ep = r.Int(); int op = r.Byte(); int a = r.Int(); float x = r.Float(), y = r.Float(); Vector3 pp = r.Vec3(), dd = r.Vec3();
+                    if (p == null || ep != Epoch || WorldEpoch != Epoch || OceanWorld.Active == null) break;
+                    OceanReqsReceived++;
+                    OceanWorld.Active.HostRequest(p.id, op, a, x, y, pp, dd);
+                    break;
+                }
                 case NetMsg.Ready:
                 {
                     if (p == null) break;
@@ -637,6 +646,7 @@ public class NetSession : MonoBehaviour
             if (m == null) { w.Byte(i).Vec3(Vector3.zero).Float(0f).Byte(0).Float(0f); continue; }
             w.Byte(i).Vec3(m.transform.position).Float(m.transform.eulerAngles.y).Byte(m.NetStateByte).Float(m.VisSpeed);
         }
+        if (OceanWorld.Active != null) OceanWorld.Active.WriteNet(w);   // v7.3.0: barca, jaula, faro, cascos, peces y Farolero
         Broadcast(w.ToArray());
     }
 
@@ -784,6 +794,13 @@ public class NetSession : MonoBehaviour
                     break;
                 }
                 case NetMsg.Snapshot: ApplySnapshot(r); break;
+                case NetMsg.OceanEvent:
+                {
+                    int ep = r.Int(); int ev = r.Byte(); int a = r.Int(), b = r.Int(); Vector3 pp = r.Vec3(), dd = r.Vec3();
+                    OceanEventsReceived++;
+                    if (ep == WorldEpoch && WorldEpoch != 0 && OceanWorld.Active != null) OceanWorld.Active.ApplyEvent(ev, a, b, pp, dd);
+                    break;
+                }
                 case NetMsg.PickupTaken:
                 {
                     int id = r.Int(), by = r.Int();
@@ -910,6 +927,49 @@ public class NetSession : MonoBehaviour
             if (valid && idx < mons.Length && mons[idx] != null) mons[idx].NetPush(pos, yaw, st, sp);
         }
         if (valid) { ExitCount = exitCount; ExitTotal = exitTotal; }
+        if (valid && OceanWorld.Active != null)
+        {
+            try { OceanWorld.Active.ReadNet(r); OceanSnapshots++; } catch (Exception e) { Debug.LogWarning("[NetSession] bloque del mar no válido: " + e.Message); }
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // v7.3.0 Talasofobia
+    // ------------------------------------------------------------------
+    public int OceanReqsReceived, OceanEventsReceived, OceanSnapshots, HazardDowns;
+    public void SendOceanReq(int op, int a, float x, float y, Vector3 p, Vector3 d)
+    {
+        if (serverConn == null) return;
+        serverConn.Send(new NetWriter(NetMsg.OceanReq).Int(WorldEpoch).Byte(op).Int(a).Float(x).Float(y).Vec3(p).Vec3(d).ToArray());
+    }
+    public void BroadcastOceanEvent(int ev, int a, int b, Vector3 p, Vector3 d)
+    {
+        if (Role != NetRole.Host) return;
+        Broadcast(new NetWriter(NetMsg.OceanEvent).Int(Epoch).Byte(ev).Int(a).Int(b).Vec3(p).Vec3(d).ToArray());
+    }
+    public bool LocalReviveCandidate() { return LocalReviveTarget != null; }
+
+    // derribo por el mar (código >= 1: ahogado, peces, Farolero). Índice de «monstruo» negativo: -10 - código.
+    public bool HostHazardCaught(int playerId, int code)
+    {
+        if (Role != NetRole.Host) return false;
+        NetPlayer p = PlayerById(playerId);
+        if (p == null || p.downed) return false;
+        if (code != OceanNet.KillDrown && NoCatchForTests) return false;
+        if (Time.unscaledTime < p.graceUntil) return false;
+        p.downed = true; p.revive = 0f; HazardDowns++;
+        int idx = -10 - code;
+        Broadcast(new NetWriter(NetMsg.Downed).Int(p.id).Int(idx).ToArray());
+        ApplyDowned(p, idx);
+        bool all = true;
+        foreach (NetPlayer q in Players) if (!q.downed) all = false;
+        if (all && !allDownSent)
+        {
+            allDownSent = true;
+            Broadcast(new NetWriter(NetMsg.AllDown).Int(idx).ToArray());
+            ApplyAllDown(idx);
+        }
+        return all;
     }
 
     // ------------------------------------------------------------------
@@ -1232,7 +1292,7 @@ public class NetSession : MonoBehaviour
         {
             LocalDowned = true;
             if (downedFx != null) downedFx.SetDown(true);
-            if (gm != null) gm.ShowToast("¡Te han derribado! Un compañero puede reanimarte manteniendo E a tu lado");
+            if (gm != null) gm.ShowToast(monsterIndex <= -10 ? OceanNet.KillText(-10 - monsterIndex) + " · Un compañero puede reanimarte manteniendo E a tu lado" : "¡Te han derribado! Un compañero puede reanimarte manteniendo E a tu lado");
             if (VhsEffect.Active != null) VhsEffect.Active.Spike(1f);
         }
         else
@@ -1260,8 +1320,9 @@ public class NetSession : MonoBehaviour
     private void ApplyAllDown(int monsterIndex)
     {
         if (gm == null) return;
-        MonsterAI by = monsterIndex >= 0 && monsterIndex < mons.Length ? mons[monsterIndex] : (mons.Length > 0 ? mons[0] : null);
         if (downedFx != null) downedFx.SetDown(false);
+        if (monsterIndex <= -10) { gm.PlayerKilled(OceanNet.KillText(-10 - monsterIndex)); return; }   // v7.3.0: el mar
+        MonsterAI by = monsterIndex >= 0 && monsterIndex < mons.Length ? mons[monsterIndex] : (mons.Length > 0 ? mons[0] : null);
         gm.PlayerCaught(by);
     }
 

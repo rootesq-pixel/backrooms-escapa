@@ -131,8 +131,9 @@ public class ElevatorCabin : MonoBehaviour
         transform.SetPositionAndRotation(pos, rot);
 
         BuildModel();
-        if (config.layout == LayoutKind.Field) BuildFieldShell(frontExtent);
-        BuildColliders(config.layout == LayoutKind.Field ? 0f : config.cellSize, frontExtent);
+        bool openShell = config.layout == LayoutKind.Field || config.layout == LayoutKind.Ocean;   // v7.3.0: en el mar la cabina asoma detrás de la casa inundada
+        if (openShell) BuildFieldShell(frontExtent);
+        BuildColliders(openShell ? 0f : config.cellSize, frontExtent);
         BuildFixtures();
         BuildAudio();
 

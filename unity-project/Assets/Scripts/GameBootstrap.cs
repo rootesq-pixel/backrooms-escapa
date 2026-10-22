@@ -351,7 +351,7 @@ public class GameBootstrap : MonoBehaviour
 
         // 2) NavMesh (antes de crear jugador y monstruos para que no entren en el horneado)
         bool navBuilt = false;
-        if (spawnMonster && buildNavMesh && !netClient)
+        if (spawnMonster && buildNavMesh && !netClient && cfg.layout != LayoutKind.Ocean)   // v7.3.0: en el mar no hay monstruos de NavMesh
         {
             BallpitSetPiece.BeginNavBuild();
             navBuilt = MonsterAI.TryBuildRuntimeNavMesh(generator.Root.gameObject);
@@ -373,7 +373,7 @@ public class GameBootstrap : MonoBehaviour
         LoadDiag.Step("monstruos");
         // 4) Monstruos
         List<MonsterAI> monsters = new List<MonsterAI>();
-        if (spawnMonster)
+        if (spawnMonster && cfg.layout != LayoutKind.Ocean)   // v7.3.0: Talasofobia usa sus propias criaturas (OceanCreatures)
         {
             int mcount = Mathf.Max(1, cfg.monsterCount) + (ns != null ? ns.extraMonsters : 0);
             for (int i = 0; i < generator.MonsterSpawns.Count && i < mcount; i++)
@@ -402,6 +402,16 @@ public class GameBootstrap : MonoBehaviour
         BuildExtraPickups(generator, cfg, ns != null);
         BuildKeyPickups(generator, cfg, ns != null);   // v7.0.4: llaves señuelo
 
+        // 5a) v7.3.0 Talasofobia: aire, casco, barca... del jugador local y la pistola de bengalas (piso de arriba de una casa)
+        if (cfg.layout == LayoutKind.Ocean && OceanWorld.Active != null)
+        {
+            OceanPlayer.Attach(fpc, flashlight, cam);
+            Transform ir = new GameObject("OceanPickups").transform; ir.SetParent(worldRoot.transform, false);
+            ItemPickup fg = ItemPickup.Spawn(ItemType.FlareGun, OceanWorld.Active.FlareSpot, -1, ir, 0f);
+            fg.amount = 3;
+            if (ns != null) { fg.netId = 4000; NetSession.RegisterPickup(fg.netId, fg); }
+        }
+
         // 5b) v7.0 Campo infinito: hierba instanciada en GPU (fuera de levelRoot: no entra en la huella MP ni en el NavMesh) y El Vigía en el horizonte
         if (cfg.layout == LayoutKind.Field)
         {
@@ -418,7 +428,7 @@ public class GameBootstrap : MonoBehaviour
         gm.player = fpc;
         gm.flashlight = flashlight;
         gm.exit = generator.ExitTransform;
-        ExitLock.Create(gm.gameObject, generator.UsedSeed, cfg.index, generator.ExitTransform, gm.exitRadius);   // v7.0.4: salida cerrada con llave
+        if (cfg.layout != LayoutKind.Ocean) ExitLock.Create(gm.gameObject, generator.UsedSeed, cfg.index, generator.ExitTransform, gm.exitRadius);   // v7.0.4: salida cerrada con llave (en el mar: salir a la superficie en la gruta)
         gm.monsters = monsters.ToArray();
         gm.monster = monsters.Count > 0 ? monsters[0] : null;
         gm.playerCamera = cam.transform;
@@ -500,7 +510,7 @@ public class GameBootstrap : MonoBehaviour
         RenderSettings.fogColor = cfg.fog;
         RenderSettings.fogDensity = cfg.fogDensity;
         Shader.SetGlobalFloat("_GradeAmt", cfg.grade);
-        PostStack.LevelActive = cfg.index == 2 || cfg.layout == LayoutKind.Field;   // v6.9: post-procesado tipo POOLS (Poolrooms; v7.0 también el campo)
+        PostStack.LevelActive = cfg.index == 2 || cfg.layout == LayoutKind.Field || cfg.layout == LayoutKind.Ocean;   // v6.9: post-procesado tipo POOLS (Poolrooms; v7.0 también el campo)
         PostStack.Exposure = cfg.postExposure; PostStack.BloomInt = cfg.postBloom; PostStack.Threshold = cfg.postThreshold;   // v7.2.0: por nivel
         Shader.SetGlobalFloat("_GradeWarm", 1f);
         Shader.SetGlobalFloat("_GradeContrast", 1.4f);
@@ -542,6 +552,7 @@ public class GameBootstrap : MonoBehaviour
         cam.backgroundColor = cfg.fog;
         cam.allowHDR = true;
         if (cfg.layout == LayoutKind.Field) FieldAtmosphere.SetupCamera(cam);
+        if (cfg.layout == LayoutKind.Ocean) cam.farClipPlane = 330f;   // v7.3.0: el faro se intuye a ~230 m entre la niebla
         camGo.AddComponent<AudioListener>();
         camGo.AddComponent<VhsEffect>();
 

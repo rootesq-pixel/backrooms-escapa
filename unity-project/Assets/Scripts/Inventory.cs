@@ -225,6 +225,9 @@ public class Inventory : MonoBehaviour
             case ItemType.Glowstick:
                 if (ThrowGlowstick(true)) { Remove(i, 1); msg = "Barra luminosa lanzada"; ok = true; }
                 break;
+            case ItemType.FlareGun:   // v7.3.0
+                if (OceanFlare.TryFire(cam != null ? cam.transform : transform, out msg)) { Remove(i, 1); ok = true; }
+                break;
             default:
                 msg = ItemDefs.Get(slots[i].type).name + ": no se puede usar";
                 break;
@@ -303,6 +306,7 @@ public class Inventory : MonoBehaviour
     {
         carryCounts = CurrentCounts();
         foreach (ItemType k in ItemDefs.Keys) carryCounts[(int)k] = 0;   // v7.0.4: las llaves son de cada nivel
+        if ((int)ItemType.FlareGun < carryCounts.Length) carryCounts[(int)ItemType.FlareGun] = 0;   // v7.3.0: la pistola de bengalas tampoco pasa
         carryNotes = new List<int>(notes);
         if (sanity != null) sanity.Commit();
     }
