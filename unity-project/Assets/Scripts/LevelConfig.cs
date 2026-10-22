@@ -196,13 +196,14 @@ public class LevelConfig
         c.wallStyle = SurfaceStyle.PoolWall; c.floorStyle = SurfaceStyle.PoolFloor; c.ceilingStyle = SurfaceStyle.CeilingPool;
         c.wallTileU = 2f; c.wallTileV = 2f; c.floorTileU = c.floorTileV = 2f; c.ceilTileU = c.ceilTileV = 2.4f;
         c.water = true; c.waterLevel = 0.22f; c.waterColor = new Color(0.28f, 0.52f, 0.62f, 0.55f);
-        c.ambient = new Color(0.05f, 0.09f, 0.12f);
+        c.ambient = new Color(0.09f, 0.13f, 0.16f);   // v7.2.0: algo más claro (antes 0,05/0,09/0,12: «se ve un poco oscuro»)
         c.fog = new Color(0.07f, 0.17f, 0.21f);
         c.fogDensity = 0.034f;
         c.reflectionIntensity = 0.2f;
         c.fixture = FixtureKind.Panel; c.lightSpacing = 2; c.deadChance = 0.05f; c.flickerChance = 0.15f;
         c.lightColor = new Color(0.65f, 0.92f, 1f); c.emissionColor = new Color(0.9f, 1.5f, 1.8f);
-        c.lightIntensity = 1.3f; c.lightRange = 10f; c.maxRealtimeLights = 10; c.buzzChance = 0.3f;
+        c.lightIntensity = 1.7f; c.lightRange = 10f; c.maxRealtimeLights = 10; c.buzzChance = 0.3f;   // v7.2.0: 1,3 -> 1,7 (pasillos inundados)
+        c.postExposure = 0.9f; c.postBloom = 0.03f; c.postThreshold = 1.3f;   // v7.2.0: más claro y ventanas sin halo (como Cycles)
         c.playerSpeedFactor = 0.88f;
         c.flashlightDrain = 0.75f; c.flashlightRecharge = 0.05f; c.batteries = 5; c.batteryAmount = 35f;
         c.monsterCount = 1; c.patrolSpeed = 2.0f; c.chaseSpeed = 4.5f; c.sightRange = 20f; c.hearingScale = 1.3f;

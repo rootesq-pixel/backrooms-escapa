@@ -16,11 +16,11 @@ public static class PoolLook
     public static Vector4 EdgeP = new Vector4(0.08f, 0.92f, 0f, 0f);           // línea oscura del agua junto al vaso: ancho, oscuridad
     public static Color WallTint = new Color(0.86f, 0.89f, 0.93f);            // paredes algo más grises (Cycles: grime + AgX)
     public static float PoolTileScale = 0.45f;                                 // baldosa del vaso de ~11 cm como en los renders
-    public static Color WindowEmission = new Color(3.4f, 3.55f, 3.7f);
+    public static Color WindowEmission = new Color(2.2f, 2.45f, 2.95f);   // v7.2.0: blanco plano sin halo (el VHS calienta los blancos: algo de azul)
     // v7.2.0: paredes como en Blender (gris claro con manchas, no azulejo azulado) y ventanas sin halo
-    public static Color WallLMTint = new Color(1f, 1f, 1f);                    // luz horneada de paredes y techo sin el tinte frío del agua
-    public static float WallGrime = 1f, DeckGrime = 0.5f, CeilGrime = 1f;      // cantidad de suciedad (Grime_g, periodo GrimePeriod m)
-    public static Color GrimeColor = new Color(0.76f, 0.73f, 0.66f);            // (0,55, 0,5, 0,4) lineal de Blender en espacio gamma
+    public static Color WallLMTint = new Color(0.96f, 1f, 1.08f);                    // luz horneada de paredes y techo sin el tinte frío del agua
+    public static float WallGrime = 1.15f, DeckGrime = 0.55f, CeilGrime = 1.1f;      // cantidad de suciedad (Grime_g, periodo GrimePeriod m)
+    public static Color GrimeColor = new Color(0.68f, 0.66f, 0.6f);            // (0,55, 0,5, 0,4) lineal de Blender en espacio gamma
     public const float GrimePeriod = 16f;
     public const float DeckPlanar = 1f, PoolWaterBand = 0.85f;
 
