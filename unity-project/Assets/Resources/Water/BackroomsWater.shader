@@ -128,14 +128,23 @@ Shader "Hidden/BackroomsWater"
                 {
                     float3 n3 = UnpackNormal(tex2D(_NormalMap, i.wpos.xz * 0.12 + _WTime * float2(0.011, -0.008)));
                     N = normalize(N + float3(n3.x, 0, n3.y) * 0.22);
-                    // v7.1.3: rizado fino como el de Cycles (40 ondas de 0,2 a 1,3 m): 3 capas más pequeñas y rápidas
-                    float2 pw = i.wpos.xz;
-                    float3 nA = UnpackNormal(tex2D(_NormalMap, pw * 0.95 + _WTime * float2(0.045, 0.028)));
-                    float3 nB = UnpackNormal(tex2D(_NormalMap, float2(pw.y, -pw.x) * 1.9 + _WTime * float2(-0.05, 0.062)));
-                    float3 nC = UnpackNormal(tex2D(_NormalMap, pw * 0.42 + _WTime * float2(-0.021, 0.026)));
-                    float2 sl = nA.xy * 0.55 + nB.xy * 0.35 + nC.xy * 0.6;
-                    float nNear = saturate(1.35 - length(_WorldSpaceCameraPos - i.wpos) / 22.0);
-                    N = normalize(N + float3(sl.x, 0, sl.y) * _PoolWaveP.x * nNear);
+                    // v7.1.3: oleaje como el de Cycles (pool-render/build.py: suma de senos k 5-30 rad/m, A = 0,0028/(k/6)^0,8):
+                    // 8 senos analíticos (amplitud ×√5 para la misma pendiente rms que los 40 de Blender), dispersión de aguas profundas
+                    if (_PoolWaterAbs.w > 0.0)
+                    {
+                        float2 sl = 0;
+                        float nNear = saturate(1.35 - length(_WorldSpaceCameraPos - i.wpos) / 24.0);
+                        [unroll] for (int w = 0; w < 8; w++)
+                        {
+                            float k = 5.5 * pow(1.27, w);
+                            float ang = w * 2.39996 + 0.4;
+                            float2 dir = float2(cos(ang), sin(ang));
+                            float A = 0.0028 * 2.236 / pow(k / 6.0, 0.8);
+                            float ph = dot(dir, i.wpos.xz) * k - sqrt(9.81 * k) * 0.55 * _WTime + w * 1.7;
+                            sl += dir * (A * k * cos(ph));
+                        }
+                        N = normalize(float3(0, 1, 0) * 0.35 + N * 0.65 - float3(sl.x, 0, sl.y) * _PoolWaveP.x * nNear);
+                    }
                 }
 
                 // ondas circulares (pisadas, chapoteos, objetos)

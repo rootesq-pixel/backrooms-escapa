@@ -50,6 +50,8 @@ Shader "Backrooms/PoolBaked"
                 float band = saturate(1.0 - h / 0.07) * saturate(h / 0.01 + 1.0);
                 o.Emission *= 1.0 - _WaterBand * band; o.Albedo *= 1.0 - _WaterBand * band;
             }
+            // bajo el agua la baldosa apenas refleja (interfaz agua-barniz: F0 ~0,004): sin el reflejo nítido de las ventanas del cubemap
+            if (_WaterBand > 0 && IN.worldPos.y < _PoolWaterY - 0.01) o.Occlusion *= 0.15;
             if (_PlanarK > 0 && _PoolPlanarOn > 0.5 && IN.wny > 0.9 && IN.worldPos.y > _PoolWaterY + 0.02)
             {
                 float3 V = normalize(_WorldSpaceCameraPos - IN.worldPos);
