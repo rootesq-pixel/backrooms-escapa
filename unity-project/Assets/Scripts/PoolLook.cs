@@ -44,12 +44,16 @@ public static class PoolLook
         }
     }
 
+    public static bool LevelWide { get; private set; }
+    public static void ApplyLevelWide() { Apply(); Shader.SetGlobalFloat("_PoolLookAll", 1f); LevelWide = true; }
+
     // Fuera de la sala (otros niveles): sin efecto (w = 0 deja el agua y las cáusticas como antes).
     public static void Clear()
     {
         Shader.SetGlobalVector("_PoolWaterAbs", Vector4.zero);
         Shader.SetGlobalVector("_PoolCausticK", Vector4.zero);
         Shader.SetGlobalVector("_PoolEdgeP", Vector4.zero);
+        Shader.SetGlobalFloat("_PoolLookAll", 0f); LevelWide = false;
     }
 
     // Para el ajuste: "clave=a,b,c,d;clave2=..." (claves: WaterTint, WaterAbs, WaterScatter, WaveP, CausticK, DeckP, Window)
@@ -77,6 +81,8 @@ public static class PoolLook
                 case "CausticK": CausticK = x; break;
                 case "DeckP": DeckP = x; break;
                 case "LMTint": LMTint = new Color(x.x, x.y, x.z); break;
+                case "LookAll": Shader.SetGlobalFloat("_PoolLookAll", x.x); break;
+                case "PlanarOff": PoolPlanarReflection.ForceOff = x.x > 0.5f; break;
                 case "Window": WindowEmission = new Color(x.x, x.y, x.z); break;
             }
         }

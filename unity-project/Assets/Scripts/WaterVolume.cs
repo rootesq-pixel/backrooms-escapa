@@ -60,6 +60,11 @@ public class WaterVolume : MonoBehaviour
         v.surfaceLocalY = cfg.waterLevel;
         v.surfaceY = gen.Root.TransformPoint(new Vector3(0f, cfg.waterLevel, 0f)).y;
         v.BuildMaterial(cfg, normalSet);
+        if (cfg.index == 2 && !v.usingFallback)
+        {   // v7.1.3: toda el agua del nivel Poolrooms con el aspecto ajustado a Cycles (no solo la sala de piscina)
+            PoolLook.ApplyLevelWide();
+            PoolPlanarReflection.Ensure(go, v.surfaceY);
+        }
         v.BuildSurface(gen, cfg, go.transform);
         v.BuildDebris(gen, cfg);
         v.GatherLights(gen);

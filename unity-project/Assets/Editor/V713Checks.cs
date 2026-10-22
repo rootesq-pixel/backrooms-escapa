@@ -24,9 +24,31 @@ public static class V713Checks
         string T = tag + "[v7.1.3 agua] ";
         BackroomsGenerator gen = gm != null ? gm.generator : null;
         bool fixedPool = gen != null && gen.PoolFixed && PoolRoomSetPiece.Root != null && PoolRoomSetPiece.HasBakedAssets;
+        // toda el agua del nivel Poolrooms (pasillos y salas inundadas, vaso) con el aspecto nuevo; el resto de niveles, sin tocar
+        int waterR = 0, newR = 0; string bad = "";
+        foreach (Renderer rr in Object.FindObjectsOfType<Renderer>())
+        {
+            bool isWater = rr.gameObject.layer == WaterVolume.WaterLayer && !(rr is ParticleSystemRenderer);
+            foreach (Material mm in rr.sharedMaterials) if (mm != null && mm.shader != null && mm.shader.name.Contains("Water") && !(rr is ParticleSystemRenderer)) isWater = true;
+            if (!isWater) continue;
+            waterR++;
+            bool ok = rr.sharedMaterials.Length > 0;
+            foreach (Material mm in rr.sharedMaterials) if (mm == null || mm.shader == null || mm.shader.name != "Hidden/BackroomsWater") ok = false;
+            if (ok) newR++; else if (bad.Length < 200) bad += " " + rr.name;
+        }
+        if (cfg.index == 2)
+        {
+            r.Check(waterR > 0 && newR == waterR, T + "todo el agua del nivel usa el shader de agua v7.1.3: " + newR + "/" + waterR + " renderers" + bad);
+            r.Check(Shader.GetGlobalFloat("_PoolLookAll") > 0.5f && PoolLook.LevelWide && Shader.GetGlobalVector("_PoolWaterAbs").w > 0.5f, T + "aspecto nuevo en TODO el nivel (_PoolLookAll = 1), no solo en la sala");
+            r.Check(PoolPlanarReflection.Instance != null && Mathf.Abs(PoolPlanarReflection.Instance.waterY - WaterVolume.Active.surfaceY) < 0.01f, T + "un reflejo planar para todo el nivel, a la altura del agua");
+            int nPl = Object.FindObjectsOfType<PoolPlanarReflection>().Length;
+            r.Check(nPl == 1, T + "un solo reflejo planar activo (" + nPl + ")");
+        }
+        else
+            r.Check(Shader.GetGlobalFloat("_PoolLookAll") < 0.5f, T + "fuera de los Poolrooms el agua no usa el aspecto del nivel 2 (" + waterR + " renderers de agua)");
         if (!fixedPool)
         {
-            r.Check(Shader.GetGlobalVector("_PoolWaterAbs").w == 0f && Shader.GetGlobalVector("_PoolCausticK").w == 0f, T + "sin sala de piscina: parámetros de la sala apagados (agua y cáusticas como antes)");
+            if (cfg.index != 2) r.Check(Shader.GetGlobalVector("_PoolWaterAbs").w == 0f && Shader.GetGlobalVector("_PoolCausticK").w == 0f, T + "sin sala de piscina: parámetros de la sala apagados (agua y cáusticas como antes)");
             yield break;
         }
         r.Check(Shader.GetGlobalVector("_PoolWaterAbs").w > 0.5f, T + "parámetros de la sala activos (_PoolWaterAbs.w)");
@@ -39,7 +61,7 @@ public static class V713Checks
         r.Check(Shader.GetGlobalVector("_PoolEdgeP").x > 0f, T + "línea oscura del agua junto al vaso activa");
         Color lt = mats.Length > 0 ? mats[0].GetColor("_LMTint") : Color.black;
         r.Check(lt.b >= lt.r && lt.g > 0.5f, T + "luz horneada con tinte frío " + lt);
-        PoolPlanarReflection pl = PoolRoomSetPiece.Root.GetComponent<PoolPlanarReflection>();
+        PoolPlanarReflection pl = PoolPlanarReflection.Instance;
         r.Check(pl != null, T + "reflejo planar presente");
         if (pl == null) yield break;
         GameObject go = new GameObject("V713TestCam"); Camera cam = go.AddComponent<Camera>(); cam.enabled = false;

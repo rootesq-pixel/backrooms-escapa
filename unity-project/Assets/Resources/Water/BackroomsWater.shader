@@ -41,6 +41,8 @@ Shader "Hidden/BackroomsWater"
             UNITY_DECLARE_DEPTH_TEXTURE(_CameraDepthTexture);
             half _Absorb, _Refract;
             float4 _PoolRoomRect;
+            float _PoolLookAll;   // v7.1.3: 1 en todo el nivel Poolrooms (toda el agua del nivel con el aspecto de la sala)
+            float InLook(float3 p) { return (_PoolLookAll > 0.5 || (p.x > _PoolRoomRect.x && p.x < _PoolRoomRect.z && p.z > _PoolRoomRect.y && p.z < _PoolRoomRect.w)) ? 1.0 : 0.0; }
             sampler2D _PoolPlanarTex; float _PoolPlanarOn;   // reflexión planar de la sala (Medio/Alto)   // sala de piscina de Blender (xz min/max mundo): agua más clara
             float _WDepthOn;
             fixed4 _Color, _Deep, _FoamCol, _UnderCol;
@@ -127,7 +129,7 @@ Shader "Hidden/BackroomsWater"
                 float nFade = saturate(1.2 - length(_WorldSpaceCameraPos - i.wpos) / 28.0);
                 N = normalize(N + float3(n1.x + n2.x, 0, n1.y + n2.y) * 0.32 * nFade);
                 // v6.9: movimiento suave constante en la sala de piscina (ondas lentas largas)
-                if (i.wpos.x > _PoolRoomRect.x && i.wpos.x < _PoolRoomRect.z && i.wpos.z > _PoolRoomRect.y && i.wpos.z < _PoolRoomRect.w)
+                if (InLook(i.wpos) > 0.5)
                 {
                     float3 n3 = UnpackNormal(tex2D(_NormalMap, i.wpos.xz * 0.12 + _WTime * float2(0.011, -0.008)));
                     N = normalize(N + float3(n3.x, 0, n3.y) * 0.22);
@@ -211,7 +213,7 @@ Shader "Hidden/BackroomsWater"
                     thick = max(0.0, sceneZ - surfZ) * saturate(dot(V, float3(0, 1, 0)) + 0.25);
                 }
                 // refracción: el fondo desplazado por la normal de las ondas (menos en aguas muy someras)
-                float inRoomR = (i.wpos.x > _PoolRoomRect.x && i.wpos.x < _PoolRoomRect.z && i.wpos.z > _PoolRoomRect.y && i.wpos.z < _PoolRoomRect.w) ? 1.0 : 0.0;
+                float inRoomR = InLook(i.wpos);
                 float2 off = N.xz * _Refract * saturate(thick * 3.0 + 0.15);
                 // v7.1.3: en la sala, desplazamiento físico: en el fondo ~ profundidad × pendiente × (1 - 1/1,33), en pantalla / distancia
                 if (inRoomR > 0.5 && _PoolWaterAbs.w > 0.0) off = N.xz * _PoolWaveP.y * 0.25 * min(thick, 2.0) / max(surfZ, 0.35);
@@ -224,7 +226,7 @@ Shader "Hidden/BackroomsWater"
                 }
                 float3 refr = tex2D(_WaterGrab, guv).rgb;
                 // absorción azul-verdosa por profundidad (el rojo se pierde antes) + dispersión hacia el color profundo
-                float inRoom = (i.wpos.x > _PoolRoomRect.x && i.wpos.x < _PoolRoomRect.z && i.wpos.z > _PoolRoomRect.y && i.wpos.z < _PoolRoomRect.w) ? 1.0 : 0.0;
+                float inRoom = InLook(i.wpos);
                 float rawThick = thick;
                 thick *= lerp(1.0, 0.24, inRoom);   // v6.9: agua de la sala más clara (como pool_1..3 de Cycles)
                 float3 trans = exp(-thick * float3(1.10, 0.36, 0.30) * _Absorb);

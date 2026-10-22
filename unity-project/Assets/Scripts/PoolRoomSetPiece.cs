@@ -124,9 +124,8 @@ public static class PoolRoomSetPiece
 
         Vector3 w0 = levelRoot.TransformPoint(new Vector3(b.x * cs, 0f, b.y * cs)), w1 = levelRoot.TransformPoint(new Vector3(b.xMax * cs, 0f, b.yMax * cs));
         Shader.SetGlobalVector("_PoolRoomRect", new Vector4(Mathf.Min(w0.x, w1.x), Mathf.Min(w0.z, w1.z), Mathf.Max(w0.x, w1.x), Mathf.Max(w0.z, w1.z)));
-        PoolPlanarReflection pl = root.AddComponent<PoolPlanarReflection>();
-        pl.waterY = levelRoot.TransformPoint(new Vector3(0f, cfg.waterLevel, 0f)).y;
-        pl.center = levelRoot.TransformPoint(ctr);
+        PoolPlanarReflection pl = PoolPlanarReflection.Ensure(root, levelRoot.TransformPoint(new Vector3(0f, cfg.waterLevel, 0f)).y);   // v7.1.3: uno para todo el nivel
+        pl.center = levelRoot.TransformPoint(ctr); pl.hasRoom = true;
 
         // v6.8.1: datos para salir de la piscina (borde, escalera, rescate)
         {
@@ -270,9 +269,8 @@ public static class PoolRoomSetPiece
             f.type = LightType.Point; f.range = 9f; f.intensity = 0.9f; f.color = new Color(0.85f, 0.95f, 1f);
             f.shadows = LightShadows.None; f.renderMode = LightRenderMode.ForcePixel;
         }
-        PoolPlanarReflection pl = root.AddComponent<PoolPlanarReflection>();
-        pl.waterY = levelRoot.TransformPoint(new Vector3(0f, cfg.waterLevel, 0f)).y;
-        pl.center = levelRoot.TransformPoint(ctr);
+        PoolPlanarReflection pl = PoolPlanarReflection.Ensure(root, levelRoot.TransformPoint(new Vector3(0f, cfg.waterLevel, 0f)).y);   // v7.1.3: uno para todo el nivel
+        pl.center = levelRoot.TransformPoint(ctr); pl.hasRoom = true;
 
         // sonda de reflexión de la sala (azulejos y agua brillantes); se refresca una vez al empezar
         if (SystemInfo.graphicsDeviceType != GraphicsDeviceType.Null)
@@ -320,11 +318,26 @@ public class PoolRoomProbeRefresher : MonoBehaviour
 // Standard Assets / Optically-Realistic-Water (MIT)). Solo en Medio (256 px) y Alto (512 px), y solo cerca de la sala.
 public class PoolPlanarReflection : MonoBehaviour
 {
-    public float waterY; public Vector3 center;
+    public float waterY; public Vector3 center; public bool hasRoom;
+    // v7.1.3: un único reflejo planar para TODA el agua del nivel Poolrooms (antes solo cerca de la sala de piscina):
+    // toda el agua del nivel está a la misma altura (cfg.waterLevel), así que el mismo plano sirve para pasillos, salas inundadas y vaso.
+    public static PoolPlanarReflection Instance { get; private set; }
+    public static void ResetForNewLevel() { Instance = null; }
+    public static bool ForceOff;   // solo para medir el coste (Editor/V713Shots.cs, PoolLook.Override)
+    public static PoolPlanarReflection Ensure(GameObject host, float waterY)
+    {
+        if (Instance == null) Instance = host.AddComponent<PoolPlanarReflection>();
+        Instance.waterY = waterY;
+        return Instance;
+    }
     private Camera rc; private RenderTexture rt; private int size;
     private static readonly int TexId = Shader.PropertyToID("_PoolPlanarTex"), OnId = Shader.PropertyToID("_PoolPlanarOn"), CkId = Shader.PropertyToID("_PoolCausticK"), WkId = Shader.PropertyToID("_PoolWaveK");
 
-    private void OnDisable() { Camera.onPreCull -= PreCull; Shader.SetGlobalFloat(OnId, 0f); PoolLook.Clear(); if (rt != null) { rt.Release(); Destroy(rt); rt = null; } if (rc != null) Destroy(rc.gameObject); }
+    private void OnDisable()
+    {
+        Camera.onPreCull -= PreCull;
+        if (Instance == this) { Shader.SetGlobalFloat(OnId, 0f); PoolLook.Clear(); Instance = null; }   // el de un nivel ya sustituido no toca los globales del nuevo
+        if (rt != null) { rt.Release(); Destroy(rt); rt = null; } if (rc != null) Destroy(rc.gameObject); }
 
     // v7.1.3: se renderiza justo antes de la cámara principal (onPreCull) para usar su pose final del fotograma
     // (antes iba en LateUpdate y podía ir un fotograma por detrás al girar); LateUpdate queda de reserva si no hay render.
@@ -339,14 +352,15 @@ public class PoolPlanarReflection : MonoBehaviour
 
     public void Refresh(Camera cam)   // v7.1.3: público para las capturas (Editor/V713Shots.cs)
     {
+        if (Instance != this) return;
         // v7.1.3: cáusticas del fondo enteras solo con la cámara bajo el agua
         Vector4 ck = PoolLook.CausticK; ck.z = cam != null && cam.transform.position.y < waterY ? 1f : 0f;
         Shader.SetGlobalVector(CkId, ck);
         int q = GameSettings.Quality;
         Vector4 wk = PoolLook.WaveK; wk.w = q == 0 ? 4f : 8f; Shader.SetGlobalVector(WkId, wk);   // Bajo: la mitad de ondas en el agua
         int want = q >= 2 ? 512 : q == 1 ? 256 : 0;
-        if (cam == null || want == 0 || SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null
-            || (cam.transform.position - center).sqrMagnitude > 26f * 26f || cam.transform.position.y < waterY)
+        if (ForceOff || cam == null || want == 0 || SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null
+            || cam.transform.position.y < waterY)
         { Shader.SetGlobalFloat(OnId, 0f); return; }
         if (rt == null || size != want)
         {
