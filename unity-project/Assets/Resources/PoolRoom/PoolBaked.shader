@@ -34,13 +34,13 @@ Shader "Backrooms/PoolBaked"
         sampler2D _PoolPlanarTex; float _PoolPlanarOn, _PoolWaterY;
         float4 _PoolDeckP;   // x: fuerza del reflejo, y: F0 del barniz, z: distorsión por la normal, w: borrosidad (mip por rugosidad)
         fixed4 _Color; half4 _LMTint; half _Glossiness, _LMScale, _AOStrength, _BumpScale, _PlanarK, _WaterBand;
-        struct Input { float2 uv_MainTex; float2 lmuv; float2 uvm; float4 screenPos; float3 worldPos; float wny; };
-        void vert(inout appdata_full v, out Input o) { UNITY_INITIALIZE_OUTPUT(Input, o); o.lmuv = v.texcoord1.xy; o.uvm = v.texcoord.xy * _GrimeTex_ST.xy + _GrimeTex_ST.zw; o.wny = UnityObjectToWorldNormal(v.normal).y; }
+        struct Input { float2 uv_MainTex; float2 lmuv; float2 grimeCoord; float4 screenPos; float3 worldPos; float wny; };
+        void vert(inout appdata_full v, out Input o) { UNITY_INITIALIZE_OUTPUT(Input, o); o.lmuv = v.texcoord1.xy; o.grimeCoord = v.texcoord.xy * _GrimeTex_ST.xy + _GrimeTex_ST.zw; o.wny = UnityObjectToWorldNormal(v.normal).y; }
         void surf(Input IN, inout SurfaceOutputStandard o)
         {
             fixed4 c = tex2D(_MainTex, IN.uv_MainTex) * _Color;
             // v7.2.0: manchas grises del render de Blender (Noise 0,6/m -> rampa 0,45-0,75 x1,2 -> multiplicar por (0,55,0,5,0,4))
-            if (_GrimeK > 0) c.rgb *= lerp(half3(1, 1, 1), _GrimeColor.rgb, saturate(tex2D(_GrimeTex, IN.uvm).r * _GrimeK));
+            if (_GrimeK > 0) c.rgb *= lerp(half3(1, 1, 1), _GrimeColor.rgb, saturate(tex2D(_GrimeTex, IN.grimeCoord).r * _GrimeK));
             fixed4 m = tex2D(_MaskMap, IN.uv_MainTex);
             half3 lm = tex2D(_LightMap, IN.lmuv).rgb * _LMScale * _LMTint.rgb;
             half ao = lerp(1, m.g, _AOStrength);

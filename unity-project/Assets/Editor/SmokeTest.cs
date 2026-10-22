@@ -1233,6 +1233,12 @@ public static class SmokeTest
                 MeshRenderer bmr = baked != null ? baked.GetComponent<MeshRenderer>() : null;
                 r.Check(bmr != null && bmr.sharedMaterials.Length == 5 && bmr.sharedMaterial.shader.name == "Backrooms/PoolBaked" && bmr.sharedMaterial.GetTexture("_LightMap") != null,
                     tag + "malla horneada con shader PoolBaked + lightmap EXR");
+                if (bmr != null && bmr.sharedMaterials.Length == 5)
+                {   // v7.2.0: paredes y techo con suciedad de hormigón (como Blender)
+                    Material wm = bmr.sharedMaterials[0], cm = bmr.sharedMaterials[3];
+                    r.Check(wm.HasProperty("_GrimeTex") && wm.GetTexture("_GrimeTex") != null && wm.GetFloat("_GrimeK") > 0.5f && cm.GetFloat("_GrimeK") > 0.5f,
+                        tag + "v7.2.0: paredes/techo de la sala con suciedad (Grime_g, k " + (wm.HasProperty("_GrimeK") ? wm.GetFloat("_GrimeK").ToString("F2") : "-") + ")");
+                }
                 r.Check(baked != null && baked.GetComponent<MeshCollider>() != null, tag + "colisión de la sala horneada");
                 PoolRoomProbes pr = UnityEngine.Object.FindObjectOfType<PoolRoomProbes>();
                 r.Check(pr != null && pr.positions != null && pr.positions.Length == 33, tag + "33 sondas de luz horneadas en la sala (v6.9)");
@@ -1359,6 +1365,19 @@ public static class SmokeTest
         r.Check(fw != null && plan != null && fw.plan == plan, tag + "campo: FieldWorld + plan creados");
         if (fw == null || plan == null) return;
         r.Check(plan.houses.Count >= 6 && fw.houseCount == plan.houses.Count, tag + "campo: casas dispersas (" + plan.houses.Count + ")");
+        // v7.2.0: casas con luz del cielo horneada en la GPU (UV2 + HouseLM) y 6 submallas (pared, tejado, suelo, carpintería, cristal, piedra)
+        {
+            r.Check(FieldWorld.HouseBaked, tag + "v7.2.0: casas con luz horneada (HouseLM cargado)");
+            Transform hr = fw.transform.Find("Houses"); int ok = 0, n = 0;
+            if (hr != null) foreach (Transform t in hr)
+            {
+                MeshFilter mf = t.GetComponent<MeshFilter>(); MeshRenderer mr = t.GetComponent<MeshRenderer>(); if (mf == null || mr == null) continue; n++;
+                var uv2 = new List<Vector2>(); mf.sharedMesh.GetUVs(1, uv2);
+                bool inside = uv2.Count == mf.sharedMesh.vertexCount; foreach (Vector2 u in uv2) if (u.x < 0f || u.x > 1f || u.y < 0f || u.y > 1f) inside = false;
+                if (inside && mf.sharedMesh.subMeshCount == FieldWorld.HouseSubs && mr.sharedMaterials[0].shader.name == "Backrooms/FieldHouse" && mr.sharedMaterials[0].GetTexture("_LightMap") != null) ok++;
+            }
+            r.Check(n == plan.houses.Count && ok == n, tag + "v7.2.0: todas las casas con UV2 en [0,1], 6 submallas y lightmap (" + ok + "/" + n + ")");
+        }
         // casas casi idénticas (mismo modelo, giro y tinte) y algunas visitables
         var groups = new Dictionary<int, int>(); int enter = 0;
         foreach (FieldPlan.House h in plan.houses) { int k = h.template * 100 + h.rot * 10 + h.tint; groups[k] = groups.TryGetValue(k, out int v) ? v + 1 : 1; if (h.enterable) enter++; }
