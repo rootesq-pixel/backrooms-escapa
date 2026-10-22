@@ -13,7 +13,7 @@ public static class PoolLook
     public static Vector4 DeckP = new Vector4(2.5f, 0.04f, 0.02f, 5f);            // reflejo planar del suelo: fuerza, F0, distorsión, mip por rugosidad
     public static Vector4 WaveK = new Vector4(2.6f, 1.3f, 0.1f, 0f);          // oleaje: k inicial, razón (8 ondas: 2,6-16 rad/m), peso de los normal maps
     public static Color LMTint = new Color(0.94f, 1.03f, 1.4f);   // luz horneada algo más fría (Cycles: AgX, cielo Nishita)
-    public static Vector4 EdgeP = new Vector4(0.05f, 0.8f, 0f, 0f);           // línea oscura del agua junto al vaso: ancho, oscuridad
+    public static Vector4 EdgeP = new Vector4(0.08f, 0.92f, 0f, 0f);           // línea oscura del agua junto al vaso: ancho, oscuridad
     public static Color WallTint = new Color(0.86f, 0.89f, 0.93f);            // paredes algo más grises (Cycles: grime + AgX)
     public static float PoolTileScale = 0.45f;                                 // baldosa del vaso de ~11 cm como en los renders
     public static Color WindowEmission = new Color(3.4f, 3.55f, 3.7f);
