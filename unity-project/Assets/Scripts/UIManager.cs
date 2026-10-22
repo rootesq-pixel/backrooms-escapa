@@ -456,13 +456,20 @@ public class UIManager : MonoBehaviour
     }
 
     // --- Menú principal ---
+    // v7.2.0: el nº de niveles sale de LevelConfig.Count (antes «Cinco niveles» fijo, ya desfasado)
+    public static string MainTagline { get { return CountWord(LevelConfig.Count) + " niveles. Una salida. Algo te está buscando."; } }
+    public static string CountWord(int n)
+    {
+        string[] w = { "Cero", "Un", "Dos", "Tres", "Cuatro", "Cinco", "Seis", "Siete", "Ocho", "Nueve", "Diez", "Once", "Doce" };
+        return n >= 0 && n < w.Length ? w[n] : n.ToString();
+    }
     private GameObject BuildMain(Transform parent)
     {
         GameObject root = NewPanelRoot(parent, "MainMenu", new Color(0f, 0f, 0f, 0.35f));
         Text title = Label(root.transform, "BACKROOMS: ESCAPA", 118, TextAnchor.MiddleCenter, 0f, 330f, 1700f, 180f, new Color(0.96f, 0.9f, 0.55f));
         title.fontStyle = FontStyle.Bold;
         Shadow sh = title.gameObject.AddComponent<Shadow>(); sh.effectColor = new Color(0f, 0f, 0f, 0.9f); sh.effectDistance = new Vector2(4f, -4f);
-        Label(root.transform, "Cinco niveles. Una salida. Algo te está buscando.", 32, TextAnchor.MiddleCenter, 0f, 235f, 1400f, 50f, Dim);
+        Label(root.transform, MainTagline, 32, TextAnchor.MiddleCenter, 0f, 235f, 1400f, 50f, Dim);
 
         float y = 150f;
         MakeButton(root.transform, "Jugar", 0f, y, 520f, 68f, OnPlay); y -= 78f;

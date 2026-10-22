@@ -248,7 +248,7 @@ Sin reconexión a mitad de partida, sin voz, sin migración de anfitrión (si el
 ## Características
 
 - Cada nivel empieza con un descenso en ascensor (v6.4) y el juego abre con una intro found footage (v6.5).
-- 5 niveles procedurales con texturas PBR, niebla, luces y audio generados por código.
+- 7 niveles (0–6) procedurales con texturas PBR, niebla, luces y audio generados por código.
 - Criaturas con vista y oído (correr hace más ruido; apagar la linterna te oculta).
 - Cámara VHS opcional, inventario en rejilla, notas y pilas para la linterna.
 - Agua realista (olas, reflejos, espuma, cáusticas, vadeo) en el nivel 2, Poolrooms.

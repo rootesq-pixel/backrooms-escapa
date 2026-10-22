@@ -13,7 +13,7 @@ using UnityEngine.UI;
 // Pruebas de humo (sin necesidad de ventana):
 //  - RunEditMode: genera cada nivel con varias semillas (modo edición) y comprueba materiales, salida, alcanzabilidad (BFS),
 //    colisiones por el camino, pilas, monstruos, ausencia de cartel "SALIDA", NavMesh...
-//  - RunPlayMode: abre Assets/Scenes/Main.unity, entra en Play y recorre los 5 niveles
+//  - RunPlayMode: abre Assets/Scenes/Main.unity, entra en Play y recorre todos los niveles (LevelConfig.Count)
 //    (comprueba HUD, pilas, derrota -> reinicio, llegar a la salida -> siguiente nivel, victoria final, reinicio total).
 // Uso: Unity -batchmode -nographics -projectPath <proyecto> -executeMethod SmokeTest.RunEditMode -logFile <log>
 //      (sin -quit en PlayMode: el propio test llama a EditorApplication.Exit)
@@ -37,7 +37,21 @@ public static class SmokeTest
             V713Checks.AssetChecks(r);   // v7.1.3: agua/playa de la Poolrooms
             {   // v7.2.0: Q/E no mueven al jugador (sin inclinarse); E queda para interactuar/reanimar
                 string fpcSrc = System.IO.File.ReadAllText("Assets/Scripts/FirstPersonController.cs");
-                r.Check(!fpcSrc.Contains("KeyCode.Q") && !fpcSrc.Contains("KeyCode.E"), "v7.2.0: el controlador del jugador no lee Q ni E (sin inclinarse)");
+                r.Check(!System.Text.RegularExpressions.Regex.IsMatch(fpcSrc, @"KeyCode\.(Q|E)\b"), "v7.2.0: el controlador del jugador no lee Q ni E (sin inclinarse)");
+            }
+            {   // v7.2.0: el lema del menú cuenta los niveles reales (LevelConfig.Count), no un número fijo
+                string tl = UIManager.MainTagline;
+                r.Check(tl.StartsWith(UIManager.CountWord(LevelConfig.Count) + " niveles.") && tl.EndsWith("Algo te está buscando."), "v7.2.0: lema del menú con el nº real de niveles («" + tl + "», " + LevelConfig.Count + " niveles)");
+                string uiSrc = System.IO.File.ReadAllText("Assets/Scripts/UIManager.cs");
+                bool hard = false;
+                for (int k = 1; k <= 12; k++) if (uiSrc.Contains("\"" + UIManager.CountWord(k) + " niveles.")) hard = true;
+                r.Check(!hard && uiSrc.Contains("Label(root.transform, MainTagline"), "v7.2.0: el menú usa el lema derivado (sin «N niveles» escrito a mano)");
+                if (System.IO.File.Exists("README.md"))
+                {
+                    string rd = System.IO.File.ReadAllText("README.md");
+                    string first = rd.Substring(0, System.Math.Min(400, rd.Length));
+                    r.Check(first.Contains("**" + LevelConfig.Count + " niveles**"), "v7.2.0: la cabecera del README del proyecto dice " + LevelConfig.Count + " niveles");
+                }
             }
 
             for (int lv = 0; lv < LevelConfig.Count; lv++)
@@ -96,8 +110,8 @@ public static class SmokeTest
                 bytes += UnityEngine.Profiling.Profiler.GetRuntimeMemorySizeLong(set.albedo) + UnityEngine.Profiling.Profiler.GetRuntimeMemorySizeLong(set.normal) + UnityEngine.Profiling.Profiler.GetRuntimeMemorySizeLong(set.mask);
             }
         }
-        r.Info("texturas Blender: memoria de las superficies de los 5 niveles ≈ " + (bytes / 1048576f).ToString("F1") + " MB (" + seen.Count + " estilos)");
-        r.Check(seen.Count >= 12, "texturas Blender: " + seen.Count + " estilos de superficie distintos en los 5 niveles");
+        r.Info("texturas Blender: memoria de las superficies de todos los niveles ≈ " + (bytes / 1048576f).ToString("F1") + " MB (" + seen.Count + " estilos)");
+        r.Check(seen.Count >= 12, "texturas Blender: " + seen.Count + " estilos de superficie distintos en todos los niveles");
         // La altura de pared distinta no usa el papel horneado (lleva zócalo a escala): cae a la generación por CPU
         TextureLibrary.ReleaseAll();
         SurfaceSet other = TextureLibrary.Get(SurfaceStyle.WallpaperYellow, 2.5f);

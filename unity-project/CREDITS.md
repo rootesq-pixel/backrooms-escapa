@@ -56,7 +56,7 @@ Las licencias CC0 no exigen atribución; se incluye por cortesía y trazabilidad
 
 ## Texturas de superficie (v6.6)
 
-Todas las texturas de paredes, suelos y techos de los 5 niveles son **trabajo propio y 100 % procedurales**: materiales por nodos de Blender (ruido 4D, Voronoi, rampas de color, máscaras de manchas/humedad/óxido/desgaste) escritos como scripts de Python en `Tools/blender/` (`texlib.py`, `styles.py`, `bake.py`, `pack_textures.py`) y horneados a albedo / normal / máscara Standard (metálico, oclusión, suavidad) en `Assets/Resources/Textures/`. No se usa ninguna foto ni textura de terceros. El ruido se evalúa sobre un toro 4D, por lo que las texturas se repiten sin costuras. La generación por CPU anterior (`ProceduralTextures`) se conserva como alternativa si falta alguna textura.
+Todas las texturas de paredes, suelos y techos de los cinco primeros niveles (0–4) son **trabajo propio y 100 % procedurales**: materiales por nodos de Blender (ruido 4D, Voronoi, rampas de color, máscaras de manchas/humedad/óxido/desgaste) escritos como scripts de Python en `Tools/blender/` (`texlib.py`, `styles.py`, `bake.py`, `pack_textures.py`) y horneados a albedo / normal / máscara Standard (metálico, oclusión, suavidad) en `Assets/Resources/Textures/`. No se usa ninguna foto ni textura de terceros. El ruido se evalúa sobre un toro 4D, por lo que las texturas se repiten sin costuras. La generación por CPU anterior (`ProceduralTextures`) se conserva como alternativa si falta alguna textura.
 
 ## Herramientas
 

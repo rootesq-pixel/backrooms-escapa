@@ -1,6 +1,6 @@
 # Backrooms Escape (esqueleto de proyecto Unity)
 
-Juego de terror en primera persona para PC: **escapa de las Backrooms** a través de **5 niveles** encadenados.
+Juego de terror en primera persona para PC: **escapa de las Backrooms** a través de **7 niveles** encadenados.
 Cada nivel es un laberinto (o aparcamiento abierto) procedural con su propia estética, luces, dificultad y
 entidades que patrullan y te persiguen. La salida es una puerta discreta que **solo se descubre explorando**
 (sin cartel, sin flecha, sin indicador de distancia).
@@ -85,7 +85,7 @@ invertir eje Y, balanceo de cabeza (head-bob) on/off, suavizado del ratón (apag
 | Script | Qué hace |
 |---|---|
 | `GameBootstrap` | Construye todo en runtime para el nivel actual: atmósfera (niebla exponencial, ambiente, viñeta), generador, NavMesh, jugador + cámara + linterna + pasos, monstruos, pilas, ambiente sonoro, HUD y `GameManager`. Carga/reinicia niveles con pantalla de carga. Inspector: nivel inicial (`startLevel`, o argumento `-level N`), semilla, monstruo sí/no, teclas de depuración (`N` salta de nivel). |
-| `LevelConfig` | Datos de los 5 niveles (tamaño, estilo, texturas, luces, niebla, monstruos, batería, audio, puerta). Para añadir un nivel: sube `Count` y crea otro `LevelN()`. |
+| `LevelConfig` | Datos de los 7 niveles (tamaño, estilo, texturas, luces, niebla, monstruos, batería, audio, puerta). Para añadir un nivel: sube `Count` y crea otro `LevelN()`. |
 | `BackroomsGenerator` | Layout (laberinto con backtracker + bucles + salas, o rejilla abierta con pilares) y geometría por *chunks* con UV en metros del mundo (cada pared/suelo/techo tiene la escala correcta). Accesorios de luz emisivos, puerta de salida discreta (entre el 20 % de celdas más lejanas), pilas y apariciones de monstruos. |
 | `ProceduralTextures` / `Noise` | Desde la v6.6 se cargan las texturas horneadas con Blender (`Assets/Resources/Textures`, ver «Cambios de la v6.6»); si faltan, texturas de 512–1024 px con Perlin/fBm periódico (albedo + normal + máscara metálico/oclusión/suavidad, mipmaps, filtro trilineal y anisotrópico). Sin costuras al repetir. |
 | `LightCuller` | Solo las N luces de techo más cercanas al jugador son luces reales (con fundido); el resto de accesorios siguen siendo emisivos. |
@@ -152,7 +152,7 @@ invertir eje Y, balanceo de cabeza (head-bob) on/off, suavizado del ratón (apag
   (sin estiramientos), mipmaps, trilineal y anisotrópico x8.
 - **Atmósfera:** niebla exponencial de color por nivel, ambiente bajo, oscurecimiento de esquinas horneado en las texturas y en
   el mapa de oclusión, viñeta (overlay de UI), reflejos del cielo desactivados.
-- **5 niveles** con progresión, tarjeta de título, pilas recogibles, audio ambiente y pasos por superficie.
+- **7 niveles** con progresión, tarjeta de título, pilas recogibles, audio ambiente y pasos por superficie.
 - `R` reinicia el nivel actual; perder reinicia el nivel; ganar el último muestra la victoria y `R` vuelve al Nivel 0.
 - Editor: `Backrooms > ...` (menú) y pruebas por línea de comandos (ver abajo).
 
@@ -344,8 +344,8 @@ El juego puede llevar integrado el relay «oficial» para que «Alojar con códi
 Todo se ejecuta en batchmode (sin ventana):
 
 ```
-Unity -batchmode -nographics -projectPath <proyecto> -executeMethod SmokeTest.RunEditMode  -logFile edit.log   # genera los 5 niveles x 3 semillas y valida
-Unity -batchmode -nographics -projectPath <proyecto> -executeMethod SmokeTest.RunPlayMode  -logFile play.log   # entra en Play y recorre los 5 niveles
+Unity -batchmode -nographics -projectPath <proyecto> -executeMethod SmokeTest.RunEditMode  -logFile edit.log   # genera los 7 niveles x 3 semillas y valida
+Unity -batchmode -nographics -projectPath <proyecto> -executeMethod SmokeTest.RunPlayMode  -logFile play.log   # entra en Play y recorre los 7 niveles
 Unity -batchmode -nographics -quit -projectPath <proyecto> -executeMethod TexturePreviewExporter.Export          # PNG de texturas + hoja de contacto
 Unity -batchmode -nographics -quit -projectPath <proyecto> -executeMethod BuildScript.BuildWindows               # build Windows x64
 ```
