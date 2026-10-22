@@ -35,6 +35,8 @@ public static class V713Checks
         Material[] mats = mr != null ? mr.sharedMaterials : new Material[0];
         r.Check(mats.Length >= 4 && mats[1].GetFloat("_PlanarK") > 0f, T + "playa con reflejo planar (_PlanarK " + (mats.Length > 1 ? mats[1].GetFloat("_PlanarK") : -1f) + ")");
         r.Check(mats.Length >= 4 && mats[2].GetFloat("_WaterBand") > 0.3f, T + "vaso con banda oscura sobre el agua");
+        r.Check(mats.Length >= 4 && Mathf.Abs(mats[2].GetTextureScale("_MainTex").x - PoolLook.PoolTileScale) < 1e-4f, T + "baldosa del vaso a escala " + PoolLook.PoolTileScale + " (como en los renders)");
+        r.Check(Shader.GetGlobalVector("_PoolEdgeP").x > 0f, T + "línea oscura del agua junto al vaso activa");
         Color lt = mats.Length > 0 ? mats[0].GetColor("_LMTint") : Color.black;
         r.Check(lt.b >= lt.r && lt.g > 0.5f, T + "luz horneada con tinte frío " + lt);
         PoolPlanarReflection pl = PoolRoomSetPiece.Root.GetComponent<PoolPlanarReflection>();

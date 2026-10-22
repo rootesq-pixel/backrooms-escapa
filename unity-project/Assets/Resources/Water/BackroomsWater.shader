@@ -53,6 +53,8 @@ Shader "Hidden/BackroomsWater"
             float4 _PoolWaterTint;     // rgb: tinte del fondo visto a través del agua
             float4 _PoolWaterAbs;      // rgb: absorción por metro (pared/fondo), w: claridad global
             float4 _PoolWaterScatter;  // rgb: color de dispersión (luz que vuelve del agua), w: cantidad
+            float4 _PoolEdgeP;         // v7.1.3: línea de agua oscura junto a las paredes del vaso: x ancho (m), y oscuridad
+            float4 _PoolWaterRectW;    // rectángulo del agua del vaso (mundo xz)
             float4 _PoolWaveK;         // x: k de la primera onda (rad/m), y: razón entre ondas, z: peso de los normal maps genéricos
             float4 _PoolWaveP;         // x: fuerza de las normales pequeñas, y: refracción física, z: distorsión del reflejo, w: brillo del reflejo
 
@@ -253,6 +255,12 @@ Shader "Hidden/BackroomsWater"
                 col += spec;
                 // v6.9: línea de agua suave (se funde con el fondo en el borde) en la sala de piscina
                 if (inRoom > 0.5 && _WDepthOn > 0.5) col = lerp(refr, col, saturate(rawThick / 0.09));
+                if (inRoom > 0.5 && _PoolEdgeP.x > 0.0)
+                {   // v7.1.3: como en Cycles, una línea oscura donde el agua toca la pared del vaso (rendija en sombra)
+                    float2 e2 = min(i.wpos.xz - _PoolWaterRectW.xy, _PoolWaterRectW.zw - i.wpos.xz);
+                    float ed = min(e2.x, e2.y);
+                    col *= 1.0 - _PoolEdgeP.y * (1.0 - smoothstep(0.0, _PoolEdgeP.x, ed)) * step(-0.05, ed);
+                }
 
                 // espuma: junto a paredes + crestas de ondas circulares
                 float nz = tex2D(_NoiseTex, i.wpos.xz * 0.7 + _WTime * float2(0.015, -0.01)).r;

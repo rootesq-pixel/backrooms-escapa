@@ -486,6 +486,7 @@ public static class PoolExit
     {
         PoolXZ = xz; DeckY = deckY; owner = o; HasLadder = hasLadder;
         Shader.SetGlobalVector("_PoolWaterRect", new Vector4(xz.xMin, xz.yMin, xz.xMax, xz.yMax));
+        Shader.SetGlobalVector("_PoolWaterRectW", new Vector4(xz.xMin, xz.yMin, xz.xMax, xz.yMax));   // v7.1.3 (el agua no declara _PoolWaterRect)
         Shader.SetGlobalFloat("_PoolWaterY", deckY - 0.06f);
         Shader.SetGlobalFloat("_PoolCausticsUp", 1f);
         if (hasLadder)
