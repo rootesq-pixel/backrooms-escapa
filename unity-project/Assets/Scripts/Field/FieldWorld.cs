@@ -25,6 +25,7 @@ public class FieldWorld : MonoBehaviour
     private readonly List<Object> owned = new List<Object>();
     private FirstPersonController fpc;
     private AudioSource wind, gustSrc;
+    public const bool WindAudio = false;   // v7.2.0
     private float gustT, gustLen, nextGust;
     private System.Random rnd;
 
@@ -761,12 +762,17 @@ public class FieldWorld : MonoBehaviour
     private void Start()
     {
         WindDir = new Vector2(0.8f, 0.6f).normalized;
-        AudioClip loop = CreateWind(gen != null ? gen.UsedSeed : 1);
-        owned.Add(loop);
-        wind = gameObject.AddComponent<AudioSource>();
-        wind.clip = loop; wind.loop = true; wind.spatialBlend = 0f; wind.playOnAwake = false;
-        wind.volume = AudioMix.A(0.16f);
-        wind.Play();
+        // v7.2.0: sin sonido de viento (ruido grave con ráfagas que subían y bajaban: se oía como «soplido / olas» en un nivel
+        // sin agua). El viento sigue moviendo la hierba; el ambiente queda en el drone tonal, la hierba al pisar y el farol.
+        if (WindAudio)
+        {
+            AudioClip loop = CreateWind(gen != null ? gen.UsedSeed : 1);
+            owned.Add(loop);
+            wind = gameObject.AddComponent<AudioSource>();
+            wind.clip = loop; wind.loop = true; wind.spatialBlend = 0f; wind.playOnAwake = false;
+            wind.volume = AudioMix.A(0.16f);
+            wind.Play();
+        }
         nextGust = 6f;
     }
 

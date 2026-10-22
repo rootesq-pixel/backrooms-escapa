@@ -3,8 +3,8 @@ using UnityEngine.Rendering;
 
 // v7.0 Campo infinito: pistas sutiles de la salida (solo la puerta real las tiene; los señuelos y las casas no):
 //  - un farol viejo en un poste junto a la puerta, con una bombilla que parpadea débilmente (visible entre la bruma de lejos);
-//  - un zumbido eléctrico con estática de radio mal sintonizada, 3D, audible desde ~80 m.
-//    v7.2.0: sin la melodía que sonaba de fondo en la «radio» (petición del usuario: nada de música junto a la salida).
+//  - un zumbido eléctrico de red (50 Hz), 3D, audible desde ~80 m.
+//    v7.2.0: sin la melodía de la «radio» (nada de música junto a la salida) ni su estática (ruido de banda ancha = siseo).
 // Es determinista por semilla salvo el parpadeo (cosmético, local).
 public class FieldExitBeacon : MonoBehaviour
 {
@@ -73,24 +73,18 @@ public class FieldExitBeacon : MonoBehaviour
         if (bulbMat != null) bulbMat.SetColor("_EmissionColor", new Color(2.2f, 1.8f, 1.1f) * k);
     }
 
-    // zumbido de red (50 Hz y armónicos) + estática de radio (ruido de banda estrecha). v7.2.0: quitada la melodía de 8 notas
+    // zumbido de red (50 Hz y armónicos). v7.2.0: quitadas la estática de radio (ruido) y la melodía de 8 notas
     // (La3-Si3-Do4-Sol3-La3-Fa3-Sol3-Mi3, una por segundo) que se oía como música cerca de la puerta.
     public const bool HasMelody = false;
     public static AudioClip CreateHum(int seed)
     {
         const int SR = 22050; int n = SR * 8;
         float[] d = new float[n];
-        System.Random r = new System.Random(seed * 11 + 5);
-        float bp = 0f, bpv = 0f;
         for (int i = 0; i < n; i++)
         {
             float tt = i / (float)SR;
             float hm = Mathf.Sin(2f * Mathf.PI * 50f * tt) * 0.35f + Mathf.Sin(2f * Mathf.PI * 100f * tt) * 0.25f + Mathf.Sin(2f * Mathf.PI * 150f * tt) * 0.12f;
-            float w = (float)(r.NextDouble() * 2.0 - 1.0);
-            float f = 1400f, wc = 2f * Mathf.Sin(Mathf.PI * f / SR);
-            bp += wc * bpv; bpv += wc * (w * 0.08f - bp - 0.35f * bpv);
-            float fade = Mathf.Clamp01(Mathf.Min(tt, 8f - tt) * 20f);   // sin clic en el bucle
-            d[i] = (hm * 0.55f + bp * 0.6f) * (0.4f + 0.6f * fade);
+            d[i] = hm * 0.55f;   // ciclos enteros en 8 s: el bucle no hace clic (sin bajada de volumen periódica)
         }
         float mx = 1e-4f; for (int i = 0; i < n; i++) mx = Mathf.Max(mx, Mathf.Abs(d[i]));
         for (int i = 0; i < n; i++) d[i] *= 0.7f / mx;

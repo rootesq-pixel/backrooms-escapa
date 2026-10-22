@@ -31,7 +31,7 @@ public class VhsEffect : MonoBehaviour
     private Material material;
     private Shader shader;
     private float glitch, spike;
-    private AudioSource hiss;
+    private AudioSource hiss;   // v7.2.0: ya no se crea (sin siseo de cinta)
     private AudioClip hissClip, humClip;
     private AudioSource hum;
     private AudioLowPassFilter lowPass;
@@ -91,20 +91,13 @@ public class VhsEffect : MonoBehaviour
         if (al == null) return;
         // v7.0.3: las fuentes ANTES del filtro: un AudioSource recién añadido (playOnAwake, sin clip) junto a un filtro
         // provocaba «Only custom filters can be played...» en el Player.log
-        hissClip = ProceduralAudio.CreateTapeHiss();
+        // v7.2.0: sin siseo de cinta (ruido de banda ancha). Medido por nivel: con cada interferencia subía y bajaba y se oía
+        // como «aire / soplido / olas» en todos los niveles. Solo queda el zumbido tonal de la cinta.
         humClip = ProceduralAudio.CreateTapeHum();
-        hiss = gameObject.AddComponent<AudioSource>(); hiss.playOnAwake = false;
         hum = gameObject.AddComponent<AudioSource>(); hum.playOnAwake = false;
         lowPass = GetComponent<AudioLowPassFilter>();
         if (lowPass == null) lowPass = gameObject.AddComponent<AudioLowPassFilter>();
         lowPass.cutoffFrequency = 22000f;
-        hiss.clip = hissClip;
-        hiss.loop = true;
-        hiss.spatialBlend = 0f;
-        hiss.volume = 0f;
-        hiss.bypassEffects = true;
-        hiss.playOnAwake = false;
-        hiss.Play();
         hum.clip = humClip; hum.loop = true; hum.spatialBlend = 0f; hum.volume = 0f; hum.bypassEffects = true; hum.playOnAwake = false;
         hum.Play();
     }
@@ -137,11 +130,7 @@ public class VhsEffect : MonoBehaviour
             cut = Mathf.Lerp(cut, 520f, Mathf.Clamp01(extraMuffle));
             lowPass.cutoffFrequency = Mathf.Lerp(lowPass.cutoffFrequency, cut, 1f - Mathf.Exp(-5f * dt));
         }
-        if (hiss != null)
-        {
-            hiss.volume = AudioMix.Hiss(CurrentIntensity, glitch) * (EffectEnabled ? 1f : 0f);
-            if (hum != null) hum.volume = AudioMix.Hum(CurrentIntensity) * (EffectEnabled ? 1f : 0f);
-        }
+        if (hum != null) hum.volume = AudioMix.Hum(CurrentIntensity) * (EffectEnabled ? 1f : 0f);
 
         UpdateFallback();
     }

@@ -8,7 +8,9 @@ public static class V720Checks
 {
     public static IEnumerator LevelChecks(SmokeTest.Report r, string tag, int lv, LevelConfig cfg, GameManager gm)
     {
-        if (gm == null || gm.player == null || gm.monsters == null || gm.monsters.Length == 0 || gm.monsters[0] == null) yield break;
+        if (gm == null || gm.player == null) yield break;
+        AudioNoiseChecks(r, tag, lv, cfg);
+        if (gm.monsters == null || gm.monsters.Length == 0 || gm.monsters[0] == null) yield break;
         if (lv != 5 || FieldWorld.Active == null) yield break;
         string T = tag + "[v7.2.0 captura] ";
         FieldWorld fw = FieldWorld.Active; MonsterAI m = gm.monsters[0]; FirstPersonController pw = gm.player;
@@ -116,5 +118,49 @@ public static class V720Checks
         double w = 2.0 * Mathf.PI * f / sr, cw = 2.0 * System.Math.Cos(w), s1 = 0, s2 = 0;
         for (int i = 0; i < d.Length; i++) { double s0 = d[i] + cw * s1 - s2; s2 = s1; s1 = s0; }
         return (float)System.Math.Sqrt(System.Math.Max(0.0, s1 * s1 + s2 * s2 - cw * s1 * s2)) / d.Length;
+    }
+
+    // ---- v7.2.0: sin «aire / soplido / olas» en los niveles sin agua; en los de agua, sin siseo de banda ancha ----
+    static readonly System.Collections.Generic.Dictionary<string, float> tonalCache = new System.Collections.Generic.Dictionary<string, float>();
+    static readonly string[] Foley = { "grass_rustle", "BallRustle", "Step_", "step_grass", "MStep_", "Growl_", "Scream", "Heartbeat", "Breath" };
+    static readonly string[] WaterNames = { "water", "wave", "splash", "drip", "pool", "lap" };
+    static readonly string[] NoiseNames = { "hiss", "wind", "gust", "rain", "noise", "air" };
+    public static void AudioNoiseChecks(SmokeTest.Report r, string tag, int lv, LevelConfig cfg)
+    {
+        string T = tag + "[v7.2.0 audio sin soplido] ";
+        bool water = cfg != null && cfg.water;
+        int bad = 0, loops = 0; string list = "", bads = "";
+        foreach (AudioCensus.Row x in AudioCensus.Take())
+        {
+            if (!x.playing || !x.loop || x.clip == "(sin clip)") continue;
+            if (x.effective <= 0.0005f) continue;
+            loops++; list += x.clip + " ";
+            string cn = x.clip.ToLowerInvariant();
+            bool foley = false; foreach (string f in Foley) if (x.clip.StartsWith(f)) foley = true;
+            if (foley) continue;
+            bool isWater = false; foreach (string w in WaterNames) if (cn.Contains(w)) isWater = true;
+            bool named = false; foreach (string w in NoiseNames) if (cn.Contains(w) && !(w == "air" && cn == "elevatorair")) named = true;   // ElevatorAir es tonal desde la v6.5 (se mide abajo)
+            float tonal = 1f;
+            if (!tonalCache.TryGetValue(x.clip, out tonal))
+            {
+                tonal = 1f;
+                foreach (AudioSource a in Object.FindObjectsOfType<AudioSource>()) if (a.clip != null && a.clip.name == x.clip) { tonal = AudioAudit.TonalFraction(a.clip); break; }
+                tonalCache[x.clip] = tonal;
+            }
+            bool noisy = tonal < 0.6f;
+            bool fail = named || (!water && (isWater || noisy)) || (water && noisy && !isWater);
+            if (fail) { bad++; bads += x.clip + "(tonal " + tonal.ToString("0.00") + ", ef " + x.effective.ToString("0.0000") + ") "; }
+        }
+        r.Check(bad == 0, T + (water ? "nivel con agua: ningún bucle de siseo de banda ancha" : "nivel sin agua: ningún bucle de agua/viento/ruido") + " (" + loops + " bucles audibles: " + list.Trim() + (bad > 0 ? " · MAL: " + bads : "") + ")");
+        if (lv == 0)
+        {
+            r.Check(!FieldWorld.WindAudio, T + "el Campo ya no tiene bucle de viento (soplido con ráfagas)");
+            bool tapeHiss = false; foreach (AudioCensus.Row x in AudioCensus.Take()) if (x.clip == "TapeHiss") tapeHiss = true;
+            r.Check(!tapeHiss, T + "la cámara VHS ya no crea el siseo de cinta (solo el zumbido tonal)");
+            AudioClip w = FieldWorld.CreateWind(1); float tw = AudioAudit.TonalFraction(w); Object.DestroyImmediate(w);
+            AudioClip hz = FieldExitBeacon.CreateHum(1); float th = AudioAudit.TonalFraction(hz); Object.DestroyImmediate(hz);
+            AudioClip dr = ProceduralAudio.CreateDrone(48f, 0.3f, 1); float td = AudioAudit.TonalFraction(dr); Object.DestroyImmediate(dr);
+            r.Check(tw < 0.6f && th > 0.85f && td > 0.85f, T + "medidor: el viento antiguo cuenta como ruido (" + tw.ToString("0.00") + "), el zumbido del farol (" + th.ToString("0.00") + ") y el drone (" + td.ToString("0.00") + ") como tonales");
+        }
     }
 }
