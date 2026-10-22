@@ -111,6 +111,10 @@ public class LevelConfig
         return cache[Mathf.Clamp(index, 0, Count - 1)];
     }
 
+    public const string OceanCreaturesId = "OceanCreatures";
+    public bool HasMonsterAI { get { return layout != LayoutKind.Ocean; } }   // v7.3.0
+    public static int MonsterAILevels { get { int n = 0; for (int i = 0; i < Count; i++) if (Get(i).HasMonsterAI) n++; return n; } }
+
     private static LevelConfig Create(int i)
     {
         LevelConfig c;
@@ -125,7 +129,8 @@ public class LevelConfig
             case 6: c = Level6(); break;
             default: c = Level7(); break;
         }
-        c.monsterModel = MonsterProfile.ForLevel(i).id;   // un monstruo distinto por nivel
+        // un monstruo distinto por nivel; en Talasofobia no hay monstruo de NavMesh: sus criaturas (Los Pálidos y El Farolero) son procedurales
+        c.monsterModel = c.layout == LayoutKind.Ocean ? OceanCreaturesId : MonsterProfile.ForLevel(i).id;
         return c;
     }
 

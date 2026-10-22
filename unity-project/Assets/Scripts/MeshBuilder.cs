@@ -48,15 +48,16 @@ public class MeshBuilder
         // Unity: la cara frontal es la de sentido horario; cross(p1-p0, p2-p0) apunta hacia el observador
         Vector3 tn = Vector3.Cross(p1 - p0, p2 - p0);
         List<int> t = tris[sub];
+        bool tri = (p3 - p2).sqrMagnitude < 1e-10f;   // v7.3.0: triángulo (quad degenerado): sin la segunda mitad vacía
         if (Vector3.Dot(tn, n) >= 0f)
         {
             t.Add(b); t.Add(b + 1); t.Add(b + 2);
-            t.Add(b); t.Add(b + 2); t.Add(b + 3);
+            if (!tri) { t.Add(b); t.Add(b + 2); t.Add(b + 3); }
         }
         else
         {
             t.Add(b); t.Add(b + 2); t.Add(b + 1);
-            t.Add(b); t.Add(b + 3); t.Add(b + 2);
+            if (!tri) { t.Add(b); t.Add(b + 3); t.Add(b + 2); }
         }
     }
 

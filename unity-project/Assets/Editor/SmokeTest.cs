@@ -129,9 +129,10 @@ public static class SmokeTest
         var ids = new HashSet<string>();
         string credits = File.Exists("CREDITS.md") ? File.ReadAllText("CREDITS.md") : "";
         r.Check(credits.Length > 200, "CREDITS.md existe");
-        r.Check(MonsterProfile.All.Length == LevelConfig.Count, "un perfil de monstruo por nivel (" + MonsterProfile.All.Length + ")");
+        r.Check(MonsterProfile.All.Length == LevelConfig.MonsterAILevels, "un perfil de monstruo por nivel con monstruo de NavMesh (" + MonsterProfile.All.Length + "; Talasofobia usa criaturas procedurales)");
         for (int lv = 0; lv < LevelConfig.Count; lv++)
         {
+            if (!LevelConfig.Get(lv).HasMonsterAI) continue;
             MonsterProfile p = MonsterProfile.ForLevel(lv);
             string tag = "[Monstruo " + lv + " " + p.id + "] ";
             r.Check(ids.Add(p.id), tag + "modelo distinto de los demás niveles");
@@ -245,6 +246,7 @@ public static class SmokeTest
             ulong c = HashOf(lv, 4243, 0);
             r.Check(a == b, "[Red] nivel " + lv + ": misma semilla => mismo hash de mundo (" + a.ToString("x16") + ")");
             r.Check(a != c, "[Red] nivel " + lv + ": otra semilla => otro hash");
+            if (!LevelConfig.Get(lv).HasMonsterAI) continue;   // v7.3.0: el mar no tiene monstruos de NavMesh (ni extra con 3-4 jugadores)
             int baseMon = lastMonsterCount;
             ulong d = HashOf(lv, 4242, 1);
             r.Check(lastMonsterCount == baseMon + 1 && d != a, "[Red] nivel " + lv + ": +1 monstruo extra aparece y cambia el hash (" + baseMon + " -> " + lastMonsterCount + ")");
@@ -856,7 +858,7 @@ public static class SmokeTest
         // Niveles
         r.Check(LevelConfig.Count == 8 && LevelConfig.Get(5).name == "Campo infinito" && LevelConfig.Get(5).layout == LayoutKind.Field && LevelConfig.Get(6).name == "Parque de bolas" && LevelConfig.Get(6).halls > 0 && LevelConfig.Get(7).name == "Talasofobia" && LevelConfig.Get(7).layout == LayoutKind.Ocean, "hay 8 niveles; el 5 es el Campo infinito, el 6 el Parque de bolas y el 7 Talasofobia (" + LevelConfig.Count + ")");
         r.Check(LevelConfig.Get(2).water && LevelConfig.Get(2).name == "Poolrooms", "nivel 2 = Poolrooms (antes «Salas inundadas»: agua realista)");
-        bool onlyOneWater = true; for (int i = 0; i < LevelConfig.Count; i++) if (i != 2 && LevelConfig.Get(i).water) onlyOneWater = false;
+        bool onlyOneWater = true; for (int i = 0; i < LevelConfig.Count; i++) if (i != 2 && LevelConfig.Get(i).water && LevelConfig.Get(i).layout != LayoutKind.Ocean) onlyOneWater = false;   // v7.3.0: el mar abierto es aparte
         r.Check(onlyOneWater && LevelConfig.Get(3).name == "Hotel abandonado" && LevelConfig.Get(4).name == "Complejo industrial", "sin otro nivel de agua; nivel 3 = hotel, nivel 4 = industrial");
         r.Check(MonsterProfile.ForLevel(2).id == "DrownedZombie", "el Ahogado es el monstruo del nivel de agua (Poolrooms)");
         r.Check(Resources.Load<GameObject>("Poolrooms/PoolHall") == null && MonsterProfile.ById("AlienBug") == null, "el modelo PoolHall y El Reptador ya no existen");
@@ -865,10 +867,11 @@ public static class SmokeTest
         for (int i = 0; i < LevelConfig.Count; i++)
         {
             LevelConfig c = LevelConfig.Get(i);
+            if (!c.HasMonsterAI) { r.Check(c.monsterModel == LevelConfig.OceanCreaturesId && c.monsterCount == 0, "nivel " + i + " (" + c.name + "): sin monstruo de NavMesh (criaturas propias del mar)"); continue; }
             r.Check(MonsterProfile.ById(c.monsterModel) != null, "nivel " + i + " (" + c.name + "): perfil de monstruo '" + c.monsterModel + "'");
             seenMonsters.Add(c.monsterModel);
         }
-        r.Check(seenMonsters.Count == LevelConfig.Count, "un monstruo distinto por nivel (" + seenMonsters.Count + ")");
+        r.Check(seenMonsters.Count == LevelConfig.MonsterAILevels, "un monstruo distinto por nivel (" + seenMonsters.Count + ")");
 
         // Agua
         Shader ws = Resources.Load<Shader>(WaterVolume.ShaderResource);
@@ -1153,7 +1156,8 @@ public static class SmokeTest
         r.Check(gen.ExitTransform != null, tag + "existe la puerta de salida");
         r.Check(gen.MonsterSpawns != null && gen.MonsterSpawns.Count == Mathf.Max(1, cfg.monsterCount), tag + "apariciones de monstruo = " + cfg.monsterCount);
         r.Check(gen.BatterySpots != null && gen.BatterySpots.Count == cfg.batteries, tag + "pilas colocadas = " + cfg.batteries + " (hay " + (gen.BatterySpots != null ? gen.BatterySpots.Count : 0) + ")");
-        if (cfg.layout != LayoutKind.Field) r.Check(gen.FixtureCount > 0, tag + "hay accesorios de luz");
+        if (cfg.layout == LayoutKind.Ocean) r.Check(gen.Root.GetComponentInChildren<OceanLighthouse>(true) != null && gen.Root.GetComponentInChildren<OceanCage>(true) != null, tag + "mar: faro a lo lejos y jaula en el muelle");   // v7.3.0
+        else if (cfg.layout != LayoutKind.Field) r.Check(gen.FixtureCount > 0, tag + "hay accesorios de luz");
         else r.Check(gen.Root.GetComponentInChildren<FieldExitBeacon>(true) != null, tag + "campo: la salida tiene su farol/radio (pistas sutiles)");
         if (cfg.layout == LayoutKind.OpenPillars) r.Check(gen.PillarCount > 0, tag + "hay pilares");
 
@@ -1170,7 +1174,8 @@ public static class SmokeTest
 
         // El LED y la luz de la puerta empiezan apagados (solo se activan a < 8 m)
         ExitDoorCue cue = gen.Root.GetComponentInChildren<ExitDoorCue>(true);
-        r.Check(cue != null && cue.visibleDistance <= 8.01f && !cue.ledRenderer.enabled && !cue.glow.enabled, tag + "pista de la puerta limitada a ~8 m y apagada de inicio");
+        if (cfg.layout == LayoutKind.Ocean) r.Check(cue == null || (!cue.ledRenderer.enabled && !cue.glow.enabled), tag + "mar: la salida es la poza de la gruta (sin pista de puerta encendida)");
+        else r.Check(cue != null && cue.visibleDistance <= 8.01f && !cue.ledRenderer.enabled && !cue.glow.enabled, tag + "pista de la puerta limitada a ~8 m y apagada de inicio");
 
         // Materiales / shaders / texturas
         int renderers = 0, badMats = 0;
@@ -1345,9 +1350,10 @@ public static class SmokeTest
 
         // NavMesh en edición (si el paquete lo permite)
         BallpitSetPiece.BeginNavBuild();
-        bool navBuilt = MonsterAI.TryBuildRuntimeNavMesh(gen.Root.gameObject);
+        bool navBuilt = cfg.HasMonsterAI && MonsterAI.TryBuildRuntimeNavMesh(gen.Root.gameObject);   // v7.3.0: el mar no tiene monstruo de NavMesh
         BallpitSetPiece.EndNavBuild();
-        if (navBuilt)
+        if (!cfg.HasMonsterAI) r.Info(tag + "sin NavMesh: nivel sin monstruo de NavMesh");
+        else if (navBuilt)
         {
             NavMeshPath np = new NavMeshPath();
             NavMeshHit h1, h2;
@@ -2910,6 +2916,15 @@ public static class SmokePlayRunner
                     yield return 0.5f;
                 }
             }
+            if (cfg.layout == LayoutKind.Ocean)
+            {   // v7.3.0: Talasofobia tiene su propio recorrido (sin monstruo de NavMesh, llaves ni puerta): termina saliendo por la gruta
+                r.Check(RenderSettings.fog && RenderSettings.fogDensity > 0.01f, tag + "niebla activa sobre el mar");
+                Census(r, "[Audio nivel " + lv + " mar]", true, false);
+                IEnumerator oc = V730Checks.OceanPlay(r, tag, gm);
+                while (oc.MoveNext()) yield return oc.Current;
+                gm = GameManager.Instance;
+                goto OceanExit;
+            }
             r.Check(gm.monsters != null && gm.monsters.Length == Mathf.Max(1, cfg.monsterCount) + (lv >= 1 ? 1 : 0), tag + "monstruos = " + cfg.monsterCount + (lv >= 1 ? " + 1 mímico" : ""));
             foreach (MonsterAI m in gm.monsters)
             {
@@ -3262,9 +3277,12 @@ public static class SmokePlayRunner
             if (prevNote >= 0 && (Inventory.Instance == null || !Inventory.Instance.HasNote(prevNote))) prevNote = -1;
             // Ir a la puerta: teleport delante de la puerta
             if (lv == 0) { ElevatorCabin.InstantForTests = false; realNext = true; }
-            Transform exit = gm.exit;
-            Vector3 stand = exit.position + exit.forward * 0.7f;
-            gm.player.Teleport(new Vector3(stand.x, (exit.parent != null ? exit.parent.position.y : 0f) + 0.1f, stand.z), 0f);   // v7.0.4: plantas del aparcamiento
+            {
+                Transform exit = gm.exit;
+                Vector3 stand = exit.position + exit.forward * 0.7f;
+                gm.player.Teleport(new Vector3(stand.x, (exit.parent != null ? exit.parent.position.y : 0f) + 0.1f, stand.z), 0f);   // v7.0.4: plantas del aparcamiento
+            }
+        OceanExit:   // v7.3.0: en el mar el recorrido ya ha llegado nadando a la salida
             int loadsBefore = GameBootstrap.Instance.LoadCount;
             yield return 0.3f;
             bool last = lv == LevelConfig.Count - 1;
@@ -3291,7 +3309,7 @@ public static class SmokePlayRunner
                 r.Check(GameBootstrap.Instance.CurrentLevel == 0 && GameBootstrap.Instance.Deaths == 0, tag + "RestartRun -> nivel 0 y contadores a cero");
             }
         }
-        r.Check(modelIds.Count == LevelConfig.Count, "modelos de monstruo distintos vistos en juego (uno por nivel) (" + modelIds.Count + ")");
+        r.Check(modelIds.Count == LevelConfig.MonsterAILevels, "modelos de monstruo distintos vistos en juego (uno por nivel) (" + modelIds.Count + ")");
         r.Flush();
         yield break;
     }

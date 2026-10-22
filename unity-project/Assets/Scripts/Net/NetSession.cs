@@ -540,7 +540,7 @@ public class NetSession : MonoBehaviour
     // Escalado por nº de jugadores: a partir de 3 jugadores, +1 monstruo desde el nivel 3 (hotel) en adelante
     public static int ExtraMonstersFor(int players, int level)
     {
-        return players >= 3 && level >= 3 ? 1 : 0;
+        return players >= 3 && level >= 3 && LevelConfig.Get(level).HasMonsterAI ? 1 : 0;   // v7.3.0: el mar no tiene monstruo de NavMesh
     }
 
     // Reinicio del nivel actual (todos derribados / el anfitrión lo pide)
