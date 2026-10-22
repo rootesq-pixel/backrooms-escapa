@@ -23,6 +23,9 @@ public class WaterFx : MonoBehaviour
 
     private Color baseFogColor, baseBg;
     private float baseFogDensity;
+    private Color baseAmbient;
+    private float baseSun = -1f;
+    public float Depth01 { get; private set; }   // v7.3.0: mar abierto: 0 en la superficie, 1 a ~45 m
     private bool captured;
     private float wet;
     private float prevDepth;
@@ -58,6 +61,7 @@ public class WaterFx : MonoBehaviour
     {
         baseFogColor = RenderSettings.fogColor;
         baseFogDensity = RenderSettings.fogDensity;
+        baseAmbient = RenderSettings.ambientLight;
         baseBg = cam != null ? cam.backgroundColor : baseFogColor;
         captured = true;
     }
@@ -211,10 +215,29 @@ public class WaterFx : MonoBehaviour
         if (captured && Underwater01 > 0.001f || (captured && Underwater01 <= 0.001f && uwApplied))
         {
             Color uc = new Color(0.04f, 0.2f, 0.25f);
+            float uwDensity = 0.22f;
+            WaterVolume wvo = WaterVolume.Active;
+            if (wvo != null && wvo.ocean && cam != null)
+            {
+                // v7.3.0: mar abierto: cuanto más hondo, más oscuro (verde azulado -> casi negro); la niebla deja ver ~10-15 m con la lámpara
+                float depth = Mathf.Max(0f, wvo.RestSurfaceAt(cam.transform.position) - cam.transform.position.y);
+                Depth01 = Mathf.Clamp01(depth / 45f);
+                float d = Mathf.SmoothStep(0f, 1f, Depth01);
+                uc = Color.Lerp(new Color(0.07f, 0.23f, 0.26f), new Color(0.003f, 0.012f, 0.02f), d);
+                uwDensity = Mathf.Lerp(0.075f, 0.12f, d);
+                RenderSettings.ambientLight = Color.Lerp(baseAmbient, baseAmbient * (1f - 0.93f * d), Underwater01);
+                if (OceanWorld.Active != null && OceanWorld.Active.sun != null)
+                {
+                    if (baseSun < 0f) baseSun = OceanWorld.Active.sun.intensity;
+                    OceanWorld.Active.sun.intensity = Mathf.Lerp(baseSun, baseSun * (1f - 0.97f * d), Underwater01);
+                }
+            }
+            else Depth01 = 0f;
             RenderSettings.fogColor = Color.Lerp(baseFogColor, uc, Underwater01);
-            RenderSettings.fogDensity = Mathf.Lerp(baseFogDensity, 0.22f, Underwater01);
+            RenderSettings.fogDensity = Mathf.Lerp(baseFogDensity, uwDensity, Underwater01);
             if (cam != null) cam.backgroundColor = Color.Lerp(baseBg, uc, Underwater01);
             uwApplied = Underwater01 > 0.001f;
+            if (!uwApplied) { RenderSettings.ambientLight = baseAmbient; if (baseSun >= 0f && OceanWorld.Active != null && OceanWorld.Active.sun != null) OceanWorld.Active.sun.intensity = baseSun; }
         }
         if (tint != null) tint.color = new Color(0.05f, 0.3f, 0.36f, Underwater01 * 0.38f);
         if (vhs != null) vhs.extraMuffle = Underwater01 * 0.92f;
@@ -288,6 +311,7 @@ public class WaterFx : MonoBehaviour
         {
             RenderSettings.fogColor = baseFogColor;
             RenderSettings.fogDensity = baseFogDensity;
+            RenderSettings.ambientLight = baseAmbient;
         }
         if (flashlight != null)
         {

@@ -1,6 +1,6 @@
 # BACKROOMS: ESCAPA
 
-Juego de terror en primera persona para PC (Windows 64 bits) hecho con **Unity**: escapa de las Backrooms a través de **7 niveles** encadenados. Cada nivel es un laberinto (o aparcamiento abierto) procedural con su propia estética, luces, dificultad y criaturas que patrullan y te persiguen. La salida es una puerta discreta que **solo se descubre explorando**: sin cartel, sin flecha, sin indicador de distancia.
+Juego de terror en primera persona para PC (Windows 64 bits) hecho con **Unity**: escapa de las Backrooms a través de **8 niveles** encadenados. Cada nivel es un laberinto (o aparcamiento abierto) procedural con su propia estética, luces, dificultad y criaturas que patrullan y te persiguen. La salida es una puerta discreta que **solo se descubre explorando**: sin cartel, sin flecha, sin indicador de distancia.
 
 - 🌐 **Web:** https://rootesq-pixel.github.io/backrooms-escapa/
 - ⬇️ **Descarga directa v7.2.0 (Windows, ZIP ≈ 191 MB):** [BackroomsEscape_v7_2_0_Windows.zip](https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v7.2.0/BackroomsEscape_v7_2_0_Windows.zip)
@@ -26,8 +26,19 @@ Juego de terror en primera persona para PC (Windows 64 bits) hecho con **Unity**
 | 4 | Complejo industrial | Chapa oxidada, tuberías y luces de emergencia rojas | 2 × El Hollín (más rápidos) |
 | 5 | Campo infinito | Hierba alta sin fin, niebla, casas abandonadas y un mundo que se repite | El Vigía |
 | 6 | Parque de bolas | Parque infantil cubierto abandonado: piscinas de bolas, toboganes, redes, sala de cumpleaños y mostrador de meriendas; fluorescentes que parpadean | El Sumergido (se esconde bajo las bolas) |
+| 7 | Talasofobia | Una casa inundada se abre a un mar gris sin fin: niebla, casas sobre pilotes, una barca, un faro enorme a lo lejos y, bajo el muelle, una fosa negra que hay que bajar en jaula con casco de buzo | Los Pálidos (peces que rondan a quien nada) y El Farolero (un rape gigante en el fondo) |
 
-La puerta de salida está **cerrada con llave**: en cada nivel hay 4-6 llaves parecidas y solo una la abre. Al cruzarla con la llave buena se carga el siguiente nivel; tras el nivel 6 (Parque de bolas) aparece la pantalla de victoria (tiempo total e intentos fallidos). Si te atrapan, el nivel se reinicia.
+La puerta de salida está **cerrada con llave**: en cada nivel hay 4-6 llaves parecidas y solo una la abre. Al cruzarla con la llave buena se carga el siguiente nivel. El nivel 7 (Talasofobia) no tiene puerta: se sale buceando por una gruta submarina hasta una poza con aire, y ahí aparece la pantalla de victoria (tiempo total e intentos fallidos). Si te atrapan, el nivel se reinicia.
+
+## Novedades de la v7.3.0 — nuevo nivel 7: Talasofobia
+- **Nuevo nivel 7, «Talasofobia»** (después del Parque de bolas; ahora es el último): empiezas en el salón de una casa inundada, con el sofá flotando, y por la escalera sales a un **mar abierto y gris** cubierto de niebla.
+- **Nadar:** en la superficie se nada y cansa (con la resistencia agotada vas mucho más lento). Bucear sin casco gasta el aire: si se acaba, te ahogas.
+- **Los Pálidos:** peces blancos que rondan entre las casas. Si uno empieza a dar vueltas a tu alrededor (se ve la aleta y suena un aviso), sal del agua o sube a la barca: si te embiste, muerde y mata.
+- **La barca:** a salvo de los peces, pero más lenta que nadando. El que va delante la conduce (W/S/A/D); si nadie conduce, va sola a la deriva hacia la siguiente casa. Caben cuatro.
+- **Casas sobre pilotes** con escalera desde el agua; en el piso de arriba de una de ellas hay una **pistola de bengalas** (opcional): la bengala sube alto, se ve a través de la niebla y marca dónde estás para tus compañeros.
+- **El faro:** una torre enorme a lo lejos que se enciende cuando te acercas. Al final del muelle hay **cascos de buzo** (mantén clic izquierdo para ponértelo; llevan lámpara) y una **jaula** que solo baja si todos los que van dentro llevan casco.
+- **El fondo:** oscuridad casi total y **El Farolero**, un rape gigante que patrulla con su señuelo de luz. Con la lámpara encendida te ve de más lejos. Desde la puerta de la jaula, nada un poco a la izquierda hasta la gruta, sube por el túnel y sal a respirar en la poza: **fin del juego**.
+- **Multijugador:** barca, cascos, bengalas, jaula, peces y El Farolero sincronizados. En cooperativo un mordisco o ahogarse te derriba (no te mata) y un compañero puede reanimarte manteniendo E, también en el agua.
 
 ## Novedades de la v7.2.0 — Poolrooms como en Blender, Campo más realista y reanimar con E
 - **Ventanas de la sala de la piscina como en los renders de Blender:** brillan menos (menos bloom) y ya no hay huecos oscuros con forma de puerta donde Blender no los tiene: las 3 ventanas están en la pared este y solo quedan las puertas reales (oeste y sur).
@@ -262,7 +273,7 @@ Sin reconexión a mitad de partida, sin voz, sin migración de anfitrión (si el
 ## Características
 
 - Cada nivel empieza con un descenso en ascensor (v6.4) y el juego abre con una intro found footage (v6.5).
-- 7 niveles (0–6) procedurales con texturas PBR, niebla, luces y audio generados por código.
+- 8 niveles (0–7) procedurales con texturas PBR, niebla, luces y audio generados por código.
 - Criaturas con vista y oído (correr hace más ruido; apagar la linterna te oculta).
 - Cámara VHS opcional, inventario en rejilla, notas y pilas para la linterna.
 - Agua realista (olas, reflejos, espuma, cáusticas, vadeo) en el nivel 2, Poolrooms.
