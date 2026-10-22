@@ -109,6 +109,11 @@ public static class V702Checks
             yield return null;
             open4 = OpenDir(gm, 4f, out sd, out sp);
         }
+        // v7.1.2: en niveles con 2 monstruos principales, el otro (quieto donde estuviera) podía quedar a pocos metros del
+        // punto de la prueba y seguir drenando (5/s constantes: fallaban «a ~10 m», «lejos» y «se recupera» al azar).
+        // Mientras dura la prueba de cordura solo cuenta el monstruo que se coloca a mano (y el mímico, que se aparta luego).
+        List<MonsterAI> parked = new List<MonsterAI>();
+        foreach (MonsterAI m in gm.monsters) if (m != null && m != main && m != mim && m.enabled) { m.enabled = false; parked.Add(m); }
         if (san != null && main != null && open4)
         {
             if (fl != null) { fl.SetBattery(100f); fl.SetOn(true); }
@@ -149,6 +154,7 @@ public static class V702Checks
             r.Check(Sanity.FearFactor(16f) == 0f && Sanity.FearFactor(5f) == 1f && Sanity.FearFactor(10f) > 0.2f && Sanity.FearFactor(10f) < 0.8f, tag + "[Cordura] curva 15 m → 5 m");
         }
         else r.Check(san != null && main != null, tag + "[Cordura] (no hay hueco abierto de 4 m para la prueba: " + (san != null) + ")");
+        foreach (MonsterAI m in parked) if (m != null) m.enabled = true;
 
         // ---------------- silbido ----------------
         Whistle wh = gm.player.GetComponent<Whistle>();
