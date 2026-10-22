@@ -102,13 +102,13 @@ public static class V713Shots
         string[] variants = string.IsNullOrEmpty(vs) ? new[] { ":" } : vs.Split('|');
         MeshRenderer bmr = root.GetComponent<MeshRenderer>();
         Info("PoolLook por defecto: tinte " + PoolLook.WaterTint + " abs " + PoolLook.WaterAbs + " disp " + PoolLook.WaterScatter + " ondas " + PoolLook.WaveP + " cáust " + PoolLook.CausticK + " playa " + PoolLook.DeckP + " ventanas " + PoolLook.WindowEmission);
-        Vector4 t0 = PoolLook.WaterTint, a0 = PoolLook.WaterAbs, s0 = PoolLook.WaterScatter, w0 = PoolLook.WaveP, c0 = PoolLook.CausticK, d0 = PoolLook.DeckP; Color e0 = PoolLook.WindowEmission;
+        Color l0 = PoolLook.LMTint; Vector4 t0 = PoolLook.WaterTint, a0 = PoolLook.WaterAbs, s0 = PoolLook.WaterScatter, w0 = PoolLook.WaveP, c0 = PoolLook.CausticK, d0 = PoolLook.DeckP; Color e0 = PoolLook.WindowEmission;
         for (int vi = 0; vi < variants.Length; vi++)
         {
         string vn = variants[vi].Split(':')[0], spec = variants[vi].Length > vn.Length ? variants[vi].Substring(vn.Length + 1) : "";
-        PoolLook.WaterTint = t0; PoolLook.WaterAbs = a0; PoolLook.WaterScatter = s0; PoolLook.WaveP = w0; PoolLook.CausticK = c0; PoolLook.DeckP = d0; PoolLook.WindowEmission = e0;
+        PoolLook.WaterTint = t0; PoolLook.WaterAbs = a0; PoolLook.WaterScatter = s0; PoolLook.WaveP = w0; PoolLook.CausticK = c0; PoolLook.DeckP = d0; PoolLook.WindowEmission = e0; PoolLook.LMTint = l0;
         PoolLook.Override(spec); PoolLook.Apply();
-        if (bmr != null && bmr.sharedMaterials.Length > 4 && bmr.sharedMaterials[4] != null) ProceduralAssets.SetEmission(bmr.sharedMaterials[4], PoolLook.WindowEmission);
+        if (bmr != null) PoolLook.ApplyMaterials(bmr.sharedMaterials);
         string vsuf = suf + (vn.Length > 0 ? "_" + vn : "");
         if (vn.Length > 0) Info("variante " + vn + ": " + spec);
         foreach (View v in views)
@@ -118,6 +118,18 @@ public static class V713Shots
             for (int k = 0; k < 20; k++) { cam.transform.position = wp; cam.transform.rotation = Quaternion.LookRotation(wtg - wp); cam.fieldOfView = v.fov; yield return 0.04f; }
             cam.transform.position = wp; cam.transform.rotation = Quaternion.LookRotation(wtg - wp); cam.fieldOfView = v.fov;
             Shot(cam, v.n + vsuf);
+            if (vi == 0)
+            {   // depuración: textura del reflejo planar tal como la ve el agua
+                RenderTexture prt = Shader.GetGlobalTexture("_PoolPlanarTex") as RenderTexture;
+                if (prt != null && Shader.GetGlobalFloat("_PoolPlanarOn") > 0.5f)
+                {
+                    RenderTexture tmp = RenderTexture.GetTemporary(prt.width, prt.height, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.sRGB);
+                    Graphics.Blit(prt, tmp); RenderTexture.active = tmp;
+                    Texture2D tx = new Texture2D(prt.width, prt.height, TextureFormat.RGB24, false); tx.ReadPixels(new Rect(0, 0, prt.width, prt.height), 0, 0); tx.Apply();
+                    File.WriteAllBytes(Dir + "/planar_" + v.n + ".png", tx.EncodeToPNG()); RenderTexture.active = null; RenderTexture.ReleaseTemporary(tmp); Object.DestroyImmediate(tx);
+                }
+                else Info("planar apagado en " + v.n);
+            }
             if (perfOn && vi == 0) Info("coste " + v.n + suf + ": " + PerfMs(cam, 60).ToString("F2") + " ms por render 1920x1080 (mediana)");
         }
         }

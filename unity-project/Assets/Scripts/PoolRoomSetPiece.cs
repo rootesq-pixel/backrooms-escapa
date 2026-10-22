@@ -92,7 +92,7 @@ public static class PoolRoomSetPiece
         mats[1].SetFloat("_PlanarK", PoolLook.DeckPlanar);       // v7.1.3: playa brillante con reflejo planar
         mats[2].SetFloat("_PlanarK", PoolLook.DeckPlanar);       // (borde superior del vaso)
         mats[2].SetFloat("_WaterBand", PoolLook.PoolWaterBand);  // banda oscura sobre el agua
-        PoolLook.Apply();
+        PoolLook.Apply(); PoolLook.ApplyMaterials(mats);
         Mesh mesh = LoadBakedMesh();
         GameObject g = new GameObject("PoolRoomBaked");
         g.transform.SetParent(root.transform, false);

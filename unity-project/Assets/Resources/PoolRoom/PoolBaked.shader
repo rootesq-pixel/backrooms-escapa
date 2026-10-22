@@ -17,6 +17,7 @@ Shader "Backrooms/PoolBaked"
         _AOStrength ("Tile AO", Range(0,1)) = 0.6
         _PlanarK ("Planar reflection on up faces", Range(0,2)) = 0
         _WaterBand ("Dark band above water (pool walls)", Range(0,1)) = 0
+        _LMTint ("Bake tint", Color) = (1,1,1,1)
     }
     SubShader
     {
@@ -28,14 +29,14 @@ Shader "Backrooms/PoolBaked"
         sampler2D _MainTex, _BumpMap, _MaskMap, _LightMap;
         sampler2D _PoolPlanarTex; float _PoolPlanarOn, _PoolWaterY;
         float4 _PoolDeckP;   // x: fuerza del reflejo, y: F0 del barniz, z: distorsión por la normal, w: borrosidad (mip por rugosidad)
-        fixed4 _Color; half _Glossiness, _LMScale, _AOStrength, _BumpScale, _PlanarK, _WaterBand;
+        fixed4 _Color; half4 _LMTint; half _Glossiness, _LMScale, _AOStrength, _BumpScale, _PlanarK, _WaterBand;
         struct Input { float2 uv_MainTex; float2 lmuv; float4 screenPos; float3 worldPos; float wny; };
         void vert(inout appdata_full v, out Input o) { UNITY_INITIALIZE_OUTPUT(Input, o); o.lmuv = v.texcoord1.xy; o.wny = UnityObjectToWorldNormal(v.normal).y; }
         void surf(Input IN, inout SurfaceOutputStandard o)
         {
             fixed4 c = tex2D(_MainTex, IN.uv_MainTex) * _Color;
             fixed4 m = tex2D(_MaskMap, IN.uv_MainTex);
-            half3 lm = tex2D(_LightMap, IN.lmuv).rgb * _LMScale;
+            half3 lm = tex2D(_LightMap, IN.lmuv).rgb * _LMScale * _LMTint.rgb;
             half ao = lerp(1, m.g, _AOStrength);
             float3 tn = UnpackScaleNormal(tex2D(_BumpMap, IN.uv_MainTex), _BumpScale);
             o.Albedo = c.rgb;
