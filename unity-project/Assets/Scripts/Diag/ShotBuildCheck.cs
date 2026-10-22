@@ -1,0 +1,142 @@
+// v7.2.0: capturas EN EL EJECUTABLE (no en el editor), para comparar con el editor y con Blender. Solo con «-shotcheck <carpeta>»
+// (y -level 2 o 5 -nointro). Semilla fija 7110. Nivel 2: las 3 cámaras de Blender en la sala de piscina + 2 pasillos inundados;
+// nivel 5: prado, colinas y casas (fuera y dentro). Escribe PPM (el juego no lleva conversión a PNG), shotcheck.txt y cierra.
+using System.Collections;
+using System.IO;
+using System.Text;
+using UnityEngine;
+
+public class ShotBuildCheck : MonoBehaviour
+{
+    string dir; readonly StringBuilder rep = new StringBuilder(); int pass, fail;
+
+    public static void MaybeStart(GameObject host)
+    {
+        string[] a = System.Environment.GetCommandLineArgs();
+        for (int i = 0; i < a.Length - 1; i++)
+            if (a[i] == "-shotcheck")
+            {
+                ShotBuildCheck c = host.AddComponent<ShotBuildCheck>(); c.dir = a[i + 1];
+                GameBootstrap gb = host.GetComponent<GameBootstrap>(); if (gb != null) { gb.useRandomSeed = false; gb.seed = 7110; }
+            }
+    }
+    void Check(bool ok, string m) { if (ok) pass++; else fail++; rep.AppendLine((ok ? "PASS " : "FAIL ") + m); Debug.Log("[ShotBuildCheck] " + (ok ? "PASS " : "FAIL ") + m); }
+    void Info(string m) { rep.AppendLine("INFO " + m); Debug.Log("[ShotBuildCheck] INFO " + m); }
+
+    const float SX = (16f - 0.2f) / 14f, SZ = (12f - 0.2f) / 10f, DECK = 0.28f;
+    static Vector3 B(float x, float y, float z) { return new Vector3(x * SX, z + DECK, y * SZ); }
+    static float VFov(float lensMm) { return 2f * Mathf.Atan(Mathf.Tan(Mathf.Atan(18f / lensMm)) * 9f / 16f) * Mathf.Rad2Deg; }
+
+    IEnumerator Start()
+    {
+        Directory.CreateDirectory(dir);
+        float t0 = Time.realtimeSinceStartup;
+        while ((GameBootstrap.Instance == null || !GameBootstrap.Instance.IsLoaded || GameManager.Instance == null || FirstPersonController.LocalInstance == null) && Time.realtimeSinceStartup - t0 < 300f) yield return null;
+        Info("cargado en " + (Time.realtimeSinceStartup - t0).ToString("F1") + " s | por pasos " + LoadDiag.LastTotalSeconds.ToString("F2") + " s");
+        if (ElevatorCabin.Current != null) ElevatorCabin.Current.Skip();
+        float w = 0f; while (ElevatorCabin.PlayerLocked && w < 20f) { yield return new WaitForSeconds(0.25f); w += 0.25f; }
+        GameManager gm = GameManager.Instance; FirstPersonController pw = gm.player;
+        foreach (MonsterAI m in gm.monsters) if (m != null) m.Stop();
+        Flashlight fl = pw.GetComponentInChildren<Flashlight>(); if (fl != null) fl.SetOn(false);
+        GameManager.HideControlsHint = true;
+        Camera mc = Camera.main;
+        Info("GPU " + SystemInfo.graphicsDeviceName + " / " + SystemInfo.graphicsDeviceType + ", calidad " + GameSettings.Quality + ", nivel " + LevelConfig.Get(GameBootstrap.Instance.CurrentLevel).name);
+        yield return new WaitForSeconds(1.5f);
+        if (mc == null) { Check(false, "cámara del jugador"); Finish(); yield break; }
+        mc.cullingMask &= ~(1 << 8);
+        if (PoolRoomSetPiece.Root != null) yield return Pool(gm, pw, mc);
+        else if (FieldWorld.Active != null) yield return Field(gm, pw, mc);
+        else Check(false, "nivel con sala de piscina o campo");
+        Finish();
+    }
+
+    IEnumerator View(FirstPersonController pw, Camera mc, string n, Vector3 p, Vector3 t, float fov, Vector3 stand)
+    {
+        pw.Teleport(stand, Mathf.Atan2(t.x - p.x, t.z - p.z) * Mathf.Rad2Deg);
+        for (int k = 0; k < 30; k++) { mc.transform.position = p; mc.transform.rotation = Quaternion.LookRotation(t - p); mc.fieldOfView = fov; yield return null; }
+        yield return new WaitForSeconds(0.3f);
+        mc.transform.position = p; mc.transform.rotation = Quaternion.LookRotation(t - p); mc.fieldOfView = fov;
+        if (PoolPlanarReflection.Instance != null) PoolPlanarReflection.Instance.Refresh(mc);
+        if (FieldGrass.Active != null) FieldGrass.Active.Submit();
+        Texture2D tex = Grab(mc, n);
+        Check(Mean(tex) > 0.03f, "captura " + n + " no negra (media " + Mean(tex).ToString("F3") + ")");
+        Destroy(tex);
+    }
+
+    IEnumerator Pool(GameManager gm, FirstPersonController pw, Camera mc)
+    {
+        Transform root = PoolRoomSetPiece.Root.transform; Transform bk = root.Find("PoolRoomBaked"); if (bk != null) root = bk;
+        WaterVolume wv = WaterVolume.Active;
+        float wl = wv != null ? root.InverseTransformPoint(new Vector3(0f, wv.surfaceY, 0f)).y : DECK - 0.08f;
+        float lowY = wl + 0.08f;
+        Vector3 corner = root.TransformPoint(B(-6.2f, -4.3f, 0.02f));
+        yield return View(pw, mc, "exe_pool_1", root.TransformPoint(B(-6.3f, -4.4f, 1.65f)), root.TransformPoint(B(1.5f, 0.8f, -0.4f)), VFov(20f), corner);
+        yield return View(pw, mc, "exe_pool_2", root.TransformPoint(new Vector3(-3.7f * SX, lowY, 0.9f * SZ)), root.TransformPoint(new Vector3(2f * SX, lowY - 0.2f, -0.4f * SZ)), VFov(24f), corner);
+        yield return View(pw, mc, "exe_pool_3", root.TransformPoint(B(-1.8f, -0.9f, 2.6f)), root.TransformPoint(B(-0.6f, 0.1f, -1.4f)), VFov(28f), corner);
+        // pasillos inundados: las 2 celdas con el pasillo recto más largo lejos de la sala
+        BackroomsGenerator gen = gm.generator; float cs = gen.CellSize; RectInt pb = gen.PoolBlock; int shots = 0;
+        Vector3[] dirs = { Vector3.forward, Vector3.back, Vector3.left, Vector3.right };
+        var best = new System.Collections.Generic.List<(float L, Vector3 p, Vector3 d)>();
+        for (int cx = 0; cx < gen.GridWidth; cx++) for (int cz = 0; cz < gen.GridHeight; cz++)
+        {
+            if (cx >= pb.x - 1 && cx <= pb.xMax && cz >= pb.y - 1 && cz <= pb.yMax) continue;
+            Vector3 wp = gen.Root.TransformPoint(new Vector3((cx + 0.5f) * cs, 1.6f, (cz + 0.5f) * cs));
+            foreach (Vector3 d in dirs) { float L = Physics.Raycast(wp, d, out RaycastHit hit, 40f, ~((1 << 2) | (1 << WaterVolume.WaterLayer) | (1 << 8))) ? hit.distance : 40f; best.Add((L, wp, d)); }
+        }
+        best.Sort((a, b) => b.L.CompareTo(a.L));
+        var used = new System.Collections.Generic.List<Vector3>();
+        foreach (var c in best)
+        {
+            bool far = true; foreach (Vector3 u in used) if ((u - c.p).sqrMagnitude < 144f) far = false;
+            if (!far) continue; used.Add(c.p);
+            Vector3 stand = new Vector3(c.p.x, gen.Root.TransformPoint(Vector3.zero).y + 0.02f, c.p.z);
+            yield return View(pw, mc, "exe_pasillo_" + (char)('a' + shots), c.p, c.p + c.d * 4f + Vector3.down * 1.9f, 60f, stand);
+            if (++shots == 2) break;
+        }
+    }
+
+    IEnumerator Field(GameManager gm, FirstPersonController pw, Camera mc)
+    {
+        FieldGrass.Synchronous = true;
+        Transform root = gm.generator.Root; FieldWorld fw = FieldWorld.Active;
+        System.Func<float, float, float, Vector3> P = (x, z, up) => root.TransformPoint(new Vector3(x, FieldHeight.H(x, z) + up, z));
+        Vector3 a = root.InverseTransformPoint(pw.transform.position);
+        Info("casas horneadas " + FieldWorld.HouseBaked + ", casas " + fw.houseCount);
+        yield return View(pw, mc, "exe_campo_vista", P(a.x, a.z, 1.65f), P(a.x + 18f, a.z + 24f, 1.2f), 60f, P(a.x, a.z, 0.05f));
+        yield return View(pw, mc, "exe_campo_colinas", P(a.x - 10f, a.z - 8f, 3.2f), P(a.x + 40f, a.z + 50f, 0f), 60f, P(a.x - 10f, a.z - 8f, 0.05f));
+        foreach (FieldPlan.House h in fw.plan.houses)
+        {
+            Quaternion rot = Quaternion.Euler(0f, h.rot * 90f, 0f); Vector2 sz = FieldPlan.TemplateSize[h.template];
+            Vector3 c = new Vector3(h.pos.x, 0f, h.pos.y), fwd = rot * Vector3.forward, right = rot * Vector3.right;
+            Vector3 eye = c + fwd * (sz.y * 0.5f + 8.5f) + right * 3.5f;
+            yield return View(pw, mc, "exe_casa_" + (h.enterable ? "abierta" : "cerrada"), P(eye.x, eye.z, 1.65f), P(c.x, c.z, 1.6f), 60f, P(eye.x, eye.z, 0.05f));
+            break;
+        }
+        FieldGrass.Synchronous = false;
+    }
+
+    static float Mean(Texture2D t) { Color32[] px = t.GetPixels32(); double s = 0; for (int i = 0; i < px.Length; i += 17) s += (px[i].r + px[i].g + px[i].b) / 765.0; return (float)(s / (px.Length / 17)); }
+
+    Texture2D Grab(Camera c, string name)
+    {
+        const int W = 1920, H = 1080;
+        RenderTexture rt = RenderTexture.GetTemporary(W, H, 24); RenderTexture prev = c.targetTexture;
+        c.targetTexture = rt; c.Render(); RenderTexture.active = rt;
+        Texture2D t = new Texture2D(W, H, TextureFormat.RGB24, false); t.ReadPixels(new Rect(0, 0, W, H), 0, 0); t.Apply();
+        RenderTexture.active = null; c.targetTexture = prev; RenderTexture.ReleaseTemporary(rt);
+        int w = t.width, h = t.height; Color32[] px = t.GetPixels32();
+        byte[] head = Encoding.ASCII.GetBytes("P6\n" + w + " " + h + "\n255\n");
+        byte[] b = new byte[head.Length + w * h * 3]; System.Buffer.BlockCopy(head, 0, b, 0, head.Length);
+        int o = head.Length;
+        for (int y = h - 1; y >= 0; y--) for (int x = 0; x < w; x++) { Color32 q = px[y * w + x]; b[o++] = q.r; b[o++] = q.g; b[o++] = q.b; }
+        File.WriteAllBytes(Path.Combine(dir, name + ".ppm"), b);
+        return t;
+    }
+
+    void Finish()
+    {
+        rep.AppendLine("RESULT passed=" + pass + " failed=" + fail);
+        File.WriteAllText(Path.Combine(dir, "shotcheck.txt"), rep.ToString());
+        Application.Quit(fail == 0 ? 0 : 3);
+    }
+}

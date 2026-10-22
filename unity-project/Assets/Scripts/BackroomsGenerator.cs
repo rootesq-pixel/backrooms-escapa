@@ -80,13 +80,15 @@ public class BackroomsGenerator : MonoBehaviour
     public const float PoolDeckY = 0.28f, PoolDepth = 1.4f;
     public const int PoolBlockW = 4, PoolBlockH = 3;
     // v6.8: sala fija horneada: perímetro cerrado con 4 puertas fijas (S: col 1, N: col 2, O/E: fila 1), hueco 2 m x 2,5 m
+    // v7.2.0: 2 puertas (W: fila 1, S: col 0); las paredes N y E (ventanas, como en Blender) quedan cerradas
     public const float PoolDoorW = 2f, PoolDoorTop = 2.5f;
+    public const int PoolDoorColS = 0, PoolDoorRowW = 1;
     public bool PoolFixed { get; private set; }
     public bool IsPoolDoor(int i, int j, bool vertical)
     {
         if (!PoolFixed) return false;
         RectInt b = PoolBlock;
-        return vertical ? (j == b.y + 1 && (i == b.x || i == b.xMax)) : ((i == b.x + 1 && j == b.y) || (i == b.x + 2 && j == b.yMax));
+        return vertical ? (j == b.y + PoolDoorRowW && i == b.x) : (i == b.x + PoolDoorColS && j == b.y);   // v7.2.0: solo W y S
     }
     public bool InPoolBlock(int x, int z) { return HasPoolRoom && PoolBlock.Contains(new Vector2Int(x, z)) || InHall(x, z); }   // v7.1.0: también las salas del parque
     // v7.1.0 Parque de bolas: salas fijas horneadas de 5x4 celdas (BallpitSetPiece), perímetro cerrado con 4 puertas
@@ -476,8 +478,9 @@ public class BackroomsGenerator : MonoBehaviour
         {
             for (int i = bx; i < bx + PoolBlockW; i++) { wallsH[i, bz] = true; wallsH[i, bz + PoolBlockH] = true; }
             for (int j = bz; j < bz + PoolBlockH; j++) { wallsV[bx, j] = true; wallsV[bx + PoolBlockW, j] = true; }
-            wallsH[bx + 1, bz] = false; wallsH[bx + 2, bz + PoolBlockH] = false;
-            wallsV[bx, bz + 1] = false; wallsV[bx + PoolBlockW, bz + 1] = false;
+            // v7.2.0: como el render de Blender, sin puertas en las paredes que se ven desde la piscina (ventanas en E):
+            // puertas en W (celda central) y S (celda 0), las mismas que tiene la malla horneada (build_fixed_v720.py)
+            wallsH[bx + PoolDoorColS, bz] = false; wallsV[bx, bz + PoolDoorRowW] = false;
             EnsureConnected();
         }
     }
@@ -806,12 +809,12 @@ public class BackroomsGenerator : MonoBehaviour
         }
         WallSegmentCount = wallSegments;
 
-        // v6.8: jambas y dintel de las 4 puertas fijas de la sala de piscina (cara exterior = muro del nivel)
+        // v6.8: jambas y dintel de las puertas fijas (v7.2.0: 2) de la sala de piscina (cara exterior = muro del nivel)
         if (PoolFixed)
         {
             RectInt pb = PoolBlock;
             float side = (cs - PoolDoorW) * 0.5f + t * 0.5f - 0.002f, lh = wh - PoolDoorTop;
-            Vector2Int[] hs = { new Vector2Int(pb.x + 1, pb.y), new Vector2Int(pb.x + 2, pb.yMax) };
+            Vector2Int[] hs = { new Vector2Int(pb.x + PoolDoorColS, pb.y) };
             foreach (Vector2Int d in hs)
             {
                 MeshBuilder mb = wallsB[Mathf.Min(d.x, w - 1) / chunkCells, Mathf.Min(d.y, h - 1) / chunkCells];
@@ -820,7 +823,7 @@ public class BackroomsGenerator : MonoBehaviour
                 mb.AddWallBox(SlotWall, new Vector3(c0 + PoolDoorW * 0.5f + side * 0.5f, wh * 0.5f, z), new Vector3(side, wh, t), cfg.wallTileU, cfg.wallTileV, 0.61f);
                 mb.AddWallBox(SlotWall, new Vector3(c0, PoolDoorTop + lh * 0.5f, z), new Vector3(PoolDoorW + 0.01f, lh, t), cfg.wallTileU, cfg.wallTileV, 0.13f);
             }
-            Vector2Int[] vs = { new Vector2Int(pb.x, pb.y + 1), new Vector2Int(pb.xMax, pb.y + 1) };
+            Vector2Int[] vs = { new Vector2Int(pb.x, pb.y + PoolDoorRowW) };
             foreach (Vector2Int d in vs)
             {
                 MeshBuilder mb = wallsB[Mathf.Min(d.x, w - 1) / chunkCells, Mathf.Min(d.y, h - 1) / chunkCells];

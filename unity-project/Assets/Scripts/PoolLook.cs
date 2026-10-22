@@ -17,6 +17,11 @@ public static class PoolLook
     public static Color WallTint = new Color(0.86f, 0.89f, 0.93f);            // paredes algo más grises (Cycles: grime + AgX)
     public static float PoolTileScale = 0.45f;                                 // baldosa del vaso de ~11 cm como en los renders
     public static Color WindowEmission = new Color(3.4f, 3.55f, 3.7f);
+    // v7.2.0: paredes como en Blender (gris claro con manchas, no azulejo azulado) y ventanas sin halo
+    public static Color WallLMTint = new Color(1f, 1f, 1f);                    // luz horneada de paredes y techo sin el tinte frío del agua
+    public static float WallGrime = 1f, DeckGrime = 0.5f, CeilGrime = 1f;      // cantidad de suciedad (Grime_g, periodo GrimePeriod m)
+    public static Color GrimeColor = new Color(0.76f, 0.73f, 0.66f);            // (0,55, 0,5, 0,4) lineal de Blender en espacio gamma
+    public const float GrimePeriod = 16f;
     public const float DeckPlanar = 1f, PoolWaterBand = 0.85f;
 
     public static void Apply()
@@ -37,13 +42,21 @@ public static class PoolLook
         for (int i = 0; i < mats.Length; i++)
         {
             Material m = mats[i]; if (m == null) continue;
-            if (m.HasProperty("_LMTint")) m.SetColor("_LMTint", LMTint);
+            if (m.HasProperty("_LMTint")) m.SetColor("_LMTint", i == 0 || i == 3 ? WallLMTint : LMTint);
+            if (m.HasProperty("_GrimeTex"))
+            {
+                if (grime == null) grime = Resources.Load<Texture2D>("Textures/PoolRoom/Grime_g");
+                m.SetTexture("_GrimeTex", grime); m.SetTextureScale("_GrimeTex", new Vector2(1f / GrimePeriod, 1f / GrimePeriod));
+                m.SetFloat("_GrimeK", grime == null ? 0f : i == 0 ? WallGrime : i == 1 ? DeckGrime : i == 3 ? CeilGrime : 0f);
+                m.SetColor("_GrimeColor", GrimeColor);
+            }
             if (i == 0) m.SetColor("_Color", WallTint);
             if (i == 2) { m.SetTextureScale("_MainTex", new Vector2(PoolTileScale, PoolTileScale)); }
             else if (i == 4) ProceduralAssets.SetEmission(m, WindowEmission);
         }
     }
 
+    static Texture2D grime;
     public static bool LevelWide { get; private set; }
     public static void ApplyLevelWide() { Apply(); Shader.SetGlobalFloat("_PoolLookAll", 1f); LevelWide = true; }
 
@@ -56,7 +69,7 @@ public static class PoolLook
         Shader.SetGlobalFloat("_PoolLookAll", 0f); LevelWide = false;
     }
 
-    // Para el ajuste: "clave=a,b,c,d;clave2=..." (claves: WaterTint, WaterAbs, WaterScatter, WaveP, CausticK, DeckP, Window)
+    // Para el ajuste: "clave=a,b,c,d;clave2=..." (claves: WaterTint, WaterAbs, WaterScatter, WaveP, CausticK, DeckP, Window; v7.2.0: WallLM, Grime, GrimeColor, Exposure, Bloom, Ambient, Fog)
     public static void Override(string spec)
     {
         if (string.IsNullOrEmpty(spec)) return;
@@ -84,6 +97,13 @@ public static class PoolLook
                 case "LookAll": Shader.SetGlobalFloat("_PoolLookAll", x.x); break;
                 case "PlanarOff": PoolPlanarReflection.ForceOff = x.x > 0.5f; break;
                 case "Window": WindowEmission = new Color(x.x, x.y, x.z); break;
+                case "WallLM": WallLMTint = new Color(x.x, x.y, x.z); break;
+                case "Grime": WallGrime = x.x; DeckGrime = x.y; CeilGrime = x.z; break;
+                case "GrimeColor": GrimeColor = new Color(x.x, x.y, x.z); break;
+                case "Exposure": PostStack.Exposure = x.x; break;
+                case "Bloom": PostStack.BloomInt = x.x; PostStack.Threshold = x.y; break;
+                case "Ambient": RenderSettings.ambientLight = new Color(x.x, x.y, x.z); break;
+                case "Fog": RenderSettings.fogDensity = x.x; break;
             }
         }
         Apply();

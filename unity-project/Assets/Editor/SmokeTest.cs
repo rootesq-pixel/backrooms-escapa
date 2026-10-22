@@ -1219,15 +1219,15 @@ public static class SmokeTest
                 RectInt pb = gen.PoolBlock; int doors = 0, closed = 0;
                 for (int i = pb.x; i < pb.xMax; i++)
                 {
-                    if (gen.IsCellOpen(i, pb.y, 2)) { doors++; r.Check(i == pb.x + 1, tag + "puerta sur de la piscina en su sitio fijo"); } else closed++;
-                    if (gen.IsCellOpen(i, pb.yMax - 1, 0)) { doors++; r.Check(i == pb.x + 2, tag + "puerta norte de la piscina en su sitio fijo"); } else closed++;
+                    if (gen.IsCellOpen(i, pb.y, 2)) { doors++; r.Check(i == pb.x + BackroomsGenerator.PoolDoorColS, tag + "puerta sur de la piscina en su sitio fijo"); } else closed++;
+                    if (gen.IsCellOpen(i, pb.yMax - 1, 0)) { doors++; r.Check(false, tag + "pared norte de la piscina sin puertas (v7.2.0)"); } else closed++;
                 }
                 for (int j = pb.y; j < pb.yMax; j++)
                 {
-                    if (gen.IsCellOpen(pb.x, j, 3)) { doors++; r.Check(j == pb.y + 1, tag + "puerta oeste de la piscina en su sitio fijo"); } else closed++;
-                    if (gen.IsCellOpen(pb.xMax - 1, j, 1)) { doors++; r.Check(j == pb.y + 1, tag + "puerta este de la piscina en su sitio fijo"); } else closed++;
+                    if (gen.IsCellOpen(pb.x, j, 3)) { doors++; r.Check(j == pb.y + BackroomsGenerator.PoolDoorRowW, tag + "puerta oeste de la piscina en su sitio fijo"); } else closed++;
+                    if (gen.IsCellOpen(pb.xMax - 1, j, 1)) { doors++; r.Check(false, tag + "pared este (ventanas) de la piscina sin puertas (v7.2.0)"); } else closed++;
                 }
-                r.Check(doors == 4 && closed == 2 * (pb.width + pb.height) - 4, tag + "perímetro de la piscina: 4 puertas fijas, resto cerrado (" + doors + "/" + closed + ")");
+                r.Check(doors == 2 && closed == 2 * (pb.width + pb.height) - 2, tag + "perímetro de la piscina: 2 puertas fijas (W y S, v7.2.0), resto cerrado (" + doors + "/" + closed + ")");
                 r.Check(!gen.InPoolBlock(gen.ExitCell.x, gen.ExitCell.y), tag + "la salida no está en la sala de piscina");
                 GameObject baked = GameObject.Find("PoolRoomBaked");
                 MeshRenderer bmr = baked != null ? baked.GetComponent<MeshRenderer>() : null;

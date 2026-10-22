@@ -50,6 +50,7 @@ public class LevelConfig
     public float grade;   // grading/tonemap del VHS (0 = ninguno)
     public float fogDensity = 0.04f;
     public float reflectionIntensity = 0.1f;
+    public float postExposure = 0.78f, postBloom = 0.10f, postThreshold = 1.0f;   // v7.2.0: PostStack por nivel (Poolrooms y campo)
 
     // --- Luces ---
     public FixtureKind fixture = FixtureKind.Panel;

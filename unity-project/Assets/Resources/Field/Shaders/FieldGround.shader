@@ -22,6 +22,10 @@ Shader "Backrooms/FieldGround"
         sampler2D _MainTex, _BumpMap;
         float _Tile, _FarStart, _FarEnd;
         float4 _FarCol, _DryCol, _GroundTint;
+        float4 _GrassLook;   // v7.2.0: x = manchas de color del prado (las mismas que la hierba, FieldGrass.shader)
+        float hash12(float2 p) { float3 p3 = frac(float3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return frac((p3.x + p3.y) * p3.z); }
+        float vnoise(float2 p) { float2 i = floor(p), f = frac(p); f = f * f * (3 - 2 * f);
+            return lerp(lerp(hash12(i), hash12(i + float2(1, 0)), f.x), lerp(hash12(i + float2(0, 1)), hash12(i + float2(1, 1)), f.x), f.y); }
         struct Input { float3 worldPos; };
         void surf(Input IN, inout SurfaceOutput o)
         {
@@ -37,6 +41,9 @@ Shader "Backrooms/FieldGround"
             float far = saturate((d - _FarStart) / (_FarEnd - _FarStart));
             float dryK = saturate(macro * 1.6 - 0.4);
             float3 farc = lerp(_FarCol.rgb, _DryCol.rgb, dryK * 0.6) * (0.85 + 0.3 * c2.g);
+            float m1 = vnoise(IN.worldPos.xz / 23.0), m2 = vnoise(IN.worldPos.xz / 7.0 + 17.3);
+            float3 mcol = lerp(float3(0.84, 0.97, 0.90), float3(1.10, 1.02, 0.80), m1) * lerp(0.86, 1.10, m2);
+            farc = lerp(farc, farc * mcol, _GrassLook.x);
             o.Albedo = lerp(c, farc, saturate(far * 0.9 + 0.15));
             o.Normal = UnpackNormal(tex2D(_BumpMap, uv));
             o.Normal = normalize(lerp(o.Normal, float3(0, 0, 1), far));

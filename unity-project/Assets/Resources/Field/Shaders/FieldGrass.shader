@@ -35,6 +35,13 @@ Shader "Backrooms/FieldGrass"
             float4 _DryCol, _Tint, _WindDir;
             float4 _LodBand;   // v7.0.1: x = inicio, y = fin, z = ancho del fundido (m). Las matas encogen en los bordes: sin saltos de LOD ni de radio
             float4 _GrassPush[8];
+            // v7.2.0: x = variación de color a gran escala, y = brillo del cielo en las hojas (fresnel), z = oclusión en la base, w = desaturación
+            float4 _GrassLook;
+            float3 _GrassSky;
+            // ruido de valor barato (vértice) para manchas de color de 6-40 m
+            float hash12(float2 p) { float3 p3 = frac(float3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return frac((p3.x + p3.y) * p3.z); }
+            float vnoise(float2 p) { float2 i = floor(p), f = frac(p); f = f * f * (3 - 2 * f);
+                return lerp(lerp(hash12(i), hash12(i + float2(1, 0)), f.x), lerp(hash12(i + float2(0, 1)), hash12(i + float2(1, 1)), f.x), f.y); }
 
             struct appdata { float4 vertex : POSITION; float3 normal : NORMAL; float2 uv : TEXCOORD0; };
             struct v2f
@@ -94,12 +101,18 @@ Shader "Backrooms/FieldGrass"
                 float3 amb = ShadeSH9(float4(N, 1));
                 float dif = saturate(dot(N, Ls) * 0.5 + 0.5);
                 float trans = pow(saturate(dot(-V, Ls)), 4.0) * 0.55 * h01;
-                float ao = lerp(0.32, 1.0, pow(h01, 0.65));
-                o.light = (amb * 1.05 + _LightColor0.rgb * (dif * 0.75 + trans)) * ao;
+                float ao = lerp(_GrassLook.z > 0 ? _GrassLook.z : 0.32, 1.0, pow(h01, 0.65));
+                // v7.2.0: brillo del cielo nublado en las hojas a contraluz/rasante (la hierba real refleja el cielo: no es mate)
+                float fres = pow(1.0 - saturate(abs(dot(normalize(n), V))), 3.0) * h01;
+                o.light = (amb * 1.05 + _LightColor0.rgb * (dif * 0.75 + trans)) * ao + _GrassSky * fres * _GrassLook.y;
 
                 // variación: tono por mata, manchas secas y puntas secas
-                float3 hue = lerp(float3(0.88, 1.0, 0.82), float3(1.06, 1.0, 0.86), I.prm.y);
-                o.tint = float4(hue * _Tint.rgb, saturate(I.prm.z * (0.35 + 0.65 * pow(h01, 1.3)) + pow(h01, 4.0) * 0.25));
+                float3 hue = lerp(float3(0.88, 1.0, 0.82), float3(1.06, 1.0, 0.86), frac(I.prm.y));
+                // v7.2.0: manchas de color del prado (verde azulado fresco / verde oliva / pajizo) y de luminosidad, en el mundo
+                float m1 = vnoise(root.xz / 23.0), m2 = vnoise(root.xz / 7.0 + 17.3);
+                float3 macro = lerp(float3(0.84, 0.97, 0.90), float3(1.10, 1.02, 0.80), m1) * lerp(0.86, 1.10, m2);
+                hue = lerp(hue, hue * macro, _GrassLook.x);
+                o.tint = float4(hue * _Tint.rgb, saturate(I.prm.z * (0.35 + 0.65 * pow(h01, 1.3)) + pow(h01, 4.0) * 0.25 + (m1 - 0.5) * 0.25 * _GrassLook.x));
                 UNITY_TRANSFER_FOG(o, o.pos);
                 return o;
             }
@@ -111,6 +124,7 @@ Shader "Backrooms/FieldGrass"
                 float3 alb = t.rgb * i.tint.rgb;
                 float lum = dot(alb, float3(0.3, 0.59, 0.11));
                 alb = lerp(alb, _DryCol.rgb * (lum * 1.7 + 0.08), i.tint.a);
+                alb = lerp(alb, dot(alb, float3(0.3, 0.59, 0.11)).xxx, _GrassLook.w);
                 fixed4 col = fixed4(alb * i.light, 1);
                 // alpha-to-coverage: borde nítido pero suave con MSAA
                 col.a = saturate((t.a - _Cutoff) / max(fwidth(t.a), 1e-4) + 0.5);

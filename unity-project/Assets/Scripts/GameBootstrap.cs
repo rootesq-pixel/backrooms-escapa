@@ -64,6 +64,7 @@ public class GameBootstrap : MonoBehaviour
         NetSession.Create(this);
         BuildPersistentUi();
         BallBuildCheck.MaybeStart(gameObject);   // v7.1.2: prueba de las bolas en el ejecutable (solo con -ballcheck)
+        ShotBuildCheck.MaybeStart(gameObject);   // v7.2.0: capturas en el ejecutable (solo con -shotcheck)
     }
 
     // Menús (UIManager) y overlay de camcorder: persisten durante toda la sesión
@@ -500,6 +501,7 @@ public class GameBootstrap : MonoBehaviour
         RenderSettings.fogDensity = cfg.fogDensity;
         Shader.SetGlobalFloat("_GradeAmt", cfg.grade);
         PostStack.LevelActive = cfg.index == 2 || cfg.layout == LayoutKind.Field;   // v6.9: post-procesado tipo POOLS (Poolrooms; v7.0 también el campo)
+        PostStack.Exposure = cfg.postExposure; PostStack.BloomInt = cfg.postBloom; PostStack.Threshold = cfg.postThreshold;   // v7.2.0: por nivel
         Shader.SetGlobalFloat("_GradeWarm", 1f);
         Shader.SetGlobalFloat("_GradeContrast", 1.4f);
         Shader.SetGlobalFloat("_GradeExposure", 0.85f);

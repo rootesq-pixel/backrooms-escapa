@@ -165,17 +165,59 @@ public class FieldWorld : MonoBehaviour
 
     // ------------------------------------------------------------------ casas
     private static readonly Color[] Tints = { new Color(0.86f, 0.82f, 0.70f), new Color(0.78f, 0.79f, 0.76f), new Color(0.84f, 0.76f, 0.62f) };
+    // v7.2.0: tamaño real (m) de cada textura de Poly Haven: hw0..2 paredes, hr0..2 tejados
+    private static readonly float[] HouseTexM = { 1.57f, 1.6f, 1.8f, 3f, 2f, 3f };
+    private static readonly Color[] WallTint = { new Color(1f, 0.97f, 0.92f), new Color(0.95f, 0.97f, 0.95f), new Color(1f, 0.98f, 0.94f) };
+    public static bool HouseBaked { get; private set; }
+    public static float HouseLMScale = 1f, HouseInteriorLM = 0.3f;   // exposición del horneado; luz media del interior (muebles)
+    // la malla usa UV0 = metros x 0,4: escala = 2,5 m / tamaño real de la textura
+    private Material HouseMat(string tex, Color tint, float metres, float gloss, Texture lm, System.Action<Object> track)
+    {
+        Shader sh = Shader.Find("Backrooms/FieldHouse");
+        Material m = sh != null ? new Material(sh) : ProceduralAssets.CreateMaterial(tint, null, Vector2.one, gloss);
+        m.name = "House_" + (tex ?? "plain");
+        if (tex != null)
+        {
+            m.SetTexture("_MainTex", Resources.Load<Texture2D>("Field/House/" + tex + "_a"));
+            if (m.HasProperty("_BumpMap")) m.SetTexture("_BumpMap", Resources.Load<Texture2D>("Field/House/" + tex + "_n"));
+            if (m.HasProperty("_RoughTex")) m.SetTexture("_RoughTex", Resources.Load<Texture2D>("Field/House/" + tex + "_m"));
+        }
+        m.SetTextureScale("_MainTex", Vector2.one * (2.5f / metres));
+        m.SetColor("_Color", tint);
+        if (m.HasProperty("_Gloss")) m.SetFloat("_Gloss", gloss);
+        if (m.HasProperty("_UseLM")) { m.SetFloat("_UseLM", lm != null ? 1f : 0f); if (lm != null) { m.SetTexture("_LightMap", lm); m.SetFloat("_LMScale", HouseLMScale); } }
+        if (lm == null && m.HasProperty("_DirtH")) m.SetFloat("_DirtH", 0.35f);
+        track(m);
+        return m;
+    }
 
     private readonly List<GameObject> houseGos = new List<GameObject>();
     private void BuildHouses(LevelConfig cfg, System.Action<Object> track)
     {
-        Material[] walls = new Material[3];
-        for (int i = 0; i < 3; i++) walls[i] = SurfMat("house_wall", Tints[i], 0.08f, track);
-        Material roof = SurfMat("house_roof", new Color(0.62f, 0.62f, 0.62f), 0.15f, track);
-        Material floor = SurfMat("house_floor", new Color(0.62f, 0.56f, 0.5f), 0.2f, track);
-        Material trim = ProceduralAssets.CreateMaterial(new Color(0.24f, 0.2f, 0.17f), Tex("house_floor_a"), Vector2.one, 0.1f); track(trim);
+        // v7.2.0: texturas PBR CC0 de Poly Haven por variante (tinte): tablas de madera, tablas pintadas o yeso; tejado de tablillas,
+        // chapa oxidada o teja gris; carpintería con pintura levantada; zócalo y chimenea de piedra. Luz del cielo horneada (HouseLM).
+        Texture lm = Resources.Load<Texture>("Field/House/HouseLM");
+        HouseBaked = lm != null && Shader.Find("Backrooms/FieldHouse") != null;
+        Material[] walls = new Material[3], roofs = new Material[3];
+        for (int i = 0; i < 3; i++)
+        {
+            walls[i] = HouseMat("hw" + i, WallTint[i], HouseTexM[i], 0.3f, lm, track);
+            roofs[i] = HouseMat("hr" + i, Color.white, HouseTexM[3 + i], i == 1 ? 0.55f : 0.3f, lm, track);
+        }
+        Material floor = HouseMat(null, new Color(0.62f, 0.56f, 0.5f), 2.5f, 0.2f, lm, track);
+        if (floor.HasProperty("_MainTex")) { floor.SetTexture("_MainTex", Tex("house_floor_a")); floor.SetTexture("_BumpMap", Tex("house_floor_n")); }
+        Material trim = HouseMat("htrim", new Color(0.85f, 0.85f, 0.85f), 0.76f, 0.3f, lm, track);
+        Material glass = HouseMat(null, new Color(0.10f, 0.12f, 0.11f), 1f, 0.85f, lm, track);
+        Material stone = HouseMat("hfound", Color.white, 1.5f, 0.2f, lm, track);
+        Material plinthM = HouseMat("hfound", Color.white, 1.5f, 0.2f, null, track);   // zócalo enterrado (fuera del horneado)
         // v7.0.2: muebles en madera más clara (con el tono del zócalo casi negros: los objetos no se distinguían)
         Material furnWood = ProceduralAssets.CreateMaterial(new Color(0.66f, 0.52f, 0.38f), Tex("house_floor_a"), Vector2.one, 0.22f); track(furnWood);
+        if (HouseBaked)
+        {   // v7.2.0: muebles con la luz media del interior horneado (sin ambiente ni sol: si no, «brillan» en la casa oscura)
+            Material fw = HouseMat(null, new Color(0.66f, 0.52f, 0.38f), 2.5f, 0.22f, Texture2D.whiteTexture, track);
+            fw.SetTexture("_MainTex", Tex("house_floor_a")); fw.SetTexture("_BumpMap", Tex("house_floor_n")); fw.SetTextureScale("_MainTex", Vector2.one);
+            fw.SetFloat("_LMScale", HouseInteriorLM); furnWood = fw;
+        }
         Dictionary<int, Mesh> cache = new Dictionary<int, Mesh>();
         Transform hroot = new GameObject("Houses").transform;
         hroot.SetParent(transform, false);
@@ -200,7 +242,7 @@ public class FieldWorld : MonoBehaviour
             go.transform.localPosition = pos; go.transform.localRotation = rot;
             go.AddComponent<MeshFilter>().sharedMesh = mesh;
             MeshRenderer mr = go.AddComponent<MeshRenderer>();
-            Material[] mats = { walls[h.tint], roof, floor, trim };
+            Material[] mats = { walls[h.tint], roofs[h.tint], floor, trim, glass, stone };
             mr.sharedMaterials = mats; mr.shadowCastingMode = ShadowCastingMode.Off; mr.receiveShadows = false;
             go.AddComponent<MeshCollider>().sharedMesh = mesh;
             AddGhost(mesh, Matrix4x4.TRS(pos, rot, Vector3.one), mats, pos, 8f);
@@ -209,7 +251,7 @@ public class FieldWorld : MonoBehaviour
             float plinth = pos.y - lo + 0.4f;
             GameObject pl = ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "Plinth", go.transform, new Vector3(0f, 0.02f - plinth * 0.5f, 0f),
                 new Vector3(sz.x + 0.1f, plinth, sz.y + 0.1f), trim, true);
-            pl.GetComponent<Renderer>().sharedMaterial = walls[(h.tint + 1) % 3];
+            pl.GetComponent<Renderer>().sharedMaterial = plinthM;
             // escalones delante de la puerta si queda alta
             if (h.enterable)
             {
@@ -222,7 +264,7 @@ public class FieldWorld : MonoBehaviour
                     float top = 0.15f - (s * rise / steps);
                     GameObject st = ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "Step" + s, go.transform,
                         new Vector3(DoorX(h.template), top - 0.5f, sz.y * 0.5f + 0.2f + s * 0.32f), new Vector3(1.4f, 1f, 0.34f), trim, true);
-                    st.GetComponent<Renderer>().sharedMaterial = walls[(h.tint + 1) % 3];
+                    st.GetComponent<Renderer>().sharedMaterial = plinthM;
                 }
             }
             if (h.enterable) BuildFurniture(go.transform, h, k - 1, furnWood, floor);
@@ -271,25 +313,34 @@ public class FieldWorld : MonoBehaviour
 
     public static float DoorX(int tpl) { return tpl == 1 ? 0f : -FieldPlan.TemplateSize[tpl].x * 0.22f; }
 
-    // casa en espacio local: suelo en y=0..0.15, puerta en +Z. Submeshes: 0 paredes, 1 tejado, 2 suelo, 3 madera
-    private static Mesh HouseMesh(int tpl, bool enterable)
+    // casa en espacio local: suelo en y=0..0.15, puerta en +Z. Submeshes: 0 paredes, 1 tejado, 2 suelo, 3 madera, 4 cristal, 5 piedra
+    // v7.2.0: más detalle (techo interior, tejado con grosor, tablas de remate y cumbrera, canalones y bajante, chimenea,
+    // zócalo de piedra, cuarterones y cristal sucio en las cerradas, tejadillo sobre la puerta) y UV2 de lightmap para el horneado
+    // de Blender (Tools/field/house_bake.py). Mismos huecos, tamaños y puerta que v7.0 (colisiones, muebles y objetos no cambian).
+    public const int HouseSubs = 6, SubGlass = 4;
+    public static int HouseVariant(int tpl, bool enterable) { return tpl * 2 + (enterable ? 1 : 0); }
+    public static Rect HouseTile(int variant) { return new Rect((variant % 3) / 3f, (variant / 3) / 2f, 1f / 3f, 0.5f); }   // atlas 3x2 (3072x2048)
+    public static Mesh HouseMesh(int tpl, bool enterable)
     {
         Vector2 sz = FieldPlan.TemplateSize[tpl];
         float W = sz.x, D = sz.y, H = 2.7f, t = 0.2f, y0 = 0.15f, y1 = y0 + H, ridge = 1.45f, o = 0.35f;
-        FieldMesh fm = new FieldMesh(4); fm.uvScale = 0.4f;
+        FieldMesh fm = new FieldMesh(HouseSubs); fm.uvScale = 0.4f;
+        fm.lightmapUV = true; fm.lmTile = HouseTile(HouseVariant(tpl, enterable));
         fm.Box(2, new Vector3(-W / 2, 0f, -D / 2), new Vector3(W / 2, y0, D / 2));
         float dx = DoorX(tpl);
         float winX = dx < 0f ? W * 0.22f : -W * 0.28f;
         // fachada (+Z): puerta + ventana
         List<Vector4> front = new List<Vector4> { new Vector4(dx - 0.5f, dx + 0.5f, y0, y0 + 2.1f), new Vector4(winX - 0.55f, winX + 0.55f, y0 + 0.9f, y0 + 2.0f) };
-        WallX(fm, D / 2 - t, D / 2, -W / 2, W / 2, y0, y1, front);
+        WallX(fm, D / 2 - t, D / 2, -W / 2, W / 2, y0, y1, new List<Vector4>(front));
         // trasera: dos ventanas
         List<Vector4> back = new List<Vector4> { new Vector4(-W * 0.25f - 0.5f, -W * 0.25f + 0.5f, y0 + 0.9f, y0 + 1.9f), new Vector4(W * 0.25f - 0.5f, W * 0.25f + 0.5f, y0 + 0.9f, y0 + 1.9f) };
-        WallX(fm, -D / 2, -D / 2 + t, -W / 2, W / 2, y0, y1, back);
+        WallX(fm, -D / 2, -D / 2 + t, -W / 2, W / 2, y0, y1, new List<Vector4>(back));
         // laterales: una ventana
         List<Vector4> side = new List<Vector4> { new Vector4(-0.5f, 0.5f, y0 + 0.9f, y0 + 1.9f) };
         WallZ(fm, -W / 2, -W / 2 + t, -D / 2 + t, D / 2 - t, y0, y1, side);
         WallZ(fm, W / 2 - t, W / 2, -D / 2 + t, D / 2 - t, y0, y1, side);
+        // techo interior (plano, bajo el tejado)
+        fm.Quad(0, new Vector3(-W / 2 + t, y1 - 0.01f, -D / 2 + t), new Vector3(W / 2 - t, y1 - 0.01f, -D / 2 + t), new Vector3(W / 2 - t, y1 - 0.01f, D / 2 - t), new Vector3(-W / 2 + t, y1 - 0.01f, D / 2 - t), Vector3.down, Vector3.right, Vector3.forward);
         // hastiales
         foreach (float x in new[] { -W / 2, W / 2 })
         {
@@ -298,27 +349,65 @@ public class FieldWorld : MonoBehaviour
             Vector3 off = new Vector3(-Mathf.Sign(x) * t, 0f, 0f);
             fm.Tri(0, a + off, b + off, c + off, new Vector3(-Mathf.Sign(x), 0f, 0f), Vector3.forward, Vector3.up);
         }
-        // tejado a dos aguas (cara superior e inferior)
+        // tejado a dos aguas con grosor: cara superior, inferior y canto
+        const float rth = 0.1f;
         for (int s = -1; s <= 1; s += 2)
         {
             Vector3 e0 = new Vector3(-W / 2 - o, y1 - 0.18f, s * (D / 2 + o)), e1 = new Vector3(W / 2 + o, y1 - 0.18f, s * (D / 2 + o));
             Vector3 r0 = new Vector3(-W / 2 - o, y1 + ridge, 0f), r1 = new Vector3(W / 2 + o, y1 + ridge, 0f);
             Vector3 nrm = Vector3.Cross(r0 - e0, e1 - e0).normalized; if (nrm.y < 0f) nrm = -nrm;
             Vector3 vAx = (r0 - e0).normalized;
-            fm.Quad(1, e0, e1, r1, r0, nrm, Vector3.right, vAx);
-            Vector3 d = -nrm * 0.08f;
-            fm.Quad(0, e0 + d, e1 + d, r1 + d, r0 + d, -nrm, Vector3.right, vAx);
+            Vector3 up = nrm * rth;
+            fm.Quad(1, e0 + up, e1 + up, r1 + up, r0 + up, nrm, Vector3.right, vAx);
+            fm.Quad(0, e0, e1, r1, r0, -nrm, Vector3.right, vAx);
+            Vector3 eo = new Vector3(0f, 0f, s);
+            fm.Quad(3, e0, e1, e1 + up, e0 + up, (eo - vAx * Vector3.Dot(eo, vAx)).normalized, Vector3.right, Vector3.up);   // canto del alero
+            foreach (float xe in new[] { -W / 2 - o, W / 2 + o })
+            {   // canto lateral (hastial) + tabla de remate
+                Vector3 p0 = new Vector3(xe, e0.y, e0.z), p1 = new Vector3(xe, r0.y, 0f);
+                fm.Quad(3, p0, p1, p1 + up, p0 + up, new Vector3(Mathf.Sign(xe), 0f, 0f), Vector3.forward, Vector3.up);
+                Vector3 bo = new Vector3(Mathf.Sign(xe) * 0.03f, 0f, 0f), bd = -nrm * 0.2f;
+                fm.Quad(3, p0 + bo + up * 0.5f, p1 + bo + up * 0.5f, p1 + bo + bd, p0 + bo + bd, new Vector3(Mathf.Sign(xe), 0f, 0f), Vector3.forward, Vector3.up);
+            }
         }
+        fm.Box(3, new Vector3(-W / 2 - o - 0.02f, y1 + ridge + rth * 0.6f, -0.09f), new Vector3(W / 2 + o + 0.02f, y1 + ridge + rth + 0.06f, 0.09f));   // cumbrera
         // v7.0.1: carpintería (marcos de ventanas con alféizar, marco de puerta, esquineras y tabla de alero): menos aspecto de caja
         const float tw = 0.09f, tp = 0.05f;
         foreach (Vector4 hv in front) FrameX(fm, hv, D / 2, 1f, tw, tp, hv.z > y0 + 0.01f);
         foreach (Vector4 hv in back) FrameX(fm, hv, -D / 2, -1f, tw, tp, true);
         foreach (Vector4 hv in side) { FrameZ(fm, hv, -W / 2, -1f, tw, tp); FrameZ(fm, hv, W / 2, 1f, tw, tp); }
         foreach (float sx in new[] { -1f, 1f }) foreach (float sz2 in new[] { -1f, 1f })
-        { float cx = sx * (W / 2 + 0.01f), cz = sz2 * (D / 2 + 0.01f); fm.Box(3, new Vector3(cx - 0.07f, y0, cz - 0.07f), new Vector3(cx + 0.07f, y1, cz + 0.07f)); }
+        { float cx = sx * (W / 2 + 0.01f), cz = sz2 * (D / 2 + 0.01f); fm.Box(3, new Vector3(cx - 0.07f, y0 + 0.3f, cz - 0.07f), new Vector3(cx + 0.07f, y1, cz + 0.07f)); }
         foreach (float sz2 in new[] { -1f, 1f })
+        {
             fm.Box(3, new Vector3(-W / 2 - o, y1 - 0.34f, sz2 * (D / 2 + o) - 0.03f), new Vector3(W / 2 + o, y1 - 0.18f, sz2 * (D / 2 + o) + 0.03f));
-        // casas cerradas: puerta de madera y ventanas tapiadas con tablas
+            // canalón bajo el alero
+            float gz = sz2 * (D / 2 + o + 0.07f);
+            fm.Box(3, new Vector3(-W / 2 - o + 0.05f, y1 - 0.36f, gz - 0.06f), new Vector3(W / 2 + o - 0.05f, y1 - 0.24f, gz + 0.06f));
+        }
+        // bajante en una esquina trasera (cuelga del canalón hasta el zócalo)
+        { float bx = W / 2 - 0.25f, bz = -(D / 2 + 0.06f); fm.Box(3, new Vector3(bx - 0.04f, y0 + 0.1f, bz - 0.04f), new Vector3(bx + 0.04f, y1 - 0.3f, bz + 0.04f)); }
+        // zócalo de piedra (sobresale 4 cm)
+        foreach (float sz2 in new[] { -1f, 1f }) fm.Box(5, new Vector3(-W / 2 - 0.04f, -0.25f, sz2 > 0 ? D / 2 - 0.02f : -D / 2 - 0.04f), new Vector3(W / 2 + 0.04f, y0 + 0.3f, sz2 > 0 ? D / 2 + 0.04f : -D / 2 + 0.02f));
+        foreach (float sx in new[] { -1f, 1f }) fm.Box(5, new Vector3(sx > 0 ? W / 2 - 0.02f : -W / 2 - 0.04f, -0.25f, -D / 2 + 0.02f), new Vector3(sx > 0 ? W / 2 + 0.04f : -W / 2 + 0.02f, y0 + 0.3f, D / 2 - 0.02f));
+        // chimenea de piedra (plantillas 0 y 2)
+        if (tpl != 1)
+        {
+            float chx = W * 0.27f, chz = -D * 0.2f, top = y1 + ridge + 0.55f;
+            fm.Box(5, new Vector3(chx - 0.3f, y1, chz - 0.25f), new Vector3(chx + 0.3f, top, chz + 0.25f));
+            fm.Box(5, new Vector3(chx - 0.34f, top, chz - 0.29f), new Vector3(chx + 0.34f, top + 0.08f, chz + 0.29f));
+        }
+        // tejadillo sobre la puerta con dos ménsulas
+        {
+            float py = y0 + 2.35f, pd = 0.75f;
+            Vector3 a = new Vector3(dx - 0.85f, py, D / 2), b = new Vector3(dx + 0.85f, py, D / 2), c = new Vector3(dx + 0.85f, py - 0.18f, D / 2 + pd), d = new Vector3(dx - 0.85f, py - 0.18f, D / 2 + pd);
+            Vector3 pn = Vector3.Cross(b - a, d - a).normalized; if (pn.y < 0f) pn = -pn;
+            fm.Quad(1, a + pn * 0.06f, b + pn * 0.06f, c + pn * 0.06f, d + pn * 0.06f, pn, Vector3.right, (d - a).normalized);
+            fm.Quad(3, a, b, c, d, -pn, Vector3.right, (d - a).normalized);
+            fm.Quad(3, d, c, c + pn * 0.06f, d + pn * 0.06f, Vector3.forward, Vector3.right, Vector3.up);
+            foreach (float bxp in new[] { dx - 0.75f, dx + 0.75f }) fm.Box(3, new Vector3(bxp - 0.04f, py - 0.55f, D / 2), new Vector3(bxp + 0.04f, py - 0.12f, D / 2 + 0.5f));
+        }
+        // casas cerradas: puerta de madera, cristal sucio con cuarterones y la ventana delantera tapiada con tablas
         if (!enterable)
         {
             fm.Box(3, new Vector3(dx - 0.5f, y0, D / 2 - t * 0.6f), new Vector3(dx + 0.5f, y0 + 2.1f, D / 2 - t * 0.2f));
@@ -328,6 +417,25 @@ public class FieldWorld : MonoBehaviour
                     float yy = wv.z + 0.12f + p * 0.26f;
                     fm.Box(3, new Vector3(wv.x - 0.12f, yy, D / 2), new Vector3(wv.y + 0.12f, yy + 0.18f, D / 2 + 0.04f));
                 }
+            System.Action<Vector4, float, bool> pane = (h, f, alongX) =>
+            {
+                float mxc = (h.x + h.y) * 0.5f, myc = (h.z + h.w) * 0.5f;
+                if (alongX)
+                {
+                    fm.Quad(SubGlass, new Vector3(h.x, h.z, f), new Vector3(h.y, h.z, f), new Vector3(h.y, h.w, f), new Vector3(h.x, h.w, f), new Vector3(0f, 0f, Mathf.Sign(f)), Vector3.right, Vector3.up);
+                    fm.Box(3, new Vector3(mxc - 0.025f, h.z, f - 0.025f), new Vector3(mxc + 0.025f, h.w, f + 0.025f));
+                    fm.Box(3, new Vector3(h.x, myc - 0.025f, f - 0.025f), new Vector3(h.y, myc + 0.025f, f + 0.025f));
+                }
+                else
+                {
+                    fm.Quad(SubGlass, new Vector3(f, h.z, h.x), new Vector3(f, h.z, h.y), new Vector3(f, h.w, h.y), new Vector3(f, h.w, h.x), new Vector3(Mathf.Sign(f), 0f, 0f), Vector3.forward, Vector3.up);
+                    fm.Box(3, new Vector3(f - 0.025f, h.z, mxc - 0.025f), new Vector3(f + 0.025f, h.w, mxc + 0.025f));
+                    fm.Box(3, new Vector3(f - 0.025f, myc - 0.025f, h.x), new Vector3(f + 0.025f, myc + 0.025f, h.y));
+                }
+            };
+            pane(front[1], D / 2 - 0.1f, true);
+            foreach (Vector4 hv in back) pane(hv, -D / 2 + 0.1f, true);
+            foreach (Vector4 hv in side) { pane(hv, -W / 2 + 0.1f, false); pane(hv, W / 2 - 0.1f, false); }
         }
         return fm.ToMesh(enterable ? "HouseOpen_" + tpl : "HouseClosed_" + tpl);
     }

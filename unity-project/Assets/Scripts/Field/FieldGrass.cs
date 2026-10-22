@@ -65,6 +65,7 @@ public class FieldGrass : MonoBehaviour
         if (sh == null || !sh.isSupported) canDraw = false;
         windNoise = MakeNoise(64, 11); owned.Add(windNoise);
         Shader.SetGlobalTexture("_WindNoise", windNoise);
+        ApplyLook();
         //       nombre (Resources/Field)       textura                peso  escala      lodMax seco
         // las matas «tall» (≈300 triángulos, las más altas) forman la masa de la pradera; las bajas y densas rellenan de cerca
         Add("grass_medium_01_tall_a", "grass_medium_01", 3.0f, 2.3f, 3.6f, 2, 0.35f, sh);
@@ -89,6 +90,11 @@ public class FieldGrass : MonoBehaviour
             if (gen.ExtraSpots != null) foreach (Vector3 p in gen.ExtraSpots) shortSpots.Add(levelRoot.InverseTransformPoint(p));
         }
     }
+
+    // v7.2.0: aspecto de la hierba (manchas de color, brillo del cielo, oclusión en la base, desaturación) y color del cielo para el brillo
+    public static Vector4 Look = new Vector4(0.8f, 0.5f, 0.28f, 0.1f);
+    public static Color SkySheen = new Color(0.66f, 0.70f, 0.74f);
+    public static void ApplyLook() { Shader.SetGlobalVector("_GrassLook", Look); Shader.SetGlobalColor("_GrassSky", SkySheen); }
 
     public void AddShortSpot(Vector3 world) { if (levelRoot != null) shortSpots.Add(levelRoot.InverseTransformPoint(world)); }
 

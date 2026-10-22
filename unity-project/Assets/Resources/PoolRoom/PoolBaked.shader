@@ -2,6 +2,7 @@
 // Difuso = albedo × lightmap (emisión); especular/reflejo de la sonda y luces en tiempo real (linterna) se suman con Standard.
 // v7.1.3: suelo de baldosa brillante como en Cycles: reflejo planar (el de la piscina) en las caras hacia arriba por encima
 // del agua, con fresnel de barniz y borrosidad por rugosidad; banda oscura en la pared del vaso entre el agua y la playa.
+// v7.2.0: suciedad tileable (Grime_g, periodo 16 m) multiplicada sobre el albedo como el material de azulejo de Blender.
 Shader "Backrooms/PoolBaked"
 {
     Properties
@@ -18,6 +19,9 @@ Shader "Backrooms/PoolBaked"
         _PlanarK ("Planar reflection on up faces", Range(0,2)) = 0
         _WaterBand ("Dark band above water (pool walls)", Range(0,1)) = 0
         _LMTint ("Bake tint", Color) = (1,1,1,1)
+        _GrimeTex ("Grime (UV0 m, tileable)", 2D) = "black" {}
+        _GrimeK ("Grime amount", Range(0,1.5)) = 0
+        _GrimeColor ("Grime multiply colour", Color) = (0.55,0.5,0.4,1)
     }
     SubShader
     {
@@ -26,15 +30,17 @@ Shader "Backrooms/PoolBaked"
         CGPROGRAM
         #pragma surface surf Standard noambient nolightmap nodynlightmap nodirlightmap vertex:vert
         #pragma target 3.0
-        sampler2D _MainTex, _BumpMap, _MaskMap, _LightMap;
+        sampler2D _MainTex, _BumpMap, _MaskMap, _LightMap, _GrimeTex; float4 _GrimeTex_ST; half _GrimeK; half4 _GrimeColor;
         sampler2D _PoolPlanarTex; float _PoolPlanarOn, _PoolWaterY;
         float4 _PoolDeckP;   // x: fuerza del reflejo, y: F0 del barniz, z: distorsión por la normal, w: borrosidad (mip por rugosidad)
         fixed4 _Color; half4 _LMTint; half _Glossiness, _LMScale, _AOStrength, _BumpScale, _PlanarK, _WaterBand;
-        struct Input { float2 uv_MainTex; float2 lmuv; float4 screenPos; float3 worldPos; float wny; };
-        void vert(inout appdata_full v, out Input o) { UNITY_INITIALIZE_OUTPUT(Input, o); o.lmuv = v.texcoord1.xy; o.wny = UnityObjectToWorldNormal(v.normal).y; }
+        struct Input { float2 uv_MainTex; float2 lmuv; float2 uvm; float4 screenPos; float3 worldPos; float wny; };
+        void vert(inout appdata_full v, out Input o) { UNITY_INITIALIZE_OUTPUT(Input, o); o.lmuv = v.texcoord1.xy; o.uvm = v.texcoord.xy * _GrimeTex_ST.xy + _GrimeTex_ST.zw; o.wny = UnityObjectToWorldNormal(v.normal).y; }
         void surf(Input IN, inout SurfaceOutputStandard o)
         {
             fixed4 c = tex2D(_MainTex, IN.uv_MainTex) * _Color;
+            // v7.2.0: manchas grises del render de Blender (Noise 0,6/m -> rampa 0,45-0,75 x1,2 -> multiplicar por (0,55,0,5,0,4))
+            if (_GrimeK > 0) c.rgb *= lerp(half3(1, 1, 1), _GrimeColor.rgb, saturate(tex2D(_GrimeTex, IN.uvm).r * _GrimeK));
             fixed4 m = tex2D(_MaskMap, IN.uv_MainTex);
             half3 lm = tex2D(_LightMap, IN.lmuv).rgb * _LMScale * _LMTint.rgb;
             half ao = lerp(1, m.g, _AOStrength);
