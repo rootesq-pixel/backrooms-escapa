@@ -266,7 +266,15 @@ public static class V730Checks
             {
                 Vector3 eye = p.cameraPivot.position, body = p.transform.position + Vector3.up * 0.9f;
                 // apunta el centro del cuerpo (no los ojos) al eje del túnel; si se atasca, mira un poco más arriba/al eje
-                Vector3 aim = route[k] + (eye - body) + (stuck > 1f ? Vector3.up * 1.5f : Vector3.zero);
+                Vector3 aim = route[k] + (eye - body);
+                if (stuck > 1f)
+                {
+                    // atascado: subir y volver al eje del túnel (como haría un jugador)
+                    Vector3 ax = route[k]; float best = 1e9f;
+                    foreach (Vector3 q in OceanWorld.Active.TunnelSamples) { float dq = (q - body).sqrMagnitude; if (dq < best) { best = dq; ax = q; } }
+                    Vector3 toAx = ax - body; toAx.y = 0f;
+                    aim += Vector3.up * 1.5f + toAx * 1.5f;
+                }
                 Face(p, aim);
                 p.debugJump = route[k].y > body.y + 2f;
                 if (Vector3.Distance(body, route[k]) < 1.6f || (k == route.Count - 1 && Vector3.Distance(eye, route[k]) < 1.6f)) k++;

@@ -530,7 +530,8 @@ public class OceanWorld : MonoBehaviour
             Vector3 fwd = (i < TunnelSamples.Count - 1 ? TunnelSamples[i + 1] - p : p - TunnelSamples[i - 1]).normalized;
             Vector3 n0 = Vector3.ProjectOnPlane(prevN, fwd); if (n0.sqrMagnitude < 0.01f) n0 = Vector3.ProjectOnPlane(Vector3.right, fwd); n0.Normalize(); prevN = n0;
             Vector3 b0 = Vector3.Cross(fwd, n0);
-            float rad = Mathf.Lerp(2.35f, 2.1f, i / (float)(TunnelSamples.Count - 1));
+            float tR = i / (float)(TunnelSamples.Count - 1);
+            float rad = tR < 0.85f ? 2.5f : Mathf.Lerp(2.5f, 2.1f, (tR - 0.85f) / 0.15f);   // más ancho en el codo y el pozo; encaja con el agujero de la gruta (2.1) al final
             Vector3[] ring = new Vector3[sides];
             for (int s = 0; s < sides; s++)
             {

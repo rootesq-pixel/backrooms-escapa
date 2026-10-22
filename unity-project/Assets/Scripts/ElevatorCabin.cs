@@ -39,7 +39,8 @@ public class ElevatorCabin : MonoBehaviour
         new Color(1.00f, 0.68f, 0.32f),   // 3 hotel: ámbar
         new Color(1.00f, 0.14f, 0.07f),   // 4 industrial: luz de emergencia roja
         new Color(0.92f, 0.96f, 1.00f),   // 5 campo infinito: luz de día fría
-        new Color(1.00f, 0.90f, 0.78f)    // 6 parque de bolas: fluorescente cálido y desvaído
+        new Color(1.00f, 0.90f, 0.78f),   // 6 parque de bolas: fluorescente cálido y desvaído
+        new Color(0.62f, 0.86f, 0.92f)    // 7 talasofobia: luz fría y húmeda, verdeazulada
     };
 
     public Phase CurrentPhase { get; private set; }
