@@ -2955,7 +2955,7 @@ public static class SmokePlayRunner
             // Atmósfera
             r.Check(RenderSettings.fog && RenderSettings.fogMode == FogMode.Exponential && RenderSettings.fogDensity > 0.01f, tag + "niebla exponencial activa");
             if (cfg.layout == LayoutKind.Field) r.Check(RenderSettings.ambientMode == UnityEngine.Rendering.AmbientMode.Trilight, tag + "campo: luz ambiente de cielo nublado (trilight)");
-            else r.Check(RenderSettings.ambientLight.maxColorComponent < 0.25f, tag + "luz ambiente baja");
+            else r.Check(RenderSettings.ambientLight.maxColorComponent < (lv == 0 ? 0.19f : 0.25f), tag + "luz ambiente baja (" + RenderSettings.ambientLight.maxColorComponent.ToString("F3") + ")");   // v7.3.0b4: nivel 0 más oscuro (0,17)
 
             // Sin pistas de la salida en HUD / escena
             bool hint = false;

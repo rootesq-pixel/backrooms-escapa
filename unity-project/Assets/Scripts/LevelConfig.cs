@@ -175,12 +175,12 @@ public class LevelConfig
             c.batteries = 6; c.monsterCount = 1;
             // v7.3.0b (usuario): más oscuro, con rincones en penumbra: menos ambiente, caída más corta, grupos de paneles muertos
             // o parpadeando (deterministas por semilla: iguales en todos los clientes) y bruma lejana más oscura
-            c.ambient = new Color(0.24f, 0.226f, 0.10f);
-            c.fog = new Color(0.17f, 0.17f, 0.075f); c.fogDensity = 0.030f;
-            c.lightColor = new Color(1f, 0.97f, 0.70f); c.emissionColor = new Color(0.80f, 1.0f, 0.58f);
-            c.lightIntensity = 1.4f; c.lightRange = 8.5f; c.maxRealtimeLights = 16;
+            c.ambient = new Color(0.17f, 0.16f, 0.071f);   // v7.3.0b4 (usuario): ~35 % menos que 0,26: rincones y detrás de los pilares en penumbra de verdad
+            c.fog = new Color(0.14f, 0.14f, 0.062f); c.fogDensity = 0.030f;
+            c.lightColor = new Color(1f, 0.97f, 0.70f); c.emissionColor = new Color(0.64f, 0.80f, 0.464f);   // -20 %
+            c.lightIntensity = 1.12f; c.lightRange = 7.6f;   // -20 %, caída algo más corta c.maxRealtimeLights = 16;
             c.deadChance = 0.06f; c.flickerChance = 0.12f;
-            c.darkClusters = 0.27f; c.flickerClusters = 0.10f; c.clusterCells = 4;
+            c.darkClusters = 0.38f; c.flickerClusters = 0.10f; c.clusterCells = 4;
             c.grade = 0.55f;
         }
         return c;

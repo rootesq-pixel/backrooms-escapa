@@ -1202,7 +1202,7 @@ public class BackroomsGenerator : MonoBehaviour
         LevelConfig cfg = config;
         if (cfg.darkClusters <= 0f && cfg.flickerClusters <= 0f) return 0;
         if (Mathf.Abs(x - startCell.x) <= 2 && Mathf.Abs(z - startCell.y) <= 2) return 0;
-        if (Mathf.Abs(x - exitCell.x) <= 1 && Mathf.Abs(z - exitCell.y) <= 1) return 0;
+        if (Mathf.Abs(x - exitCell.x) <= 2 && Mathf.Abs(z - exitCell.y) <= 2) return 0;
         int cc = Mathf.Max(1, cfg.clusterCells);
         float hsh = ClusterHash(x / cc, z / cc);
         if (hsh < cfg.darkClusters) return 1;
