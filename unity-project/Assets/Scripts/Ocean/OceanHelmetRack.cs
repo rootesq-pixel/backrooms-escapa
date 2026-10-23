@@ -15,7 +15,7 @@ public class OceanHelmetRack : MonoBehaviour
     static Cubemap air, water;
     public static Cubemap AirCube(System.Action<Object> track)
     {
-        if (air == null) { Color f = RenderSettings.fogColor; Color sd = new Color(Mathf.Clamp(f.r * 1.7f, 0.6f, 1.1f), Mathf.Clamp(f.g * 1.7f, 0.6f, 1.1f), Mathf.Clamp(f.b * 1.7f, 0.6f, 1.1f)); air = EnvCube("HelmetAir", new Color(1.55f, 1.55f, 1.5f), sd, new Color(0.2f, 0.27f, 0.3f), track); }
+        if (air == null) { Color f = RenderSettings.fogColor; Color sd = new Color(Mathf.Clamp(f.r * 1.4f, 0.5f, 0.95f), Mathf.Clamp(f.g * 1.4f, 0.5f, 0.95f), Mathf.Clamp(f.b * 1.4f, 0.5f, 0.95f)); air = EnvCube("HelmetAir", new Color(1.25f, 1.25f, 1.2f), sd, new Color(0.2f, 0.27f, 0.3f), track); }
         return air;
     }
     public static Cubemap WaterCube(System.Action<Object> track)

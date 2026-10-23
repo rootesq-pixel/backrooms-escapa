@@ -118,7 +118,7 @@ alb = base * (0.85 + 0.3 * tone) * (1 - 0.35 * grime[..., None]) + oxid * 0.0
 alb = alb * (1 - polish[..., None] * 0.6) + shiny * polish[..., None] * 0.6
 alb = alb * (1 - verd[..., None]) + verdc * (0.8 + 0.4 * fbm(90, 2, 71))[..., None] * verd[..., None]
 alb = np.clip(alb, 0, 1)
-metal = np.clip(1 - verd * 1.1, 0, 1) * 0.95
+metal = np.clip((0.58 + polish * 0.35) * (1 - verd * 1.1), 0, 1)   # latón empañado: parte difusa para que se vea con luz ambiente
 smooth = np.clip(0.42 + polish * 0.4 - grime * 0.18 - verd * 0.3 + (fbm(30, 3, 81) - 0.5) * 0.12, 0.08, 0.9)
 ao = np.clip(1 - cav * 1.2 - (1 - np.clip(feature + 0.7, 0, 1)) * 0.0, 0.25, 1)
 # ---- mapa de normales (tangente u, bitangente v; la imagen se guarda con v hacia arriba)
