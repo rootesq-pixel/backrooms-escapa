@@ -127,15 +127,30 @@ public static class V730Shots
         // 5) jaula y cascos
         Look(p, new Vector3(46f, OceanWorld.PierY + 0.02f, 249.4f), new Vector3(56f, 2.2f, 251.5f));
         yield return 1.0f; Shot(cam, "05_jaula_cascos");
-        // 6) bajo el agua con El Farolero (casco y lámpara)
+        // 5b) cascos de buzo de cerca (soporte del muelle)
+        {
+            Vector3 rk = w.rack.transform.position;
+            ShotAt(cam, rk + new Vector3(1.1f, 1.55f, -1.5f), rk + new Vector3(0f, 1.05f, 0f), "05b_cascos_cerca");
+        }
+        // 6) bajo el agua con El Farolero (casco y lámpara): de tres cuartos a ~9 m
         op.SetHelmet(true);
         Vector3 me = new Vector3(60f, -47f, 252f);
-        w.angler.ForceForTests(new Vector3(63.8f, -46.2f, 256.6f), OceanAngler.AState.Patrol);
-        w.angler.transform.rotation = Quaternion.LookRotation(new Vector3(-0.5f, 0f, -1f));
+        w.angler.ForceForTests(new Vector3(66.5f, -45.6f, 258.5f), OceanAngler.AState.Patrol);
+        w.angler.transform.position = new Vector3(66.5f, -45.6f, 258.5f);
+        w.angler.transform.rotation = Quaternion.LookRotation(new Vector3(-1f, 0f, 0.45f));
         Look(p, me, w.angler.transform.position);
         yield return 1.5f;
+        w.angler.transform.position = new Vector3(66.5f, -45.6f, 258.5f);
+        w.angler.transform.rotation = Quaternion.LookRotation(new Vector3(-1f, 0f, 0.45f));
         Look(p, me, w.angler.transform.position);
-        yield return 0.3f; Shot(cam, "06_fondo_farolero");
+        yield return 0.1f; Shot(cam, "06_fondo_farolero");
+        // 6b) lámpara apagada: solo el señuelo y los fotóforos en la negrura
+        op.flashlight.SetOn(false);
+        w.angler.transform.position = new Vector3(70f, -44.5f, 263f);
+        w.angler.transform.rotation = Quaternion.LookRotation(new Vector3(-0.8f, 0f, -0.6f));
+        Look(p, me, w.angler.transform.position + Vector3.up * 1.5f);
+        yield return 0.1f; Shot(cam, "06b_farolero_a_oscuras");
+        op.flashlight.SetOn(true);
         // 7) túnel de la gruta
         Vector3 tp = OceanWorld.TunnelPath[2];
         Look(p, tp + new Vector3(2.0f, -0.9f, 0f), OceanWorld.TunnelPath[4] + Vector3.up * 1.5f);

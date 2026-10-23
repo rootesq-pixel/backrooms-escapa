@@ -12,21 +12,43 @@ public static class OceanFishMesh
     // cuerpo de revolución a lo largo de +z: perfil (z, radio) y achatamiento lateral
     public static Mesh Body(string name, Vector2[] prof, float flat, int sides)
     {
-        MeshBuilder mb = new MeshBuilder(1);
-        for (int j = 0; j < prof.Length - 1; j++)
+        // v7.3.0: torno con vértices compartidos (normales suaves) y tapas en morro y cola; antes eran quads sueltos (facetado)
+        List<Vector2> pr = new List<Vector2>(prof);
+        if (pr[0].y > 0.001f) pr.Insert(0, new Vector2(pr[0].x - Mathf.Min(0.3f, pr[0].y), 0f));
+        Vector2 last = pr[pr.Count - 1];
+        if (last.y > 0.001f) pr.Add(new Vector2(last.x + Mathf.Min(0.35f, last.y * 0.7f), 0f));
+        int ring = sides + 1;
+        List<Vector3> v = new List<Vector3>(); List<Vector2> uv = new List<Vector2>(); List<int> t = new List<int>();
+        for (int j = 0; j < pr.Count; j++)
+            for (int i = 0; i <= sides; i++)
+            {
+                float a = i * Mathf.PI * 2f / sides;
+                v.Add(new Vector3(Mathf.Cos(a) * pr[j].y * flat, Mathf.Sin(a) * pr[j].y, pr[j].x));
+                uv.Add(new Vector2(i / (float)sides, j / (float)(pr.Count - 1)));
+            }
+        for (int j = 0; j < pr.Count - 1; j++)
         {
+            Vector2 sn = new Vector2(-(pr[j + 1].y - pr[j].y), pr[j + 1].x - pr[j].x);   // normal exterior del perfil (z, r)
             for (int i = 0; i < sides; i++)
             {
-                float a0 = i * Mathf.PI * 2f / sides, a1 = (i + 1) * Mathf.PI * 2f / sides;
-                Vector3 P(float z, float r, float a) { return new Vector3(Mathf.Cos(a) * r * flat, Mathf.Sin(a) * r, z); }
-                Vector3 v0 = P(prof[j].x, prof[j].y, a0), v1 = P(prof[j].x, prof[j].y, a1), v2 = P(prof[j + 1].x, prof[j + 1].y, a1), v3 = P(prof[j + 1].x, prof[j + 1].y, a0);
-                Vector3 n = new Vector3(Mathf.Cos((a0 + a1) * 0.5f) / Mathf.Max(0.2f, flat), Mathf.Sin((a0 + a1) * 0.5f), (prof[j].y - prof[j + 1].y) / Mathf.Max(0.01f, prof[j + 1].x - prof[j].x)).normalized;
-                mb.AddQuad(0, v0, v1, v2, v3, n, Vector3.forward, Vector3.up, 1f, 1f, 0f, 0f);
+                int i0 = j * ring + i, i1 = i0 + 1, i2 = i0 + ring + 1, i3 = i0 + ring;
+                AddTri(t, v, i0, i1, i2, sn); AddTri(t, v, i0, i2, i3, sn);
             }
         }
-        Mesh m = mb.ToMesh(name);
-        m.RecalculateNormals();
+        Mesh m = new Mesh { name = name };
+        m.SetVertices(v); m.SetUVs(0, uv); m.SetTriangles(t, 0);
+        m.RecalculateNormals(); m.RecalculateTangents(); m.RecalculateBounds();
         return m;
+    }
+
+    private static void AddTri(List<int> t, List<Vector3> v, int a, int b, int c, Vector2 sn)
+    {
+        Vector3 n = Vector3.Cross(v[b] - v[a], v[c] - v[a]);
+        if (n.sqrMagnitude < 1e-10f) return;   // triángulo degenerado en las tapas
+        Vector3 ctr = (v[a] + v[b] + v[c]) / 3f;
+        Vector3 rad = new Vector3(ctr.x, ctr.y, 0f); rad = rad.sqrMagnitude > 1e-8f ? rad.normalized : Vector3.zero;
+        Vector3 outv = rad * sn.y + Vector3.forward * sn.x;
+        if (Vector3.Dot(n, outv) >= 0f) { t.Add(a); t.Add(b); t.Add(c); } else { t.Add(a); t.Add(c); t.Add(b); }
     }
 
     public static Mesh Fin(string name, Vector3[] pts)
@@ -241,12 +263,13 @@ public class OceanAngler : MonoBehaviour
 
     private void Build(System.Action<Object> track)
     {
-        Material skin = ProceduralAssets.CreateMaterial(new Color(0.16f, 0.15f, 0.15f), Resources.Load<Texture2D>("Field/Props/FieldRock1_a"), new Vector2(1.5f, 1.5f), 0.62f); track(skin);
+        Material skin = ProceduralAssets.CreateMaterial(new Color(0.085f, 0.075f, 0.08f), Resources.Load<Texture2D>("Field/Props/FieldRock1_a"), new Vector2(2.5f, 2.5f), 0.3f); track(skin);   // piel casi negra y mate: la lámpara no la quema
         Material tooth = ProceduralAssets.CreateMaterial(new Color(0.78f, 0.76f, 0.68f), null, Vector2.one, 0.7f); track(tooth);
         Material eye = ProceduralAssets.CreateMaterial(new Color(0.55f, 0.6f, 0.55f), null, Vector2.one, 0.95f); track(eye);
         ProceduralAssets.SetEmission(eye, new Color(0.08f, 0.12f, 0.1f));
-        Mesh body = OceanFishMesh.Body("AnglerBody", new[] { new Vector2(-4.2f, 0.05f), new Vector2(-3.4f, 0.45f), new Vector2(-2f, 1.1f), new Vector2(-0.4f, 1.75f), new Vector2(0.9f, 1.95f), new Vector2(2.0f, 1.7f), new Vector2(2.6f, 1.2f), new Vector2(2.85f, 0.5f) }, 0.85f, 14); track(body);
-        Mesh jawM = OceanFishMesh.Body("AnglerJaw", new[] { new Vector2(-1.2f, 0.4f), new Vector2(0.4f, 1.2f), new Vector2(1.9f, 1.35f), new Vector2(2.4f, 0.9f), new Vector2(2.55f, 0.2f) }, 1f, 12); track(jawM);
+        Vector2[] bodyProf = new[] { new Vector2(-4.2f, 0.05f), new Vector2(-3.4f, 0.45f), new Vector2(-2f, 1.1f), new Vector2(-0.4f, 1.75f), new Vector2(0.9f, 1.95f), new Vector2(2.0f, 1.7f), new Vector2(2.6f, 1.2f), new Vector2(2.85f, 0.5f) };
+        Mesh body = OceanFishMesh.Body("AnglerBody", bodyProf, 0.85f, 24); track(body);
+        Mesh jawM = OceanFishMesh.Body("AnglerJaw", new[] { new Vector2(-1.2f, 0.4f), new Vector2(0.4f, 1.2f), new Vector2(1.9f, 1.35f), new Vector2(2.4f, 0.9f), new Vector2(2.55f, 0.2f) }, 1f, 20); track(jawM);
         Mesh tail = OceanFishMesh.Fin("AnglerTail", new[] { new Vector3(0f, 0f, 0f), new Vector3(0f, 1.3f, -1.6f), new Vector3(0f, 0f, -1.0f), new Vector3(0f, -1.2f, -1.6f) }); track(tail);
         OceanFishMesh.Part(transform, "Body", body, skin, Vector3.zero);
         jaw = OceanFishMesh.Part(transform, "Jaw", jawM, skin, new Vector3(0f, -0.9f, 0.3f)).transform;
@@ -266,6 +289,18 @@ public class OceanAngler : MonoBehaviour
         OceanFishMesh.Part(transform, "Teeth", tm, tooth, Vector3.zero);
         ProceduralAssets.CreatePrimitive(PrimitiveType.Sphere, "Eye", transform, new Vector3(1.05f, 0.9f, 1.6f), Vector3.one * 0.16f, eye, false);
         ProceduralAssets.CreatePrimitive(PrimitiveType.Sphere, "Eye", transform, new Vector3(-1.05f, 0.9f, 1.6f), Vector3.one * 0.16f, eye, false);
+        // fotóforos: dos hileras de puntos tenues en los flancos (se lee la silueta en la oscuridad)
+        Material spot = ProceduralAssets.CreateMaterial(new Color(0.2f, 0.35f, 0.32f), null, Vector2.one, 0.5f); track(spot);
+        ProceduralAssets.SetEmission(spot, new Color(0.25f, 0.75f, 0.65f) * 0.9f);
+        for (int i = 0; i < 9; i++)
+        {
+            float z = Mathf.Lerp(1.8f, -3.0f, i / 8f);
+            float rr = 0.5f;
+            for (int k = 0; k < bodyProf.Length - 1; k++) if (z >= bodyProf[k].x && z <= bodyProf[k + 1].x) rr = Mathf.Lerp(bodyProf[k].y, bodyProf[k + 1].y, Mathf.InverseLerp(bodyProf[k].x, bodyProf[k + 1].x, z));
+            rr *= 0.85f;   // ancho (achatado) del cuerpo
+            for (int sd = -1; sd <= 1; sd += 2)
+                ProceduralAssets.CreatePrimitive(PrimitiveType.Sphere, "Photophore", transform, new Vector3(sd * (rr - 0.01f), -0.22f - (i % 2) * 0.12f, z), Vector3.one * 0.09f, spot, false);
+        }
         // varilla y señuelo luminoso
         MeshBuilder sb = new MeshBuilder(1);
         OceanGeo.Tube(sb, 0, new Vector3(0f, 1.7f, 1.2f), new Vector3(0f, 3.0f, 2.4f), 0.05f, 5, 1f);
@@ -274,10 +309,10 @@ public class OceanAngler : MonoBehaviour
         OceanFishMesh.Part(transform, "Stalk", sm, skin, Vector3.zero);
         lure = new GameObject("Lure").transform; lure.SetParent(transform, false); lure.localPosition = new Vector3(0f, 2.5f, 3.9f);
         Material glow = OceanGeo.Unlit("Ocean/Glow", new Color(0.55f, 1f, 0.85f), track);
-        glow.SetFloat("_Intensity", 2.2f); glow.SetFloat("_Fog", 0.045f);
+        glow.SetFloat("_Intensity", 3.0f); glow.SetFloat("_Fog", 0.045f);
         GameObject q = GameObject.CreatePrimitive(PrimitiveType.Quad); Object.DestroyImmediate(q.GetComponent<Collider>());
         q.transform.SetParent(lure, false); q.transform.localScale = Vector3.one * 1.3f; q.GetComponent<Renderer>().sharedMaterial = glow; q.AddComponent<OceanBillboard>();
-        lureLight = lure.gameObject.AddComponent<Light>(); lureLight.type = LightType.Point; lureLight.color = new Color(0.5f, 1f, 0.85f); lureLight.range = 7f; lureLight.intensity = 1.6f; lureLight.shadows = LightShadows.None;
+        lureLight = lure.gameObject.AddComponent<Light>(); lureLight.type = LightType.Point; lureLight.color = new Color(0.5f, 1f, 0.85f); lureLight.range = 9f; lureLight.intensity = 2.1f; lureLight.renderMode = LightRenderMode.ForcePixel; lureLight.shadows = LightShadows.None;
     }
 
     public Vector3 RandomPoint()
