@@ -236,7 +236,9 @@ public class OceanFishSchool : MonoBehaviour
 public class OceanAngler : MonoBehaviour
 {
     public enum AState { Patrol = 0, Hunt = 1, Return = 2 }
-    public const float LampRange = 14f, DarkRange = 7f, KillRange = 2.6f, PatrolSpeed = 1.4f, HuntSpeed = 3.3f, LoseRange = 28f;
+    public const float LampRange = 14f, DarkRange = 7f, KillRange = 3.4f, PatrolSpeed = 1.4f, HuntSpeed = 3.3f, LoseRange = 28f;
+    /// <summary>v7.3.0: El Farolero es mucho más grande (cuerpo y boca); la mordida y las holguras se escalan con él.</summary>
+    public const float Size = 1.8f, MouthAhead = 2.6f * Size, BodyClear = 3.6f;
     public static readonly Bounds Region = new Bounds(new Vector3(70f, -38f, 251f), new Vector3(62f, 22f, 82f));
 
     public OceanWorld world;
@@ -283,7 +285,8 @@ public class OceanAngler : MonoBehaviour
         Transform jw = FindDeep(model, "Jaw");
         // el frente (boca) debe quedar en +z: si el FBX llega girado, se le da la vuelta
         if (jw != null && jw.GetComponent<Renderer>() != null && transform.InverseTransformPoint(jw.GetComponent<Renderer>().bounds.center).z < 0f) model.localRotation = Quaternion.Euler(0f, 180f, 0f) * model.localRotation;
-        model.localPosition = new Vector3(0f, 0f, -0.6f);   // la mordida (2,6 m delante del centro) cae dentro de la boca
+        model.localScale = Vector3.one * Size;
+        model.localPosition = new Vector3(0f, 0f, -0.6f * Size);   // la mordida (MouthAhead delante del centro) cae dentro de la boca
         modelRest = model.localRotation;
 
         Material skin = OceanGeo.PbrMat("Ocean/Angler/FaroleroSkin", new Color(0.42f, 0.4f, 0.43f), 0.9f, track);   // casi negra
@@ -311,7 +314,7 @@ public class OceanAngler : MonoBehaviour
             r.sharedMaterials = ms;
             r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
         }
-        jaw = jw; if (jaw != null) { jawRest = jaw.localRotation; Renderer jr = jaw.GetComponent<Renderer>(); if (jr != null) jawSign = jaw.InverseTransformPoint(jr.bounds.center).z >= 0f ? 1f : -1f; }
+        jaw = jw; if (jaw != null) { jaw.localScale *= 1.15f; jawRest = jaw.localRotation; Renderer jr = jaw.GetComponent<Renderer>(); if (jr != null) jawSign = jaw.InverseTransformPoint(jr.bounds.center).z >= 0f ? 1f : -1f; }
         stalk = FindDeep(model, "Stalk"); if (stalk != null) stalkRest = stalk.localRotation;
         tailT = FindDeep(model, "Tail"); if (tailT != null) tailRest = tailT.localRotation;
         pecL = FindDeep(model, "PecL"); if (pecL != null) pecLRest = pecL.localRotation;
@@ -327,11 +330,11 @@ public class OceanAngler : MonoBehaviour
         glowMat = OceanGeo.Unlit("Ocean/Glow", new Color(0.55f, 1f, 0.85f), track);
         glowMat.SetFloat("_Intensity", 3.0f); glowMat.SetFloat("_Fog", 0.045f);
         GameObject q = GameObject.CreatePrimitive(PrimitiveType.Quad); Object.DestroyImmediate(q.GetComponent<Collider>());
-        q.transform.SetParent(lure, false); q.transform.localScale = Vector3.one * 1.1f; q.GetComponent<Renderer>().sharedMaterial = glowMat; q.AddComponent<OceanBillboard>();
-        lureLight = lure.gameObject.AddComponent<Light>(); lureLight.type = LightType.Point; lureLight.color = new Color(0.5f, 1f, 0.85f); lureLight.range = 10f; lureLight.intensity = 2.1f; lureLight.renderMode = LightRenderMode.ForcePixel; lureLight.shadows = LightShadows.None;
+        q.transform.SetParent(lure, false); q.transform.localScale = Vector3.one * (1.5f / Size); q.GetComponent<Renderer>().sharedMaterial = glowMat; q.AddComponent<OceanBillboard>();
+        lureLight = lure.gameObject.AddComponent<Light>(); lureLight.type = LightType.Point; lureLight.color = new Color(0.5f, 1f, 0.85f); lureLight.range = 15f; lureLight.intensity = 2.3f; lureLight.renderMode = LightRenderMode.ForcePixel; lureLight.shadows = LightShadows.None;
         ReflectionProbe rp = new GameObject("AnglerProbe").AddComponent<ReflectionProbe>();
         rp.transform.SetParent(transform, false); rp.mode = UnityEngine.Rendering.ReflectionProbeMode.Custom; rp.customBakedTexture = OceanHelmetRack.DeepCube(track);
-        rp.boxProjection = false; rp.importance = 3; rp.intensity = 1f; rp.size = new Vector3(14f, 10f, 18f);
+        rp.boxProjection = false; rp.importance = 3; rp.intensity = 1f; rp.size = new Vector3(14f, 10f, 18f) * Size;
         NewModel = true;
     }
 
@@ -403,13 +406,20 @@ public class OceanAngler : MonoBehaviour
         {
             Vector3 p = Region.min + new Vector3((float)rng.NextDouble() * Region.size.x, (float)rng.NextDouble() * Region.size.y, (float)rng.NextDouble() * Region.size.z);
             float sb = world.SeabedY(p.x, p.z);
-            if (p.y < sb + 3.5f) p.y = sb + 3.5f;
+            if (p.y < sb + 4.2f) p.y = sb + 4.2f;
             if (p.y > -26f) continue;
-            if (NearTunnel(p, 6f)) continue;
-            if (Vector2.Distance(new Vector2(p.x, p.z), new Vector2(OceanWorld.CageTop.x, OceanWorld.CageTop.z)) < 6f) continue;
+            if (NearTunnel(p, 8f)) continue;
+            if (NearSculpture(p, BodyClear + 2f)) continue;
+            if (Vector2.Distance(new Vector2(p.x, p.z), new Vector2(OceanWorld.CageTop.x, OceanWorld.CageTop.z)) < 9f) continue;
             return p;
         }
         return new Vector3(85f, -40f, 265f);
+    }
+
+    public bool NearSculpture(Vector3 p, float pad)
+    {
+        foreach (Vector4 o in world.DeepObstacles) if ((new Vector3(o.x, o.y, o.z) - p).magnitude < o.w + pad) return true;
+        return false;
     }
 
     public bool NearTunnel(Vector3 p, float r)
@@ -452,9 +462,9 @@ public class OceanAngler : MonoBehaviour
     private void Animate(float dt)
     {
         float tt = Time.time;
-        float want = State == AState.Hunt ? 36f + Mathf.Max(0f, Mathf.Sin(tt * 2.6f)) * 12f - Mathf.Max(0f, Mathf.Sin(tt * 2.6f + 2.2f)) * 18f
+        float want = State == AState.Hunt ? 44f + Mathf.Max(0f, Mathf.Sin(tt * 2.6f)) * 14f - Mathf.Max(0f, Mathf.Sin(tt * 2.6f + 2.2f)) * 20f
                    : State == AState.Return ? 14f + Mathf.Sin(tt * 0.9f) * 4f
-                   : 22f + Mathf.Sin(tt * 0.55f) * 7f + Mathf.Max(0f, Mathf.Sin(tt * 0.21f)) * 8f;
+                   : 27f + Mathf.Sin(tt * 0.55f) * 7f + Mathf.Max(0f, Mathf.Sin(tt * 0.21f)) * 9f;
         if (PoseJaw >= 0f) want = PoseJaw;
         jawAngle = PoseJaw >= 0f ? want : Mathf.Lerp(jawAngle, want, 1f - Mathf.Exp(-(State == AState.Hunt ? 9f : 3f) * dt));
         if (jaw != null) jaw.localRotation = jawRest * Quaternion.Euler(jawSign * jawAngle, 0f, 0f);
@@ -490,7 +500,7 @@ public class OceanAngler : MonoBehaviour
                 if (!has || !Huntable(tg, LoseRange)) { State = AState.Return; target = -1; t = 0f; wp = RandomPoint(); desired = vel; break; }
                 Vector3 aim = tg.pos + Vector3.up * 0.9f;
                 // el cuerpo es largo: el punto de mordisco es la boca (delante)
-                Vector3 mouth = pos + (vel.sqrMagnitude > 0.01f ? vel.normalized : transform.forward) * 2.6f;
+                Vector3 mouth = pos + (vel.sqrMagnitude > 0.01f ? vel.normalized : transform.forward) * (NewModel ? MouthAhead : 2.6f);
                 desired = (aim - pos).normalized * HuntSpeed;
                 if ((aim - mouth).magnitude < KillRange)
                 {
@@ -506,12 +516,18 @@ public class OceanAngler : MonoBehaviour
         }
         // no entra en la gruta: si el siguiente paso cae en ella, se para y da la vuelta
         Vector3 np = pos + vel * dt;
-        if (InCave(np) || NearTunnel(np, 3.2f) && State != AState.Hunt) { desired = (pos - world.TunnelSamples[1]).normalized * PatrolSpeed; if (State == AState.Hunt && InCave(tg.pos)) { State = AState.Return; target = -1; } }
+        if (InCave(np) || NearTunnel(np, 5f) && State != AState.Hunt) { desired = (pos - world.TunnelSamples[1]).normalized * PatrolSpeed; if (State == AState.Hunt && InCave(tg.pos)) { State = AState.Return; target = -1; } }
         vel = Vector3.Lerp(vel, desired, 1f - Mathf.Exp(-1.4f * dt));
         pos += vel * dt;
-        float sb = world.SeabedY(pos.x, pos.z) + 2.6f;
+        float sb = world.SeabedY(pos.x, pos.z) + (NewModel ? BodyClear : 2.6f);
         if (pos.y < sb) pos.y = sb;
         if (pos.y > -12f) pos.y = -12f;
+        // v7.3.0: rodea las esculturas del fondo (esferas con margen para el cuerpo)
+        foreach (Vector4 o in world.DeepObstacles)
+        {
+            Vector3 c = new Vector3(o.x, o.y, o.z), d = pos - c; float r = o.w + BodyClear * 0.8f;
+            if (d.sqrMagnitude < r * r) { if (d.sqrMagnitude < 1e-4f) d = Vector3.up; pos = c + d.normalized * r; vel = Vector3.ProjectOnPlane(vel, d.normalized); }
+        }
         if (InCave(pos)) pos -= vel * dt * 2f;
     }
 

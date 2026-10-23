@@ -152,12 +152,63 @@ public class ShotBuildCheck : MonoBehaviour
         Flashlight fl0 = pw.GetComponentInChildren<Flashlight>();
         if (fl0 != null) fl0.SetOn(true);   // dentro de la casa inundada se juega con la linterna
         yield return View(pw, mc, "l7_01_casa_inundada", s1 + up, new Vector3(15.6f, -0.1f, 26.6f), F, s1);
+        // v7.3.0: sofá modelado (de frente y de cerca), con la linterna
+        {
+            GameObject so = null; foreach (OceanFloat of in Object.FindObjectsOfType<OceanFloat>()) if (of.name == "FloatingSofa") so = of.gameObject;
+            if (so != null)
+            {
+                Transform st = so.transform;
+                yield return View(pw, mc, "l7_40_sofa_frente", st.TransformPoint(new Vector3(0.9f, 1.05f, -2.4f)), st.TransformPoint(new Vector3(0f, 0.32f, 0f)), 55f, s1);
+                yield return View(pw, mc, "l7_41_sofa_cerca", st.TransformPoint(new Vector3(0.55f, 0.85f, -1.25f)), st.TransformPoint(new Vector3(0.1f, 0.38f, 0.05f)), 55f, s1);
+            }
+            else Check(false, "sofá flotante presente");
+        }
         if (fl0 != null) fl0.SetOn(false);
         Vector3 porch = new Vector3(15f, -0.3f, 30.6f);
         yield return View(pw, mc, "l7_02_mar_niebla", porch + up, new Vector3(13f, 1.2f, 70f), F, porch);
         Vector3 stop = w.BoatStops.Count > 1 ? w.BoatStops[1] : OceanWorld.BoatHome;
         w.boat.ApplyNet(new Vector2(stop.x + 1.5f, stop.z), 200f, 0f, new[] { -1, -1, -1, -1 });
         yield return View(pw, mc, "l7_03_barca_casa_pilotes", new Vector3(stop.x - 6f, 2.4f, stop.z - 9f), new Vector3(stop.x + 4f, 1.2f, stop.z + 6f), F, porch);
+        // v7.3.0: barca nueva: exterior, costado en la línea de flotación, asiento del conductor (interior seco) y tercera persona
+        {
+            Transform hl = w.boat.hull;
+            System.Func<Vector3, Vector3> H = v => hl.TransformPoint(v);
+            yield return View(pw, mc, "l7_42_barca_exterior", H(new Vector3(3.4f, 1.5f, 1.9f)), H(new Vector3(0f, 0.05f, -0.2f)), 55f, porch);
+            yield return View(pw, mc, "l7_43_barca_costado", H(new Vector3(2.3f, 0.4f, -0.6f)), H(new Vector3(0f, -0.02f, -0.4f)), 55f, porch);
+            Vector3 eyeL = OceanBoat.SeatLocal[0] + new Vector3(0f, 0.95f, -0.08f);
+            yield return View(pw, mc, "l7_44_barca_asiento_conductor", H(eyeL), H(new Vector3(0f, -0.28f, 1.1f)), 66f, porch);
+            yield return View(pw, mc, "l7_45_barca_tercera_persona", H(new Vector3(0.9f, 2.4f, -3.9f)), H(new Vector3(0f, -0.15f, 0.2f)), 55f, porch);
+            float wl = WaterVolume.Active != null ? WaterVolume.Active.SurfaceHeightAt(hl.position) : 0f;
+            Info("barca: suelo interior local -0.34 -> mundo y " + H(new Vector3(0f, -0.34f, 0f)).y.ToString("F2") + ", agua " + wl.ToString("F2") + " (máscara de agua " + (hl.Find("WaterMask") != null) + ")");
+        }
+        // v7.3.0: muebles de una casa sobre pilotes (piso de arriba), con la linterna
+        {
+            Transform sh = w.root.Find("StiltHouse0"); Transform tb = null;
+            if (sh != null) foreach (Transform c in sh.GetComponentsInChildren<Transform>(true)) if (c.name == "Table" && c.parent != null && c.parent.name == "Furniture") tb = c;
+            Flashlight flm = pw.GetComponentInChildren<Flashlight>();
+            if (tb != null)
+            {
+                Transform T = tb.parent.parent; float fy = tb.localPosition.y;
+                if (flm != null) flm.SetOn(true);
+                Vector3 standM = T.TransformPoint(new Vector3(0.3f, fy + 0.02f, -1.9f));
+                yield return View(pw, mc, "l7_46_muebles_casa_pilotes", T.TransformPoint(new Vector3(0.4f, fy + 1.6f, -2.1f)), T.TransformPoint(new Vector3(-0.3f, fy + 0.35f, 1.6f)), 62f, standM);
+                yield return View(pw, mc, "l7_47_muebles_cama", T.TransformPoint(new Vector3(0.2f, fy + 1.35f, -0.2f)), T.TransformPoint(new Vector3(1.9f, fy + 0.35f, 1.55f)), 58f, standM);
+                yield return View(pw, mc, "l7_48_muebles_mesa_silla", T.TransformPoint(new Vector3(-0.6f, fy + 1.3f, -0.2f)), T.TransformPoint(new Vector3(-2.2f, fy + 0.5f, 1.3f)), 55f, standM);
+                if (flm != null) flm.SetOn(false);
+            }
+            else Info("casa sobre pilotes sin muebles nuevos (¿-oldprops?)");
+            if (tb == null && sh != null)
+            {   // antes: misma cámara con los muebles antiguos (cajas)
+                Transform T = sh; foreach (Transform c in sh.GetComponentsInChildren<Transform>(true)) if (c.name == "Furniture") T = c.parent;
+                float fy = OceanWorld.DeckY + 2.6f;
+                if (flm != null) flm.SetOn(true);
+                Vector3 standM = T.TransformPoint(new Vector3(0.3f, fy + 0.02f, -1.9f));
+                yield return View(pw, mc, "l7_46_muebles_casa_pilotes", T.TransformPoint(new Vector3(0.4f, fy + 1.6f, -2.1f)), T.TransformPoint(new Vector3(-0.3f, fy + 0.35f, 1.6f)), 62f, standM);
+                yield return View(pw, mc, "l7_47_muebles_cama", T.TransformPoint(new Vector3(0.2f, fy + 1.35f, -0.2f)), T.TransformPoint(new Vector3(1.9f, fy + 0.35f, 1.55f)), 58f, standM);
+                yield return View(pw, mc, "l7_48_muebles_mesa_silla", T.TransformPoint(new Vector3(-0.6f, fy + 1.3f, -0.2f)), T.TransformPoint(new Vector3(-2.2f, fy + 0.5f, 1.3f)), 55f, standM);
+                if (flm != null) flm.SetOn(false);
+            }
+        }
         OceanFlare.Spawn(0, new Vector3(stop.x, 1.5f, stop.z + 4f), Vector3.up);
         yield return View(pw, mc, "l7_04_bengala", new Vector3(stop.x - 14f, 1.8f, stop.z - 22f), new Vector3(stop.x, 18f, stop.z + 4f), F, porch);
         w.lighthouse.SetOn(true);
@@ -272,9 +323,9 @@ public class ShotBuildCheck : MonoBehaviour
         if (fl != null) fl.SetOn(true);
         // El Farolero bien iluminado (cuerpo entero y señuelo): luces de estudio temporales y menos niebla, solo para esta captura
         {
-            Vector3 ap3 = new Vector3(66f, -45.5f, 257f), fw = new Vector3(-1f, 0f, 0.45f).normalized, sideV = Vector3.Cross(Vector3.up, fw).normalized;
+            float K = OceanAngler.Size; Vector3 ap3 = new Vector3(66f, -44.3f, 257f), fw = new Vector3(-1f, 0f, 0.45f).normalized, sideV = Vector3.Cross(Vector3.up, fw).normalized;
             w.angler.ForceForTests(ap3, OceanAngler.AState.Patrol); w.angler.transform.rotation = Quaternion.LookRotation(fw);
-            Vector3 camP3 = ap3 + sideV * 6.3f + fw * 1.8f + Vector3.up * 0.6f;
+            Vector3 camP3 = ap3 + (sideV * 6.3f + fw * 1.8f + Vector3.up * 0.6f) * K;
             float fd = RenderSettings.fogDensity;
             GameObject studio = new GameObject("ShotStudioLights");
             Light key = new GameObject("Key").AddComponent<Light>(); key.transform.SetParent(studio.transform); key.type = LightType.Point; key.range = 32f; key.intensity = 4.5f; key.color = new Color(0.75f, 0.88f, 0.95f); key.renderMode = LightRenderMode.ForcePixel; key.transform.position = camP3 + Vector3.up * 2.5f + fw * 1.5f;
@@ -284,15 +335,15 @@ public class ShotBuildCheck : MonoBehaviour
             Color amb0 = RenderSettings.ambientLight; float ai0 = RenderSettings.ambientIntensity;
             RenderSettings.ambientLight = new Color(0.16f, 0.2f, 0.22f); RenderSettings.ambientIntensity = Mathf.Max(ai0, 1f);
             RenderSettings.fogDensity = fd * 0.3f;
-            yield return View(pw, mc, "l7_12_farolero_iluminado", camP3, ap3 + fw * 0.6f, 55f, camP3);
+            yield return View(pw, mc, "l7_12_farolero_iluminado", camP3, ap3 + fw * 0.6f * K, 55f, camP3);
             RenderSettings.fogDensity = fd; RenderSettings.ambientLight = amb0; RenderSettings.ambientIntensity = ai0;
             Destroy(studio);
         }
         // v7.3.0: El Farolero nuevo: plano heroico iluminado, boca abierta de frente y vista de juego con la lámpara del casco
         {
             OceanAngler an = w.angler;
-            Vector3 ap4 = new Vector3(66f, -44.8f, 257f), fw4 = new Vector3(-1f, 0f, 0.45f).normalized, sd4 = Vector3.Cross(Vector3.up, fw4).normalized;
-            an.FreezeMotion = true; an.PoseJaw = 32f;
+            float K4 = OceanAngler.Size; Vector3 ap4 = new Vector3(66f, -43.4f, 257f), fw4 = new Vector3(-1f, 0f, 0.45f).normalized, sd4 = Vector3.Cross(Vector3.up, fw4).normalized;
+            an.FreezeMotion = true; an.PoseJaw = 40f;
             an.ForceForTests(ap4, OceanAngler.AState.Patrol); an.transform.rotation = Quaternion.LookRotation(fw4);
             float fd = RenderSettings.fogDensity; Color amb0 = RenderSettings.ambientLight; float ai0 = RenderSettings.ambientIntensity;
             GameObject studio = new GameObject("ShotStudioLights2");
@@ -301,30 +352,61 @@ public class ShotBuildCheck : MonoBehaviour
                 Light l = new GameObject(nm).AddComponent<Light>(); l.transform.SetParent(studio.transform); l.type = LightType.Point; l.range = range; l.intensity = inten; l.color = c;
                 l.renderMode = LightRenderMode.ForcePixel; l.transform.position = pos; return l;
             };
-            Vector3 camH = ap4 + sd4 * 8.4f + fw4 * 0.9f + Vector3.up * 1.2f;
+            Vector3 camH = ap4 + (sd4 * 8.4f + fw4 * 0.9f + Vector3.up * 1.2f) * K4;
             Light k1 = PL("Key", camH + Vector3.up * 3f + fw4 * 2.5f, 40f, 5.5f, new Color(0.75f, 0.88f, 0.95f));
-            PL("Rim", ap4 - sd4 * 5f + Vector3.up * 3.5f - fw4 * 2f, 20f, 4.5f, new Color(0.55f, 0.8f, 0.85f));
-            PL("Fill", ap4 + sd4 * 4f - Vector3.up * 2f - fw4 * 3f, 20f, 3.2f, new Color(0.9f, 0.85f, 0.75f));
+            PL("Rim", ap4 + (-sd4 * 5f + Vector3.up * 3.5f - fw4 * 2f) * K4, 20f * K4, 4.5f, new Color(0.55f, 0.8f, 0.85f));
+            PL("Fill", ap4 + (sd4 * 4f - Vector3.up * 2f - fw4 * 3f) * K4, 20f * K4, 3.2f, new Color(0.9f, 0.85f, 0.75f));
             PL("Key2", camH - Vector3.up * 2f + fw4 * 2f, 26f, 4.0f, new Color(0.8f, 0.85f, 0.85f));
             RenderSettings.ambientLight = new Color(0.13f, 0.16f, 0.18f); RenderSettings.ambientIntensity = Mathf.Max(ai0, 1f);
             RenderSettings.fogDensity = fd * 0.25f;
-            yield return View(pw, mc, "l7_18_farolero2_heroe", camH, ap4 + fw4 * 0.2f - Vector3.up * 0.1f, 58f, camH);
+            yield return View(pw, mc, "l7_18_farolero2_heroe", camH, ap4 + (fw4 * 0.2f - Vector3.up * 0.1f) * K4, 58f, camH);
             // boca abierta de frente, algo por debajo: agujas a contraluz de la esca
-            an.PoseJaw = 40f;
-            Vector3 camM = ap4 + fw4 * 7.0f - Vector3.up * 0.8f + sd4 * 1.1f;
+            an.PoseJaw = 52f;
+            Vector3 camM = ap4 + (fw4 * 7.0f - Vector3.up * 0.8f + sd4 * 1.1f) * K4;
             k1.transform.position = camM + Vector3.up * 2.2f - fw4 * 0.5f + sd4 * 1.5f; k1.intensity = 5.5f; k1.range = 24f;
-            yield return View(pw, mc, "l7_19_farolero2_boca", camM, ap4 + fw4 * 2.2f - Vector3.up * 0.6f, 55f, camM);
+            yield return View(pw, mc, "l7_19_farolero2_boca", camM, ap4 + (fw4 * 2.2f - Vector3.up * 0.6f) * K4, 55f, camM);
             RenderSettings.fogDensity = fd; RenderSettings.ambientLight = amb0; RenderSettings.ambientIntensity = ai0;
             Destroy(studio);
             // en juego: sin luces de estudio, niebla normal, la lámpara del casco del jugador encendida
             if (fl != null) fl.SetOn(true);
             Vector3 me3 = new Vector3(60f, -47f, 252f), dirP = new Vector3(0.55f, 0f, 0.84f).normalized;
-            Vector3 ap5 = me3 + dirP * 7.2f + Vector3.up * 2.4f;
-            an.PoseJaw = 34f; an.ForceForTests(ap5, OceanAngler.AState.Hunt); an.transform.rotation = Quaternion.LookRotation(-dirP);
-            yield return View(pw, mc, "l7_20_farolero2_lampara", me3 + up, ap5 - dirP * 2.0f - Vector3.up * 0.4f, F, me3);
+            Vector3 ap5 = me3 + dirP * 7.2f * OceanAngler.Size + Vector3.up * 3.4f;
+            an.PoseJaw = 46f; an.ForceForTests(ap5, OceanAngler.AState.Hunt); an.transform.rotation = Quaternion.LookRotation(-dirP);
+            yield return View(pw, mc, "l7_20_farolero2_lampara", me3 + up, ap5 - dirP * 2.0f * OceanAngler.Size - Vector3.up * 0.6f, F, me3);
             an.PoseJaw = -1f; an.FreezeMotion = false; an.ForceForTests(ap4, OceanAngler.AState.Patrol);
         }
         w.angler.ForceForTests(new Vector3(95f, -40f, 280f), OceanAngler.AState.Patrol);
+        // v7.3.0: esculturas del fondo con la lámpara del casco
+        {
+            if (fl != null) fl.SetOn(true);
+            System.Func<Vector3, float, Vector3> SB = (q, dy) => new Vector3(q.x, w.SeabedY(q.x, q.z) + dy, q.z);
+            Vector3 hd0 = OceanWorld.SculptSpots[0], hn = OceanWorld.SculptSpots[1], fu0 = OceanWorld.SculptSpots[2];
+            Vector3 c1 = SB(new Vector3(61.8f, 0f, 244.6f), 3.0f);
+            yield return View(pw, mc, "l7_50_escultura_cabeza", c1, SB(hd0, 2.9f), 60f, c1 - up);
+            Vector3 c2 = SB(new Vector3(57.0f, 0f, 257.5f), 2.6f);
+            yield return View(pw, mc, "l7_51_escultura_mano", c2, SB(hn, 3.4f), 60f, c2 - up);
+            Vector3 c3 = SB(new Vector3(52.5f, 0f, 241.5f), 4.2f);
+            yield return View(pw, mc, "l7_52_escultura_rostro", c3, SB(fu0, 0.6f), 60f, c3 - up);
+            Vector3 c4 = new Vector3(59.5f, w.CageBottom.y + 1.6f, 248.5f);
+            yield return View(pw, mc, "l7_53_esculturas_desde_jaula", c4, SB(hd0, 2.6f) + new Vector3(0f, 0f, 4f), 66f, c4 - up);
+        }
+        // v7.3.0: la jaula bajando con los dos jugadores dentro (pueden andar y mirar): vista desde dentro y desde fuera
+        {
+            OceanCage cg = w.cage;
+            cg.ForceStateForTests(OceanCage.CageState.Descending, -24f);
+            yield return null; yield return null;
+            cg.enabled = false;   // congelada a media bajada solo para la captura
+            Vector3 cp = cg.transform.position;
+            RemotePlayer mt = RemotePlayer.CreateMimic(w.root, 94, "Compañero", StepKind.Metal); mt.ShowTag = false;
+            Vector3 mp2 = cp + new Vector3(0.45f, 0.02f, 0.5f);
+            for (int k = 0; k < 6; k++) { mt.Push(mp2, 230f, 0f, 0.6f, 0); yield return null; }
+            w.AttachHelmetTo(mt.transform);
+            if (fl != null) fl.SetOn(true);
+            yield return View(pw, mc, "l7_54_jaula_dentro_bajando", cp + new Vector3(-0.55f, 1.55f, -0.6f), cp + new Vector3(0.9f, 0.9f, 1.4f), 66f, cp + new Vector3(-0.55f, 0.02f, -0.6f));
+            yield return View(pw, mc, "l7_55_jaula_fuera_bajando", cp + new Vector3(5.5f, 2.2f, -4.5f), cp + new Vector3(0f, 1.2f, 0f), 58f, cp + new Vector3(-0.55f, 0.02f, -0.6f));
+            Destroy(mt.gameObject);
+            cg.enabled = true;
+        }
         Vector3 ts = OceanWorld.TunnelPath[2] + new Vector3(2f, -0.9f, 0f);
         yield return View(pw, mc, "l7_10_tunel_gruta", ts + up, OceanWorld.TunnelPath[4] + Vector3.up * 1.5f, F, ts);
         Vector3 ps = OceanWorld.PocketCenter + new Vector3(-2.3f, -1.42f, 0.6f);

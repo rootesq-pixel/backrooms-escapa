@@ -46,8 +46,27 @@ public class OceanBoat : MonoBehaviour
     private void BuildMesh(System.Action<Object> track)
     {
         hull = new GameObject("Hull").transform; hull.SetParent(transform, false);
+        // v7.3.0: barca modelada en Blender (tingladillo con remaches, cuadernas, bancadas, regala, toletes, remos, farol y fueraborda)
+        GameObject src = OceanFloat.OldProps ? null : Resources.Load<GameObject>("Ocean/Props/Boat");
+        GameObject model = null;
+        if (src != null)
+        {
+            model = Object.Instantiate(src, hull, false); model.name = "Model";
+            Material wm = OceanGeo.PbrMat("Ocean/Props/BoatWood", Color.white, 1f, track);
+            if (wm.HasProperty("_GlossMapScale")) wm.SetFloat("_GlossMapScale", 0.8f);
+            Texture2D em = Resources.Load<Texture2D>("Ocean/Props/BoatWood_e");
+            if (em != null) { wm.SetTexture("_EmissionMap", em); wm.SetColor("_EmissionColor", new Color(1f, 0.8f, 0.55f) * 1.6f); wm.EnableKeyword("_EMISSION"); wm.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None; }
+            foreach (Renderer r in model.GetComponentsInChildren<Renderer>(true))
+            {
+                Material[] ms = new Material[Mathf.Max(1, r.sharedMaterials.Length)]; for (int i = 0; i < ms.Length; i++) ms[i] = wm;
+                r.sharedMaterials = ms; r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+            }
+        }
         // casco: costillas en «U» unidas (proa estrecha), tablas por dentro y por fuera
-        MeshBuilder mb = new MeshBuilder(3);   // 0 madera pintada, 1 madera, 2 metal
+        MeshBuilder mb;
+        if (model == null)
+        {
+        mb = new MeshBuilder(3);   // 0 madera pintada, 1 madera, 2 metal
         const int N = 10; const float L = 4.0f;
         Vector3[] prevL = null, prevR = null, prevB = null;
         for (int i = 0; i <= N; i++)
@@ -84,24 +103,61 @@ public class OceanBoat : MonoBehaviour
         OceanGeo.Box(mb, 2, new Vector3(-0.025f, 0.45f, -2.02f), new Vector3(0.025f, 0.5f, -1.5f), 0.5f);   // caña del timón
         Material paint = ProceduralAssets.CreateMaterial(new Color(0.42f, 0.5f, 0.48f), Resources.Load<Texture2D>("Field/house_floor_a"), Vector2.one, 0.3f); track(paint);
         GameObject hm = OceanGeo.Emit(mb, "Mesh", hull, new[] { paint, world.WoodMat, world.MetalMat }, false, true, track);
+        }
+        if (!OceanFloat.OldProps) BuildWaterMask(track);
         // collider: el suelo y la borda (sólo para apoyarse al subir/bajar; los pasajeros van montados)
         BoxCollider floor = hull.gameObject.AddComponent<BoxCollider>(); floor.center = new Vector3(0f, -0.1f, -0.2f); floor.size = new Vector3(1.4f, 0.5f, 3.6f);
         // farolillo de la barca (se ve en la niebla)
         GameObject lp = new GameObject("BoatLamp"); lp.transform.SetParent(hull, false); lp.transform.localPosition = new Vector3(0f, 1.0f, 1.55f);
         Light li = lp.AddComponent<Light>(); li.type = LightType.Point; li.color = new Color(1f, 0.78f, 0.5f); li.intensity = 0.9f; li.range = 6f; li.shadows = LightShadows.None;
-        OceanGeo.Box(mb = new MeshBuilder(1), 0, new Vector3(-0.012f, 0.1f, 1.53f), new Vector3(0.012f, 1.0f, 1.57f), 0.5f);
-        OceanGeo.Emit(mb, "LampPole", hull, new[] { world.MetalMat }, false, false, track);
+        if (model == null)
+        {
+            OceanGeo.Box(mb = new MeshBuilder(1), 0, new Vector3(-0.012f, 0.1f, 1.53f), new Vector3(0.012f, 1.0f, 1.57f), 0.5f);
+            OceanGeo.Emit(mb, "LampPole", hull, new[] { world.MetalMat }, false, false, track);
+        }
         Material glow = OceanGeo.Unlit("Ocean/Glow", new Color(1f, 0.75f, 0.45f), track);
         glow.SetFloat("_Intensity", 1.4f); glow.SetFloat("_Fog", 0.02f);
         GameObject q = GameObject.CreatePrimitive(PrimitiveType.Quad); Destroy0(q.GetComponent<Collider>());
-        q.name = "LampGlow"; q.transform.SetParent(lp.transform, false); q.transform.localScale = Vector3.one * 0.7f;
+        q.name = "LampGlow"; q.transform.SetParent(lp.transform, false); q.transform.localScale = Vector3.one * (model != null ? 0.42f : 0.7f);
         q.GetComponent<Renderer>().sharedMaterial = glow; q.AddComponent<OceanBillboard>();
         prop = new GameObject("Prop").transform; prop.SetParent(hull, false); prop.localPosition = new Vector3(0f, -0.5f, -2.32f);
+        if (model != null)
+        {
+            Transform pb = null; foreach (Transform c in model.GetComponentsInChildren<Transform>(true)) if (c.name == "Propeller") pb = c;
+            if (pb != null) { pb.SetParent(prop, true); pb.localPosition = Vector3.zero; }
+        }
         // motor: zumbido tonal (sin ruido de banda ancha), solo cuando alguien conduce
         motor = gameObject.AddComponent<AudioSource>();
         motor.clip = OceanAudio.MotorClip(); motor.loop = true; motor.spatialBlend = 1f; motor.minDistance = 2f; motor.maxDistance = 30f; motor.volume = 0f; motor.dopplerLevel = 0f;
         motor.rolloffMode = AudioRolloffMode.Linear;
         if (Application.isPlaying) motor.Play();
+    }
+
+    // v7.3.0: tapa invisible a la altura de la borda (forma del casco: anchura y arrufo de la barca) que marca el stencil;
+    // el mar (BackroomsWater) y las cáusticas no se dibujan detrás de ella, así el interior del casco queda seco.
+    private void BuildWaterMask(System.Action<Object> track)
+    {
+        Shader sh = Resources.Load<Shader>("Ocean/BoatWaterMask");
+        if (sh == null) return;
+        Material m = new Material(sh) { name = "BoatWaterMask" }; track(m);
+        const int N = 24; const float L = 4.0f;
+        Vector3[] v = new Vector3[(N + 1) * 2]; int[] tri = new int[N * 6];
+        for (int i = 0; i <= N; i++)
+        {
+            float t = i / (float)N, z = -L * 0.5f + 0.04f + t * (L - 0.1f);
+            float tt = (z + L * 0.5f) / L;
+            float w = Mathf.Lerp(0.78f, 0.06f, Mathf.Pow(Mathf.Clamp01((tt - 0.55f) / 0.45f), 1.6f)) * (tt < 0.08f ? Mathf.Lerp(0.88f, 1f, tt / 0.08f) : 1f);
+            float gun = 0.32f + Mathf.Pow(tt, 4f) * 0.18f - 0.03f;
+            w = Mathf.Max(0.02f, w - 0.035f);
+            v[i * 2] = new Vector3(-w, gun, z); v[i * 2 + 1] = new Vector3(w, gun, z);
+            if (i < N) { int k = i * 6, a = i * 2; tri[k] = a; tri[k + 1] = a + 2; tri[k + 2] = a + 1; tri[k + 3] = a + 1; tri[k + 4] = a + 2; tri[k + 5] = a + 3; }
+        }
+        Mesh mesh = new Mesh { name = "BoatWaterMask" }; mesh.vertices = v; mesh.triangles = tri; mesh.RecalculateBounds(); track(mesh);
+        GameObject g = new GameObject("WaterMask"); g.transform.SetParent(hull, false);
+        g.AddComponent<MeshFilter>().sharedMesh = mesh;
+        MeshRenderer r = g.AddComponent<MeshRenderer>(); r.sharedMaterial = m;
+        r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; r.receiveShadows = false;
+        r.lightProbeUsage = UnityEngine.Rendering.LightProbeUsage.Off; r.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
     }
 
     private static void Destroy0(Object o) { if (o != null) Object.DestroyImmediate(o); }

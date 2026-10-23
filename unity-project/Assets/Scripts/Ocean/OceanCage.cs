@@ -3,7 +3,8 @@ using UnityEngine;
 
 // v7.3.0: jaula metálica colgada de la grúa al final del muelle. Sólo baja si hay alguien dentro y TODOS los que están dentro
 // llevan el casco de buzo. Cierra la puerta (3 s), baja a 2,5 m/s hasta el fondo de la fosa y abre allí la puerta.
-// Vacía durante 8 s en el fondo, vuelve a subir. Durante el movimiento los de dentro van sujetos (no se puede salir).
+// Vacía durante 8 s en el fondo, vuelve a subir. Durante el movimiento los de dentro van con ella: pueden andar y mirar
+// dentro de la jaula, pero no salir.
 // Autoridad: anfitrión (estado y altura en el snapshot).
 [DefaultExecutionOrder(-40)]
 public class OceanCage : MonoBehaviour
@@ -158,6 +159,8 @@ public class OceanCage : MonoBehaviour
                     Vector3 local = transform.InverseTransformPoint(fpc.transform.position);
                     local.x = Mathf.Clamp(local.x, -W * 0.5f + 0.4f, W * 0.5f - 0.4f); local.z = Mathf.Clamp(local.z, -W * 0.5f + 0.4f, W * 0.5f - 0.4f); local.y = 0.02f;
                     fpc.Mount(transform, local); localMounted = true;
+                    // v7.3.0: dentro de la jaula se puede andar y mirar mientras baja (los barrotes y la puerta cerrada te retienen)
+                    float m = W * 0.5f - 0.4f; fpc.mountWalk = true; fpc.mountMin = new Vector2(-m, -m); fpc.mountMax = new Vector2(m, m);
                 }
                 LocalInside = true;
             }

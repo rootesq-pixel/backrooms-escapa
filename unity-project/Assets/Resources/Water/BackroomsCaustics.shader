@@ -19,6 +19,7 @@ Shader "Hidden/BackroomsCaustics"
             ZWrite Off
             Blend One One
             Offset -1, -1
+            Stencil { Ref 64 ReadMask 64 Comp NotEqual }   // v7.3.0: no dibujar dentro del casco de la barca (Hidden/BoatWaterMask)
             CGPROGRAM
             #pragma vertex vert
             #pragma fragment frag

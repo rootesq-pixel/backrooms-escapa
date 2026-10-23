@@ -45,6 +45,7 @@ public class OceanWorld : MonoBehaviour
     // obstáculos para la barca y los peces (círculos en planta)
     public struct Obstacle { public Vector2 c; public float r; }
     public readonly List<Obstacle> Obstacles = new List<Obstacle>();
+    public readonly List<Vector4> DeepObstacles = new List<Vector4>();   // v7.3.0: esferas (xyz, radio) de las esculturas del fondo
     public readonly List<OceanLadder> Ladders = new List<OceanLadder>();
     public readonly List<Vector3> BoatStops = new List<Vector3>();   // puntos donde la barca a la deriva se para (escaleras)
     public int seabedTris, holeTris;
@@ -78,6 +79,8 @@ public class OceanWorld : MonoBehaviour
         w.BuildMaterials();
         LoadDiag.Step("mar: fondo e isla");
         w.BuildSeabed();
+        LoadDiag.Step("mar: esculturas");
+        w.BuildSculptures();
         LoadDiag.Step("mar: casa inundada");
         w.BuildStartHouse();
         LoadDiag.Step("mar: casas sobre pilotes");
@@ -153,6 +156,42 @@ public class OceanWorld : MonoBehaviour
         else if (d < 20f) iy = Mathf.Lerp(4.5f, -0.5f, Mathf.SmoothStep(0f, 1f, (d - 11f) / 9f)) + rough * 0.9f;
         else iy = -0.5f - (d - 20f) * 2.5f + rough * 2.4f;
         return Mathf.Max(baseY, iy);
+    }
+
+    // v7.3.0: esculturas colosales del fondo (diseño propio, Blender procedural): una cabeza con los ojos cerrados medio enterrada,
+    // una mano que sale de la arena y un rostro tumbado mirando arriba. Alrededor de la fosa de la jaula (sureste, norte y sur), lejos de la
+    // ruta jaula → gruta (oeste) y de la zona de caza del Farolero.
+    public static readonly Vector3[] SculptSpots = { new Vector3(68f, 0f, 238.5f), new Vector3(58f, 0f, 265f), new Vector3(56f, 0f, 236f) };
+    private void BuildSculptures()
+    {
+        GameObject src = OceanFloat.OldProps ? null : Resources.Load<GameObject>("Ocean/Sculpt/Sculptures");
+        if (src == null) return;
+        Material m = OceanGeo.PbrMat("Ocean/Sculpt/SeaStone", Color.white, 1f, track);
+        if (m.HasProperty("_GlossMapScale")) m.SetFloat("_GlossMapScale", 0.7f);
+        GameObject inst = Object.Instantiate(src); inst.name = "Sculptures"; inst.transform.SetParent(root, false);
+        string[] names = { "Head", "Hand", "FaceUp" };
+        float[] yaw = { -42f, -178f, 30f }, tilt = { 13f, 10f, 6f }, sink = { 1.1f, 0.7f, 0.35f }, rad = { 4.6f, 3.4f, 3.6f }, cy = { 2.2f, 2.6f, 0.6f };
+        for (int i = 0; i < names.Length; i++)
+        {
+            Transform t = null; foreach (Transform c in inst.GetComponentsInChildren<Transform>(true)) if (c.name == names[i]) t = c;
+            if (t == null) continue;
+            Vector3 p = SculptSpots[i];
+            float sb = Mathf.Min(SeabedY(p.x - 1.5f, p.z), SeabedY(p.x + 1.5f, p.z), SeabedY(p.x, p.z - 1.5f), SeabedY(p.x, p.z + 1.5f));
+            Quaternion r0 = t.rotation; Vector3 s0 = t.lossyScale;
+            t.SetParent(root, false);
+            t.position = new Vector3(p.x, sb - sink[i], p.z);
+            t.rotation = Quaternion.Euler(0f, yaw[i], 0f) * Quaternion.Euler(0f, 0f, tilt[i]) * r0;
+            t.localScale = s0;
+            foreach (Renderer r in t.GetComponentsInChildren<Renderer>(true)) { r.sharedMaterial = m; r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On; }
+            MeshFilter mf = t.GetComponent<MeshFilter>();
+            if (mf != null && mf.sharedMesh != null) t.gameObject.AddComponent<MeshCollider>().sharedMesh = mf.sharedMesh;
+            DeepObstacles.Add(new Vector4(p.x, sb + cy[i], p.z, rad[i]));
+        }
+        if (Application.isPlaying) Object.Destroy(inst); else Object.DestroyImmediate(inst);
+        // luz fría y muy tenue sobre la cabeza: se adivina desde la jaula; la linterna y el Farolero hacen el resto
+        GameObject lg = new GameObject("SculptGlow"); lg.transform.SetParent(root, false);
+        Vector3 h = SculptSpots[0]; lg.transform.position = new Vector3(h.x - 2.5f, SeabedY(h.x, h.z) + 7.5f, h.z + 3f);
+        Light li = lg.AddComponent<Light>(); li.type = LightType.Point; li.color = new Color(0.45f, 0.75f, 0.8f); li.range = 11f; li.intensity = 0.55f; li.shadows = LightShadows.None;
     }
 
     private void BuildSeabed()
@@ -317,16 +356,61 @@ public class OceanWorld : MonoBehaviour
         OceanFloat.Debris(this, fu, new Vector3(18.4f, 0f, 21.5f), 30f, new Vector3(0.6f, 0.05f, 0.45f), floorM, track);
         OceanFloat.Debris(this, fu, new Vector3(14.6f, 0f, 22.3f), 75f, new Vector3(0.35f, 0.04f, 0.5f), trimM, track);
         MeshBuilder fb = new MeshBuilder(3);
-        OceanGeo.Box(fb, 0, new Vector3(13.0f, f0, 23.4f), new Vector3(14.6f, f0 + 0.72f, 24.4f), 0.8f);           // mesa (sumergida casi entera)
+        bool nf = !OceanFloat.OldProps && FurnSource() != null;
+        if (nf)
+        {   // v7.3.0: mesa y cama modeladas (las mismas que en las casas sobre pilotes)
+            FurnPiece("Table", fu, new Vector3(13.8f, f0, 23.9f), 0f, new Vector3(1.6f / 1.4f, 0.72f / 0.76f, 1.0f / 1.3f), new Vector3(1.6f, 0.72f, 1.0f));
+            FurnPiece("Bed", fu, new Vector3(17.6f, f1, 21.3f), 90f, Vector3.one, new Vector3(2.0f, 0.5f, 2.1f));
+        }
+        else OceanGeo.Box(fb, 0, new Vector3(13.0f, f0, 23.4f), new Vector3(14.6f, f0 + 0.72f, 24.4f), 0.8f);           // mesa (sumergida casi entera)
         OceanGeo.Box(fb, 0, new Vector3(18.95f, f0, 26.0f), new Vector3(19.45f, f0 + 2.0f, 27.9f), 0.8f);           // estantería
         for (int k = 0; k < 4; k++) OceanGeo.Box(fb, 1, new Vector3(18.9f, f0 + 0.3f + k * 0.45f, 26.0f), new Vector3(19.45f, f0 + 0.33f + k * 0.45f, 27.9f), 0.8f);
+        if (!nf)
+        {
         OceanGeo.Box(fb, 2, new Vector3(16.6f, f1, 20.4f), new Vector3(18.6f, f1 + 0.5f, 22.4f), 1f);              // cama
         OceanGeo.Box(fb, 0, new Vector3(16.6f, f1, 20.2f), new Vector3(18.6f, f1 + 0.95f, 20.4f), 1f);
+        }
         OceanGeo.Box(fb, 0, new Vector3(12.6f, f1, 27.6f), new Vector3(14.2f, f1 + 1.9f, 28.4f), 1f);              // armario
         OceanGeo.Emit(fb, "Static", fu, new[] { woodM, trimM, clothM }, true, true, track);
         // luz fría de la ventana en el salón (sin sombras)
         AddPoint(hg.transform, new Vector3(15f, 1.5f, 26.8f), new Color(0.75f, 0.85f, 0.95f), 0.55f, 9f);
         AddPoint(hg.transform, new Vector3(15f, f1 + 1.8f, 24f), new Color(0.75f, 0.85f, 0.95f), 0.45f, 8f);
+    }
+
+    // v7.3.0: muebles modelados (Resources/Ocean/Props/Furniture: Table, Chair, Bed; origen en el suelo; +Z de Blender arriba)
+    private GameObject furnSrc; private Material furnMat; private bool furnTried;
+    public GameObject FurnSource()
+    {
+        if (!furnTried) { furnTried = true; furnSrc = Resources.Load<GameObject>("Ocean/Props/Furniture"); }
+        return furnSrc;
+    }
+    public Material FurnMat()
+    {
+        if (furnMat == null)
+        {
+            furnMat = OceanGeo.PbrMat("Ocean/Props/HouseFurn", Color.white, 1f, track);
+            if (furnMat.HasProperty("_GlossMapScale")) furnMat.SetFloat("_GlossMapScale", 0.8f);
+        }
+        return furnMat;
+    }
+    public GameObject FurnPiece(string piece, Transform parent, Vector3 localPos, float yaw, Vector3 scale, Vector3 colliderSize)
+    {
+        GameObject src = FurnSource(); if (src == null) return null;
+        Transform pick = null; foreach (Transform c in src.GetComponentsInChildren<Transform>(true)) if (c.name == piece) pick = c;
+        if (pick == null) return null;
+        GameObject g = new GameObject(piece); g.transform.SetParent(parent, false);
+        g.transform.localPosition = localPos; g.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
+        Transform sc = new GameObject("Scale").transform; sc.SetParent(g.transform, false); sc.localScale = scale;   // escala en ejes del juego
+        GameObject m = Object.Instantiate(pick.gameObject, sc, false); m.name = "Mesh";
+        m.transform.localPosition = Vector3.zero;
+        foreach (Renderer r in m.GetComponentsInChildren<Renderer>(true)) { r.sharedMaterial = FurnMat(); r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On; }
+        if (colliderSize != Vector3.zero)
+        {
+            BoxCollider bc = g.AddComponent<BoxCollider>();
+            Vector3 cs = Quaternion.Inverse(Quaternion.Euler(0f, yaw, 0f)) * colliderSize; cs = new Vector3(Mathf.Abs(cs.x), Mathf.Abs(cs.y), Mathf.Abs(cs.z));
+            bc.size = cs; bc.center = new Vector3(0f, colliderSize.y * 0.5f, 0f);
+        }
+        return g;
     }
 
     private Light AddPoint(Transform p, Vector3 pos, Color c, float intensity, float range)
@@ -402,11 +486,23 @@ public class OceanWorld : MonoBehaviour
         Obstacles.Add(new Obstacle { c = new Vector2(c2.x, c2.y), r = 5.2f });
         Obstacles.Add(new Obstacle { c = new Vector2(lf.x, lf.z) + (Vector2)(new Vector2(c2.x - lf.x, c2.y - lf.z).normalized * 0.4f), r = 1.6f });
         // muebles del piso de arriba: mesa (aquí puede estar la pistola de bengalas), cama, silla
+        // v7.3.0: muebles modelados en Blender (mesa con patas y anillos de agua, sillas de listones, cama de hierro con sábanas húmedas)
+        if (!OceanFloat.OldProps && FurnSource() != null)
+        {
+            Transform fu = new GameObject("Furniture").transform; fu.SetParent(T, false);
+            FurnPiece("Table", fu, new Vector3(-2.2f, f1, 1.65f), 0f, Vector3.one, new Vector3(1.4f, 0.76f, 1.3f));
+            FurnPiece("Chair", fu, new Vector3(-2.15f, f1, 0.62f), 172f, Vector3.one, new Vector3(0.44f, 0.46f, 0.42f));
+            FurnPiece("Bed", fu, new Vector3(1.95f, f1, 1.55f), 0f, Vector3.one, new Vector3(2.1f, 0.48f, 1.9f));
+            FurnPiece("Chair", fu, new Vector3(-2.0f, f0, -2.25f), 205f + idx * 40f, Vector3.one, new Vector3(0.44f, 0.46f, 0.42f));
+        }
+        else
+        {
         MeshBuilder fb = new MeshBuilder(3);
         OceanGeo.Box(fb, 0, new Vector3(-2.9f, f1, 1.0f), new Vector3(-1.5f, f1 + 0.76f, 2.3f), 0.8f);
         OceanGeo.Box(fb, 2, new Vector3(0.9f, f1, 0.6f), new Vector3(3.0f, f1 + 0.48f, 2.5f), 1f);
         OceanGeo.Box(fb, 1, new Vector3(-2.8f, f0, -2.6f), new Vector3(-1.2f, f0 + 0.9f, -2.0f), 0.8f);
         OceanGeo.Emit(fb, "Furniture", T, new[] { woodM, trimM, clothM }, true, true, track);
+        }
         StiltInfo si = new StiltInfo { center = T.position, yaw = yaw, upperFloor = T.TransformPoint(new Vector3(-2.2f, f1 + 0.76f + 0.1f, 1.65f)) };
         Stilts.Add(si);
         if (idx == FlareHouse) FlareSpot = si.upperFloor;

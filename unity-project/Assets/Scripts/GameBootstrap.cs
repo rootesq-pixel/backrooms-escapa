@@ -65,6 +65,7 @@ public class GameBootstrap : MonoBehaviour
         BuildPersistentUi();
         BallBuildCheck.MaybeStart(gameObject);   // v7.1.2: prueba de las bolas en el ejecutable (solo con -ballcheck)
         ShotBuildCheck.MaybeStart(gameObject);   // v7.2.0: capturas en el ejecutable (solo con -shotcheck)
+        AudioBuildCheck.MaybeStart(gameObject);  // v7.3.0: medición del audio en el ejecutable (solo con -audiocheck)
     }
 
     // Menús (UIManager) y overlay de camcorder: persisten durante toda la sesión

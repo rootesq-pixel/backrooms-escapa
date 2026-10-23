@@ -105,6 +105,9 @@ public class FirstPersonController : MonoBehaviour
     // v7.3.0 Talasofobia: montado (barca / jaula), nado libre con casco de buzo, cansancio al nadar y escaleras externas
     [System.NonSerialized] public Transform mount;
     [System.NonSerialized] public Vector3 mountLocal;
+    // v7.3.0: montado «a pie» (jaula): se anda y se mira dentro de un rectángulo local del soporte, que te lleva consigo
+    [System.NonSerialized] public bool mountWalk;
+    [System.NonSerialized] public Vector2 mountMin, mountMax;
     [System.NonSerialized] public bool freeSwim;
     [System.NonSerialized] public float swimStaminaDrain;
     [System.NonSerialized] public float freeSwimSpeed = 2.4f;
@@ -115,14 +118,14 @@ public class FirstPersonController : MonoBehaviour
     public bool SwimExhausted { get { return IsSwimming && exhausted; } }
     public void Mount(Transform t, Vector3 local)
     {
-        mount = t; mountLocal = local;
+        mount = t; mountLocal = local; mountWalk = false;
         controller.enabled = false; ladderT = -1f;
         moveVel = Vector3.zero; verticalVelocity = 0f; IsSwimming = false; IsDiving = false;
         transform.position = t.TransformPoint(local);
     }
     public void Dismount(Vector3 feet)
     {
-        mount = null;
+        mount = null; mountWalk = false;
         PlaceAt(feet);
     }
     public bool StartExternalLadder(Vector3 foot, float midY, Vector3 top)
@@ -425,9 +428,18 @@ public class FirstPersonController : MonoBehaviour
         bool hasInput = input.sqrMagnitude > 0.01f;
         if (mount != null)
         {
+            float walkV = 0f; Vector3 wdir = Vector3.zero;
+            if (mountWalk && hasInput)
+            {
+                wdir = transform.TransformDirection(input); wdir.y = 0f;
+                Vector3 ld = mount.InverseTransformDirection(wdir); ld.y = 0f;
+                walkV = walkSpeed * 0.7f * input.magnitude;
+                if (ld.sqrMagnitude > 1e-4f) mountLocal += ld.normalized * walkV * dt;
+                mountLocal.x = Mathf.Clamp(mountLocal.x, mountMin.x, mountMax.x); mountLocal.z = Mathf.Clamp(mountLocal.z, mountMin.y, mountMax.y);
+            }
             transform.position = mount.TransformPoint(mountLocal);
-            moveVel = Vector3.zero; verticalVelocity = 0f; FlatSpeed = 0f; IsMoving = false; IsSwimming = false; IsDiving = false;
-            IsSprinting = false; CurrentNoiseRadius = 0f; WishDir = Vector3.zero;
+            moveVel = Vector3.zero; verticalVelocity = 0f; FlatSpeed = walkV; IsMoving = walkV > 0.1f; IsSwimming = false; IsDiving = false;
+            IsSprinting = false; CurrentNoiseRadius = 0f; WishDir = wdir.sqrMagnitude > 0.01f ? wdir.normalized : Vector3.zero;
             WaterDepth = 0f; WaterFactor = 1f;
             stamina = Mathf.Min(maxStamina, stamina + staminaRegenPerSecond * dt);
             if (exhausted && stamina >= minStaminaToSprint) exhausted = false;
