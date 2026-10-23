@@ -26,6 +26,11 @@ public class ElevatorCabin : MonoBehaviour
     public static bool PlayerLocked { get { return Current != null && Current.Locked; } }
 
     public const string ModelResource = "Elevator/Elevator";
+    // v7.4.0: cabina realista propia (acero cepillado, madera, pasamanos, botonera, luminaria, puertas correderas) ya a escala real
+    public const string ModelResource740 = "Elevator/Elevator740";
+    public bool IsRealistic { get; private set; }
+    private const float V740Ow = 0.75f, V740Zf = 1.26f, V740Dt = 2.05f;   // medio hueco de puerta, cara interior del frente, altura del hueco
+    private float doorSlide, pivLx, pivRx;
     public const float ScaleX = 1.3f, ScaleZ = 1.3f;          // el modelo original (2×2 m) se ensancha para que quepan 4 jugadores
     // Línea de tiempo (s) desde el inicio del descenso
     public const float TStart = 0.8f, TCruise = 1.8f, TBrake = 5.2f, TStop = 6.3f, TDing = 6.5f, TDoors0 = 6.8f, TDoors1 = 8.0f, TUnlock = 7.4f;
@@ -113,6 +118,20 @@ public class ElevatorCabin : MonoBehaviour
 
     private static Texture2D Tex(string n) { return Resources.Load<Texture2D>("Elevator/" + n); }
 
+    // PBR (Standard): albedo + normal + máscara (R metálico, G oclusión, A suavidad) de Resources/Elevator/V740 (CC0 ambientCG)
+    private Material Pbr(string n, Color tint, float normalScale, float smoothMul)
+    {
+        SurfaceSet set = new SurfaceSet();
+        set.albedo = Resources.Load<Texture2D>("Elevator/V740/" + n + "_a");
+        set.normal = Resources.Load<Texture2D>("Elevator/V740/" + n + "_n");
+        set.mask = Resources.Load<Texture2D>("Elevator/V740/" + n + "_m");
+        set.baked = true;
+        Material m = ProceduralAssets.CreateSurfaceMaterial(set, tint, normalScale, 1f);
+        if (m.HasProperty("_GlossMapScale")) m.SetFloat("_GlossMapScale", smoothMul);
+        owned.Add(m);
+        return m;
+    }
+
     private void Setup(BackroomsGenerator generator, LevelConfig config)
     {
         gen = generator; cfg = config;
@@ -151,6 +170,8 @@ public class ElevatorCabin : MonoBehaviour
 
     private void BuildModel()
     {
+        GameObject p740 = Resources.Load<GameObject>(ModelResource740);
+        if (p740 != null && BuildRealistic(p740)) return;
         GameObject prefab = Resources.Load<GameObject>(ModelResource);
         GameObject m = new GameObject("Model");
         m.transform.SetParent(transform, false);
@@ -216,6 +237,76 @@ public class ElevatorCabin : MonoBehaviour
         pivL = MakePivot(doorL); pivR = MakePivot(doorR);
     }
 
+    // v7.4.0: cabina realista. Devuelve false si el modelo no trae las dos hojas (se usa la cabina anterior)
+    private bool BuildRealistic(GameObject prefab)
+    {
+        GameObject m = new GameObject("Model");
+        m.transform.SetParent(transform, false);
+        model = m.transform;
+        GameObject inst = Instantiate(prefab, m.transform, false);
+        inst.name = "Elevator740";
+        inst.transform.localPosition = Vector3.zero; inst.transform.localRotation = Quaternion.identity; inst.transform.localScale = Vector3.one;
+        Transform dl = inst.transform.Find("Door_L"), dr = inst.transform.Find("Door_R");
+        if (dl == null || dr == null) { Destroy(m); model = null; return false; }
+        Material steel = Pbr("ElevSteel", new Color(0.86f, 0.87f, 0.88f), 0.6f, 0.75f);
+        Material rail = Pbr("ElevSteel", new Color(0.95f, 0.95f, 0.96f), 0.3f, 1.1f);
+        Material steelDark = Pbr("ElevSteelDark", new Color(0.62f, 0.63f, 0.64f), 0.8f, 0.85f);
+        Material facade = Pbr("ElevPaint", new Color(0.78f, 0.80f, 0.78f), 0.9f, 1f);   // marco exterior pintado y gastado
+        Material wood = Pbr("ElevWood", new Color(0.92f, 0.88f, 0.84f), 0.8f, 0.9f);
+        Material floor = Pbr("ElevFloor", new Color(0.62f, 0.62f, 0.62f), 1.0f, 0.8f);
+        Material ceiling = Pbr("ElevPaint", new Color(0.92f, 0.92f, 0.90f), 0.5f, 0.8f);   // techo pintado (algo sucio)
+        Material rubber = Mat(new Color(0.04f, 0.04f, 0.04f), null, 0.2f, 0f);
+        Material display = Mat(new Color(0.015f, 0.016f, 0.018f), null, 0.85f, 0f);
+        Material plate = Mat(new Color(0.9f, 0.9f, 0.9f), Tex("V740/ElevPlate_a"), 0.35f, 0f);
+        Material grille = Mat(new Color(0.85f, 0.85f, 0.86f), Tex("V740/ElevGrille_a"), 0.5f, 0.6f);
+        buttonMat = Mat(new Color(0.55f, 0.56f, 0.57f), null, 0.75f, 0.9f);
+        // suciedad acumulada junto a las paredes (transparente premultiplicado, la misma variante que el agua)
+        Material grime = ProceduralAssets.CreateWaterMaterial(null, Color.white);
+        grime.mainTexture = Resources.Load<Texture2D>("Elevator/V740/ElevGrime_a");
+        if (grime.HasProperty("_Glossiness")) grime.SetFloat("_Glossiness", 0.05f);
+        if (grime.HasProperty("_Metallic")) grime.SetFloat("_Metallic", 0f);
+        owned.Add(grime);
+        panelMat = Mat(new Color(0.9f, 0.9f, 0.9f), null, 0.2f, 0f);
+        panelMat.EnableKeyword("_EMISSION");
+        Renderer[] lit = new Renderer[5];
+        foreach (Renderer r in inst.GetComponentsInChildren<Renderer>(true))
+        {
+            string n = r.name; Material mt;
+            if (n == "Car_Steel" || n == "Car_Panel" || n == "Car_LightFrame" || n == "Door_L" || n == "Door_R") mt = steel;
+            else if (n == "Car_Rail") mt = rail;
+            else if (n == "Car_SteelDark") mt = steelDark;
+            else if (n == "Car_Facade") mt = facade;
+            else if (n == "Car_Wood") mt = wood;
+            else if (n == "Car_Floor") mt = floor;
+            else if (n == "Car_Ceiling") mt = ceiling;
+            else if (n == "Car_Rubber") mt = rubber;
+            else if (n == "Car_Display") mt = display;
+            else if (n == "Car_Plate") mt = plate;
+            else if (n == "Car_Grille") mt = grille;
+            else if (n == "Car_Buttons") mt = buttonMat;
+            else if (n == "Car_Grime") { mt = grime; }
+            else if (n == "Car_LightDiffuser") { mt = panelMat; panelRenderer = r; }
+            else if (n.StartsWith("Car_BtnLit"))
+            {
+                mt = Mat(new Color(0.1f, 0.1f, 0.1f), null, 0.6f, 0f); mt.EnableKeyword("_EMISSION");
+                int k; if (int.TryParse(n.Substring(10), out k) && k >= 0 && k < 5) lit[k] = r;
+            }
+            else mt = steel;
+            Material[] arr = new Material[r.sharedMaterials.Length];
+            for (int i = 0; i < arr.Length; i++) arr[i] = mt;
+            r.sharedMaterials = arr;
+            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            r.receiveShadows = false;
+        }
+        foreach (Renderer r in lit) if (r != null) buttonDots.Add(r);
+        doorL = dl; doorR = dr;
+        pivL = MakePivot(doorL); pivR = MakePivot(doorR);
+        pivLx = pivL.localPosition.x; pivRx = pivR.localPosition.x;
+        doorSlide = V740Ow + 0.005f;
+        HasModel = true; IsRealistic = true;
+        return true;
+    }
+
     private Transform MakePivot(Transform leaf)
     {
         Renderer r = leaf.GetComponent<Renderer>();
@@ -258,6 +349,14 @@ public class ElevatorCabin : MonoBehaviour
         AddCol("Ceiling", new Vector3(0f, 2.31f, 0f), new Vector3(2.0f * sx, 0.1f, 2.02f * sz), true);
         AddCol("Header", new Vector3(0f, 2.26f, 1.04f * sz), new Vector3(2.0f * sx, 0.16f, 0.12f), true);
         AddCol("DoorBlock", new Vector3(0f, 1.09f, 1.04f * sz), new Vector3(1.9f * sx, 2.18f, 0.12f), true);
+        if (IsRealistic)
+        {
+            // v7.4.0: frente con paneles de retorno: el hueco de la puerta mide 1,5 m x 2,05 m
+            float fw = 1.0f * sx - V740Ow, fz0 = V740Zf - 0.02f, fz1 = 1.47f;
+            AddCol("FrontL", new Vector3(-(V740Ow + fw * 0.5f), 1.25f, (fz0 + fz1) * 0.5f), new Vector3(fw, 2.5f, fz1 - fz0), true);
+            AddCol("FrontR", new Vector3(V740Ow + fw * 0.5f, 1.25f, (fz0 + fz1) * 0.5f), new Vector3(fw, 2.5f, fz1 - fz0), true);
+            AddCol("Transom", new Vector3(0f, (V740Dt + 2.34f) * 0.5f, (fz0 + fz1) * 0.5f), new Vector3(2f * V740Ow, 2.34f - V740Dt, fz1 - fz0), true);
+        }
         // rellenos laterales: tapan el hueco entre la cabina y las paredes de la celda
         float half = cellSize * 0.5f + wallPad;
         float zBack = -1.01f * sz, zFront = frontExtent;
@@ -314,14 +413,17 @@ public class ElevatorCabin : MonoBehaviour
         Material metal = Mat(new Color(0.40f, 0.43f, 0.45f), null, 0.5f, 0.4f);
         Material blackM = Mat(new Color(0.02f, 0.02f, 0.02f), null, 0.3f, 0f);
         // dintel superior (tapa el hueco entre la puerta y el techo) y visera del indicador
-        Box("HeaderFill", new Vector3(0f, 2.26f, 1.04f * sz), new Vector3(2.0f * sx, 0.16f, 0.12f), metal, fx.transform);
-        Box("DisplaySoffit", new Vector3(0f, 2.14f, 1.04f * sz - 0.12f), new Vector3(1.22f, 0.30f, 0.2f), blackM, fx.transform);
+        if (!IsRealistic)
+        {
+            Box("HeaderFill", new Vector3(0f, 2.26f, 1.04f * sz), new Vector3(2.0f * sx, 0.16f, 0.12f), metal, fx.transform);
+            Box("DisplaySoffit", new Vector3(0f, 2.14f, 1.04f * sz - 0.12f), new Vector3(1.22f, 0.30f, 0.2f), blackM, fx.transform);
 
-        // panel luminoso del techo
-        panelMat = Mat(new Color(0.9f, 0.9f, 0.9f), null, 0.2f, 0f);
-        panelMat.EnableKeyword("_EMISSION");
-        GameObject panel = Box("CeilingPanel", new Vector3(0f, 2.265f, 0.1f * sz), new Vector3(1.3f, 0.025f, 1.0f * sz), panelMat, fx.transform);
-        panelRenderer = panel.GetComponent<Renderer>();
+            // panel luminoso del techo
+            panelMat = Mat(new Color(0.9f, 0.9f, 0.9f), null, 0.2f, 0f);
+            panelMat.EnableKeyword("_EMISSION");
+            GameObject panel = Box("CeilingPanel", new Vector3(0f, 2.265f, 0.1f * sz), new Vector3(1.3f, 0.025f, 1.0f * sz), panelMat, fx.transform);
+            panelRenderer = panel.GetComponent<Renderer>();
+        }
 
         // luz de la cabina
         GameObject lg = new GameObject("CabinLight");
@@ -330,8 +432,10 @@ public class ElevatorCabin : MonoBehaviour
         cabinLight = lg.AddComponent<Light>();
         lightBase = LevelIndex == 4 ? 1.9f : 1.45f;
         cabinLight.type = LightType.Point; cabinLight.range = 4.6f; cabinLight.intensity = lightBase; cabinLight.color = Tint; cabinLight.shadows = LightShadows.None;
+        if (IsRealistic) cabinLight.renderMode = LightRenderMode.ForcePixel;   // v7.4.0: luz por píxel (las paredes lisas no marcan triángulos)
 
         BuildDisplay(fx.transform, sx, sz);
+        if (IsRealistic) return;   // v7.4.0: los botones iluminados son parte del modelo (Car_BtnLit0..4)
 
         // luces de los botones (sobre el panel del fondo)
         Renderer btn = null;
@@ -354,12 +458,12 @@ public class ElevatorCabin : MonoBehaviour
     {
         GameObject cg = new GameObject("FloorDisplay", typeof(RectTransform));
         cg.transform.SetParent(parent, false);
-        cg.transform.localPosition = new Vector3(0f, 2.14f, 1.04f * sz - 0.225f);
+        cg.transform.localPosition = IsRealistic ? new Vector3(0f, 2.155f, V740Zf - 0.037f) : new Vector3(0f, 2.14f, 1.04f * sz - 0.225f);
         displayCanvas = cg.AddComponent<Canvas>();
         displayCanvas.renderMode = RenderMode.WorldSpace;
         RectTransform rt = (RectTransform)cg.transform;
         rt.sizeDelta = new Vector2(480f, 120f);
-        rt.localScale = new Vector3(0.0025f, 0.0025f, 0.0025f);
+        rt.localScale = IsRealistic ? new Vector3(0.00118f, 0.00118f, 0.00118f) : new Vector3(0.0025f, 0.0025f, 0.0025f);   // v7.4.0: pantalla en el dintel
         Image bg = UiStyle.Rect(cg.transform, "Bg", 0f, 0f, 480f, 120f, new Color(0.01f, 0.01f, 0.01f, 1f));
         UiStyle.Rect(cg.transform, "Frame", 0f, 0f, 470f, 110f, new Color(0.04f, 0.04f, 0.04f, 1f));
         // flecha ▼ (sprite de triángulo procedural)
@@ -698,6 +802,15 @@ public class ElevatorCabin : MonoBehaviour
     private void ApplyDoors(float open)
     {
         if (pivL == null || pivR == null) return;
+        if (IsRealistic)
+        {
+            // v7.4.0: hojas correderas (se meten detrás de los paneles de retorno), con un poco de inercia al final
+            float e = open * open * (3f - 2f * open);
+            Vector3 a = pivL.localPosition, b = pivR.localPosition;
+            a.x = pivLx - doorSlide * e; b.x = pivRx + doorSlide * e;
+            pivL.localPosition = a; pivR.localPosition = b;
+            return;
+        }
         float k = Mathf.Lerp(1f, 0.2f, open);
         pivL.localScale = new Vector3(k, 1f, 1f);
         pivR.localScale = new Vector3(k, 1f, 1f);
