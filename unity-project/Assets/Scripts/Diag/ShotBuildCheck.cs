@@ -173,6 +173,15 @@ public class ShotBuildCheck : MonoBehaviour
         if (hz != null)
         {
             Vector3 hc = hz.position + Vector3.up * 0.22f;
+            MeshRenderer hmr = hz.GetComponentInChildren<MeshRenderer>();
+            if (hmr != null)
+            {
+                var lst = new System.Collections.Generic.List<UnityEngine.Rendering.ReflectionProbeBlendInfo>();
+                hmr.GetClosestReflectionProbes(lst);
+                string pr = ""; foreach (var bi in lst) pr += bi.probe.name + " w" + bi.weight.ToString("0.00") + " tex " + (bi.probe.texture != null ? bi.probe.texture.name : "null") + "; ";
+                Material bm = hmr.sharedMaterial;
+                Debug.Log("[ShotBuildCheck] DIAG casco: sondas [" + pr + "] usage " + hmr.reflectionProbeUsage + " rtProbes " + QualitySettings.realtimeReflectionProbes + " q " + QualitySettings.GetQualityLevel() + " defRefl " + RenderSettings.defaultReflectionMode + " int " + RenderSettings.reflectionIntensity + " shader " + bm.shader.name + " kw [" + string.Join(",", bm.shaderKeywords) + "] albedo " + (bm.mainTexture != null ? bm.mainTexture.name : "null") + " mask " + (bm.GetTexture("_MetallicGlossMap") != null) + " amb " + RenderSettings.ambientLight);
+            }
             yield return View(pw, mc, "l7_07b_casco_macro", hc + new Vector3(0.28f, 0.12f, -0.62f), hc, 45f, pier2);
         }
         RemotePlayer mate = RemotePlayer.CreateMimic(w.root, 98, "Compañero", StepKind.Metal); mate.ShowTag = false;
