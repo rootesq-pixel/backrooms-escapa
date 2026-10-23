@@ -105,7 +105,7 @@ public class AudioCapture : MonoBehaviour
 public class AudioBuildCheck : MonoBehaviour
 {
     string dir;
-    float longStill, longMove; bool vhsOff;
+    float longStill, longMove; bool vhsOff, vhsOn;
     public static void MaybeStart(GameObject host)
     {
         string[] a = System.Environment.GetCommandLineArgs();
@@ -125,11 +125,13 @@ public class AudioBuildCheck : MonoBehaviour
         {
             if (a[i] == "-audiolong" && i + 2 < a.Length) { float.TryParse(a[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out made.longStill); float.TryParse(a[i + 2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out made.longMove); }
             if (a[i] == "-vhsoff") made.vhsOff = true;
+            if (a[i] == "-vhson") made.vhsOn = true;   // VHS encendido a la intensidad por defecto (0,7) aunque las preferencias del PC lo tengan apagado
         }
     }
 
     void Update()
     {
+        if (vhsOn) foreach (VhsEffect v in Object.FindObjectsOfType<VhsEffect>(true)) { v.EffectEnabled = true; v.intensityOverride = 0.7f; }
         if (!vhsOff) return;
         foreach (VhsEffect v in Object.FindObjectsOfType<VhsEffect>(true)) if (v.EffectEnabled) v.EffectEnabled = false;
         foreach (VhsOverlay o in Object.FindObjectsOfType<VhsOverlay>(true)) if (o.enabled) o.enabled = false;
@@ -156,6 +158,7 @@ public class AudioBuildCheck : MonoBehaviour
         sb.Append(t.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)).Append("s fuentes=").Append(total).Append(" sonando=").Append(playing).Append(" bucles=").Append(loops);
         VhsEffect v = Object.FindObjectOfType<VhsEffect>();
         if (v != null) sb.Append(" vhs=").Append(v.EffectEnabled ? "on" : "off").Append(" int=").Append(v.CurrentIntensity.ToString("F2")).Append(" glitch=").Append(v.Glitch.ToString("F2"));
+        Sanity sn = Object.FindObjectOfType<Sanity>(); if (sn != null) sb.Append(" cordura=").Append(sn.value.ToString("F0"));
         foreach (AudioLowPassFilter f in Object.FindObjectsOfType<AudioLowPassFilter>()) sb.Append(" lp=").Append(f.cutoffFrequency.ToString("F0"));
         string ev = AudioEventLog.Drain(); if (ev.Length > 0) sb.Append(" sucesos:").Append(ev);
         for (int i = 0; i < pl.Count && i < 8; i++) sb.Append(" | ").Append(pl[i].clip).Append("@").Append(pl[i].owner.Length > 28 ? pl[i].owner.Substring(pl[i].owner.Length - 28) : pl[i].owner).Append("=").Append(pl[i].effective.ToString("0.0000"));
