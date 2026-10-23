@@ -100,6 +100,19 @@ public static class V730Checks
 
         // ---- 3) nado en superficie: resistencia, aire al bucear, ahogarse
         Vector3 open = new Vector3(-8f, -0.6f, 46f);
+        // v7.3.0c: la barca va a la deriva; si anda cerca del punto de nado, se nada en otro sitio de mar abierto (antes, a veces el
+        // nadador chocaba con ella y avanzaba solo 2,6 m en 3 s: fallo intermitente de «nadar cansa»)
+        if (w.boat != null)
+        {
+            Vector3 best = open; float bd = -1f;
+            foreach (Vector3 c in new[] { new Vector3(-8f, -0.6f, 46f), new Vector3(8f, -0.6f, 46f), new Vector3(-8f, -0.6f, 30f), new Vector3(8f, -0.6f, 30f) })
+            {
+                Vector3 bp = w.boat.transform.position; float d = Mathf.Min(Vector2.Distance(new Vector2(bp.x, bp.z), new Vector2(c.x, c.z)), Vector2.Distance(new Vector2(bp.x, bp.z), new Vector2(c.x, c.z + 6f)));
+                if (d > 12f) { best = c; bd = d; break; }
+                if (d > bd) { bd = d; best = c; }
+            }
+            open = best;
+        }
         {
             p.Teleport(open, 0f);
             yield return 1.0f;
@@ -109,10 +122,11 @@ public static class V730Checks
             float s0 = p.Stamina01;
             p.debugInput = true; p.debugMove = new Vector2(0f, 1f);
             Vector3 a = p.transform.position;
-            yield return 3.0f;
-            float moved = Vector3.Distance(a, p.transform.position);
+            CharacterController cc = p.GetComponent<CharacterController>(); int sideHits = 0; float tg0 = Time.time;
+            float tw = Clock(); while (Clock() - tw < 3.0f) { if (cc != null && (cc.collisionFlags & CollisionFlags.Sides) != 0) sideHits++; yield return null; }
+            Vector3 dv = p.transform.position - a; float moved = new Vector2(dv.x, dv.z).magnitude;
             p.debugMove = Vector2.zero;
-            r.Check(p.Stamina01 < s0 - 0.05f && moved > 3f, T + "nadar cansa (resistencia " + s0.ToString("F2") + " -> " + p.Stamina01.ToString("F2") + ", " + moved.ToString("F1") + " m)");
+            r.Check(p.Stamina01 < s0 - 0.05f && moved > 3f, T + "nadar cansa (resistencia " + s0.ToString("F2") + " -> " + p.Stamina01.ToString("F2") + ", " + moved.ToString("F1") + " m en " + (Time.time - tg0).ToString("F1") + " s de juego; choques laterales " + sideHits + (w.boat != null ? ", barca a " + Vector3.Distance(w.boat.transform.position, p.transform.position).ToString("F0") + " m" : "") + ")");
             p.SetStaminaForTests(0f); p.SetStamina01(0f);
             a = p.transform.position; p.debugMove = new Vector2(0f, 1f);
             yield return 2.0f;
