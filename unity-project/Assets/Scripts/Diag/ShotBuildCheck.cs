@@ -275,11 +275,11 @@ public class ShotBuildCheck : MonoBehaviour
                 l.renderMode = LightRenderMode.ForcePixel; l.transform.position = pos; return l;
             };
             Vector3 camH = ap4 + sd4 * 8.4f + fw4 * 0.9f + Vector3.up * 1.2f;
-            Light k1 = PL("Key", camH + Vector3.up * 3f + fw4 * 2.5f, 40f, 7.5f, new Color(0.75f, 0.88f, 0.95f));
+            Light k1 = PL("Key", camH + Vector3.up * 3f + fw4 * 2.5f, 40f, 5.5f, new Color(0.75f, 0.88f, 0.95f));
             PL("Rim", ap4 - sd4 * 5f + Vector3.up * 3.5f - fw4 * 2f, 20f, 4.5f, new Color(0.55f, 0.8f, 0.85f));
             PL("Fill", ap4 + sd4 * 4f - Vector3.up * 2f - fw4 * 3f, 20f, 3.2f, new Color(0.9f, 0.85f, 0.75f));
             PL("Key2", camH - Vector3.up * 2f + fw4 * 2f, 26f, 4.0f, new Color(0.8f, 0.85f, 0.85f));
-            RenderSettings.ambientLight = new Color(0.26f, 0.3f, 0.32f); RenderSettings.ambientIntensity = Mathf.Max(ai0, 1f);
+            RenderSettings.ambientLight = new Color(0.13f, 0.16f, 0.18f); RenderSettings.ambientIntensity = Mathf.Max(ai0, 1f);
             RenderSettings.fogDensity = fd * 0.25f;
             yield return View(pw, mc, "l7_18_farolero2_heroe", camH, ap4 + fw4 * 0.2f - Vector3.up * 0.1f, 58f, camH);
             // boca abierta de frente, algo por debajo: agujas a contraluz de la esca

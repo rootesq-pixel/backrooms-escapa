@@ -286,8 +286,8 @@ public class OceanAngler : MonoBehaviour
         model.localPosition = new Vector3(0f, 0f, -0.6f);   // la mordida (2,6 m delante del centro) cae dentro de la boca
         modelRest = model.localRotation;
 
-        Material skin = OceanGeo.PbrMat("Ocean/Angler/FaroleroSkin", Color.white, 0.85f, track);
-        if (skin.HasProperty("_GlossMapScale")) skin.SetFloat("_GlossMapScale", 1f);
+        Material skin = OceanGeo.PbrMat("Ocean/Angler/FaroleroSkin", new Color(0.42f, 0.4f, 0.43f), 0.9f, track);   // casi negra
+        if (skin.HasProperty("_GlossMapScale")) skin.SetFloat("_GlossMapScale", 0.86f);   // mojada, con brillo de baba, sin parecer metal
         Texture2D em = Resources.Load<Texture2D>("Ocean/Angler/FaroleroSkin_e");
         if (em != null) { skin.SetTexture("_EmissionMap", em); skin.SetColor("_EmissionColor", new Color(0.5f, 1f, 0.85f) * 0.9f); skin.EnableKeyword("_EMISSION"); skin.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None; }
         Material tooth = ProceduralAssets.CreateMaterial(new Color(0.8f, 0.84f, 0.76f, 0.62f), null, Vector2.one, 0.92f); track(tooth);   // agujas translúcidas
