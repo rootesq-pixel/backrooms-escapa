@@ -135,12 +135,12 @@ public static class V730Shots
         // 6) bajo el agua con El Farolero (casco y lámpara): de tres cuartos a ~9 m
         op.SetHelmet(true);
         Vector3 me = new Vector3(60f, -47f, 252f);
-        w.angler.ForceForTests(new Vector3(66.5f, -45.6f, 258.5f), OceanAngler.AState.Patrol);
-        w.angler.transform.position = new Vector3(66.5f, -45.6f, 258.5f);
+        w.angler.ForceForTests(new Vector3(65f, -45.8f, 256.8f), OceanAngler.AState.Patrol);
+        w.angler.transform.position = new Vector3(65f, -45.8f, 256.8f);
         w.angler.transform.rotation = Quaternion.LookRotation(new Vector3(-1f, 0f, 0.45f));
         Look(p, me, w.angler.transform.position);
         yield return 1.5f;
-        w.angler.transform.position = new Vector3(66.5f, -45.6f, 258.5f);
+        w.angler.transform.position = new Vector3(65f, -45.8f, 256.8f);
         w.angler.transform.rotation = Quaternion.LookRotation(new Vector3(-1f, 0f, 0.45f));
         Look(p, me, w.angler.transform.position);
         yield return 0.1f; Shot(cam, "06_fondo_farolero");

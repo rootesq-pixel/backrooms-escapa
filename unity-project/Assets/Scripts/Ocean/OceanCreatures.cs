@@ -263,7 +263,7 @@ public class OceanAngler : MonoBehaviour
 
     private void Build(System.Action<Object> track)
     {
-        Material skin = ProceduralAssets.CreateMaterial(new Color(0.085f, 0.075f, 0.08f), Resources.Load<Texture2D>("Field/Props/FieldRock1_a"), new Vector2(2.5f, 2.5f), 0.3f); track(skin);   // piel casi negra y mate: la lámpara no la quema
+        Material skin = ProceduralAssets.CreateMaterial(new Color(0.24f, 0.22f, 0.23f), Resources.Load<Texture2D>("Field/Props/FieldRock1_a"), new Vector2(2.5f, 2.5f), 0.38f); track(skin);   // piel casi negra y mate: la lámpara no la quema
         Material tooth = ProceduralAssets.CreateMaterial(new Color(0.78f, 0.76f, 0.68f), null, Vector2.one, 0.7f); track(tooth);
         Material eye = ProceduralAssets.CreateMaterial(new Color(0.55f, 0.6f, 0.55f), null, Vector2.one, 0.95f); track(eye);
         ProceduralAssets.SetEmission(eye, new Color(0.08f, 0.12f, 0.1f));
@@ -291,7 +291,7 @@ public class OceanAngler : MonoBehaviour
         ProceduralAssets.CreatePrimitive(PrimitiveType.Sphere, "Eye", transform, new Vector3(-1.05f, 0.9f, 1.6f), Vector3.one * 0.16f, eye, false);
         // fotóforos: dos hileras de puntos tenues en los flancos (se lee la silueta en la oscuridad)
         Material spot = ProceduralAssets.CreateMaterial(new Color(0.2f, 0.35f, 0.32f), null, Vector2.one, 0.5f); track(spot);
-        ProceduralAssets.SetEmission(spot, new Color(0.25f, 0.75f, 0.65f) * 0.9f);
+        ProceduralAssets.SetEmission(spot, new Color(0.25f, 0.75f, 0.65f) * 1.6f);
         for (int i = 0; i < 9; i++)
         {
             float z = Mathf.Lerp(1.8f, -3.0f, i / 8f);
@@ -299,7 +299,7 @@ public class OceanAngler : MonoBehaviour
             for (int k = 0; k < bodyProf.Length - 1; k++) if (z >= bodyProf[k].x && z <= bodyProf[k + 1].x) rr = Mathf.Lerp(bodyProf[k].y, bodyProf[k + 1].y, Mathf.InverseLerp(bodyProf[k].x, bodyProf[k + 1].x, z));
             rr *= 0.85f;   // ancho (achatado) del cuerpo
             for (int sd = -1; sd <= 1; sd += 2)
-                ProceduralAssets.CreatePrimitive(PrimitiveType.Sphere, "Photophore", transform, new Vector3(sd * (rr - 0.01f), -0.22f - (i % 2) * 0.12f, z), Vector3.one * 0.09f, spot, false);
+                ProceduralAssets.CreatePrimitive(PrimitiveType.Sphere, "Photophore", transform, new Vector3(sd * (rr - 0.01f), -0.22f - (i % 2) * 0.12f, z), Vector3.one * 0.12f, spot, false);
         }
         // varilla y señuelo luminoso
         MeshBuilder sb = new MeshBuilder(1);

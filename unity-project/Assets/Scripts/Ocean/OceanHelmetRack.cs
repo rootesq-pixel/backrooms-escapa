@@ -22,7 +22,7 @@ public class OceanHelmetRack : MonoBehaviour
         OceanGeo.Box(mb, 0, new Vector3(-1.6f, 0.95f, -0.3f), new Vector3(1.6f, 1.02f, 0.1f), 0.6f);
         OceanGeo.Box(mb, 0, new Vector3(-1.6f, 1.45f, -0.05f), new Vector3(1.6f, 1.52f, 0.05f), 0.6f);
         OceanGeo.Emit(mb, "Rack", g.transform, new[] { w.WoodMat }, true, true, track);
-        Material brass = ProceduralAssets.CreateMaterial(new Color(0.62f, 0.46f, 0.24f), Resources.Load<Texture2D>("Textures/MetalWall_a"), Vector2.one, 0.62f); track(brass);
+        Material brass = ProceduralAssets.CreateMaterial(new Color(0.78f, 0.58f, 0.3f), null, Vector2.one, 0.55f); track(brass);
         Material glass = ProceduralAssets.CreateMaterial(new Color(0.12f, 0.16f, 0.18f), null, Vector2.one, 0.95f); track(glass);
         for (int i = 0; i < Count; i++)
         {

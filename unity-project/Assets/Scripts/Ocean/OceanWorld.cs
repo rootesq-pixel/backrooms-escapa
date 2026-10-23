@@ -812,7 +812,7 @@ public class OceanWorld : MonoBehaviour
             if (p.id != id || p.avatar == null || p.avatar.GetComponentsInChildren<Transform>(true).Length > 0 && HasRemoteHelmet(p.avatar.transform)) continue;
             if (helmetBrass == null)
             {
-                helmetBrass = ProceduralAssets.CreateMaterial(new Color(0.62f, 0.46f, 0.24f), Resources.Load<Texture2D>("Textures/MetalWall_a"), Vector2.one, 0.62f); track(helmetBrass);
+                helmetBrass = ProceduralAssets.CreateMaterial(new Color(0.78f, 0.58f, 0.3f), null, Vector2.one, 0.55f); track(helmetBrass);
                 helmetGlass = ProceduralAssets.CreateMaterial(new Color(0.12f, 0.16f, 0.18f), null, Vector2.one, 0.95f); track(helmetGlass);
             }
             GameObject h = OceanHelmetRack.BuildHelmet(p.avatar.transform, helmetBrass, helmetGlass, track);
