@@ -95,11 +95,11 @@ public static class V720Checks
         Vector3 nrm = (outP - inP); nrm.y = 0f; nrm.Normalize();
         Vector3 open = Vector3.zero, mo = Vector3.zero; bool ok = false; string why = "";
         // v7.3.0d: si delante de la puerta no hay calle (casa al borde o pegada a otra) se prueban también otras direcciones
-        float[] side = { 0f, 45f, -45f, 90f, -90f, 135f, -135f, 180f };
-        for (int tr = 0; tr < 24 * side.Length && !ok; tr++)
+        float[] sideA = { 0f, 45f, -45f, 90f, -90f, 135f, -135f, 180f };
+        for (int tr = 0; tr < 24 * sideA.Length && !ok; tr++)
         {
             float dist = 6f + ((tr / 8) % 3) * 4f; Vector3 dir = Quaternion.Euler(0f, (tr % 8) * 45f, 0f) * nrm;
-            Vector3 c0 = outP + Quaternion.Euler(0f, side[tr / 24], 0f) * nrm * dist;
+            Vector3 c0 = outP + Quaternion.Euler(0f, sideA[tr / 24], 0f) * nrm * dist;
             if (!NavMesh.SamplePosition(c0, out NavMeshHit h0, 2f, NavMesh.AllAreas)) { why = "sin NavMesh"; continue; }
             Vector3 c1 = h0.position + dir * 0.9f;
             if (!NavMesh.SamplePosition(c1, out NavMeshHit h1, 0.5f, NavMesh.AllAreas)) { why = "sin NavMesh (monstruo)"; continue; }
