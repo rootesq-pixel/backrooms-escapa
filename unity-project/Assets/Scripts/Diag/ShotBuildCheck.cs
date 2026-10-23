@@ -232,6 +232,7 @@ public class ShotBuildCheck : MonoBehaviour
                 Vector3 dp = new Vector3(42.6f, OceanWorld.PierY + 0.02f, 250.3f);
                 RemotePlayer dn = RemotePlayer.CreateMimic(w.root, 96, "Derribado", StepKind.Metal); dn.ShowTag = false;
                 RemotePlayer rv = RemotePlayer.CreateMimic(w.root, 95, "Reanima", StepKind.Metal); rv.ShowTag = false;
+                dn.SetDowned(true);
                 Vector3 rp = dp + new Vector3(-0.9f, 0f, -0.35f);
                 float ryaw = Mathf.Atan2(dp.x - rp.x, dp.z - rp.z) * Mathf.Rad2Deg;
                 for (int k = 0; k < 90; k++) { dn.Push(dp, 160f, 0f, 0f, RemotePlayer.FlagDowned); rv.Push(rp, ryaw, 35f, 0f, RemotePlayer.FlagRevive | RemotePlayer.FlagFlash); yield return null; }
@@ -239,7 +240,7 @@ public class ShotBuildCheck : MonoBehaviour
                 Vector3 mid = (dp + rp) * 0.5f;
                 yield return View(pw, mc, "l7_21_reanimar_companero", mid + side * 2.6f + Vector3.up * 1.2f + (rp - dp).normalized * 0.4f, mid + Vector3.up * 0.45f, 50f, pier2);
                 // primera persona: el jugador alarga la mano hacia el derribado
-                Vector3 st2 = dp + new Vector3(-1.1f, 0f, 0f);
+                Vector3 st2 = dp + new Vector3(-1.35f, 0f, -0.1f);
                 pw.Teleport(st2, 90f); pw.SetPitch(40f);
                 if (show0 != null) fShow.SetValue(pbd, true);
                 for (int k = 0; k < 40; k++) { PlayerBody.ReachK = 1f; dn.Push(dp, 160f, 0f, 0f, RemotePlayer.FlagDowned); yield return null; }
