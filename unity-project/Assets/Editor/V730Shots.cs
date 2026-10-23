@@ -132,6 +132,24 @@ public static class V730Shots
         {
             Vector3 rk = w.rack.transform.position;
             ShotAt(cam, rk + new Vector3(1.1f, 1.55f, -1.5f), rk + new Vector3(0f, 1.05f, 0f), "05b_cascos_cerca");
+            Transform hz = null; float hd = 1e9f;
+            foreach (Transform c in w.rack.GetComponentsInChildren<Transform>(true)) if (c.name == "DivingHelmet") { float dd = (c.position - (rk + new Vector3(1.1f, 1.55f, -1.5f))).sqrMagnitude; if (dd < hd) { hd = dd; hz = c; } }
+            if (hz != null) { Vector3 hc = hz.position + Vector3.up * 0.22f; ShotAt(cam, hc + new Vector3(0.28f, 0.12f, -0.62f), hc, "05c_casco_macro"); }
+        }
+        // 5d) compañero con casco (vista del avatar remoto)
+        {
+            RemotePlayer mate = RemotePlayer.CreateMimic(w.root, 98, "Companero", StepKind.Metal); mate.ShowTag = false;
+            Vector3 mp = new Vector3(40f, OceanWorld.PierY + 0.02f, 250f);
+            mate.transform.position = mp; mate.transform.rotation = Quaternion.Euler(0f, 250f, 0f);
+            for (int k = 0; k < 6; k++) mate.Push(mp, 250f, 0f, 0f, 0);
+            yield return 0.4f;
+            GameObject mh = w.AttachHelmetTo(mate.transform);
+            yield return 0.4f;
+            Renderer hr = mh.GetComponentInChildren<Renderer>();
+            Debug.Log("[V730] casco compañero: pos " + mh.transform.position + " escala " + mh.transform.lossyScale + " padre " + (mh.transform.parent != null ? mh.transform.parent.name : "-") + " bounds " + (hr != null ? hr.bounds.ToString() : "sin renderer") + " activo " + mh.activeInHierarchy);
+            Vector3 hp = mate.transform.position + Vector3.up * 1.62f;
+            ShotAt(cam, hp + Quaternion.Euler(0f, 250f, 0f) * new Vector3(0.45f, 0.05f, 1.35f), hp - Vector3.up * 0.05f, "05d_companero_casco");
+            Object.Destroy(mate.gameObject);
         }
         // 6) bajo el agua con El Farolero (casco y lámpara): de tres cuartos a ~9 m
         op.SetHelmet(true);

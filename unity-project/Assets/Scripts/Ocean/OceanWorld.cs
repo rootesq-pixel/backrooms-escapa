@@ -800,7 +800,10 @@ public class OceanWorld : MonoBehaviour
 
     private static Transform FindDeep(Transform t, string n)
     {
-        foreach (Transform c in t.GetComponentsInChildren<Transform>(true)) if (c.name == n || c.name.EndsWith(":" + n) || c.name.EndsWith("_" + n)) return c;
+        // primero el hueso exacto («Head»); si no, «mixamorig:Head»; nunca la malla «Character_Hazmat_Head» (pivote en los pies)
+        Transform[] all = t.GetComponentsInChildren<Transform>(true);
+        foreach (Transform c in all) if (c.name == n) return c;
+        foreach (Transform c in all) if (c.name.EndsWith(":" + n) && c.GetComponent<Renderer>() == null) return c;
         return null;
     }
 
@@ -831,10 +834,23 @@ public class OceanWorld : MonoBehaviour
         {
             Vector3 up = avatar.up;
             h.transform.SetParent(head, true);
-            h.transform.position = head.position - up * 0.13f;
+            Vector3 basePos = head.position - up * 0.13f;
+            float sc = 1.05f;
+            // la cabeza del traje (malla «…_Head») es más grande que un casco real: el casco la sustituye (se oculta mientras lo lleva)
+            Renderer hr = null;
+            foreach (Renderer r in avatar.GetComponentsInChildren<Renderer>(true))
+                if (r is SkinnedMeshRenderer && r.enabled && r.name.EndsWith("_Head")) { hr = r; break; }
+            if (hr != null)
+            {
+                sc = 1.4f;   // cúpula de ~0,56 m (la cabeza del traje mide ~0,5 m) y peto sobre los hombros
+                basePos = head.position - up * 0.18f;
+                hr.enabled = false;
+                h.AddComponent<HelmetHeadRestore>().hidden = hr;
+            }
+            h.transform.position = basePos;
             h.transform.rotation = avatar.rotation;
             float ls = Mathf.Max(0.0001f, head.lossyScale.x);
-            h.transform.localScale = Vector3.one * (1.05f / ls);
+            h.transform.localScale = Vector3.one * (sc / ls);
         }
         return h;
     }

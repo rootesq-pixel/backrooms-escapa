@@ -116,3 +116,6 @@ El roce de la hierba, el viento, el zumbido de radio de la salida, el terreno, l
 - **Modelos de los objetos** (pila, agua de almendras, barra luminosa, cinta VHS, nota, linterna): trabajo propio, modelados por script en Blender 4.2 (`Tools/blender/item_models.py`) y horneados con Cycles (alto → bajo detalle) a texturas PBR de 512 px (albedo, metal/suavidad, normal, emisión). Los iconos del inventario se renderizan con los mismos modelos. Dominio público (CC0).
 - **Silbido** (`G`, tres variantes): sintetizado por código en el propio juego (`Whistle.cs`, osciladores con vibrato, respiración y envolvente). Sin grabaciones de terceros. Dominio público (CC0).
 - **Muebles de las casas del Campo infinito** (mesa, estantería, caja): primitivas con la textura de madera procedural del proyecto.
+
+## Cascos de buzo del nivel 7 (v7.3.0)
+- **Malla y texturas de los cascos** (latón envejecido: albedo, normales con remaches, pernos y costuras, máscara metal/oclusión/suavidad con cardenillo y aristas pulidas): trabajo propio; malla generada por código (`OceanHelmetRack.cs`) y texturas procedurales generadas con `Tools/textures/gen_helmet_tex.py` (numpy, semilla 7301). Dominio público (CC0).
