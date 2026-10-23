@@ -92,6 +92,14 @@ public class ElevatorCabin : MonoBehaviour
     private Material panelMat, buttonMat;
     private Renderer panelRenderer;
     private readonly List<Renderer> buttonDots = new List<Renderer>();
+    private Renderer landFace, callButton;
+    private Material landSteel;                                 // v7.4.0: frente del rellano y pulsador de llamada
+    private Text outNum, outLabel; private Image outArrow;                 // v7.4.0: indicador de planta exterior
+    public bool HasLanding { get; private set; }
+    private Light landingLight;
+    public bool LandingLit { get { return landingLight != null && landingLight.enabled && landingLight.intensity > 0.1f; } }
+    public bool HasOuterDisplay { get { return outNum != null; } }
+    public bool CallButtonLit { get { return callButton != null && callButton.enabled; } }
     private Text numText, labelText;
     private Image arrowImg;
     private Canvas displayCanvas;
@@ -156,6 +164,7 @@ public class ElevatorCabin : MonoBehaviour
         BuildModel();
         bool openShell = config.layout == LayoutKind.Field || config.layout == LayoutKind.Ocean;   // v7.3.0: en el mar la cabina asoma detrás de la casa inundada
         if (openShell) BuildFieldShell(frontExtent);
+        else if (IsRealistic) BuildLanding(config);
         BuildColliders(openShell ? 0f : config.cellSize, frontExtent);
         BuildFixtures();
         BuildAudio();
@@ -289,6 +298,14 @@ public class ElevatorCabin : MonoBehaviour
             else if (n == "Car_Buttons") mt = buttonMat;
             else if (n == "Car_Grime") { mt = grime; }
             else if (n == "Car_LightDiffuser") { mt = panelMat; panelRenderer = r; }
+            else if (n == "Land_Face") { mt = facade; landFace = r; }
+            else if (n == "Land_Frame") { if (landSteel == null) { landSteel = Pbr("ElevSteel", Color.white, 1f, 0.45f); } mt = landSteel; }   // acero cepillado menos metálico: se lee bajo la luz del rellano
+            else if (n == "Land_BtnLit")
+            {
+                mt = Mat(new Color(0.25f, 0.2f, 0.1f), null, 0.6f, 0f);
+                ProceduralAssets.SetEmission(mt, new Color(1f, 0.62f, 0.22f) * 1.6f);   // pulsador de llamada encendido (ámbar)
+                callButton = r;
+            }
             else if (n.StartsWith("Car_BtnLit"))
             {
                 mt = Mat(new Color(0.1f, 0.1f, 0.1f), null, 0.6f, 0f); mt.EnableKeyword("_EMISSION");
@@ -388,6 +405,63 @@ public class ElevatorCabin : MonoBehaviour
     private const float wallPad = 0.1f;
 
     // v7.0 Campo infinito: caja exterior de hormigón viejo alrededor de la cabina (en los demás niveles la tapan las paredes)
+    // v7.4.0: rellano: el frente de la cabina queda empotrado en un muro con el material de pared del nivel (alas hasta las paredes de la
+    // celda, donde ya estaban los rellenos de colisión FillL/FillR, y testero hasta el techo). Solo visual: no cambia colisiones ni NavMesh.
+    private void BuildLanding(LevelConfig config)
+    {
+        Material wm = gen != null ? gen.WallMaterial : null;
+        if (wm == null || landFace == null) return;
+        float half = config.cellSize * 0.5f + wallPad, y0 = 0.12f, y1 = 0.12f + config.wallHeight, z = 1.44f, xo = 1.30f;
+        float tu = Mathf.Max(0.5f, config.wallTileU), tv = config.wallTileV > 0f ? config.wallTileV : config.wallHeight;
+        float vOff = -y0 / tv;
+        // el frente del rellano del modelo toma el mismo material y la misma escala de UV que las alas
+        MeshFilter mf = landFace.GetComponent<MeshFilter>();
+        if (mf != null && mf.sharedMesh != null && mf.sharedMesh.isReadable)   // Elevator740.fbx se importa con Read/Write (también en el build)
+        {
+            Mesh mm = Instantiate(mf.sharedMesh); mm.name = "Land_Face_UV"; owned.Add(mm);
+            Vector3[] v = mm.vertices; Vector3[] nr = mm.normals; Vector2[] uv = new Vector2[v.Length];
+            Matrix4x4 toCab = transform.worldToLocalMatrix * landFace.transform.localToWorldMatrix;
+            for (int i = 0; i < v.Length; i++)
+            {
+                Vector3 p = toCab.MultiplyPoint3x4(v[i]), n = toCab.MultiplyVector(nr[i]);
+                float u = Mathf.Abs(n.x) > 0.5f ? p.z : p.x;
+                uv[i] = new Vector2(u / tu, Mathf.Abs(n.y) > 0.5f ? p.z / tv : p.y / tv + vOff);
+            }
+            mm.uv = uv; mm.RecalculateTangents();
+            mf.sharedMesh = mm;
+        }
+        landFace.sharedMaterial = wm;
+        MeshBuilder mb = new MeshBuilder(1);
+        if (half > xo + 0.02f)
+        {
+            mb.AddQuad(0, new Vector3(-half, y0, z), new Vector3(-xo, y0, z), new Vector3(-xo, y1, z), new Vector3(-half, y1, z), Vector3.forward, Vector3.right, Vector3.up, tu, tv, 0f, vOff);
+            mb.AddQuad(0, new Vector3(xo, y0, z), new Vector3(half, y0, z), new Vector3(half, y1, z), new Vector3(xo, y1, z), Vector3.forward, Vector3.right, Vector3.up, tu, tv, 0f, vOff);
+        }
+        if (y1 > 2.62f)
+            mb.AddQuad(0, new Vector3(-xo, 2.6f, z), new Vector3(xo, 2.6f, z), new Vector3(xo, y1, z), new Vector3(-xo, y1, z), Vector3.forward, Vector3.right, Vector3.up, tu, tv, 0f, vOff);
+        if (mb.IsEmpty) return;
+        Mesh wing = mb.ToMesh("LandingWall"); owned.Add(wing);
+        GameObject g = new GameObject("LandingWall");
+        g.transform.SetParent(transform, false);
+        g.AddComponent<MeshFilter>().sharedMesh = wing;
+        MeshRenderer mr = g.AddComponent<MeshRenderer>(); mr.sharedMaterial = wm;
+        mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        HasLanding = true;
+        // aplique del rellano: la lámpara de la celda de inicio queda detrás del muro, así que el frente tendría solo luz ambiente
+        float ly = Mathf.Min(y1 - 0.22f, 3.15f);
+        Material housing = Mat(new Color(0.55f, 0.56f, 0.57f), null, 0.5f, 0.6f);
+        Material tube = Mat(new Color(0.9f, 0.92f, 0.95f), null, 0.3f, 0f);
+        ProceduralAssets.SetEmission(tube, new Color(0.85f, 0.9f, 1f) * 1.4f);
+        ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "LandingLampHousing", g.transform, new Vector3(0f, ly, z + 0.045f), new Vector3(0.95f, 0.07f, 0.09f), housing, false);
+        ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "LandingLampTube", g.transform, new Vector3(0f, ly - 0.04f, z + 0.05f), new Vector3(0.88f, 0.02f, 0.06f), tube, false);
+        GameObject lg = new GameObject("LandingLight");
+        lg.transform.SetParent(g.transform, false);
+        lg.transform.localPosition = new Vector3(0f, ly - 0.15f, z + 0.55f);
+        landingLight = lg.AddComponent<Light>();
+        landingLight.type = LightType.Point; landingLight.range = 7.5f; landingLight.intensity = 1.7f; landingLight.color = new Color(0.9f, 0.94f, 1f);
+        landingLight.shadows = LightShadows.None;
+    }
+
     private void BuildFieldShell(float frontExtent)
     {
         float sx = ScaleX, sz = ScaleZ;
@@ -489,6 +563,18 @@ public class ElevatorCabin : MonoBehaviour
         ar.anchorMin = ar.anchorMax = new Vector2(0.5f, 0.5f); ar.sizeDelta = new Vector2(62f, 62f); ar.anchoredPosition = new Vector2(-190f, 0f);
         numText = MakeText(cg.transform, "Number", new Vector2(-30f, 0f), new Vector2(240f, 110f), 92, TextAnchor.MiddleCenter);
         labelText = MakeText(cg.transform, "Label", new Vector2(150f, 0f), new Vector2(170f, 100f), 30, TextAnchor.MiddleCenter);
+        if (IsRealistic)
+        {
+            // v7.4.0: indicador exterior sobre el dintel del rellano (mira hacia fuera; sigue encendido con la puerta cerrada)
+            GameObject og = Instantiate(cg, parent);
+            og.name = "FloorDisplayOut";
+            og.transform.localPosition = new Vector3(0f, V740Dt + 0.26f, 1.4695f);
+            og.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+            og.transform.localScale = Vector3.one * 0.00088f;
+            outNum = og.transform.Find("Number").GetComponent<Text>();
+            outLabel = og.transform.Find("Label").GetComponent<Text>();
+            outArrow = og.transform.Find("Arrow").GetComponent<Image>();
+        }
     }
 
     private Text MakeText(Transform parent, string name, Vector2 pos, Vector2 size, int fontSize, TextAnchor anchor)
@@ -799,6 +885,15 @@ public class ElevatorCabin : MonoBehaviour
         Color ac = Tint; ac.a = (T < TStop && Begun ? 1f : 0.15f) * vis;
         arrowImg.color = ac;
         if (displayCanvas != null && vis <= 0f && displayCanvas.enabled) displayCanvas.enabled = false;
+        if (outNum != null)
+        {
+            if (outNum.text != DisplayNumber) outNum.text = DisplayNumber;
+            if (outLabel.text != lab) outLabel.text = lab;
+            Color oc = Tint; oc.a = blink ? 0.25f : 1f;
+            outNum.color = oc; outLabel.color = oc;
+            Color oa = Tint; oa.a = T < TStop && Begun ? 1f : 0.15f;
+            outArrow.color = oa;
+        }
     }
 
     // puertas: cada hoja se encoge hacia su lado

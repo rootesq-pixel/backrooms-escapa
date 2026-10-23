@@ -160,6 +160,13 @@ public static class ProceduralTextures
         { SurfaceStyle.WallpaperYellow, 3.0f }, { SurfaceStyle.WallpaperL0, 3.0f }, { SurfaceStyle.WallpaperHotel, 2.8f }, { SurfaceStyle.ConcreteWall, 3.6f }, { SurfaceStyle.ParkingWall, 3.6f },
     };
 
+    // ¿Hay textura horneada para este estilo a esta altura de pared? (las paredes horneadas llevan el zócalo a escala)
+    public static bool BakedHeightMatches(SurfaceStyle style, float wallHeight)
+    {
+        float bh;
+        return !BakedWallHeight.TryGetValue(style, out bh) || Mathf.Abs(bh - wallHeight) <= 0.02f;
+    }
+
     public static SurfaceSet TryLoadBaked(SurfaceStyle style, float wallHeight)
     {
         if (!UseBaked || style == SurfaceStyle.WaterNormal) return null;

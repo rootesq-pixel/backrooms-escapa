@@ -101,6 +101,20 @@ public static class V740Shots
             At(op, cab.InteriorCenter + Vector3.up * 1.1f); Shot("e08_exterior_abierto");
             cab.SeekClosed(); yield return 0.1f;
             At(op, cab.InteriorCenter + Vector3.up * 1.1f); Shot("e09_exterior_cerrado");
+            if (System.Environment.GetEnvironmentVariable("V740_DBG") == "1")
+            {
+                Transform fo = null; foreach (Transform t in cab.GetComponentsInChildren<Transform>(true)) if (t.name == "FloorDisplayOut") fo = t;
+                if (fo != null) { fo.gameObject.SetActive(false); At(op, cab.InteriorCenter + Vector3.up * 1.1f); Shot("e10_dbg_sin_canvas_ext"); fo.gameObject.SetActive(true); }
+                foreach (Renderer rr in cab.GetComponentsInChildren<Renderer>(true)) if (rr.name == "Land_Face") rr.enabled = false;
+                At(op, cab.InteriorCenter + Vector3.up * 1.1f); Shot("e11_dbg_sin_landface");
+                foreach (Renderer rr in cab.GetComponentsInChildren<Renderer>(true)) if (rr.name == "Land_Face") rr.enabled = true;
+            }
+            Info("pixelLights " + QualitySettings.pixelLightCount + " ambient " + RenderSettings.ambientLight + " mode " + RenderSettings.ambientMode + " int " + RenderSettings.ambientIntensity);
+            foreach (Light lt in Object.FindObjectsOfType<Light>())
+            {
+                float d = Vector3.Distance(lt.transform.position, cab.transform.position);
+                if (d < 14f) Info("light " + lt.name + " " + lt.type + " d " + d.ToString("F1") + " range " + lt.range.ToString("F1") + " int " + lt.intensity.ToString("F2") + " mode " + lt.renderMode + " en " + lt.enabled + " pos " + lt.transform.position.ToString("F1"));
+            }
         }
         if (Only != "elev")
         {

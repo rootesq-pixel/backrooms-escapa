@@ -44,6 +44,24 @@ Licencia comprobada el 11-oct-2026 en las propias páginas del recurso (campo «
 
 Cambios: los dos GLB se importaron en Blender, se unieron en un solo FBX (cabina + hojas de puerta, con las hojas como objetos separados `Door_L` / `Door_R`), se eliminó la jerarquía vacía y las tres texturas (256×256 px, `Elev_*.png`) se guardaron aparte. En el juego la cabina se ensancha un 30 % en X/Z para que quepan cuatro jugadores, las hojas se animan por código (se retraen hacia su lado), y el resto es procedural: visera con indicador de planta, panel de luz del techo, luces de los botones, colisiones, luz parpadeante, tintes por nivel y todos los sonidos (retumbo, motor/cables, frenazo, «ding», puertas).
 
+### Cabina realista (v7.4.0)
+
+Desde la v7.4.0 la cabina es un modelo propio (`Assets/Resources/Elevator/Elevator740.fbx`), modelado por script en Blender 4.2 (`Tools/v740/build_elev.py`): paneles de madera y de acero cepillado con juntas, pasamanos con soportes, botonera con columna de botones iluminados, indicador de planta sobre el dintel, placa de inspección, rejilla del altavoz, plafón con lamas, puertas correderas con marco y umbral, y suciedad acumulada en las esquinas del suelo. Es de dominio público (CC0). El modelo anterior del kit de 3D Assets sigue en el proyecto solo como reserva, si no se encuentra el nuevo.
+
+Texturas PBR de [ambientCG](https://ambientcg.com) (CC0 1.0, dominio público; no exigen atribución, se cita igualmente). Se descargaron a 1K/2K y se reempaquetaron a 512–2048 px como albedo, normales y máscara Standard (metal/AO/suavidad) con `Tools/v740/packtex.py` y `Tools/v740/compose_l1.py`:
+
+| Uso | Material de ambientCG | Fuente |
+|---|---|---|
+| Acero cepillado y pintado de la cabina (`ElevSteel`, `ElevPaint`) | Metal009 | https://ambientcg.com/view?id=Metal009 |
+| Acero oscuro (zócalos, marco) (`ElevSteelDark`) | Metal038 | https://ambientcg.com/view?id=Metal038 |
+| Paneles de madera (`ElevWood`) | Wood051 | https://ambientcg.com/view?id=Wood051 |
+| Suelo de goma (`ElevFloor`) | Rubber001 | https://ambientcg.com/view?id=Rubber001 |
+| Nivel 1, suelo del aparcamiento (`ParkingFloor`) | Concrete042A | https://ambientcg.com/view?id=Concrete042A |
+| Nivel 1, muros y pilares (`ParkingWall`) | Concrete031 | https://ambientcg.com/view?id=Concrete031 |
+| Nivel 1, techo (`ParkingCeiling`) | Concrete012 | https://ambientcg.com/view?id=Concrete012 |
+
+Añadidos propios sobre esas texturas (numpy/Pillow, CC0): líneas amarillas gastadas, rodadas de neumáticos, suciedad, agujeros de encofrado con regueros de óxido, manchas de humedad y eflorescencias, anillos de agua en el techo, manchas de aceite y charcos (calcomanías del suelo del Nivel 1). Además: placa de inspección, rejilla y suciedad de la cabina.
+
 ## Poolrooms (nivel 2)
 
 El nivel de agua (antes «Salas inundadas») se llama ahora Poolrooms. Es totalmente procedural (sin modelos externos). En la v6.3 se eliminó la sala del modelo propio del autor (`PoolHall.fbx`) y el monstruo «El Reptador» (AlienBug) ya no se usa ni se incluye.

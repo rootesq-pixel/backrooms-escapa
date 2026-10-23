@@ -6,7 +6,7 @@ bpy.ops.wm.read_factory_settings(use_empty=True)
 G = {}   # nombre -> (bmesh, uv scale)
 SC = {'Car_Wood2':0.9,'Car_Grime':1.0,'Car_Steel':1.0,'Car_SteelDark':1.0,'Car_Wood':0.9,'Car_Floor':0.9,'Car_Ceiling':1.0,'Car_LightFrame':1.0,'Car_LightDiffuser':1.0,
       'Car_Rail':1.0,'Car_Panel':0.5,'Car_Buttons':1.0,'Car_Display':1.0,'Car_Plate':1.0,'Car_Facade':1.0,'Car_Rubber':1.0,'Car_Grille':0.25,
-      'Door_L':1.0,'Door_R':1.0,'Car_BtnLit0':1,'Car_BtnLit1':1,'Car_BtnLit2':1,'Car_BtnLit3':1,'Car_BtnLit4':1}
+      'Door_L':1.0,'Door_R':1.0,'Land_Face':1.0,'Land_Frame':1.0,'Land_BtnLit':1,'Car_BtnLit0':1,'Car_BtnLit1':1,'Car_BtnLit2':1,'Car_BtnLit3':1,'Car_BtnLit4':1}
 def bm_of(n):
     if n not in G: G[n]=bmesh.new()
     return G[n]
@@ -156,21 +156,45 @@ box('Car_LightDiffuser', (-0.62,CE-0.034,-0.48), (0.62,CE-0.03,0.68))
 for k in range(1,4):
     box('Car_LightFrame', (-0.62,CE-0.045,-0.48+k*0.29), (0.62,CE-0.03,-0.48+k*0.29+0.012))   # celosía
 box('Car_Grille', (-0.25,CE-0.006,ZB+0.08), (0.25,CE,ZB+0.22))
-box('Car_Facade', (-XO,CE+0.04,ZBO), (XO,CE+0.12,1.44))                       # techo exterior
+box('Car_Facade', (-XO,CE+0.04,ZBO), (XO,CE+0.12,1.40))                       # techo exterior (detrás del frente: sin caras coplanarias)
 # puertas de cabina (dos hojas de 0.76 m que se deslizan hacia los lados), con junta de goma en el borde central
 DZ0, DZ1 = ZF+0.05, ZF+0.09
 box('Door_L', (-OW-0.01,FL+0.004,DZ0), (0.004,DT,DZ1))
 box('Door_R', (-0.004,FL+0.004,DZ0+0.006), (OW+0.01,DT,DZ1+0.006))
-# fachada exterior (rellano): marco de acero, dintel con indicador exterior
-box('Car_Facade', (-XO,FL,1.40), (-OW-0.06,2.6,1.44))
-box('Car_Facade', (OW+0.06,FL,1.40), (XO,2.6,1.44))
-box('Car_Facade', (-XO,DT+0.06,1.40), (XO,2.6,1.44))
-box('Car_SteelDark', (-OW-0.06,FL,1.40), (-OW,DT+0.06,1.47))
-box('Car_SteelDark', (OW,FL,1.40), (OW+0.06,DT+0.06,1.47))
-box('Car_SteelDark', (-OW-0.06,DT,1.40), (OW+0.06,DT+0.06,1.47))
-box('Car_Display', (-0.16,DT+0.14,1.44), (0.16,DT+0.24,1.465))
-box('Car_Panel', (OW+0.14,1.0,1.44), (OW+0.24,1.28,1.452))                       # pulsador de llamada exterior
-cyl('Car_Buttons', (OW+0.19,1.14,1.452), (OW+0.19,1.14,1.462), 0.02, 20)
+# fachada exterior (rellano): frente de muro (Land_Face: en Unity lleva el material de pared del nivel), marco/arquitrabe de acero
+# cepillado con jambas forradas, umbral de rellano, indicador de planta y pulsador de llamada iluminado
+LF = 0.12                                  # suelo del nivel (local)
+AW = 0.11                                  # ancho del arquitrabe
+box('Land_Face', (-XO,LF,1.40), (-OW-AW,2.6,1.44))
+box('Land_Face', (OW+AW,LF,1.40), (XO,2.6,1.44))
+box('Land_Face', (-OW-AW,DT+AW,1.40), (OW+AW,2.6,1.44))
+for s_ in (-1,1):
+    xa, xb = sorted((s_*(OW+0.002), s_*(OW+AW)))
+    box('Land_Frame', (xa,LF,1.44), (xb,DT+0.002,1.475))                      # arquitrabe (jamba, termina bajo el dintel)
+    xa, xb = sorted((s_*(OW-0.004), s_*(OW+0.05)))
+    box('Land_Frame', (xa,LF,1.365), (xb,DT+0.004,1.47))                      # forro de la jamba (hasta las puertas)
+    xa, xb = sorted((s_*(OW+0.07), s_*(OW+0.078)))
+    box('Car_SteelDark', (xa,LF+0.02,1.475), (xb,DT+0.07,1.479))              # filete oscuro del arquitrabe
+box('Land_Frame', (-OW-AW,DT+0.002,1.44), (OW+AW,DT+AW,1.475))                # arquitrabe (dintel)
+box('Land_Frame', (-OW+0.004,DT-0.004,1.365), (OW-0.004,DT+0.05,1.47))       # forro del dintel
+box('Car_SteelDark', (-OW-0.078,DT+0.07,1.475), (OW+0.078,DT+0.078,1.479))
+# umbral del rellano (aluminio estriado) delante de la puerta
+box('Car_SteelDark', (-OW-0.08,LF,1.365), (OW+0.08,LF+0.008,1.60))
+for k in range(-15,16):
+    x = k*0.05
+    box('Car_Rubber', (x-0.006,LF+0.008,1.38), (x+0.006,LF+0.010,1.585))
+# indicador de planta exterior sobre el dintel
+box('Land_Frame', (-0.25,DT+0.17,1.44), (0.25,DT+0.35,1.462))
+box('Car_Display', (-0.22,DT+0.19,1.462), (0.22,DT+0.33,1.468))
+# botonera de llamada (derecha) con pulsador iluminado (bajar) y otro apagado (subir)
+BX = OW+AW+0.16
+box('Land_Frame', (BX-0.06,1.00,1.44), (BX+0.06,1.34,1.452))
+box('Car_SteelDark', (BX-0.064,0.996,1.438), (BX+0.064,1.344,1.446))
+cyl('Car_Buttons', (BX,1.22,1.452), (BX,1.22,1.462), 0.024, 24)
+cyl('Car_Buttons', (BX,1.12,1.452), (BX,1.12,1.462), 0.024, 24)
+cyl('Car_Buttons', (BX,1.22,1.462), (BX,1.22,1.466), 0.017, 24)
+cyl('Land_BtnLit', (BX,1.12,1.462), (BX,1.12,1.4665), 0.017, 24)
+box('Car_Plate', (BX-0.045,1.27,1.452), (BX+0.045,1.31,1.4535))              # placa (número de ascensor)
 
 # suciedad acumulada junto a las paredes (franja de 0.22 m sobre el suelo)
 def quad(n, ps, uvs):

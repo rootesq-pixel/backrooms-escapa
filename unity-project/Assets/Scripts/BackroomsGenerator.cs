@@ -11,6 +11,7 @@ using UnityEngine.Rendering;
 // NOTA: asume escala (1,1,1) en este objeto.
 public class BackroomsGenerator : MonoBehaviour
 {
+    public Material WallMaterial { get; private set; }   // v7.4.0: material de pared del nivel (lo reutiliza el rellano del ascensor)
     [Header("Semilla")]
     public bool useRandomSeed = true;
     [Tooltip("Multijugador: monstruos extra (por nº de jugadores). Se envía igual a todos los equipos para que el mundo sea idéntico.")]
@@ -732,6 +733,7 @@ public class BackroomsGenerator : MonoBehaviour
         TextureLibrary.ReleaseAllExcept(keys);
 
         Material wallMat = Track(ProceduralAssets.CreateSurfaceMaterial(wallSet, cfg.wallTint, 1f, 1f));
+        WallMaterial = wallMat;   // v7.4.0: el rellano del ascensor usa el mismo material
         Material floorMat = Track(ProceduralAssets.CreateSurfaceMaterial(floorSet, cfg.floorTint, 1f, 1f));
         Material ceilMat = Track(ProceduralAssets.CreateSurfaceMaterial(ceilSet, cfg.ceilTint, 1f, 1f));
         Material pipeMat = cfg.pipes ? wallMat : null;

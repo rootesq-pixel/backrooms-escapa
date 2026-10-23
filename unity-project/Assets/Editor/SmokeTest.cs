@@ -94,7 +94,9 @@ public static class SmokeTest
             LevelConfig cfg = LevelConfig.Get(lv);
             foreach (SurfaceStyle st in new[] { cfg.wallStyle, cfg.floorStyle, cfg.ceilingStyle })
             {
-                if (!seen.Add(st)) continue;
+                if (seen.Contains(st)) continue;
+                if (!ProceduralTextures.BakedHeightMatches(st, cfg.wallHeight)) { r.Info("texturas Blender: " + st + " en el nivel " + lv + " (pared de " + cfg.wallHeight + " m) usa la versión por CPU"); continue; }
+                seen.Add(st);
                 SurfaceSet set = TextureLibrary.Get(st, cfg.wallHeight);
                 bool ok = set != null && set.baked && set.albedo != null && set.normal != null && set.mask != null;
                 r.Check(ok, "texturas Blender: " + st + " horneadas y cargadas (nivel " + lv + ")");

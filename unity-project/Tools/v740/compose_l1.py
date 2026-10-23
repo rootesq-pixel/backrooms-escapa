@@ -23,7 +23,11 @@ def noise(scale, seed, octaves=4):
         acc+=amp*np.asarray(Image.fromarray((g*255).astype(np.uint8)).resize((N+N//s,N+N//s),Image.BICUBIC),np.float32)[:N,:N]/255
         tot+=amp; amp*=0.5
     return acc/tot
+TARGET = {'ParkingFloor': 0.46, 'ParkingWall': 0.47, 'ParkingCeiling': 0.48}   # luminancia media sRGB (como el hormigón anterior: el nivel no se vuelve más oscuro)
 def save(name, alb, nrm, ao, sm):
+    if name in TARGET:
+        lum = (alb[..., 0] * 0.299 + alb[..., 1] * 0.587 + alb[..., 2] * 0.114).mean()
+        alb = alb * (TARGET[name] / max(lum, 1e-3))
     Image.fromarray(np.clip(alb*255,0,255).astype(np.uint8)).save(f'{O}/{name}_a.jpg',quality=92)
     Image.fromarray(np.clip(nrm*255,0,255).astype(np.uint8)).save(f'{O}/{name}_n.png')
     m=np.stack([np.zeros_like(ao),ao,np.zeros_like(ao),sm],-1)
