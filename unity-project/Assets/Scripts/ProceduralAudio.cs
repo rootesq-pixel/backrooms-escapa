@@ -236,7 +236,7 @@ public static class ProceduralAudio
                     {
                         float f = 38f + 18f * Mathf.Sin(2f * Mathf.PI * 0.9f * t) + nzLow[i] * 60f;
                         phase += f / SR; phase2 += f * 1.5f / SR;
-                        v = Sat(Mathf.Sin(2f * Mathf.PI * phase) * 2.2f) * 0.8f + Mathf.Sin(2f * Mathf.PI * phase2) * 0.25f + nzLow[i] * 3f;
+                        v = Sat(Mathf.Sin(2f * Mathf.PI * phase) * 2.2f) * 0.8f + Mathf.Sin(2f * Mathf.PI * phase2) * 0.25f + nzLow[i] * 1.1f;   // v7.3.0b3: antes ×3 (retumbo de viento)
                         break;
                     }
                 case GrowlKind.Rasp:
@@ -244,7 +244,9 @@ public static class ProceduralAudio
                         float f = 95f + 40f * (1f - u) + 12f * Mathf.Sin(2f * Mathf.PI * 6f * t);
                         phase += f / SR;
                         float saw = (phase - Mathf.Floor(phase)) * 2f - 1f;
-                        v = saw * 0.45f * (0.6f + 0.4f * Mathf.Sin(2f * Mathf.PI * 28f * t)) + nz[i] * 0.6f;
+                        // v7.3.0b3: carraspeo con la aspereza en la propia voz (antes ruido ancho ×0,6 = 57 % de la energía, sonaba a soplido)
+                        float am = 0.55f + 0.45f * Mathf.Sin(2f * Mathf.PI * 28f * t);
+                        v = saw * 0.5f * am + (nz[i] - nzLow[i]) * 0.25f * am;
                         break;
                     }
                 case GrowlKind.Metal:
@@ -257,7 +259,12 @@ public static class ProceduralAudio
                     }
                 case GrowlKind.Hiss:
                     {
-                        v = nz[i] * 1.2f * (0.5f + 0.5f * Mathf.Sin(2f * Mathf.PI * 14f * t)) + Mathf.Sin(2f * Mathf.PI * (3200f + 400f * Mathf.Sin(t * 30f)) * t) * 0.05f;
+                        // v7.3.0b3: siseo de garganta con voz (antes 98 % ruido de banda ancha: se oía como una racha de viento a lo lejos)
+                        float f = 150f + 50f * Mathf.Sin(Mathf.PI * u) + 6f * Mathf.Sin(2f * Mathf.PI * 7f * t);
+                        phase += f / SR;
+                        float saw = (phase - Mathf.Floor(phase)) * 2f - 1f;
+                        float trem = 0.5f + 0.5f * Mathf.Sin(2f * Mathf.PI * 14f * t);
+                        v = (nz[i] - nzLow[i]) * 0.45f * trem + saw * 0.3f * trem + Mathf.Sin(2f * Mathf.PI * phase) * 0.3f;
                         break;
                     }
                 default: // Moan
@@ -269,6 +276,11 @@ public static class ProceduralAudio
                     }
             }
             d[i] = v * env;
+        }
+        if (kind == GrowlKind.Rasp || kind == GrowlKind.Hiss)
+        {   // paso bajo suave (~2,5 kHz): sin aire por encima
+            float a = 1f - Mathf.Exp(-2f * Mathf.PI * 2500f / SR), y = 0f;
+            for (int i = 0; i < n; i++) { y += a * (d[i] - y); d[i] = y; }
         }
         Normalize(d, 0.85f);
         return Make("Growl_" + kind, d);

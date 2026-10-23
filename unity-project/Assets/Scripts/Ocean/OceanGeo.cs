@@ -270,11 +270,32 @@ public static class OceanGeo
                         }
                         subs[s] = t;
                     }
-                    if (flipped > 0)
+                    // vértices con normal nula (pliegues degenerados de la tela): normal = la de su primera cara
+                    int zero = 0; Vector3[] acc = null;
+                    for (int q = 0; q < n.Length; q++) if (n[q].sqrMagnitude < 1e-12f) { zero++; }
+                    if (zero > 0)
+                    {
+                        acc = new Vector3[n.Length];
+                        for (int s = 0; s < subs.Length; s++)
+                        {
+                            int[] t = subs[s];
+                            for (int i = 0; i + 2 < t.Length; i += 3)
+                            {
+                                Vector3 g = Vector3.Cross(v[t[i + 1]] - v[t[i]], v[t[i + 2]] - v[t[i]]);
+                                double gm = System.Math.Sqrt((double)g.x * g.x + (double)g.y * g.y + (double)g.z * g.z);
+                                if (gm <= 0.0) continue;
+                                g = new Vector3((float)(g.x / gm), (float)(g.y / gm), (float)(g.z / gm));   // a mano: «normalized» da cero con caras diminutas
+                                for (int c = 0; c < 3; c++) { int vi = t[i + c]; if (acc[vi].sqrMagnitude == 0f) acc[vi] = g; }
+                            }
+                        }
+                        for (int q = 0; q < n.Length; q++) if (n[q].sqrMagnitude < 1e-12f) n[q] = acc[q].sqrMagnitude > 0f ? acc[q] : Vector3.up;
+                    }
+                    if (flipped > 0 || zero > 0)
                     {
                         fx = Object.Instantiate(src); fx.name = src.name; fx.hideFlags = HideFlags.DontSave;
                         for (int s = 0; s < subs.Length; s++) fx.SetTriangles(subs[s], s, false);
-                        FlippedTriangles += flipped;
+                        if (zero > 0) fx.normals = n;
+                        FlippedTriangles += flipped + zero;
                     }
                 }
                 fixedMeshes[src] = fx;

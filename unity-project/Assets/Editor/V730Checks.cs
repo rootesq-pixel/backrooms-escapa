@@ -196,9 +196,11 @@ public static class V730Checks
             yield return 0.5f;
             r.Check(w.lighthouse.On, T + "el faro se enciende al acercarse");
             p.debugInput = true; p.debugMove = new Vector2(0f, 1f);
-            float t0 = Time.time + 6f, ymax = -9f; while (Time.time < t0) { yield return null; ymax = Mathf.Max(ymax, p.transform.position.y); }
+            // v7.3.0b3: basta con quedar de pie en el muelle en algún momento (seguir andando 6 s podía llevar al jugador al borde y al agua)
+            float t0 = Time.time + 6f, ymax = -9f; bool outOfWater = false;
+            while (Time.time < t0 && !outOfWater) { yield return null; ymax = Mathf.Max(ymax, p.transform.position.y); if (p.transform.position.y > OceanWorld.PierY - 0.2f && !p.IsSwimming && p.IsGrounded) outOfWater = true; }
             p.debugInput = false; p.debugMove = Vector2.zero;
-            r.Check(ymax > OceanWorld.PierY - 0.2f && !p.IsSwimming, T + "la escalera del muelle saca del agua (altura " + ymax.ToString("F2") + ")");
+            r.Check(outOfWater, T + "la escalera del muelle saca del agua (altura " + ymax.ToString("F2") + ")");
         }
 
         // ---- 8) la jaula no baja sin casco; casco (mantener clic); jaula baja; El Farolero; gruta; victoria
