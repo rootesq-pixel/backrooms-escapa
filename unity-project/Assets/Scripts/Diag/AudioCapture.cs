@@ -110,29 +110,20 @@ public class AudioBuildCheck : MonoBehaviour
     }
 
     AudioCapture cap;
-    readonly Dictionary<AudioSource, AudioSource> moved = new Dictionary<AudioSource, AudioSource>();
     void LateUpdate()
     {   // siempre con el filtro silenciador en el oyente activo (el oyente cambia al cargar niveles)
-        AudioListener al = Object.FindObjectOfType<AudioListener>();
+        AudioListener al = null;
+        foreach (AudioListener x in Object.FindObjectsOfType<AudioListener>()) if (x.enabled && x.gameObject.activeInHierarchy) { al = x; if (x.gameObject.name == "CapListener") break; }
         if (al == null) { AudioListener.pause = true; return; }
-        // (v7.3.0b) si el oyente comparte objeto con un AudioSource (PlayerCamera lleva el TapeHum), el filtro se aplicaría a esa fuente y
-        // no a la mezcla (salían ceros): se pasa la fuente a un hijo idéntico que sigue su volumen/tono cada frame
-        foreach (AudioSource src in al.GetComponents<AudioSource>())
+        // (v7.3.0b2) si el oyente comparte objeto con un AudioSource (PlayerCamera lleva el TapeHum), Unity engancha el filtro a esa
+        // fuente y no a la mezcla. En vez de mover la fuente, se mueve el OYENTE a un hijo vacío en la misma posición ("CapListener")
+        if (al.GetComponent<AudioSource>() != null && al.gameObject.name != "CapListener")
         {
-            if (!src.enabled && moved.ContainsKey(src)) continue;
-            if (!moved.TryGetValue(src, out AudioSource cp))
-            {
-                GameObject go = new GameObject(src.clip != null ? "Moved_" + src.clip.name : "Moved_src"); go.transform.SetParent(al.transform, false);
-                cp = go.AddComponent<AudioSource>();
-                cp.clip = src.clip; cp.loop = src.loop; cp.spatialBlend = src.spatialBlend; cp.outputAudioMixerGroup = src.outputAudioMixerGroup;
-                cp.bypassEffects = src.bypassEffects; cp.bypassListenerEffects = src.bypassListenerEffects; cp.priority = src.priority; cp.playOnAwake = false;
-                cp.rolloffMode = src.rolloffMode; cp.minDistance = src.minDistance; cp.maxDistance = src.maxDistance;
-                moved[src] = cp; bool pl = src.isPlaying; int ts = src.timeSamples;
-                src.enabled = false; if (pl) { cp.Play(); cp.timeSamples = ts; }
-            }
+            Transform ch = al.transform.Find("CapListener");
+            if (ch == null) { GameObject go = new GameObject("CapListener"); go.transform.SetParent(al.transform, false); ch = go.transform; }
+            AudioListener nl = ch.GetComponent<AudioListener>(); if (nl == null) nl = ch.gameObject.AddComponent<AudioListener>();
+            al.enabled = false; nl.enabled = true; al = nl;
         }
-        foreach (KeyValuePair<AudioSource, AudioSource> kv in moved)
-            if (kv.Key != null && kv.Value != null) { kv.Value.volume = kv.Key.volume; kv.Value.pitch = kv.Key.pitch; kv.Value.mute = kv.Key.mute; if (kv.Value.clip != kv.Key.clip) { kv.Value.clip = kv.Key.clip; kv.Value.Play(); } }
         AudioCapture c = al.GetComponent<AudioCapture>();
         if (c == null) { c = al.gameObject.AddComponent<AudioCapture>(); }
         c.SilenceOutput = true; cap = c;
