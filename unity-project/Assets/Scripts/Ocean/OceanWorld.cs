@@ -62,6 +62,7 @@ public class OceanWorld : MonoBehaviour
     private readonly List<Object> owned = new List<Object>();
     private System.Action<Object> track;
 
+    private Material plankM, ropeM;
     private Material wallM, floorM, roofM, trimM, woodM, pileM, rockM, sandM, metalM, whiteM, redM, darkM, glassM, clothM, caveM;
 
     public static OceanWorld Build(BackroomsGenerator gen, LevelConfig cfg, Transform levelRoot, int seed, System.Action<Object> track)
@@ -223,7 +224,10 @@ public class OceanWorld : MonoBehaviour
         roofM = OceanGeo.Mat("Field/house_roof_a", "Field/house_roof_n", new Color(0.52f, 0.54f, 0.56f), 0.15f, 1f, track);
         trimM = OceanGeo.Mat("Field/House/htrim_a", "Field/House/htrim_n", new Color(0.62f, 0.62f, 0.6f), 0.2f, 0.8f, track);
         woodM = OceanGeo.Mat("Field/house_floor_a", "Field/house_floor_n", new Color(0.46f, 0.42f, 0.37f), 0.25f, 1f, track);
-        pileM = OceanGeo.Mat("Field/Props/prop_pole_diff", "Field/Props/prop_pole_nor", new Color(0.5f, 0.48f, 0.44f), 0.2f, 1f, track);
+        // v7.3.0: pilotes y tablas del muelle con texturas procedurales propias (Resources/Ocean/Pier)
+        pileM = OceanGeo.PbrMat("Ocean/Pier/PierPost", Color.white, 0.8f, track);
+        plankM = OceanGeo.PbrMat("Ocean/Pier/PierPlank", Color.white, 0.8f, track);
+        ropeM = OceanGeo.PbrMat("Ocean/Pier/PierRope", Color.white, 0.7f, track);
         rockM = OceanGeo.Mat("Field/Props/FieldRock0_a", "Field/Props/FieldRock0_n", new Color(0.46f, 0.48f, 0.48f), 0.18f, 1f, track);
         sandM = OceanGeo.Mat("Field/ground_a", "Field/ground_n", new Color(0.34f, 0.36f, 0.34f), 0.05f, 0.7f, track);
         caveM = OceanGeo.Mat("Field/Props/FieldRock1_a", "Field/Props/FieldRock1_n", new Color(0.36f, 0.38f, 0.38f), 0.32f, 1f, track);
@@ -293,7 +297,7 @@ public class OceanWorld : MonoBehaviour
         for (int i = 0; i < 3; i++) for (int j = 0; j < 2; j++)
         {
             Vector3 p = new Vector3(12.8f + i * 2.2f, 0f, 29.0f + j * 2.5f);
-            OceanGeo.Tube(pb, 1, new Vector3(p.x, SeabedY(p.x, p.z) - 0.5f, p.z), new Vector3(p.x, -0.5f, p.z), 0.16f, 7, 3f);
+            OceanGeo.PostTube(pb, 1, new Vector3(p.x, SeabedY(p.x, p.z) - 0.5f, p.z), new Vector3(p.x, -0.5f, p.z), 0.16f, 12);
         }
         foreach (float px in new[] { 12.75f, 17.25f }) OceanGeo.Box(pb, 1, new Vector3(px - 0.07f, -0.3f, 31.45f), new Vector3(px + 0.07f, 2.4f, 31.6f), 0.6f);
         OceanGeo.Box(pb, 0, new Vector3(12.5f, 2.4f, z1 + t), new Vector3(17.5f, 2.52f, 31.9f), 1.2f);
@@ -301,7 +305,7 @@ public class OceanWorld : MonoBehaviour
         for (int i = 0; i < 4; i++) for (int j = 0; j < 3; j++)
         {
             Vector3 p = new Vector3(x0 + 0.3f + i * (x1 - x0 - 0.6f) / 3f, 0f, z0 + 0.3f + j * (z1 - z0 - 0.6f) / 2f);
-            OceanGeo.Tube(pb, 1, new Vector3(p.x, SeabedY(p.x, p.z) - 0.5f, p.z), new Vector3(p.x, f0 - 0.2f, p.z), 0.2f, 7, 3f);
+            OceanGeo.PostTube(pb, 1, new Vector3(p.x, SeabedY(p.x, p.z) - 0.5f, p.z), new Vector3(p.x, f0 - 0.2f, p.z), 0.2f, 12);
         }
         OceanGeo.Emit(pb, "Porch", hg.transform, new[] { woodM, pileM }, true, true, track);
         Obstacles.Add(new Obstacle { c = new Vector2(15f, 25f), r = 8.2f });
@@ -385,7 +389,7 @@ public class OceanWorld : MonoBehaviour
         {
             Vector3 w = T.TransformPoint(new Vector3(pp.x, 0f, pp.y));
             float sy = SeabedY(w.x, w.z) - 0.5f;
-            OceanGeo.Tube(pb, 1, new Vector3(pp.x, sy, pp.y), new Vector3(pp.x, f0 - 0.22f, pp.y), 0.19f, 7, 3f);
+            OceanGeo.PostTube(pb, 1, new Vector3(pp.x, sy, pp.y), new Vector3(pp.x, f0 - 0.22f, pp.y), 0.19f, 12);
         }
         // tirantes en cruz bajo el porche (le dan aspecto de palafito)
         OceanGeo.Tube(pb, 1, new Vector3(-hx, -3f, -hz), new Vector3(hx, f0 - 0.4f, -hz), 0.07f, 5, 2f);
@@ -453,31 +457,73 @@ public class OceanWorld : MonoBehaviour
 
         // muelle
         GameObject pg = new GameObject("Pier"); pg.transform.SetParent(root, false);
-        MeshBuilder pb = new MeshBuilder(3);   // 0 tablas, 1 pilotes, 2 metal
-        OceanGeo.Box(pb, 0, new Vector3(PierX0, PierY - 0.2f, PierZ0), new Vector3(PierX1 - 8.5f, PierY, PierZ1), 1.2f);
-        OceanGeo.Box(pb, 0, new Vector3(PierX1 - 8.5f, PierY - 0.2f, PierZ0 - 3f), new Vector3(PierX1, PierY, PierZ1 + 3f), 1.2f);   // plataforma del final
+        // v7.3.0: tablas sueltas de madera envejecida y mojada (con juntas y clavos) sobre largueros, pilotes con algas,
+        // musgo y percebes en la línea de flotación, herrajes de metal y cuerdas
+        MeshBuilder pb = new MeshBuilder(4);   // 0 tablas, 1 pilotes, 2 metal, 3 cuerda
+        System.Random prn = new System.Random(7302);
+        float xe = PierX1 - 8.5f;
+        foreach (float z in new[] { PierZ0 + 0.18f, (PierZ0 + PierZ1) * 0.5f, PierZ1 - 0.18f })
+            OceanGeo.Plank(pb, 0, new Vector3(PierX0, PierY - 0.2f, z - 0.075f), new Vector3(xe + 0.3f, PierY - 0.055f, z + 0.075f), 0, prn.Next(4), (float)prn.NextDouble());
+        for (float z = PierZ0 - 2.8f; z <= PierZ1 + 2.81f; z += 1.9f)
+            OceanGeo.Plank(pb, 0, new Vector3(xe, PierY - 0.2f, z - 0.075f), new Vector3(PierX1, PierY - 0.055f, z + 0.075f), 0, prn.Next(4), (float)prn.NextDouble());
+        for (float x = PierX0; x < PierX1 - 0.05f; x += 0.236f)
+        {
+            bool plat = x >= xe - 0.01f;
+            float x1 = Mathf.Min(x + 0.22f, PierX1), dy = -(float)prn.NextDouble() * 0.006f;
+            float z0 = plat ? PierZ0 - 3f : PierZ0, z1 = plat ? PierZ1 + 3f : PierZ1;
+            float jag = ((float)prn.NextDouble() - 0.5f) * 0.05f;
+            OceanGeo.Plank(pb, 0, new Vector3(x, PierY - 0.055f + dy, z0 + jag), new Vector3(x1, PierY + dy, z1 + jag * 0.5f), 2, prn.Next(4), (float)prn.NextDouble());
+        }
         for (float x = PierX0 + 1f; x < PierX1; x += 3.5f)
         {
-            bool wide = x > PierX1 - 8.5f;
+            bool wide = x > xe;
             foreach (float z in wide ? new[] { PierZ0 - 2.9f, PierZ0, PierZ1, PierZ1 + 2.9f } : new[] { PierZ0 + 0.1f, PierZ1 - 0.1f })
-                OceanGeo.Tube(pb, 1, new Vector3(x, SeabedY(x, z) - 0.5f, z), new Vector3(x, PierY - 0.2f, z), 0.17f, 7, 3f);
+            {
+                OceanGeo.PostTube(pb, 1, new Vector3(x, SeabedY(x, z) - 0.5f, z), new Vector3(x, PierY - 0.2f, z), 0.17f, 12);
+                // abrazadera de metal bajo el larguero
+                Vector3[] ring = new Vector3[14];
+                for (int k = 0; k < 14; k++) { float an = k * Mathf.PI * 2f / 14f; ring[k] = new Vector3(x + Mathf.Cos(an) * 0.18f, PierY - 0.3f, z + Mathf.Sin(an) * 0.18f); }
+                OceanGeo.RopePath(pb, 2, ring, true, 0.018f, 6);
+            }
         }
-        // barandillas (dejando el hueco de la escalera)
+        // barandillas (dejando el hueco de la escalera): postes de tabla con zapata de metal, pasamanos y cuerda en algunos postes
+        int pi = 0;
         for (int side = 0; side < 2; side++)
         {
             float z = side == 0 ? PierZ0 + 0.04f : PierZ1 - 0.04f;
-            float xe = PierX1 - 8.5f;
-            for (float x = PierX0 + 0.5f; x <= xe; x += 2f)
+            for (float x = PierX0 + 0.5f; x <= xe; x += 2f, pi++)
             {
                 if (side == 0 && Mathf.Abs(x - PierLadderTop.x) < 1f) continue;
-                OceanGeo.Box(pb, 0, new Vector3(x - 0.04f, PierY, z - 0.04f), new Vector3(x + 0.04f, PierY + 1.0f, z + 0.04f), 1f);
+                OceanGeo.Plank(pb, 0, new Vector3(x - 0.045f, PierY, z - 0.04f), new Vector3(x + 0.045f, PierY + 1.0f, z + 0.04f), 1, prn.Next(4), (float)prn.NextDouble());
+                OceanGeo.Box(pb, 2, new Vector3(x - 0.055f, PierY, z - 0.05f), new Vector3(x + 0.055f, PierY + 0.14f, z + 0.05f), 0.5f);
+                OceanGeo.Box(pb, 2, new Vector3(x - 0.05f, PierY + 0.9f, z - 0.048f), new Vector3(x + 0.05f, PierY + 0.95f, z + 0.048f), 0.5f);
+                if (pi % 5 == 2)
+                {   // cuerda enrollada en el poste
+                    for (int turn = 0; turn < 4; turn++)
+                    {
+                        Vector3[] ring = new Vector3[12];
+                        for (int k = 0; k < 12; k++) { float an = k * Mathf.PI * 2f / 12f; ring[k] = new Vector3(x + Mathf.Cos(an) * 0.068f, PierY + 0.55f + turn * 0.03f + k * 0.0025f, z + Mathf.Sin(an) * 0.062f); }
+                        OceanGeo.RopePath(pb, 3, ring, true, 0.014f, 6);
+                    }
+                }
             }
+            float zr = z;
             if (side == 0)
             {
-                OceanGeo.Box(pb, 0, new Vector3(PierX0 + 0.5f, PierY + 0.96f, z - 0.04f), new Vector3(PierLadderTop.x - 0.7f, PierY + 1.04f, z + 0.04f), 1f);
-                OceanGeo.Box(pb, 0, new Vector3(PierLadderTop.x + 0.7f, PierY + 0.96f, z - 0.04f), new Vector3(xe, PierY + 1.04f, z + 0.04f), 1f);
+                OceanGeo.Plank(pb, 0, new Vector3(PierX0 + 0.5f, PierY + 0.96f, zr - 0.04f), new Vector3(PierLadderTop.x - 0.7f, PierY + 1.04f, zr + 0.04f), 0, prn.Next(4), 0.2f);
+                OceanGeo.Plank(pb, 0, new Vector3(PierLadderTop.x + 0.7f, PierY + 0.96f, zr - 0.04f), new Vector3(xe, PierY + 1.04f, zr + 0.04f), 0, prn.Next(4), 0.6f);
             }
-            else OceanGeo.Box(pb, 0, new Vector3(PierX0 + 0.5f, PierY + 0.96f, z - 0.04f), new Vector3(xe, PierY + 1.04f, z + 0.04f), 1f);
+            else
+            {
+                OceanGeo.Plank(pb, 0, new Vector3(PierX0 + 0.5f, PierY + 0.96f, zr - 0.04f), new Vector3(xe, PierY + 1.04f, zr + 0.04f), 0, prn.Next(4), 0.4f);
+                // cuerda colgando entre postes (catenaria) bajo el pasamanos
+                for (float x = PierX0 + 0.5f; x + 2f <= xe; x += 4f)
+                {
+                    Vector3[] c = new Vector3[13];
+                    for (int k = 0; k <= 12; k++) { float t = k / 12f; c[k] = new Vector3(x + 2f * t, PierY + 0.62f - 0.18f * 4f * t * (1f - t), zr + 0.055f); }
+                    OceanGeo.RopePath(pb, 3, c, false, 0.016f, 6);
+                }
+            }
         }
         // grúa de la jaula: dos postes y una viga sobre la jaula
         Vector3 cg = CageTop;
@@ -486,7 +532,7 @@ public class OceanWorld : MonoBehaviour
         OceanGeo.Box(pb, 2, new Vector3(PierX1 - 0.5f, PierY + 5.6f, cg.z - 2.05f), new Vector3(PierX1 - 0.2f, PierY + 5.95f, cg.z + 2.05f), 1f);
         OceanGeo.Box(pb, 2, new Vector3(PierX1 - 0.5f, PierY + 5.6f, cg.z - 0.2f), new Vector3(cg.x + 0.3f, PierY + 5.95f, cg.z + 0.2f), 1f);
         OceanGeo.Box(pb, 2, new Vector3(PierX1 - 1.5f, PierY, cg.z + 2.1f), new Vector3(PierX1 - 0.4f, PierY + 1.1f, cg.z + 2.9f), 1f);   // torno
-        OceanGeo.Emit(pb, "Deck", pg.transform, new[] { woodM, pileM, metalM }, true, true, track);
+        OceanGeo.Emit(pb, "Deck", pg.transform, new[] { plankM, pileM, metalM, ropeM }, true, true, track);
         Ladders.Add(OceanLadder.Create(this, pg.transform, new Vector3(PierLadderTop.x, PierY, PierZ0 - 0.06f), PierLadderFoot, PierLadderTop, Vector3.forward, track));
         BoatStops.Add(new Vector3(PierLadderFoot.x, 0f, PierZ0 - 3.6f));
         Obstacles.Add(new Obstacle { c = new Vector2((PierX0 + PierX1) * 0.5f, 250f), r = 0f });   // el muelle se trata aparte (rectángulo)

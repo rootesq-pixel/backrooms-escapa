@@ -29,7 +29,7 @@ Cada nivel usa una criatura distinta. Los modelos originales se convirtieron a F
 |---|---|---|---|---|
 | PlayerHazmat | «Character Hazmat» | Quaternius | CC0 1.0 (dominio público) | https://poly.pizza/m/z3TSQYx1Kn (pack de personajes de Quaternius: https://quaternius.com) |
 
-Licencia comprobada el 11-oct-2026 en la página de Poly Pizza (campo «Licence: CC0 1.0», «Public Domain (CC0)»). Cambios: GLB convertido a FBX con Blender; eliminadas las armas y el resto de objetos; conservadas las animaciones Idle, Walk, Run y Duck; color del traje cambiado a amarillo hazmat con guantes/botas negros (materiales de Unity). La linterna de mano, el IK del brazo, las sombras y el efecto de empapado son procedurales.
+Licencia comprobada el 11-oct-2026 en la página de Poly Pizza (campo «Licence: CC0 1.0», «Public Domain (CC0)»). Cambios: GLB convertido a FBX con Blender; eliminadas las armas y el resto de objetos; conservadas las animaciones Idle, Walk, Run y Duck; color del traje cambiado a amarillo hazmat con guantes/botas negros (materiales de Unity). La linterna de mano, el IK del brazo, las sombras y el efecto de empapado son procedurales. **v7.3.0:** malla subdividida y desplegada (UV) en Blender 4.2 (`Tools/blender/suit_bake.py`, exportada como `HazmatHD.fbx`); texturas del traje propias, horneadas con Cycles a partir de materiales procedurales (pliegues, costuras, cremallera, cinturón, guantes de goma, botas con suela, suciedad y zona mojada abajo; albedo, normales y máscara metal/AO/suavidad). Las texturas son de dominio público (CC0); la malla sigue siendo CC0 de Quaternius.
 
 ## Ascensor de entrada (todos los niveles)
 
@@ -119,3 +119,6 @@ El roce de la hierba, el viento, el zumbido de radio de la salida, el terreno, l
 
 ## Cascos de buzo del nivel 7 (v7.3.0)
 - **Malla y texturas de los cascos** (latón envejecido: albedo, normales con remaches, pernos y costuras, máscara metal/oclusión/suavidad con cardenillo y aristas pulidas): trabajo propio; malla generada por código (`OceanHelmetRack.cs`) y texturas procedurales generadas con `Tools/textures/gen_helmet_tex.py` (numpy, semilla 7301). Dominio público (CC0).
+
+## Muelle del nivel 7 (v7.3.0)
+- **Tablas, pilotes y cuerdas del muelle** (madera envejecida y mojada con veta, grietas, nudos, juntas y clavos oxidados; pilotes con algas, musgo y percebes en la línea de flotación; cuerda trenzada; abrazaderas y zapatas de metal): trabajo propio; geometría por código (`OceanWorld.cs`, `OceanGeo.cs`) y texturas procedurales con `Tools/textures/gen_pier_tex.py` (numpy, semilla 7302). Dominio público (CC0).

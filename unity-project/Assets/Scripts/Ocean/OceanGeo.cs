@@ -116,6 +116,105 @@ public static class OceanGeo
         }
     }
 
+    // v7.3.0 (muelle realista): tabla/viga como caja con UV de la textura de tablas (2,4 m a lo largo, 4 variantes en v).
+    // axis: 0 = X, 1 = Y, 2 = Z (dirección de la longitud); row 0..3 elige la variante; uOff desplaza a lo largo
+    public static void Plank(MeshBuilder mb, int sub, Vector3 a, Vector3 b, int axis, int row, float uOff)
+    {
+        Vector3 mn = Vector3.Min(a, b), mx = Vector3.Max(a, b), c = (mn + mx) * 0.5f, e = (mx - mn) * 0.5f;
+        if (e.x < 0.0005f || e.y < 0.0005f || e.z < 0.0005f) return;
+        Vector3[] ax = { Vector3.right, Vector3.up, Vector3.forward };
+        int i1 = (axis + 1) % 3, i2 = (axis + 2) % 3;
+        int wi = e[i1] >= e[i2] ? i1 : i2, ti = wi == i1 ? i2 : i1;   // ancho y grosor
+        Vector3 L = ax[axis], Wd = ax[wi], T = ax[ti];
+        float len = 2.4f, w2 = e[wi] * 2f, t2 = e[ti] * 2f;
+        // caras anchas (normal = ±grosor)
+        foreach (float sg in new[] { 1f, -1f })
+        {
+            Vector3 n = T * sg, fc = c + n * e[ti];
+            Face(mb, sub, fc, n, L, e[axis], Wd, e[wi], len, w2 * 4f, uOff, row * 0.25f - Vector3.Dot(c - Wd * e[wi], Wd) / (w2 * 4f));
+            // cantos (normal = ±ancho)
+            Vector3 n2 = Wd * sg, fc2 = c + n2 * e[wi];
+            Face(mb, sub, fc2, n2, L, e[axis], T, e[ti], len, Mathf.Max(t2, 0.01f) * 4f, uOff + 0.31f, row * 0.25f - Vector3.Dot(c - T * e[ti], T) / (Mathf.Max(t2, 0.01f) * 4f));
+            // testas
+            Vector3 n3 = L * sg, fc3 = c + n3 * e[axis];
+            Face(mb, sub, fc3, n3, Wd, e[wi], T, e[ti], len, Mathf.Max(t2, 0.01f) * 4f, 0.7f, row * 0.25f - Vector3.Dot(c - T * e[ti], T) / (Mathf.Max(t2, 0.01f) * 4f));
+        }
+    }
+    static void Face(MeshBuilder mb, int sub, Vector3 fc, Vector3 n, Vector3 u, float hu, Vector3 v, float hv, float tu, float tv, float uo, float vo)
+    {
+        mb.AddQuad(sub, fc - u * hu - v * hv, fc + u * hu - v * hv, fc + u * hu + v * hv, fc - u * hu + v * hv, n, u, v, tu, tv, uo, vo);
+    }
+
+    // pilote redondo con normales suaves y v = altura del mundo (y = -4 m → 0, y = 1,6 m → 1): algas y musgo en la línea de flotación
+    public static void PostTube(MeshBuilder mb, int sub, Vector3 a, Vector3 b, float r, int sides)
+    {
+        Vector3 ax = b - a; float len = ax.magnitude; if (len < 0.001f) return; ax /= len;
+        Vector3 s = Mathf.Abs(ax.y) > 0.95f ? Vector3.right : Vector3.Cross(ax, Vector3.up).normalized;
+        Vector3 u = Vector3.Cross(s, ax).normalized;
+        float uo = Mathf.Repeat(a.x * 0.37f + a.z * 0.61f, 1f);
+        for (int i = 0; i < sides; i++)
+        {
+            float a0 = i * Mathf.PI * 2f / sides, a1 = (i + 1) * Mathf.PI * 2f / sides;
+            Vector3 n0 = s * Mathf.Cos(a0) + u * Mathf.Sin(a0), n1 = s * Mathf.Cos(a1) + u * Mathf.Sin(a1);
+            Vector3 t0 = -s * Mathf.Sin(a0) + u * Mathf.Cos(a0), t1 = -s * Mathf.Sin(a1) + u * Mathf.Cos(a1);
+            Vector3[] P = { a + n0 * r, b + n0 * r, b + n1 * r, a + n1 * r }; Vector3[] Nn = { n0, n0, n1, n1 }; Vector3[] Tt = { t0, t0, t1, t1 };
+            float[] U = { uo + i / (float)sides, uo + i / (float)sides, uo + (i + 1) / (float)sides, uo + (i + 1) / (float)sides };
+            int bi = mb.verts.Count;
+            for (int k = 0; k < 4; k++)
+            {
+                mb.verts.Add(P[k]); mb.normals.Add(Nn[k]);
+                float w = Vector3.Dot(Vector3.Cross(Nn[k], Tt[k]), ax) >= 0f ? 1f : -1f;
+                mb.tangents.Add(new Vector4(Tt[k].x, Tt[k].y, Tt[k].z, w));
+                mb.uvs.Add(new Vector2(U[k], (P[k].y + 4f) / 5.6f));
+            }
+            List<int> t = mb.tris[sub];
+            if (Vector3.Dot(Vector3.Cross(P[1] - P[0], P[2] - P[0]), n0 + n1) >= 0f) { t.Add(bi); t.Add(bi + 1); t.Add(bi + 2); t.Add(bi); t.Add(bi + 2); t.Add(bi + 3); }
+            else { t.Add(bi); t.Add(bi + 2); t.Add(bi + 1); t.Add(bi); t.Add(bi + 3); t.Add(bi + 2); }
+        }
+    }
+
+    // cuerda (o anillo de metal): tubo a lo largo de una polilínea; u alrededor, v = metros / 0,08
+    public static void RopePath(MeshBuilder mb, int sub, Vector3[] path, bool closed, float r, int segs)
+    {
+        int n = path.Length; if (n < 2) return;
+        float acc = 0f;
+        for (int k = 0; k < (closed ? n : n - 1); k++)
+        {
+            Vector3 p0 = path[k], p1 = path[(k + 1) % n];
+            Vector3 d = p1 - p0; float l = d.magnitude; if (l < 1e-4f) continue; d /= l;
+            Vector3 s = Mathf.Abs(Vector3.Dot(d, Vector3.up)) > 0.9f ? Vector3.right : Vector3.Cross(d, Vector3.up).normalized;
+            Vector3 u = Vector3.Cross(s, d);
+            for (int i = 0; i < segs; i++)
+            {
+                float a0 = i * Mathf.PI * 2f / segs, a1 = (i + 1) * Mathf.PI * 2f / segs;
+                Vector3 n0 = s * Mathf.Cos(a0) + u * Mathf.Sin(a0), n1 = s * Mathf.Cos(a1) + u * Mathf.Sin(a1);
+                Vector3 t0 = Vector3.Cross(d, n0), t1 = Vector3.Cross(d, n1);
+                Vector3[] P = { p0 + n0 * r, p1 + n0 * r * 1.0f, p1 + n1 * r, p0 + n1 * r }; Vector3[] Nn = { n0, n0, n1, n1 };
+                Vector2[] UV = { new Vector2(i / (float)segs, acc / 0.08f), new Vector2(i / (float)segs, (acc + l) / 0.08f), new Vector2((i + 1) / (float)segs, (acc + l) / 0.08f), new Vector2((i + 1) / (float)segs, acc / 0.08f) };
+                int bi = mb.verts.Count;
+                for (int q = 0; q < 4; q++) { mb.verts.Add(P[q]); mb.normals.Add(Nn[q]); Vector3 tt = q < 2 ? t0 : t1; mb.tangents.Add(new Vector4(tt.x, tt.y, tt.z, 1f)); mb.uvs.Add(UV[q]); }
+                List<int> t = mb.tris[sub];
+                if (Vector3.Dot(Vector3.Cross(P[1] - P[0], P[2] - P[0]), n0 + n1) >= 0f) { t.Add(bi); t.Add(bi + 1); t.Add(bi + 2); t.Add(bi); t.Add(bi + 2); t.Add(bi + 3); }
+                else { t.Add(bi); t.Add(bi + 2); t.Add(bi + 1); t.Add(bi); t.Add(bi + 3); t.Add(bi + 2); }
+            }
+            acc += l;
+        }
+    }
+
+    // material PBR propio (Resources: <base>_a, _n, _m con R metal, G oclusión, A suavidad)
+    public static Material PbrMat(string bas, Color tint, float occl, System.Action<Object> track)
+    {
+        Texture2D a = Resources.Load<Texture2D>(bas + "_a"), n = Resources.Load<Texture2D>(bas + "_n"), k = Resources.Load<Texture2D>(bas + "_m");
+        Material m = ProceduralAssets.CreateMaterial(tint, a, Vector2.one, 0.2f); track(m);
+        if (n != null && m.HasProperty("_BumpMap")) { m.SetTexture("_BumpMap", n); m.SetFloat("_BumpScale", 1f); m.EnableKeyword("_NORMALMAP"); }
+        if (k != null && m.HasProperty("_MetallicGlossMap"))
+        {
+            m.SetTexture("_MetallicGlossMap", k); m.SetFloat("_GlossMapScale", 1f); m.EnableKeyword("_METALLICGLOSSMAP");
+            m.SetTexture("_OcclusionMap", k); m.SetFloat("_OcclusionStrength", occl);
+        }
+        return m;
+    }
+
     // sólido de revolución alrededor de Y (faro): perfil de (radio, altura); caras hacia fuera (o hacia dentro si inward)
     public static void Lathe(MeshBuilder mb, int sub, Vector3 c, Vector2[] profile, int sides, float tileU, float tileV, bool inward)
     {

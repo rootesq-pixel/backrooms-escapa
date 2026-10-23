@@ -519,6 +519,7 @@ public class PlayerBody : MonoBehaviour
             Color c = matBaseColor[i];
             m.color = new Color(c.r * Mathf.Lerp(1f, 0.68f, Wet01), c.g * Mathf.Lerp(1f, 0.68f, Wet01), c.b * Mathf.Lerp(1f, 0.7f, Wet01), c.a);
             if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", Mathf.Lerp(matBaseGloss[i], 0.88f, Wet01));
+            if (m.IsKeywordEnabled("_METALLICGLOSSMAP")) m.SetFloat("_GlossMapScale", Mathf.Lerp(1f, 1.6f, Wet01));   // v7.3.0: traje con máscara de suavidad
         }
     }
 

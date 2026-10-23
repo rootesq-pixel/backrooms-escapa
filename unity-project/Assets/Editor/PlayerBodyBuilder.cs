@@ -6,7 +6,8 @@ using UnityEngine;
 //   Unity -batchmode -nographics -quit -projectPath <p> -executeMethod PlayerBodyBuilder.Build
 public static class PlayerBodyBuilder
 {
-    private const string Fbx = "Assets/Monsters/Models/Hazmat.fbx";
+    private const string Fbx = "Assets/Monsters/Models/HazmatHD.fbx";   // v7.3.0: subdividido y con UV (Tools/blender/suit_bake.py)
+    private const string Tex = "Assets/Monsters/Textures/Hazmat/";
     private const string Dir = "Assets/Resources/Player";
 
     public static void Build()
@@ -19,9 +20,12 @@ public static class PlayerBodyBuilder
         if (model == null) throw new System.Exception("Falta " + Fbx);
         Object[] assets = AssetDatabase.LoadAllAssetsAtPath(Fbx);
 
-        Material suit = Mat("Hazmat_Suit", new Color(0.93f, 0.74f, 0.06f), 0.30f);
-        Material rubber = Mat("Hazmat_Rubber", new Color(0.035f, 0.035f, 0.04f), 0.45f);
-        Material grey = Mat("Hazmat_Grey", new Color(0.12f, 0.12f, 0.13f), 0.35f);
+        // v7.3.0: traje realista: todos los materiales usan las texturas horneadas (albedo, normales, máscara metal/AO/suavidad)
+        Material suit = Mat("Hazmat_Suit", Color.white, 0.5f, "HazmatBody");
+        Material rubber = Mat("Hazmat_Rubber", Color.white, 0.5f, "HazmatBody");
+        Material grey = Mat("Hazmat_Grey", Color.white, 0.5f, "HazmatBody");
+        Material suitH = Mat("Hazmat_SuitHead", Color.white, 0.5f, "HazmatHead");
+        Material visor = Mat("Hazmat_Visor", Color.white, 0.5f, "HazmatHead");
 
         GameObject root = new GameObject("PlayerHazmat");
         GameObject inst = (GameObject)PrefabUtility.InstantiatePrefab(model);
@@ -33,7 +37,9 @@ public static class PlayerBodyBuilder
             for (int i = 0; i < src.Length; i++)
             {
                 string n = src[i] != null ? src[i].name : "";
-                dst[i] = n.StartsWith("Hazmat_Main") ? suit : n.StartsWith("Black") ? rubber : grey;
+                bool head = r.name.Contains("Head");
+                if (head) dst[i] = n.StartsWith("Visor") || n.StartsWith("Black") ? visor : suitH;
+                else dst[i] = n.StartsWith("Hazmat_Main") ? suit : n.StartsWith("Black") ? rubber : grey;
             }
             r.sharedMaterials = dst;
         }
@@ -76,7 +82,7 @@ public static class PlayerBodyBuilder
         return null;
     }
 
-    private static Material Mat(string name, Color c, float gloss)
+    private static Material Mat(string name, Color c, float gloss, string tex = null)
     {
         string p = "Assets/Monsters/Materials/" + name + ".mat";
         Material m = AssetDatabase.LoadAssetAtPath<Material>(p);
@@ -84,6 +90,15 @@ public static class PlayerBodyBuilder
         m.color = c;
         m.SetFloat("_Glossiness", gloss);
         m.SetFloat("_Metallic", 0f);
+        if (tex != null)
+        {
+            Texture2D a = AssetDatabase.LoadAssetAtPath<Texture2D>(Tex + tex + "_a.png"), n = AssetDatabase.LoadAssetAtPath<Texture2D>(Tex + tex + "_n.png"), k = AssetDatabase.LoadAssetAtPath<Texture2D>(Tex + tex + "_m.png");
+            if (a == null || n == null || k == null) throw new System.Exception("Faltan texturas " + tex);
+            m.mainTexture = a;
+            m.SetTexture("_BumpMap", n); m.SetFloat("_BumpScale", 1f); m.EnableKeyword("_NORMALMAP");
+            m.SetTexture("_MetallicGlossMap", k); m.SetFloat("_GlossMapScale", 1f); m.EnableKeyword("_METALLICGLOSSMAP");
+            m.SetTexture("_OcclusionMap", k); m.SetFloat("_OcclusionStrength", 0.7f);
+        }
         EditorUtility.SetDirty(m);
         return m;
     }
