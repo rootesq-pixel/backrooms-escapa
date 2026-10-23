@@ -329,6 +329,9 @@ public class OceanAngler : MonoBehaviour
         GameObject q = GameObject.CreatePrimitive(PrimitiveType.Quad); Object.DestroyImmediate(q.GetComponent<Collider>());
         q.transform.SetParent(lure, false); q.transform.localScale = Vector3.one * 1.1f; q.GetComponent<Renderer>().sharedMaterial = glowMat; q.AddComponent<OceanBillboard>();
         lureLight = lure.gameObject.AddComponent<Light>(); lureLight.type = LightType.Point; lureLight.color = new Color(0.5f, 1f, 0.85f); lureLight.range = 10f; lureLight.intensity = 2.1f; lureLight.renderMode = LightRenderMode.ForcePixel; lureLight.shadows = LightShadows.None;
+        ReflectionProbe rp = new GameObject("AnglerProbe").AddComponent<ReflectionProbe>();
+        rp.transform.SetParent(transform, false); rp.mode = UnityEngine.Rendering.ReflectionProbeMode.Custom; rp.customBakedTexture = OceanHelmetRack.DeepCube(track);
+        rp.boxProjection = false; rp.importance = 3; rp.intensity = 1f; rp.size = new Vector3(14f, 10f, 18f);
         NewModel = true;
     }
 

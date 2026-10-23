@@ -23,6 +23,13 @@ public class OceanHelmetRack : MonoBehaviour
         if (water == null) water = EnvCube("HelmetWater", new Color(0.22f, 0.38f, 0.42f), new Color(0.09f, 0.17f, 0.19f), new Color(0.03f, 0.04f, 0.05f), track);
         return water;
     }
+    static Cubemap deep;
+    // v7.3.0: fondo abisal casi negro (reflejos de la piel mojada del Farolero: brillo de baba, no metal)
+    public static Cubemap DeepCube(System.Action<Object> track)
+    {
+        if (deep == null) deep = EnvCube("AnglerDeep", new Color(0.05f, 0.085f, 0.095f), new Color(0.018f, 0.03f, 0.034f), new Color(0.006f, 0.008f, 0.01f), track);
+        return deep;
+    }
     static Cubemap EnvCube(string name, Color top, Color side, Color bottom, System.Action<Object> track)
     {
         const int N = 32;
