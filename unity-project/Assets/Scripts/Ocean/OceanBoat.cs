@@ -53,7 +53,11 @@ public class OceanBoat : MonoBehaviour
         {
             model = Object.Instantiate(src, hull, false); model.name = "Model";
             Material wm = OceanGeo.PbrMat("Ocean/Props/BoatWood", new Color(1f, 0.9f, 0.78f), 1f, track);   // v7.3.0b: tinte cálido que compensa el ambiente gris azulado del nivel 7 (el fondo seco se veía azulado)
-            if (wm.HasProperty("_GlossMapScale")) wm.SetFloat("_GlossMapScale", 0.18f);   // v7.3.0b: madera seca (antes 0,8: el fondo reflejaba el cielo en manchas azuladas)
+            if (wm.HasProperty("_GlossMapScale")) wm.SetFloat("_GlossMapScale", 0.18f);
+            // v7.3.0b3: sin reflejos del cielo ni brillos especulares en la madera (Standard está en «Always Included», las variantes existen):
+            // las tablas del fondo reflejaban el cielo gris claro en manchas blanco-azuladas que parecían agua
+            wm.SetFloat("_GlossyReflections", 0f); wm.EnableKeyword("_GLOSSYREFLECTIONS_OFF");
+            wm.SetFloat("_SpecularHighlights", 0f); wm.EnableKeyword("_SPECULARHIGHLIGHTS_OFF");   // v7.3.0b: madera seca (antes 0,8: el fondo reflejaba el cielo en manchas azuladas)
             Texture2D em = Resources.Load<Texture2D>("Ocean/Props/BoatWood_e");
             if (em != null) { wm.SetTexture("_EmissionMap", em); wm.SetColor("_EmissionColor", new Color(1f, 0.8f, 0.55f) * 1.6f); wm.EnableKeyword("_EMISSION"); wm.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None; }
             foreach (Renderer r in model.GetComponentsInChildren<Renderer>(true))

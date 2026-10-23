@@ -25,7 +25,7 @@ public class OceanAudio : MonoBehaviour
 
     private void OnDestroy() { if (Instance == this) Instance = null; Object.Destroy(deepClip); Object.Destroy(cueClip); }
 
-    public void FishWarning() { if (cue != null && !cue.isPlaying) cue.PlayOneShot(cueClip, 0.55f * AudioMix.Sfx); }
+    public void FishWarning() { if (cue != null && !cue.isPlaying) { cue.PlayOneShot(cueClip, 0.55f * AudioMix.Sfx); AudioEventLog.Note("FishWarning"); } }
 
     private void Update()
     {

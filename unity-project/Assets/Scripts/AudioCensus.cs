@@ -68,3 +68,12 @@ public static class AudioCensus
         return sb.ToString();
     }
 }
+
+// v7.3.0b3: registro de sonidos sueltos (PlayOneShot) para la grabación larga; solo activo en «-audiocheck»
+public static class AudioEventLog
+{
+    public static bool On;
+    static readonly System.Text.StringBuilder sb = new System.Text.StringBuilder();
+    public static void Note(string what) { if (!On) return; sb.Append(' ').Append(what).Append('@').Append(Time.realtimeSinceStartup.ToString("F0")); }
+    public static string Drain() { string r = sb.ToString(); sb.Length = 0; return r; }
+}

@@ -766,7 +766,7 @@ public class FirstPersonController : MonoBehaviour
             breathVol = AudioMix.BreathGain(need);
             exhaleGain = breathVol * 0.9f;
             breath.pitch = Mathf.Lerp(0.95f, 1.1f, need);
-            breath.PlayOneShot(breathIn, AudioMix.S(breathVol));
+            breath.PlayOneShot(breathIn, AudioMix.S(breathVol)); AudioEventLog.Note("BreathIn");
             BreathsPlayed++;
             exhaleAt = now + breathIn.length * 0.8f + 0.12f;
             breathEndTime = Mathf.Max(breathEndTime, now + breathIn.length);

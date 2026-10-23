@@ -118,6 +118,7 @@ public class AudioBuildCheck : MonoBehaviour
                 GameBootstrap gb = host.GetComponent<GameBootstrap>(); if (gb != null) { gb.useRandomSeed = false; gb.seed = 7110; }
             }
         if (made == null) return;
+        AudioEventLog.On = true;
         // «-audiolong <s quieto> <s andando>»: grabación larga por nivel (WAV 16 bits mono + línea temporal cada 10 s)
         // «-vhsoff»: prueba A/B sin el efecto VHS (imagen y audio de la cinta) SIN tocar las preferencias guardadas del jugador
         for (int i = 0; i < a.Length; i++)
@@ -156,6 +157,7 @@ public class AudioBuildCheck : MonoBehaviour
         VhsEffect v = Object.FindObjectOfType<VhsEffect>();
         if (v != null) sb.Append(" vhs=").Append(v.EffectEnabled ? "on" : "off").Append(" int=").Append(v.CurrentIntensity.ToString("F2")).Append(" glitch=").Append(v.Glitch.ToString("F2"));
         foreach (AudioLowPassFilter f in Object.FindObjectsOfType<AudioLowPassFilter>()) sb.Append(" lp=").Append(f.cutoffFrequency.ToString("F0"));
+        string ev = AudioEventLog.Drain(); if (ev.Length > 0) sb.Append(" sucesos:").Append(ev);
         for (int i = 0; i < pl.Count && i < 8; i++) sb.Append(" | ").Append(pl[i].clip).Append("@").Append(pl[i].owner.Length > 28 ? pl[i].owner.Substring(pl[i].owner.Length - 28) : pl[i].owner).Append("=").Append(pl[i].effective.ToString("0.0000"));
         return sb.ToString();
     }

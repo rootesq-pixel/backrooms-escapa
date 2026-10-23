@@ -368,7 +368,7 @@ public class MonsterVisual : MonoBehaviour
     {
         if (growlClip == null || voiceSrc == null) return;
         voiceSrc.pitch = profile.growlPitch * Random.Range(0.93f, 1.07f);
-        voiceSrc.PlayOneShot(growlClip, AudioMix.S(volume));
+        voiceSrc.PlayOneShot(growlClip, AudioMix.S(volume)); AudioEventLog.Note("Growl");
     }
 
     // Susto al ser atrapado: grito 2D fuerte

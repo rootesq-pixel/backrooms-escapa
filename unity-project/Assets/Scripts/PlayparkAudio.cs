@@ -83,7 +83,7 @@ public class PlayparkAudio : MonoBehaviour
             Vector2 dir = Random.insideUnitCircle.normalized * Random.Range(14f, 28f);
             laugh.transform.position = listener.position + new Vector3(dir.x, 1.0f, dir.y);
             laugh.pitch = Random.Range(0.92f, 1.06f);
-            laugh.PlayOneShot(laughs[Random.Range(0, laughs.Length)], AudioMix.Event(Random.Range(0.25f, 0.45f)));
+            laugh.PlayOneShot(laughs[Random.Range(0, laughs.Length)], AudioMix.Event(Random.Range(0.25f, 0.45f))); AudioEventLog.Note("Laugh");
             Laughs++;
         }
         Vector3 ear = listener.position + Vector3.up * 1.6f;

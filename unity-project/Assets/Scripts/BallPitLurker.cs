@@ -218,7 +218,7 @@ public class BallPitMonsterFx : MonoBehaviour
             Bursts++;
             BallPitField.SpawnBurst(new Vector3(p.x, BallPitField.SurfaceY(p), p.z), 70);
             burst.pitch = 1.25f; burst.PlayOneShot(BallPitField.RustleClip, 1.0f * GameSettings.SfxVolume);
-            burst.PlayOneShot(BallPitField.RustleClip, 0.8f * GameSettings.SfxVolume);
+            burst.PlayOneShot(BallPitField.RustleClip, 0.8f * GameSettings.SfxVolume); AudioEventLog.Note("LurkerRustle");
         }
         wasUnder = Under;
     }

@@ -67,6 +67,6 @@ public class AmbienceAudio : MonoBehaviour
         Vector2 dir = Random.insideUnitCircle.normalized * Random.Range(5f, 16f);
         events.transform.position = listener.position + new Vector3(dir.x, 0.5f, dir.y);
         events.pitch = Random.Range(0.8f, 1.2f);
-        events.PlayOneShot(eventClip, AudioMix.Event(Random.Range(0.4f, 0.9f)));
+        events.PlayOneShot(eventClip, AudioMix.Event(Random.Range(0.4f, 0.9f))); AudioEventLog.Note(eventClip.name);
     }
 }
