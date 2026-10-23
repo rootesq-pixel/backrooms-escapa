@@ -6,6 +6,43 @@ using UnityEngine.Rendering;
 // Todo en coordenadas locales del objeto que recibe la malla; UV proyectadas en metros (tile = metros por repetición).
 public static class OceanGeo
 {
+    // v7.3.0: triángulos cuya normal de vértice (suavizada) apunta al lado contrario de su cara (bordes finos de aletas,
+    // pliegues del casco). Se les dan vértices propios con la normal de la cara, sin tocar la forma ni las UV.
+    public static int SplitFlippedTriangles(Mesh m)
+    {
+        if (m == null || !m.isReadable) return 0;
+        Vector3[] v = m.vertices, n = m.normals; if (n == null || n.Length != v.Length) return 0;
+        var V = new System.Collections.Generic.List<Vector3>(v); var N = new System.Collections.Generic.List<Vector3>(n);
+        var UV = new System.Collections.Generic.List<Vector2>(); m.GetUVs(0, UV); bool hasUv = UV.Count == v.Length;
+        var Ta = new System.Collections.Generic.List<Vector4>(); m.GetTangents(Ta); bool hasT = Ta.Count == v.Length;
+        var C = new System.Collections.Generic.List<Color>(); m.GetColors(C); bool hasC = C.Count == v.Length;
+        int fixedTris = 0; int sub = m.subMeshCount; int[][] tris = new int[sub][];
+        for (int s = 0; s < sub; s++)
+        {
+            int[] t = m.GetTriangles(s);
+            for (int i = 0; i < t.Length; i += 3)
+            {
+                Vector3 g = Vector3.Cross(V[t[i + 1]] - V[t[i]], V[t[i + 2]] - V[t[i]]);
+                if (g.sqrMagnitude < 1e-16f) continue;
+                if (Vector3.Dot(g, N[t[i]]) > 0f && Vector3.Dot(g, N[t[i + 1]]) > 0f && Vector3.Dot(g, N[t[i + 2]]) > 0f) continue;
+                Vector3 gn = g.normalized; fixedTris++;
+                for (int k = 0; k < 3; k++)
+                {
+                    int o = t[i + k];
+                    if (Vector3.Dot(N[o], gn) > 0f) continue;
+                    V.Add(V[o]); N.Add(gn); if (hasUv) UV.Add(UV[o]); if (hasT) Ta.Add(Ta[o]); if (hasC) C.Add(C[o]);
+                    t[i + k] = V.Count - 1;
+                }
+            }
+            tris[s] = t;
+        }
+        if (fixedTris == 0) return 0;
+        if (V.Count > 65000) m.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+        m.SetVertices(V); m.SetNormals(N); if (hasUv) m.SetUVs(0, UV); if (hasT) m.SetTangents(Ta); if (hasC) m.SetColors(C);
+        for (int s = 0; s < sub; s++) m.SetTriangles(tris[s], s, false);
+        m.RecalculateBounds();
+        return fixedTris;
+    }
     public static void Box(MeshBuilder mb, int sub, Vector3 a, Vector3 b, float tile)
     {
         Vector3 mn = Vector3.Min(a, b), mx = Vector3.Max(a, b);

@@ -120,10 +120,11 @@ public static class V730Checks
             r.Check(p.SwimExhausted && slow < 1.4f, T + "agotado se nada más despacio (" + slow.ToString("F2") + " m/s)");
             p.debugMove = Vector2.zero; p.SetStaminaForTests(p.maxStamina);
             // aire: bajo el agua sin casco se gasta y en la superficie vuelve
+            float air0 = op.Air01;   // nadar agotado en la superficie puede haber gastado algo de aire (olas)
             p.debugCrouch = true;
             yield return 3.0f;
-            float air = op.Air01;
-            r.Check(p.IsUnderwater && air < 0.9f && air > 0.6f, T + "buceando sin casco se gasta el aire (" + air.ToString("F2") + ")");
+            float air = op.Air01, used = air0 - air;
+            r.Check(p.IsUnderwater && used > 0.08f && used < 0.45f && air > 0.05f, T + "buceando sin casco se gasta el aire (" + air0.ToString("F2") + " -> " + air.ToString("F2") + ")");
             p.debugCrouch = false;
             { IEnumerator wf3 = WaitFor(() => op.Air01 > air + 0.15f, 6f); while (wf3.MoveNext()) yield return wf3.Current; }
             r.Check(!p.IsUnderwater && op.Air01 > air + 0.1f, T + "en la superficie se recupera el aire (" + op.Air01.ToString("F2") + ", bajo el agua " + p.IsUnderwater + ", pies " + p.transform.position.y.ToString("F2") + ")");

@@ -451,9 +451,11 @@ public class FirstPersonController : MonoBehaviour
 
         // --- Agacharse (Ctrl mantener, C alternar). Nadando, Ctrl = bucear ---
         if (Input.GetKeyDown(KeyCode.C)) crouchToggled = !crouchToggled;
-        bool wantsCrouch = debugCrouch || reviveKneel || Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl) || crouchToggled;
-        CrouchHeld = wantsCrouch;
-        IsDiving = IsSwimming && (wantsCrouch || (freeSwim && IsUnderwater));
+        bool crouchInput = debugCrouch || Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl) || crouchToggled;
+        bool wantsCrouch = crouchInput || reviveKneel;
+        CrouchHeld = crouchInput;
+        // v7.3.0: reanimar nadando ya no te hace bucear (antes te hundías y se gastaba el aire mientras mantenías E)
+        IsDiving = IsSwimming && (crouchInput || (freeSwim && IsUnderwater));
         if (IsSwimming) wantsCrouch = false;
         if (wantsCrouch) IsCrouching = true;
         else if (IsCrouching && CanStandUp()) IsCrouching = false;

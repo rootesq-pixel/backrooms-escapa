@@ -296,6 +296,7 @@ public class OceanHelmetRack : MonoBehaviour
             for (int j = 0; j < extRings; j++) { int i0 = j * (Sides + 1), i1 = i0 + Sides; Vector3 a = (nr[i0] + nr[i1]).normalized; nr[i0] = a; nr[i1] = a; }
             m.normals = nr;
         }
+        OceanGeo.SplitFlippedTriangles(m);   // pliegues finos (remaches, borde del visor)
         m.RecalculateTangents(); m.RecalculateBounds(); track(m);
         if (inside == null) { inside = ProceduralAssets.CreateMaterial(new Color(0.015f, 0.017f, 0.018f), null, Vector2.one, 0.2f); }
         GameObject g = new GameObject("Mesh"); g.transform.SetParent(h.transform, false);
