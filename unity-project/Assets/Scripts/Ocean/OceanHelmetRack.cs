@@ -10,10 +10,45 @@ public class OceanHelmetRack : MonoBehaviour
     public readonly int[] owner = { -1, -1, -1, -1 };
     private readonly GameObject[] helmets = new GameObject[Count];
     public ReflectionProbe probe;
-    private System.Collections.IEnumerator Start()
+    // cubemaps de reflejo (una vez por nivel): arriba claro, lados con bandas suaves, abajo oscuro; sólo dependen
+    // de la cara y de la coordenada horizontal, así que no importa la orientación vertical de cada cara
+    static Cubemap air, water;
+    public static Cubemap AirCube(System.Action<Object> track)
     {
-        yield return null; yield return null;
-        if (probe != null) { probe.backgroundColor = RenderSettings.fogColor; probe.RenderProbe(); }
+        if (air == null) { Color f = RenderSettings.fogColor; air = EnvCube("HelmetAir", f * 1.25f + new Color(0.06f, 0.06f, 0.06f), f, new Color(0.07f, 0.12f, 0.14f), track); }
+        return air;
+    }
+    public static Cubemap WaterCube(System.Action<Object> track)
+    {
+        if (water == null) water = EnvCube("HelmetWater", new Color(0.07f, 0.14f, 0.16f), new Color(0.03f, 0.065f, 0.075f), new Color(0.01f, 0.015f, 0.02f), track);
+        return water;
+    }
+    static Cubemap EnvCube(string name, Color top, Color side, Color bottom, System.Action<Object> track)
+    {
+        const int N = 32;
+        Cubemap c = new Cubemap(N, TextureFormat.RGBA32, true) { name = name };
+        Color[] px = new Color[N * N];
+        foreach (CubemapFace face in new[] { CubemapFace.PositiveX, CubemapFace.NegativeX, CubemapFace.PositiveY, CubemapFace.NegativeY, CubemapFace.PositiveZ, CubemapFace.NegativeZ })
+        {
+            for (int y = 0; y < N; y++)
+                for (int x = 0; x < N; x++)
+                {
+                    Color col;
+                    if (face == CubemapFace.PositiveY) col = top;
+                    else if (face == CubemapFace.NegativeY) col = bottom;
+                    else
+                    {
+                        float t = x / (float)(N - 1) + (int)face * 0.37f;
+                        float band = 0.85f + 0.3f * Mathf.Pow(Mathf.Abs(Mathf.Sin(t * Mathf.PI * 1.5f)), 3f);
+                        col = side * band;
+                    }
+                    col.a = 1f; px[y * N + x] = col;
+                }
+            c.SetPixels(px, face);
+        }
+        c.Apply(true, true);
+        track(c);
+        return c;
     }
     public int TakenCount { get { int n = 0; foreach (int o in owner) if (o >= 0) n++; return n; } }
 
@@ -38,15 +73,12 @@ public class OceanHelmetRack : MonoBehaviour
             h.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
             r.helmets[i] = h;
         }
-        // sonda de reflejos del muelle (tiempo real, una vez al empezar): el latón y el vidrio reflejan la niebla, el faro y el muelle
+        // sonda de reflejos del muelle con un cubemap propio (cielo con niebla, horizonte y mar): funciona en todas las calidades
+        // y en compilaciones (sin cielo, el reflejo por defecto es negro y el latón metálico se veía negro)
         ReflectionProbe rp = new GameObject("HelmetProbe").AddComponent<ReflectionProbe>();
         rp.transform.SetParent(g.transform, false); rp.transform.localPosition = new Vector3(0f, 1.4f, 1.2f);
-        rp.mode = UnityEngine.Rendering.ReflectionProbeMode.Realtime; rp.refreshMode = UnityEngine.Rendering.ReflectionProbeRefreshMode.ViaScripting;
-        rp.timeSlicingMode = UnityEngine.Rendering.ReflectionProbeTimeSlicingMode.AllFacesAtOnce;
-        rp.resolution = 128; rp.hdr = true; rp.boxProjection = false; rp.importance = 2; rp.intensity = 1f;
-        rp.size = new Vector3(40f, 24f, 40f); rp.farClipPlane = 300f;
-        rp.cullingMask = ~((1 << 2) | (1 << 5) | (1 << 8));
-        rp.clearFlags = UnityEngine.Rendering.ReflectionProbeClearFlags.SolidColor; rp.backgroundColor = RenderSettings.fogColor;
+        rp.mode = UnityEngine.Rendering.ReflectionProbeMode.Custom; rp.customBakedTexture = AirCube(track);
+        rp.boxProjection = false; rp.importance = 2; rp.intensity = 1f; rp.size = new Vector3(40f, 24f, 40f);
         r.probe = rp;
         return r;
     }

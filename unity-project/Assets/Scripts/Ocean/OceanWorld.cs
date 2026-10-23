@@ -849,6 +849,8 @@ public class OceanWorld : MonoBehaviour
             }
             h.transform.position = basePos;
             h.transform.rotation = avatar.rotation;
+            HelmetReflection hrf = h.AddComponent<HelmetReflection>();
+            hrf.air = OceanHelmetRack.AirCube(track); hrf.water = OceanHelmetRack.WaterCube(track);
             float ls = Mathf.Max(0.0001f, head.lossyScale.x);
             h.transform.localScale = Vector3.one * (sc / ls);
         }
