@@ -183,6 +183,18 @@ public class ShotBuildCheck : MonoBehaviour
                 Debug.Log("[ShotBuildCheck] DIAG casco: sondas [" + pr + "] usage " + hmr.reflectionProbeUsage + " rtProbes " + QualitySettings.realtimeReflectionProbes + " q " + QualitySettings.GetQualityLevel() + " defRefl " + RenderSettings.defaultReflectionMode + " int " + RenderSettings.reflectionIntensity + " shader " + bm.shader.name + " kw [" + string.Join(",", bm.shaderKeywords) + "] albedo " + (bm.mainTexture != null ? bm.mainTexture.name : "null") + " mask " + (bm.GetTexture("_MetallicGlossMap") != null) + " amb " + RenderSettings.ambientLight);
             }
             yield return View(pw, mc, "l7_07b_casco_macro", hc + new Vector3(0.28f, 0.12f, -0.62f), hc, 45f, pier2);
+            if (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-helmetdiag") >= 0 && hmr != null)
+            {
+                Material bm = hmr.sharedMaterial;
+                Texture nt = bm.GetTexture("_BumpMap"), mt = bm.GetTexture("_MetallicGlossMap"), at = bm.mainTexture; Color c0 = bm.color;
+                bm.DisableKeyword("_NORMALMAP");
+                yield return View(pw, mc, "l7_07x_diag_sin_normal", hc + new Vector3(0.28f, 0.12f, -0.62f), hc, 45f, pier2);
+                bm.EnableKeyword("_NORMALMAP"); bm.DisableKeyword("_METALLICGLOSSMAP"); bm.SetTexture("_OcclusionMap", null); bm.SetFloat("_Metallic", 0f); bm.SetFloat("_Glossiness", 0.5f);
+                yield return View(pw, mc, "l7_07y_diag_sin_mascara", hc + new Vector3(0.28f, 0.12f, -0.62f), hc, 45f, pier2);
+                bm.DisableKeyword("_NORMALMAP"); bm.mainTexture = null; bm.color = new Color(0.78f, 0.58f, 0.3f);
+                yield return View(pw, mc, "l7_07z_diag_plano", hc + new Vector3(0.28f, 0.12f, -0.62f), hc, 45f, pier2);
+                bm.mainTexture = at; bm.color = c0; bm.EnableKeyword("_NORMALMAP"); bm.EnableKeyword("_METALLICGLOSSMAP"); bm.SetTexture("_OcclusionMap", mt);
+            }
         }
         RemotePlayer mate = RemotePlayer.CreateMimic(w.root, 98, "Compañero", StepKind.Metal); mate.ShowTag = false;
         Vector3 mp = new Vector3(40f, OceanWorld.PierY + 0.02f, 250f);
