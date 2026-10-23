@@ -248,6 +248,19 @@ public class OceanAngler : MonoBehaviour
     private System.Random rng;
     private Transform jaw, lure;
     private Light lureLight;
+    // v7.3.0: modelo nuevo (Resources/Ocean/Angler/Farolero.fbx) con mandíbula, ilicio y aletas animados
+    private Transform model, stalk, tailT, pecL, pecR;
+    private Quaternion jawRest, stalkRest, tailRest, pecLRest, pecRRest, modelRest;
+    private float jawSign = 1f, jawAngle = 20f;
+    private Material escaMat, glowMat;
+    private Color escaEm;
+    /// <summary>Ángulo fijo de la mandíbula para capturas y pruebas (&lt; 0 = animación normal).</summary>
+    public float PoseJaw = -1f;
+    /// <summary>Capturas: el Farolero se queda quieto (sin IA) pero sigue animado.</summary>
+    public bool FreezeMotion;
+    public bool NewModel { get; private set; }
+    /// <summary>"-oldangler" en la línea de comandos: aspecto anterior (solo para capturas de antes/después).</summary>
+    public static bool LegacyLook { get { return System.Environment.CommandLine.Contains("-oldangler"); } }
 
     public static OceanAngler Create(OceanWorld w, int seed, System.Action<Object> track)
     {
@@ -262,6 +275,72 @@ public class OceanAngler : MonoBehaviour
     }
 
     private void Build(System.Action<Object> track)
+    {
+        GameObject src = LegacyLook ? null : Resources.Load<GameObject>("Ocean/Angler/Farolero");
+        if (src == null) { BuildLegacy(track); return; }
+        GameObject inst = Object.Instantiate(src, transform, false); inst.name = "Model"; model = inst.transform;
+        foreach (Collider c in inst.GetComponentsInChildren<Collider>(true)) Object.Destroy(c);
+        Transform jw = FindDeep(model, "Jaw");
+        // el frente (boca) debe quedar en +z: si el FBX llega girado, se le da la vuelta
+        if (jw != null && jw.GetComponent<Renderer>() != null && transform.InverseTransformPoint(jw.GetComponent<Renderer>().bounds.center).z < 0f) model.localRotation = Quaternion.Euler(0f, 180f, 0f) * model.localRotation;
+        model.localPosition = new Vector3(0f, 0f, -0.6f);   // la mordida (2,6 m delante del centro) cae dentro de la boca
+        modelRest = model.localRotation;
+
+        Material skin = OceanGeo.PbrMat("Ocean/Angler/FaroleroSkin", Color.white, 0.85f, track);
+        if (skin.HasProperty("_GlossMapScale")) skin.SetFloat("_GlossMapScale", 1f);
+        Texture2D em = Resources.Load<Texture2D>("Ocean/Angler/FaroleroSkin_e");
+        if (em != null) { skin.SetTexture("_EmissionMap", em); skin.SetColor("_EmissionColor", new Color(0.5f, 1f, 0.85f) * 0.9f); skin.EnableKeyword("_EMISSION"); skin.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None; }
+        Material tooth = ProceduralAssets.CreateMaterial(new Color(0.8f, 0.84f, 0.76f, 0.62f), null, Vector2.one, 0.92f); track(tooth);   // agujas translúcidas
+        if (tooth.HasProperty("_Mode"))
+        {
+            tooth.SetFloat("_Mode", 3f); tooth.SetOverrideTag("RenderType", "Transparent");
+            tooth.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.One); tooth.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha); tooth.SetInt("_ZWrite", 0);
+            tooth.DisableKeyword("_ALPHATEST_ON"); tooth.DisableKeyword("_ALPHABLEND_ON"); tooth.EnableKeyword("_ALPHAPREMULTIPLY_ON");
+            tooth.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+        }
+        Material eye = ProceduralAssets.CreateMaterial(new Color(0.6f, 0.64f, 0.62f), null, Vector2.one, 0.82f); track(eye);   // ojos lechosos, muertos
+        ProceduralAssets.SetEmission(eye, new Color(0.035f, 0.045f, 0.045f));
+        escaMat = ProceduralAssets.CreateMaterial(new Color(0.35f, 0.6f, 0.52f), null, Vector2.one, 0.7f); track(escaMat);
+        escaEm = new Color(0.45f, 1f, 0.82f) * 1.6f; ProceduralAssets.SetEmission(escaMat, escaEm);
+        foreach (Renderer r in inst.GetComponentsInChildren<Renderer>(true))
+        {
+            string n = r.name;
+            Material m = n.StartsWith("Teeth") ? tooth : n.StartsWith("Eye") ? eye : n.StartsWith("Esca") ? escaMat : skin;
+            Material[] ms = new Material[Mathf.Max(1, r.sharedMaterials.Length)];
+            for (int i = 0; i < ms.Length; i++) ms[i] = m;
+            r.sharedMaterials = ms;
+            r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+        }
+        jaw = jw; if (jaw != null) { jawRest = jaw.localRotation; Renderer jr = jaw.GetComponent<Renderer>(); if (jr != null) jawSign = jaw.InverseTransformPoint(jr.bounds.center).z >= 0f ? 1f : -1f; }
+        stalk = FindDeep(model, "Stalk"); if (stalk != null) stalkRest = stalk.localRotation;
+        tailT = FindDeep(model, "Tail"); if (tailT != null) tailRest = tailT.localRotation;
+        pecL = FindDeep(model, "PecL"); if (pecL != null) pecLRest = pecL.localRotation;
+        pecR = FindDeep(model, "PecR"); if (pecR != null) pecRRest = pecR.localRotation;
+        foreach (string fn in new[] { "Tail", "Dorsal", "Anal", "PecL", "PecR" })
+        {
+            Transform f = FindDeep(model, fn);
+            if (f != null) OceanFinWave.Attach(f, fn == "Tail" ? 0.16f : 0.1f, fn == "Tail" ? 2.2f : 3.1f, track);
+        }
+        Transform esca = FindDeep(model, "Esca");
+        lure = new GameObject("Lure").transform; lure.SetParent(esca != null ? esca : transform, false);
+        if (esca == null) lure.localPosition = new Vector3(0f, 2.5f, 3.9f);
+        glowMat = OceanGeo.Unlit("Ocean/Glow", new Color(0.55f, 1f, 0.85f), track);
+        glowMat.SetFloat("_Intensity", 3.0f); glowMat.SetFloat("_Fog", 0.045f);
+        GameObject q = GameObject.CreatePrimitive(PrimitiveType.Quad); Object.DestroyImmediate(q.GetComponent<Collider>());
+        q.transform.SetParent(lure, false); q.transform.localScale = Vector3.one * 1.1f; q.GetComponent<Renderer>().sharedMaterial = glowMat; q.AddComponent<OceanBillboard>();
+        lureLight = lure.gameObject.AddComponent<Light>(); lureLight.type = LightType.Point; lureLight.color = new Color(0.5f, 1f, 0.85f); lureLight.range = 10f; lureLight.intensity = 2.1f; lureLight.renderMode = LightRenderMode.ForcePixel; lureLight.shadows = LightShadows.None;
+        NewModel = true;
+    }
+
+    static Transform FindDeep(Transform t, string n)
+    {
+        if (t.name == n) return t;
+        foreach (Transform c in t) { Transform r = FindDeep(c, n); if (r != null) return r; }
+        return null;
+    }
+
+    // aspecto anterior (respaldo si falta el modelo, y capturas de "antes")
+    private void BuildLegacy(System.Action<Object> track)
     {
         Material skin = ProceduralAssets.CreateMaterial(new Color(0.24f, 0.22f, 0.23f), Resources.Load<Texture2D>("Field/Props/FieldRock1_a"), new Vector2(2.5f, 2.5f), 0.38f); track(skin);   // piel casi negra y mate: la lámpara no la quema
         Material tooth = ProceduralAssets.CreateMaterial(new Color(0.78f, 0.76f, 0.68f), null, Vector2.one, 0.7f); track(tooth);
@@ -353,12 +432,40 @@ public class OceanAngler : MonoBehaviour
     private void Update()
     {
         float dt = Time.deltaTime;
-        if (OceanNet.Authority) Simulate(dt);
+        if (OceanNet.Authority && !FreezeMotion) Simulate(dt);
         Vector3 v = vel.sqrMagnitude > 0.01f ? vel : transform.forward;
         transform.position = OceanNet.Authority ? pos : Vector3.Lerp(transform.position, pos, 1f - Mathf.Exp(-6f * dt));
         transform.rotation = Quaternion.Slerp(transform.rotation, Quaternion.LookRotation(v.normalized), 1f - Mathf.Exp(-2f * dt));
-        if (jaw != null) jaw.localRotation = Quaternion.Euler((State == AState.Hunt ? 18f : 6f) + Mathf.Sin(Time.time * 0.8f) * 4f, 0f, 0f);
-        if (lureLight != null) lureLight.intensity = 1.4f + Mathf.Sin(Time.time * 2.1f) * 0.25f;
+        if (!NewModel)
+        {
+            if (jaw != null) jaw.localRotation = Quaternion.Euler((State == AState.Hunt ? 18f : 6f) + Mathf.Sin(Time.time * 0.8f) * 4f, 0f, 0f);
+            if (lureLight != null) lureLight.intensity = 1.4f + Mathf.Sin(Time.time * 2.1f) * 0.25f;
+            return;
+        }
+        Animate(dt);
+    }
+
+    // mandíbula que se abre y chasquea al cazar, ilicio que se mece, esca que late, aletas y cola que ondulan
+    private void Animate(float dt)
+    {
+        float tt = Time.time;
+        float want = State == AState.Hunt ? 36f + Mathf.Max(0f, Mathf.Sin(tt * 2.6f)) * 12f - Mathf.Max(0f, Mathf.Sin(tt * 2.6f + 2.2f)) * 18f
+                   : State == AState.Return ? 14f + Mathf.Sin(tt * 0.9f) * 4f
+                   : 22f + Mathf.Sin(tt * 0.55f) * 7f + Mathf.Max(0f, Mathf.Sin(tt * 0.21f)) * 8f;
+        if (PoseJaw >= 0f) want = PoseJaw;
+        jawAngle = PoseJaw >= 0f ? want : Mathf.Lerp(jawAngle, want, 1f - Mathf.Exp(-(State == AState.Hunt ? 9f : 3f) * dt));
+        if (jaw != null) jaw.localRotation = jawRest * Quaternion.Euler(jawSign * jawAngle, 0f, 0f);
+        if (stalk != null) stalk.localRotation = stalkRest * Quaternion.Euler(Mathf.Sin(tt * 1.3f) * 5f, Mathf.Sin(tt * 0.9f) * 7f, Mathf.Sin(tt * 1.1f + 1f) * 4f);
+        float sp = Mathf.Clamp01(vel.magnitude / Mathf.Max(0.1f, HuntSpeed));
+        float sw = tt * (1.6f + sp * 2.4f);
+        if (tailT != null) tailT.localRotation = tailRest * Quaternion.AngleAxis(Mathf.Sin(sw) * (10f + sp * 12f), Vector3.up);
+        if (pecL != null) pecL.localRotation = pecLRest * Quaternion.AngleAxis(Mathf.Sin(tt * 2.1f) * 12f, Vector3.forward);
+        if (pecR != null) pecR.localRotation = pecRRest * Quaternion.AngleAxis(-Mathf.Sin(tt * 2.1f + 0.4f) * 12f, Vector3.forward);
+        if (model != null) model.localRotation = Quaternion.Euler(Mathf.Sin(tt * 0.6f) * 1.2f, Mathf.Sin(sw + 1.5f) * (1.5f + sp * 2f), Mathf.Sin(tt * 0.45f) * 1.5f) * modelRest;
+        float pulse = 0.5f + 0.5f * Mathf.Sin(tt * 2.4f) * Mathf.Abs(Mathf.Sin(tt * 0.7f + 0.3f));
+        if (lureLight != null) lureLight.intensity = 1.3f + pulse * 1.0f;
+        if (escaMat != null) escaMat.SetColor("_EmissionColor", escaEm * (0.55f + pulse * 0.9f));
+        if (glowMat != null) glowMat.SetFloat("_Intensity", 2.2f + pulse * 1.8f);
     }
 
     private void Simulate(float dt)

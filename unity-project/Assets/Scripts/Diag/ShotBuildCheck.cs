@@ -261,6 +261,42 @@ public class ShotBuildCheck : MonoBehaviour
             RenderSettings.fogDensity = fd; RenderSettings.ambientLight = amb0; RenderSettings.ambientIntensity = ai0;
             Destroy(studio);
         }
+        // v7.3.0: El Farolero nuevo: plano heroico iluminado, boca abierta de frente y vista de juego con la lámpara del casco
+        {
+            OceanAngler an = w.angler;
+            Vector3 ap4 = new Vector3(66f, -44.8f, 257f), fw4 = new Vector3(-1f, 0f, 0.45f).normalized, sd4 = Vector3.Cross(Vector3.up, fw4).normalized;
+            an.FreezeMotion = true; an.PoseJaw = 32f;
+            an.ForceForTests(ap4, OceanAngler.AState.Patrol); an.transform.rotation = Quaternion.LookRotation(fw4);
+            float fd = RenderSettings.fogDensity; Color amb0 = RenderSettings.ambientLight; float ai0 = RenderSettings.ambientIntensity;
+            GameObject studio = new GameObject("ShotStudioLights2");
+            System.Func<string, Vector3, float, float, Color, Light> PL = (nm, pos, range, inten, c) =>
+            {
+                Light l = new GameObject(nm).AddComponent<Light>(); l.transform.SetParent(studio.transform); l.type = LightType.Point; l.range = range; l.intensity = inten; l.color = c;
+                l.renderMode = LightRenderMode.ForcePixel; l.transform.position = pos; return l;
+            };
+            Vector3 camH = ap4 + sd4 * 10.5f + fw4 * 0.8f + Vector3.up * 1.4f;
+            Light k1 = PL("Key", camH + Vector3.up * 3f + fw4 * 2.5f, 34f, 4.2f, new Color(0.75f, 0.88f, 0.95f));
+            PL("Rim", ap4 - sd4 * 5f + Vector3.up * 3.5f - fw4 * 2f, 18f, 2.4f, new Color(0.55f, 0.8f, 0.85f));
+            PL("Fill", ap4 + sd4 * 4f - Vector3.up * 2f - fw4 * 3f, 18f, 1.8f, new Color(0.9f, 0.85f, 0.75f));
+            PL("Key2", camH - Vector3.up * 2f + fw4 * 2f, 22f, 2.2f, new Color(0.8f, 0.85f, 0.85f));
+            RenderSettings.ambientLight = new Color(0.12f, 0.15f, 0.17f); RenderSettings.ambientIntensity = Mathf.Max(ai0, 1f);
+            RenderSettings.fogDensity = fd * 0.25f;
+            yield return View(pw, mc, "l7_18_farolero2_heroe", camH, ap4 + fw4 * 0.4f - Vector3.up * 0.3f, 52f, camH);
+            // boca abierta de frente, algo por debajo: agujas a contraluz de la esca
+            an.PoseJaw = 40f;
+            Vector3 camM = ap4 + fw4 * 8.6f - Vector3.up * 0.7f + sd4 * 0.8f;
+            k1.transform.position = camM + Vector3.up * 2.5f - fw4 * 1.0f; k1.intensity = 3.2f; k1.range = 20f;
+            yield return View(pw, mc, "l7_19_farolero2_boca", camM, ap4 + fw4 * 2.4f - Vector3.up * 0.7f, 50f, camM);
+            RenderSettings.fogDensity = fd; RenderSettings.ambientLight = amb0; RenderSettings.ambientIntensity = ai0;
+            Destroy(studio);
+            // en juego: sin luces de estudio, niebla normal, la lámpara del casco del jugador encendida
+            if (fl != null) fl.SetOn(true);
+            Vector3 me3 = new Vector3(60f, -47f, 252f), dirP = new Vector3(0.55f, 0f, 0.84f).normalized;
+            Vector3 ap5 = me3 + dirP * 8.2f + Vector3.up * 2.6f;
+            an.PoseJaw = 34f; an.ForceForTests(ap5, OceanAngler.AState.Hunt); an.transform.rotation = Quaternion.LookRotation(-dirP);
+            yield return View(pw, mc, "l7_20_farolero2_lampara", me3 + up, ap5 - dirP * 2.0f - Vector3.up * 0.4f, F, me3);
+            an.PoseJaw = -1f; an.FreezeMotion = false; an.ForceForTests(ap4, OceanAngler.AState.Patrol);
+        }
         w.angler.ForceForTests(new Vector3(95f, -40f, 280f), OceanAngler.AState.Patrol);
         Vector3 ts = OceanWorld.TunnelPath[2] + new Vector3(2f, -0.9f, 0f);
         yield return View(pw, mc, "l7_10_tunel_gruta", ts + up, OceanWorld.TunnelPath[4] + Vector3.up * 1.5f, F, ts);

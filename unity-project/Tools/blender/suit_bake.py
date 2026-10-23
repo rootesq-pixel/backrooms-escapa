@@ -4,6 +4,8 @@ import bpy, sys, os, math
 import numpy as np
 argv = sys.argv[sys.argv.index('--')+1:]
 FBX, OUT = argv[0], argv[1]
+SKIP_BAKE = os.environ.get('SUIT_SKIP_BAKE') == '1'
+HAND_K = float(os.environ.get('SUIT_HAND_K', '0.66'))   # v7.3.0: guantes a escala realista (antes enormes)
 os.makedirs(OUT, exist_ok=True)
 bpy.ops.wm.read_factory_settings(use_empty=True)
 bpy.ops.import_scene.fbx(filepath=FBX)
@@ -200,11 +202,13 @@ def bake_set(o, name, size):
     mask = np.zeros_like(a); mask[..., 0] = mt[..., 0]; mask[..., 1] = ao[..., 0]; mask[..., 2] = 0; mask[..., 3] = 1 - r[..., 0]
     save(mask, name + '_m', 'Non-Color')
     L('saved', name, 'albedo mean', alb[..., :3].mean(axis=(0, 1)), 'smooth', mask[..., 3].mean(), 'ao', mask[..., 1].mean())
-bake_set(body, 'HazmatBody', 2048)
-bake_set(head, 'HazmatHead', 1024)
+if not SKIP_BAKE:
+    bake_set(body, 'HazmatBody', 2048)
+    bake_set(head, 'HazmatHead', 1024)
 
 # ---- vista previa (procedural) delante y detrás
 try:
+    if SKIP_BAKE: raise Exception('skip')
     w = bpy.data.worlds.new('W'); sc.world = w; w.use_nodes = True; w.node_tree.nodes['Background'].inputs[0].default_value = (0.5, 0.52, 0.55, 1); w.node_tree.nodes['Background'].inputs[1].default_value = 0.8
     sun = bpy.data.objects.new('Sun', bpy.data.lights.new('Sun', 'SUN')); sc.collection.objects.link(sun); sun.rotation_euler = (math.radians(50), 0, math.radians(30)); sun.data.energy = 3
     cam = bpy.data.objects.new('Cam', bpy.data.cameras.new('Cam')); sc.collection.objects.link(cam); sc.camera = cam
@@ -215,6 +219,48 @@ try:
     bpy.data.objects.remove(sun); bpy.data.objects.remove(cam)
     L('preview ok')
 except Exception as e: L('preview fail', e)
+
+# ---- manos a escala realista: se encogen la malla del guante y los huesos de los dedos hacia la muñeca
+#      (después del despliegue UV y del horneado: UV y texturas del guante no cambian)
+def shrink_hands(k):
+    if abs(k - 1) < 1e-3: return
+    mw = arm.matrix_world; inv = mw.inverted()
+    bw = body.matrix_world; binv = bw.inverted()
+    for side in ('L', 'R'):
+        W = mw @ arm.data.bones['Middle1.' + side].head_local          # muñeca (cabeza común de los dedos)
+        E = mw @ arm.data.bones['LowerArm.' + side].head_local          # codo
+        ax = (W - E).normalized(); fl = (W - E).length
+        n = 0
+        for v in body.data.vertices:
+            p = bw @ v.co; t = (p - W).dot(ax)
+            if t < -0.30 * fl or (p - W - ax * t).length > 0.6: continue
+            w = min(1.0, max(0.0, (t + 0.30 * fl) / (0.30 * fl))); w = w * w * (3 - 2 * w)
+            f = 1 - (1 - k) * w
+            v.co = binv @ (W + (p - W) * f); n += 1
+        bpy.ops.object.select_all(action='DESELECT'); arm.select_set(True); bpy.context.view_layer.objects.active = arm
+        bpy.ops.object.mode_set(mode='EDIT')
+        for eb in arm.data.edit_bones:
+            if eb.name.endswith('.' + side) and any(eb.name.startswith(x) for x in ('Thumb', 'Index', 'Middle', 'Pinky', 'Ring')):
+                h = mw @ eb.head; tl = mw @ eb.tail
+                eb.head = inv @ (W + (h - W) * k); eb.tail = inv @ (W + (tl - W) * k)
+        bpy.ops.object.mode_set(mode='OBJECT')
+        # posiciones animadas de los dedos (relativas al reposo) a la misma escala
+        for a in bpy.data.actions:
+            for fc in a.fcurves:
+                if fc.data_path.endswith('.location') and ('.' + side + '"') in fc.data_path and any(x in fc.data_path for x in ('Thumb', 'Index', 'Middle', 'Pinky')):
+                    for kp in fc.keyframe_points: kp.co.y *= k; kp.handle_left.y *= k; kp.handle_right.y *= k
+        L('hand', side, 'verts', n, 'k', k, 'wrist', tuple(round(x, 3) for x in W))
+shrink_hands(HAND_K)
+if SKIP_BAKE:
+    try:
+        sc.cycles.samples = 16
+        w = bpy.data.worlds.new('W2'); sc.world = w; w.use_nodes = True; w.node_tree.nodes['Background'].inputs[0].default_value = (0.6, 0.62, 0.65, 1)
+        cam = bpy.data.objects.new('Cam', bpy.data.cameras.new('Cam')); sc.collection.objects.link(cam); sc.camera = cam
+        sc.render.resolution_x = 1200; sc.render.resolution_y = 800
+        cam.location = (0, -5.2, 1.3); cam.rotation_euler = (math.radians(90), 0, 0)
+        sc.render.filepath = os.path.join(OUT, 'preview_hands.png'); bpy.ops.render.render(write_still=True)
+        bpy.data.objects.remove(cam)
+    except Exception as e: L('preview hands fail', e)
 
 # ---- exportación (materiales sin nodos de imagen; Unity asigna los suyos)
 arm.data.pose_position = 'POSE'
