@@ -93,12 +93,11 @@ public class OceanHelmetRack : MonoBehaviour
         Texture2D n = Resources.Load<Texture2D>("Ocean/Helmet/HelmetBrass_n");
         Texture2D k = Resources.Load<Texture2D>("Ocean/Helmet/HelmetBrass_m");
         if (n != null && m.HasProperty("_BumpMap")) { m.SetTexture("_BumpMap", n); m.SetFloat("_BumpScale", 1f); m.EnableKeyword("_NORMALMAP"); }
-        if (k != null && m.HasProperty("_MetallicGlossMap"))
-        {
-            m.SetTexture("_MetallicGlossMap", k); m.SetFloat("_GlossMapScale", 1f); m.SetFloat("_SmoothnessTextureChannel", 0f); m.EnableKeyword("_METALLICGLOSSMAP");
-            m.SetTexture("_OcclusionMap", k); m.SetFloat("_OcclusionStrength", 1f);
-        }
-        else if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", 0.85f);
+        // v7.3.0: en el exe (D3D11) el latón 100 % metálico apenas recibe reflejo y se veía negro; latón empañado:
+        // poco metálico y suavidad media, con oclusión de la máscara (verdín y remaches siguen en albedo/normales)
+        if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", 0.2f);
+        if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", 0.5f);
+        if (k != null && m.HasProperty("_OcclusionMap")) { m.SetTexture("_OcclusionMap", k); m.SetFloat("_OcclusionStrength", 0.6f); }
         return m;
     }
     // vidrio de los ojos de buey: transparente (premultiplicado), casi negro y muy liso: deja ver el fondo oscuro y refleja
