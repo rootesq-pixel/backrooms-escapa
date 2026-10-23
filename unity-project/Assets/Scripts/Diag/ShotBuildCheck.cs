@@ -213,7 +213,7 @@ public class ShotBuildCheck : MonoBehaviour
             for (int k = 0; k < 6; k++) { m2.Push(mp, 250f, 0f, 0f, 0); yield return null; }
             Vector3 f2 = Quaternion.Euler(0f, 250f, 0f) * Vector3.forward, r2 = Quaternion.Euler(0f, 250f, 0f) * Vector3.right;
             yield return View(pw, mc, "l7_13_traje_cuerpo", mp + f2 * 3.4f + r2 * 0.3f + Vector3.up * 1.05f, mp + Vector3.up * 0.98f, 42f, pier2);
-            yield return View(pw, mc, "l7_14_traje_cerca", mp + f2 * 1.9f + r2 * 0.55f + Vector3.up * 1.5f, mp + Vector3.up * 1.25f, 42f, pier2);
+            yield return View(pw, mc, "l7_14_traje_cerca", mp + f2 * 2.3f + r2 * 0.6f + Vector3.up * 1.75f, mp + Vector3.up * 1.45f, 44f, pier2);
             Destroy(m2.gameObject);
             Vector3 st = new Vector3(44f, OceanWorld.PierY + 0.02f, 250f);
             pw.Teleport(st, 70f); pw.SetPitch(32f);
@@ -224,7 +224,9 @@ public class ShotBuildCheck : MonoBehaviour
             for (int k = 0; k < 20; k++) yield return null;
             Vector3 eye = mc.transform.position, look = eye + mc.transform.forward;
             Debug.Log("[ShotBuildCheck] manos: cuerpo " + (pbd != null) + " visible " + (pbd != null && pbd.Visible) + " antes " + show0);
+            int cm0 = mc.cullingMask; mc.cullingMask |= 1 << 8;   // capa del cuerpo propio (oculta en el resto de capturas)
             yield return View(pw, mc, "l7_15_manos_primera_persona", eye, look, 62f, st);
+            mc.cullingMask = cm0;
             if (show0 != null) fShow.SetValue(pbd, show0);
             pw.SetPitch(0f);
         }
@@ -245,15 +247,18 @@ public class ShotBuildCheck : MonoBehaviour
         {
             Vector3 ap3 = new Vector3(66f, -45.5f, 257f), fw = new Vector3(-1f, 0f, 0.45f).normalized, sideV = Vector3.Cross(Vector3.up, fw).normalized;
             w.angler.ForceForTests(ap3, OceanAngler.AState.Patrol); w.angler.transform.rotation = Quaternion.LookRotation(fw);
-            Vector3 camP3 = ap3 + sideV * 7.5f + fw * 2.2f + Vector3.up * 0.9f;
+            Vector3 camP3 = ap3 + sideV * 6.3f + fw * 1.8f + Vector3.up * 0.6f;
             float fd = RenderSettings.fogDensity;
             GameObject studio = new GameObject("ShotStudioLights");
             Light key = new GameObject("Key").AddComponent<Light>(); key.transform.SetParent(studio.transform); key.type = LightType.Point; key.range = 32f; key.intensity = 4.5f; key.color = new Color(0.75f, 0.88f, 0.95f); key.renderMode = LightRenderMode.ForcePixel; key.transform.position = camP3 + Vector3.up * 2.5f + fw * 1.5f;
             Light rim = new GameObject("Rim").AddComponent<Light>(); rim.transform.SetParent(studio.transform); rim.type = LightType.Point; rim.range = 16f; rim.intensity = 1.6f; rim.color = new Color(0.55f, 0.8f, 0.85f); rim.renderMode = LightRenderMode.ForcePixel; rim.transform.position = ap3 - sideV * 4f + Vector3.up * 3f;
             Light fill = new GameObject("Fill").AddComponent<Light>(); fill.transform.SetParent(studio.transform); fill.type = LightType.Point; fill.range = 16f; fill.intensity = 2.0f; fill.color = new Color(0.9f, 0.85f, 0.75f); fill.renderMode = LightRenderMode.ForcePixel; fill.transform.position = ap3 + sideV * 3f - Vector3.up * 1.5f - fw * 3f;
+            Light key2 = new GameObject("Key2").AddComponent<Light>(); key2.transform.SetParent(studio.transform); key2.type = LightType.Point; key2.range = 20f; key2.intensity = 2.6f; key2.color = new Color(0.8f, 0.85f, 0.85f); key2.renderMode = LightRenderMode.ForcePixel; key2.transform.position = camP3 - Vector3.up * 1.8f - fw * 1.0f;
+            Color amb0 = RenderSettings.ambientLight; float ai0 = RenderSettings.ambientIntensity;
+            RenderSettings.ambientLight = new Color(0.16f, 0.2f, 0.22f); RenderSettings.ambientIntensity = Mathf.Max(ai0, 1f);
             RenderSettings.fogDensity = fd * 0.3f;
             yield return View(pw, mc, "l7_12_farolero_iluminado", camP3, ap3 + fw * 0.6f, 55f, camP3);
-            RenderSettings.fogDensity = fd;
+            RenderSettings.fogDensity = fd; RenderSettings.ambientLight = amb0; RenderSettings.ambientIntensity = ai0;
             Destroy(studio);
         }
         w.angler.ForceForTests(new Vector3(95f, -40f, 280f), OceanAngler.AState.Patrol);
