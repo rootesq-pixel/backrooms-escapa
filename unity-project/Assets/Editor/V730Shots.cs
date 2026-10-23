@@ -33,8 +33,29 @@ public static class V730Shots
     static readonly System.Text.StringBuilder info = new System.Text.StringBuilder();
     static void Info(string s) { info.AppendLine(s); Directory.CreateDirectory(Dir); File.WriteAllText(Dir + "/info.txt", info.ToString()); Debug.Log("[V730Shots] " + s); }
 
+    static string Suffix { get { return System.Environment.GetEnvironmentVariable("V730_SUFFIX") ?? ""; } }
+    static bool PerfOn { get { return System.Environment.GetEnvironmentVariable("V730_PERF") == "1"; } }
+
+    // coste de render (mediana) a 1920x1080; con GPU real es una estimación del coste por fotograma del plano
+    static double PerfMs(Camera cam, int n)
+    {
+        RenderTexture rt = new RenderTexture(1920, 1080, 24); Texture2D px = new Texture2D(1, 1, TextureFormat.RGB24, false);
+        RenderTexture prev = cam.targetTexture; cam.targetTexture = rt;
+        System.Collections.Generic.List<double> ts = new System.Collections.Generic.List<double>();
+        for (int i = 0; i < n + 5; i++)
+        {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            cam.Render(); RenderTexture.active = rt; px.ReadPixels(new Rect(0, 0, 1, 1), 0, 0); px.Apply();
+            if (i >= 5) ts.Add(sw.Elapsed.TotalMilliseconds);
+        }
+        RenderTexture.active = null; cam.targetTexture = prev; Object.DestroyImmediate(rt); Object.DestroyImmediate(px);
+        ts.Sort(); return ts[ts.Count / 2];
+    }
+
     static void Shot(Camera cam, string name)
     {
+        name += Suffix;
+        if (PerfOn) Info("coste " + name + ": " + PerfMs(cam, 30).ToString("F2") + " ms por render 1920x1080 (mediana de 30)");
         RenderTexture rt = new RenderTexture(W, H, 24); RenderTexture prev = cam.targetTexture;
         var sw = System.Diagnostics.Stopwatch.StartNew();
         cam.targetTexture = rt; cam.Render(); RenderTexture.active = rt;
