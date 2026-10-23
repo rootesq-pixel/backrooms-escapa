@@ -547,7 +547,7 @@ public class UIManager : MonoBehaviour
             Button b = border.gameObject.AddComponent<Button>();
             b.transition = Selectable.Transition.None; b.targetGraphic = border;
             b.onClick.AddListener(() => { Click(); StartGame(lv); });
-            LevelCard card = border.gameObject.AddComponent<LevelCard>(); card.Level = i; card.Border = border; card.Title = nm; card.OnFocus = FocusLevel;
+            LevelCard card = border.gameObject.AddComponent<LevelCard>(); card.Level = i; card.Border = border; card.Title = nm; card.OnFocus = FocusLevel; card.SetBaseUv(th.uvRect);
             lvCards.Add(b);
         }
         // vista previa grande
@@ -620,7 +620,8 @@ public class UIManager : MonoBehaviour
         for (int i = 0; i < lvCards.Count; i++)
         {
             RawImage th = lvCards[i].transform.Find("Fill/Thumb").GetComponent<RawImage>();
-            Texture2D tx = LevelThumbs.Get(i); FitThumb(th, tx, 300f / 169f); th.color = tx != null ? Color.white : new Color(0.12f, 0.11f, 0.07f, 1f);
+            Texture2D tx = LevelThumbs.Get(i); FitThumb(th, tx, 290f / 163f); th.color = tx != null ? Color.white : new Color(0.12f, 0.11f, 0.07f, 1f);
+            LevelCard lc = lvCards[i].GetComponent<LevelCard>(); if (lc != null) lc.SetBaseUv(th.uvRect);
         }
         FocusLevel(lvFocus);
     }

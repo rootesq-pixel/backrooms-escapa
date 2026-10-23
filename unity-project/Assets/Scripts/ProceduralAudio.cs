@@ -106,22 +106,31 @@ public static class ProceduralAudio
         return Make("Drip", d);
     }
 
+    // v7.3.0b: crujido de madera/estructura. Antes el ruido se SUMABA (×3, más fuerte que el tono) y el evento sonaba como una racha
+    // de viento/siseo de 1,5 s (era el «siseo» intermitente de los niveles 0, 3, 6 y 7). Ahora el ruido solo modula el tono y el
+    // ritmo de los golpecitos (stick-slip), sin ruido añadido, y todo pasa por un paso bajo suave: suena a crujido, no a viento.
     public static AudioClip CreateCreak()
     {
         float len = 1.5f;
         int n = (int)(SR * len);
         float[] d = new float[n];
         float[] nz = LowNoise(n, 0.2f, 91, false);
-        float phase = 0f;
+        float phase = 0f, slip = 0f, lp = 0f;
+        float a = 1f - Mathf.Exp(-2f * Mathf.PI * 1400f / SR);
         for (int i = 0; i < n; i++)
         {
             float t = i / (float)SR;
-            float f = 75f + 55f * Mathf.Sin(2f * Mathf.PI * 1.1f * t) + 40f * (t / len) + nz[i] * 120f;
+            float f = 75f + 55f * Mathf.Sin(2f * Mathf.PI * 1.1f * t) + 40f * (t / len) + nz[i] * 35f;
             phase += f / SR;
             float saw = (phase - Mathf.Floor(phase)) * 2f - 1f;
+            // golpecitos irregulares (12-22 por segundo) que dan la textura de madera
+            slip += (12f + 10f * Mathf.Abs(nz[i])) / SR;
+            float tick = Mathf.Exp(-(slip - Mathf.Floor(slip)) * 9f);
             float env = Mathf.Sin(Mathf.PI * t / len);
             env *= env;
-            d[i] = (saw * 0.5f + Mathf.Sin(2f * Mathf.PI * phase) * 0.5f + nz[i] * 3f) * env;
+            float x = (saw * 0.55f + Mathf.Sin(2f * Mathf.PI * phase) * 0.45f) * (0.45f + 0.55f * tick) * env;
+            lp += a * (x - lp);
+            d[i] = lp;
         }
         Normalize(d, 0.6f);
         return Make("Creak", d);

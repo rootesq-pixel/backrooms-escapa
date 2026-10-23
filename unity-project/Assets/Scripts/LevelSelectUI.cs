@@ -41,9 +41,21 @@ public class LevelCard : MonoBehaviour, ISelectHandler, IDeselectHandler, IPoint
         k = Mathf.MoveTowards(k, target, Time.unscaledDeltaTime * 8f);
         Apply();
     }
+    RawImage thumb; Rect baseUv; bool uvInit;
+    public void SetBaseUv(Rect r) { baseUv = r; uvInit = true; }
     void Apply()
     {
-        transform.localScale = Vector3.one * (1f + 0.045f * k);
+        // v7.3.0b: sin escalar la tarjeta (al crecer se salía de la columna): el marco se vuelve dorado y la miniatura se aviva y
+        // hace un leve zoom DENTRO de su marco, así la rejilla queda siempre alineada
+        transform.localScale = Vector3.one;
+        if (thumb == null) { Transform t = transform.Find("Fill/Thumb"); if (t != null) thumb = t.GetComponent<RawImage>(); }
+        if (thumb != null && thumb.texture != null)
+        {
+            if (!uvInit) { baseUv = thumb.uvRect; uvInit = true; }
+            float z = 1f - 0.05f * k; Vector2 c = baseUv.center, sz = baseUv.size * z;
+            thumb.uvRect = new Rect(c - sz * 0.5f, sz);
+            thumb.color = Color.Lerp(new Color(0.82f, 0.82f, 0.82f, 1f), Color.white, k);
+        }
         if (Border != null) Border.color = Color.Lerp(UiStyle.Border, UiStyle.BorderHi, k);
         if (Title != null) Title.color = Color.Lerp(UiStyle.Text, UiStyle.Gold, k);
     }
