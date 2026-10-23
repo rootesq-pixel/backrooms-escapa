@@ -1120,11 +1120,13 @@ public class BackroomsGenerator : MonoBehaviour
             Texture2D on = Resources.Load<Texture2D>("Textures/L0/Troffer_on"), off = Resources.Load<Texture2D>("Textures/L0/Troffer_off");
             if (on != null && off != null)
             {
-                trofOn = Track(ProceduralAssets.CreateMaterial(new Color(0.85f, 0.85f, 0.85f), on, Vector2.one, 0.3f));
-                ProceduralAssets.SetEmission(trofOn, cfg.emissionColor * 1.35f);
+                trofOn = Track(ProceduralAssets.CreateMaterial(new Color(0.5f, 0.5f, 0.5f), on, Vector2.one, 0.3f));
+                // el difusor horneado ya lleva el tono; aquí solo un toque verdoso (antes el color plano saturado parecía neón)
+                Color e = cfg.emissionColor; float em = e.maxColorComponent;
+                ProceduralAssets.SetEmission(trofOn, Color.Lerp(new Color(em * 0.95f, em, em * 0.85f), e, 0.35f) * 1.05f);
                 if (trofOn.HasProperty("_EmissionMap")) trofOn.SetTexture("_EmissionMap", on);
                 trofOff = Track(ProceduralAssets.CreateMaterial(Color.white, off, Vector2.one, 0.3f));
-                trofFrame = Track(ProceduralAssets.CreateMaterial(new Color(0.66f, 0.65f, 0.60f), null, Vector2.one, 0.32f));
+                trofFrame = Track(ProceduralAssets.CreateMaterial(new Color(0.86f, 0.85f, 0.80f), null, Vector2.one, 0.35f));
                 emissive = trofOn; dead = trofOff;
             }
         }

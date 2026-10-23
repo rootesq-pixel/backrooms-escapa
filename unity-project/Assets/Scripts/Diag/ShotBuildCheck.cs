@@ -132,12 +132,21 @@ public class ShotBuildCheck : MonoBehaviour
                     if (dd < bd) { bd = dd; best = r; }
                 }
             if (best != null)
-            {
-                Vector3 cc = best.bounds.center; Vector3 sp = new Vector3(cc.x, gen.Root.TransformPoint(Vector3.zero).y + 1.55f, cc.z);
-                Vector3 off = Vector3.zero; foreach (Vector3 dir in new[] { Vector3.forward, Vector3.right, Vector3.back, Vector3.left })
-                    if (!Physics.Raycast(sp, dir, 3f, mask, QueryTriggerInteraction.Ignore)) { off = -dir * 0f + dir * 2.5f; break; }
-                Vector3 cp = sp + off; Vector3 tgt = sp + Vector3.up * 1.3f;
-                yield return View(pw, mc, "l0_05_techo_apagado", cp, tgt, 55f, new Vector3(cp.x, sp.y - 1.53f, cp.z));
+            {   // el panel apagado más cercano de ese lote, visto de cerca desde abajo y algo de lado, con la vista despejada
+                Vector3[] vv = best.GetComponent<MeshFilter>().sharedMesh.vertices; Transform bt = best.transform;
+                Vector3 tgt = bt.TransformPoint(vv[0]); float md = 1e9f;
+                for (int q = 0; q < vv.Length; q += 4)
+                {
+                    Vector3 c4 = bt.TransformPoint((vv[q] + vv[q + 1] + vv[q + 2] + vv[q + 3]) * 0.25f);
+                    float dd = (c4 - p2).sqrMagnitude; if (dd < md) { md = dd; tgt = c4; }
+                }
+                Vector3 cp = tgt + Vector3.down * 1.35f;
+                foreach (Vector3 dir in new[] { Vector3.forward, Vector3.right, Vector3.back, Vector3.left })
+                {
+                    Vector3 c2 = tgt + Vector3.down * 1.35f + dir * 1.5f;
+                    if (!Physics.Linecast(c2, tgt + Vector3.down * 0.05f, mask, QueryTriggerInteraction.Ignore) && !Physics.Linecast(tgt + Vector3.down * 1.35f, c2, mask, QueryTriggerInteraction.Ignore)) { cp = c2; break; }
+                }
+                yield return View(pw, mc, "l0_05_techo_apagado", cp, tgt, 55f, new Vector3(cp.x, gen.Root.TransformPoint(Vector3.zero).y + 0.02f, cp.z));
             }
         }
         if (vx != null) vx.intensityOverride = -1f;
