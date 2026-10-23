@@ -108,13 +108,37 @@ public class ShotBuildCheck : MonoBehaviour
         }
         cand.Sort((a, b) => b.s.CompareTo(a.s));
         var used = new System.Collections.Generic.List<Vector3>(); int n = 0;
+        Vector3 st2 = Vector3.zero, p2 = Vector3.zero, d2 = Vector3.forward;
         foreach (var c in cand)
         {
             bool far = true; foreach (Vector3 u in used) if ((u - c.p).sqrMagnitude < 100f) far = false;
             if (!far) continue; used.Add(c.p);
             Vector3 stand = new Vector3(c.p.x, gen.Root.TransformPoint(Vector3.zero).y + 0.02f, c.p.z);
             yield return View(pw, mc, "l0_0" + (n + 1) + "_sala_amarilla", c.p, c.p + c.d * 8f + Vector3.down * 0.75f, 58f, stand);
+            if (n == 1) { st2 = stand; p2 = c.p; d2 = c.d; }
             if (++n == 3) break;
+        }
+        // v7.3.0c: de cerca mirando hacia arriba a las pantallas (marco, difusor, tubos), desde la vista l0_02
+        if (n >= 2)
+        {
+            Info("nivel 0: pantallas empotradas " + (gen.UsesTroffers ? "sí" : "no") + ", lotes de marcos " + gen.TrofferFrameBatches + ", paneles de relleno " + gen.FillerPanelCount);
+            yield return View(pw, mc, "l0_04_techo_pantallas", p2, p2 + d2 * 3.2f + Vector3.up * 1.9f, 55f, st2);
+            // un grupo apagado: difusor gris sin luz con los tubos a contraluz
+            Transform fx = gen.Root.Find("Fixtures"); Renderer best = null; float bd = 1e9f;
+            if (fx != null) foreach (Transform ch in fx)
+                if (ch.name.StartsWith("PanelBatch_") && int.TryParse(ch.name.Substring(11), out int key) && key >= 500000)
+                {
+                    Renderer r = ch.GetComponent<Renderer>(); float dd = (r.bounds.center - p2).sqrMagnitude;
+                    if (dd < bd) { bd = dd; best = r; }
+                }
+            if (best != null)
+            {
+                Vector3 cc = best.bounds.center; Vector3 sp = new Vector3(cc.x, gen.Root.TransformPoint(Vector3.zero).y + 1.55f, cc.z);
+                Vector3 off = Vector3.zero; foreach (Vector3 dir in new[] { Vector3.forward, Vector3.right, Vector3.back, Vector3.left })
+                    if (!Physics.Raycast(sp, dir, 3f, mask, QueryTriggerInteraction.Ignore)) { off = -dir * 0f + dir * 2.5f; break; }
+                Vector3 cp = sp + off; Vector3 tgt = sp + Vector3.up * 1.3f;
+                yield return View(pw, mc, "l0_05_techo_apagado", cp, tgt, 55f, new Vector3(cp.x, sp.y - 1.53f, cp.z));
+            }
         }
         if (vx != null) vx.intensityOverride = -1f;
     }

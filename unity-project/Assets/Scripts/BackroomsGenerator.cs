@@ -1113,6 +1113,21 @@ public class BackroomsGenerator : MonoBehaviour
         ProceduralAssets.SetEmission(emissive, cfg.emissionColor);
         Material dead = Track(ProceduralAssets.CreateMaterial(new Color(0.45f, 0.45f, 0.42f), null, Vector2.one, 0.1f));
         Material housing = Track(ProceduralAssets.CreateMaterial(new Color(0.12f, 0.12f, 0.12f), null, Vector2.one, 0.4f));
+        // v7.3.0c nivel 0: pantallas empotradas realistas (marco de chapa + difusor prismático horneado, 4 variantes por atlas)
+        trofOn = trofOff = trofFrame = null; trofFrames.Clear();
+        if (cfg.troffers && cfg.fixture == FixtureKind.Panel && Garage == null)
+        {
+            Texture2D on = Resources.Load<Texture2D>("Textures/L0/Troffer_on"), off = Resources.Load<Texture2D>("Textures/L0/Troffer_off");
+            if (on != null && off != null)
+            {
+                trofOn = Track(ProceduralAssets.CreateMaterial(new Color(0.85f, 0.85f, 0.85f), on, Vector2.one, 0.3f));
+                ProceduralAssets.SetEmission(trofOn, cfg.emissionColor * 1.35f);
+                if (trofOn.HasProperty("_EmissionMap")) trofOn.SetTexture("_EmissionMap", on);
+                trofOff = Track(ProceduralAssets.CreateMaterial(Color.white, off, Vector2.one, 0.3f));
+                trofFrame = Track(ProceduralAssets.CreateMaterial(new Color(0.66f, 0.65f, 0.60f), null, Vector2.one, 0.32f));
+                emissive = trofOn; dead = trofOff;
+            }
+        }
 
         AudioClip buzzClip = null;
         if (cfg.buzzChance > 0f)
@@ -1154,6 +1169,7 @@ public class BackroomsGenerator : MonoBehaviour
                 int cst = ClusterState(x, z);
                 bool deadFix = rng.NextDouble() < cfg.deadChance || cst == 1;
                 nextForceFlicker = cst == 2; if (cst == 1) DarkClusterFixtures++;
+                curCell = new Vector2Int(x, z);
                 CreateCeilingFixture(lightsRoot, c, deadFix, emissive, dead, housing, rng, buzzClip);
                 nextForceFlicker = false;
                 fixtures++;
@@ -1176,6 +1192,14 @@ public class BackroomsGenerator : MonoBehaviour
                     int key = (x / 8) * 1000 + z / 8 + (ClusterState(x, z) == 1 ? 500000 : 0);   // grupo apagado: material de panel muerto
                     if (!groups.TryGetValue(key, out List<CombineInstance> l)) groups[key] = l = new List<CombineInstance>();
                     bool along = ((x * 7 + z * 3) & 1) == 0;
+                    if (trofOn != null)
+                    {
+                        int var = TrofferMesh.Variant(UsedSeed, x, z, out bool flip);
+                        Matrix4x4 pose = TrofferMesh.Pose(new Vector3(c.x, c.y + wh, c.z), along, flip);
+                        l.Add(new CombineInstance { mesh = TrofferMesh.Diffuser(var), transform = pose });
+                        AddTrofFrame(x, z, pose);
+                    }
+                    else
                     l.Add(new CombineInstance { mesh = cube, transform = Matrix4x4.TRS(new Vector3(c.x, c.y + wh - 0.03f, c.z), Quaternion.identity, along ? new Vector3(1.6f, 0.06f, 0.8f) : new Vector3(0.8f, 0.06f, 1.6f)) });
                     FillerPanelCount++;
                 }
@@ -1188,8 +1212,31 @@ public class BackroomsGenerator : MonoBehaviour
                 mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; mr.receiveShadows = false;
             }
         }
+        // marcos de chapa de todas las pantallas (con y sin luz), combinados por bloque de 8 × 8 celdas: 1 llamada por bloque
+        TrofferFrameBatches = 0;
+        foreach (var kv in trofFrames)
+        {
+            GameObject go = new GameObject("TrofferFrames_" + kv.Key); go.transform.SetParent(lightsRoot, false);
+            Mesh m = new Mesh { name = "TrofferFrames" }; m.CombineMeshes(kv.Value.ToArray(), true, true); m.RecalculateBounds(); Track(m);
+            go.AddComponent<MeshFilter>().sharedMesh = m;
+            MeshRenderer mr = go.AddComponent<MeshRenderer>(); mr.sharedMaterial = trofFrame;
+            mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; mr.receiveShadows = false;
+            TrofferFrameBatches++;
+        }
+        trofFrames.Clear();
         FixtureCount = fixtures;
         LiveFixtureCount = live;
+    }
+    private Material trofOn, trofOff, trofFrame;
+    private Vector2Int curCell;
+    private readonly Dictionary<int, List<CombineInstance>> trofFrames = new Dictionary<int, List<CombineInstance>>();
+    public int TrofferFrameBatches { get; private set; }
+    public bool UsesTroffers { get { return trofOn != null; } }
+    private void AddTrofFrame(int x, int z, Matrix4x4 pose)
+    {
+        int key = (x / 8) * 1000 + z / 8;
+        if (!trofFrames.TryGetValue(key, out List<CombineInstance> l)) trofFrames[key] = l = new List<CombineInstance>();
+        l.Add(new CombineInstance { mesh = TrofferMesh.Frame(), transform = pose });
     }
     public int FillerPanelCount { get; private set; }
     public int DarkClusterFixtures { get; private set; }
@@ -1253,6 +1300,19 @@ public class BackroomsGenerator : MonoBehaviour
             }
             default: // Panel
             {
+                if (trofOn != null)
+                {   // v7.3.0c: difusor horneado (variante por celda) + marco combinado aparte; el parpadeo sigue actuando sobre el difusor
+                    int var = TrofferMesh.Variant(UsedSeed, curCell.x, curCell.y, out bool flip);
+                    GameObject pg = new GameObject("Panel"); pg.transform.SetParent(fx.transform, false);
+                    pg.transform.localPosition = new Vector3(0f, wh, 0f); pg.transform.localRotation = Quaternion.Euler(0f, flip ? 180f : 0f, 0f);
+                    pg.AddComponent<MeshFilter>().sharedMesh = TrofferMesh.Diffuser(var);
+                    MeshRenderer pr = pg.AddComponent<MeshRenderer>(); pr.sharedMaterial = lensMat;
+                    pr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; pr.receiveShadows = false;
+                    lens = pr;
+                    AddTrofFrame(curCell.x, curCell.y, parent.localToWorldMatrix.inverse * fx.transform.localToWorldMatrix * Matrix4x4.TRS(new Vector3(0f, wh, 0f), Quaternion.Euler(0f, flip ? 180f : 0f, 0f), Vector3.one));
+                    lightY = wh - 0.5f;
+                    break;
+                }
                 lens = ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "Panel", fx.transform, new Vector3(0f, wh - 0.03f, 0f), new Vector3(1.6f, 0.06f, 0.8f), lensMat, false).GetComponent<Renderer>();
                 lightY = wh - 0.5f;
                 break;
@@ -1298,7 +1358,7 @@ public class BackroomsGenerator : MonoBehaviour
         FlickeringLight f = lightGo.AddComponent<FlickeringLight>();
         f.targetLight = l;
         f.emissiveRenderer = lens;
-        f.emissionColor = cfg.emissionColor;
+        f.emissionColor = (lens != null && lens.sharedMaterial != null && lens.sharedMaterial.HasProperty("_EmissionColor")) ? lens.sharedMaterial.GetColor("_EmissionColor") : cfg.emissionColor;
         f.baseIntensity = cfg.lightIntensity;
         f.flickerEnabled = rng.NextDouble() < cfg.flickerChance || nextForceFlicker;
         f.pulse = cfg.pulse;

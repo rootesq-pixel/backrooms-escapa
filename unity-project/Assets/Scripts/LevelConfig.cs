@@ -28,6 +28,7 @@ public class LevelConfig
     public float darkClusters = 0f;        // v7.3.0b: fracción de grupos de celdas con todos los paneles apagados (deterministas por semilla)
     public float flickerClusters = 0f;     // v7.3.0b: fracción de grupos donde los paneles parpadean
     public int clusterCells = 4;
+    public bool troffers = false;          // v7.3.0c: pantallas empotradas con marco y difusor horneado (nivel 0)
     public bool fillerPanels = false;      // v7.3.0: paneles emisivos sin luz en las celdas sin lámpara (mallas combinadas)
     public int decks = 1;                  // v7.0.4: aparcamiento con plantas a medio nivel unidas por rampas (GaragePlan)
     public float deckDrop = 1.6f;
@@ -169,7 +170,7 @@ public class LevelConfig
             // techo blanco de placas con paneles fluorescentes verdosos; luz plana, uniforme y algo enfermiza, con bruma lejana
             c.wallStyle = SurfaceStyle.WallpaperL0; c.floorStyle = SurfaceStyle.CarpetL0; c.ceilingStyle = SurfaceStyle.CeilingL0;
             c.ceilTileU = c.ceilTileV = 2.4f;
-            c.roomPillars = 0.8f; c.roomPillarSize = 0.66f; c.fillerPanels = true;
+            c.roomPillars = 0.8f; c.roomPillarSize = 0.66f; c.fillerPanels = true; c.troffers = true;
             // largo e «infinito»: 28 × 44 celdas (112 × 176 m; el campo mide 264 × 264 m), muchas salas grandes y bucles = visuales largas
             c.gridW = 28; c.gridH = 44; c.roomCount = 30; c.roomSize = new Vector2Int(3, 6); c.loopChance = 0.22f;
             c.batteries = 6; c.monsterCount = 1;
