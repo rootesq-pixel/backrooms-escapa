@@ -312,6 +312,11 @@ public static class V730Checks
                     foreach (Collider c in Physics.OverlapCapsule(f0 + Vector3.up * cc.radius, f0 + Vector3.up * (cc.height - cc.radius), cc.radius + 0.12f, ~0, QueryTriggerInteraction.Ignore)) if (c != cc) blk += "{cap:" + c.name + "}";
                     blk += " h=" + cc.height.ToString("F2") + " r=" + cc.radius.ToString("F2") + " vel=" + cc.velocity.ToString("F2") + " flags=" + cc.collisionFlags;
                 }
+                OceanPlayer opd = OceanPlayer.Local; OceanCage cgd = OceanWorld.Active != null ? OceanWorld.Active.cage : null;
+                blk += " input=" + p.InputEnabled + " blocked=" + UIManager.InputBlocked + " ui=" + (UIManager.Instance != null ? UIManager.Instance.Current.ToString() : "-") + " chat=" + MultiplayerUI.ChatTyping
+                    + " ts=" + Time.timeScale.ToString("F2") + " en=" + p.enabled + " cc=" + (cc != null && cc.enabled) + " dbg=" + p.debugInput + p.debugMove + " fs=" + p.FlatSpeed.ToString("F2")
+                    + " sta=" + p.Stamina01.ToString("F2") + " aire=" + (opd != null ? opd.Air01.ToString("F2") : "-") + " padre=" + (p.transform.parent != null ? p.transform.parent.name : "-")
+                    + " jaula=" + (cgd != null ? cgd.State + "@" + Vector3.Distance(cgd.transform.position, p.transform.position).ToString("F0") + "m" : "-") + " estado=" + gm.State;
                 blk += " swim=" + p.IsSwimming + " under=" + p.IsUnderwater + " free=" + p.freeSwim + " camfwd=" + p.cameraPivot.forward.ToString("F2") + " surf=" + WaterVolume.Active.SurfaceHeightAt(p.transform.position).ToString("F1");
                 r.Info(T + "atasco: objetivo " + route[k].ToString("F1") + ", choques: " + blk);
             }
