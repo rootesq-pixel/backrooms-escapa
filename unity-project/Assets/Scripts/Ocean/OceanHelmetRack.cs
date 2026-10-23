@@ -15,18 +15,18 @@ public class OceanHelmetRack : MonoBehaviour
     static Cubemap air, water;
     public static Cubemap AirCube(System.Action<Object> track)
     {
-        if (air == null) { Color f = RenderSettings.fogColor; air = EnvCube("HelmetAir", f * 1.25f + new Color(0.06f, 0.06f, 0.06f), f, new Color(0.07f, 0.12f, 0.14f), track); }
+        if (air == null) { Color f = RenderSettings.fogColor; Color sd = new Color(Mathf.Clamp(f.r * 1.7f, 0.6f, 1.1f), Mathf.Clamp(f.g * 1.7f, 0.6f, 1.1f), Mathf.Clamp(f.b * 1.7f, 0.6f, 1.1f)); air = EnvCube("HelmetAir", new Color(1.55f, 1.55f, 1.5f), sd, new Color(0.2f, 0.27f, 0.3f), track); }
         return air;
     }
     public static Cubemap WaterCube(System.Action<Object> track)
     {
-        if (water == null) water = EnvCube("HelmetWater", new Color(0.07f, 0.14f, 0.16f), new Color(0.03f, 0.065f, 0.075f), new Color(0.01f, 0.015f, 0.02f), track);
+        if (water == null) water = EnvCube("HelmetWater", new Color(0.22f, 0.38f, 0.42f), new Color(0.09f, 0.17f, 0.19f), new Color(0.03f, 0.04f, 0.05f), track);
         return water;
     }
     static Cubemap EnvCube(string name, Color top, Color side, Color bottom, System.Action<Object> track)
     {
         const int N = 32;
-        Cubemap c = new Cubemap(N, TextureFormat.RGBA32, true) { name = name };
+        Cubemap c = new Cubemap(N, SystemInfo.SupportsTextureFormat(TextureFormat.RGBAHalf) ? TextureFormat.RGBAHalf : TextureFormat.RGBA32, true) { name = name };
         Color[] px = new Color[N * N];
         foreach (CubemapFace face in new[] { CubemapFace.PositiveX, CubemapFace.NegativeX, CubemapFace.PositiveY, CubemapFace.NegativeY, CubemapFace.PositiveZ, CubemapFace.NegativeZ })
         {
