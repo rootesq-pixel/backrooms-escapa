@@ -23,6 +23,8 @@ public class LevelConfig
     public Vector2Int roomSize = new Vector2Int(2, 4);
     public int pillarEvery = 0;            // 0 = sin pilares; n = pilar cada n celdas (OpenPillars)
     public float pillarSize = 0.9f;
+    public float roomPillars = 0f;         // v7.3.0: prob. de pilar cuadrado empapelado en cada esquina libre de las salas abiertas (nivel 0)
+    public float roomPillarSize = 0.66f;
     public int decks = 1;                  // v7.0.4: aparcamiento con plantas a medio nivel unidas por rampas (GaragePlan)
     public float deckDrop = 1.6f;
     public int halls = 0;                  // v7.1.0: salas de juego fijas horneadas (Parque de bolas, BallpitSetPiece)
@@ -158,8 +160,23 @@ public class LevelConfig
         c.eventInterval = new Vector2(12f, 26f);
         c.step = StepKind.Carpet;
         c.doorColor = new Color(0.50f, 0.50f, 0.36f); c.doorFrameColor = new Color(0.33f, 0.28f, 0.16f);
+        if (!OldL0)
+        {   // v7.3.0: look fotorrealista de la foto clásica: papel amarillo de chevrones, pilares empapelados, moqueta beige húmeda,
+            // techo blanco de placas con paneles fluorescentes verdosos; luz plana, uniforme y algo enfermiza, con bruma lejana
+            c.wallStyle = SurfaceStyle.WallpaperL0; c.floorStyle = SurfaceStyle.CarpetL0; c.ceilingStyle = SurfaceStyle.CeilingL0;
+            c.ceilTileU = c.ceilTileV = 2.4f;
+            c.roomPillars = 0.8f; c.roomPillarSize = 0.66f; c.roomCount = 10;
+            c.ambient = new Color(0.30f, 0.285f, 0.13f);
+            c.fog = new Color(0.47f, 0.45f, 0.22f); c.fogDensity = 0.026f;
+            c.lightColor = new Color(1f, 0.97f, 0.70f); c.emissionColor = new Color(1.0f, 1.10f, 0.74f);
+            c.lightIntensity = 1.15f; c.lightRange = 8.5f; c.maxRealtimeLights = 12;
+            c.deadChance = 0.04f; c.flickerChance = 0.18f;
+            c.grade = 0.55f;
+        }
         return c;
     }
+    // v7.3.0: «-oldl0» en el ejecutable: el nivel 0 de antes (solo para las capturas «antes»)
+    public static bool OldL0 { get { return System.Environment.CommandLine.Contains("-oldl0"); } }
 
     // Nivel 1: aparcamiento de hormigón (rejilla abierta con pilares, oscuro)
     private static LevelConfig Level1()

@@ -202,6 +202,7 @@ public class MultiplayerUI : MonoBehaviour
         ui.Label(pgCode.transform, "El anfitrión ve el código de 6 caracteres en su sala (Multijugador → Alojar con código).", 24, TextAnchor.MiddleCenter, 0f, -300f, 1500f, 50f, Dim);
     }
 
+    private RawImage lobbyThumb; private GameObject lobbyThumbRoot;
     private void BuildLobby(Transform parent)
     {
         LobbyRoot = ui.Panel(parent, "Lobby", new Color(0f, 0f, 0f, 0.62f), true).gameObject;
@@ -212,6 +213,11 @@ public class MultiplayerUI : MonoBehaviour
         lobbyPlayers = UiStyle.Label(frame.transform, "", 32, TextAnchor.MiddleLeft, 0f, 0f, 840f, 250f, UiStyle.Text);
         lobbyPlayers.lineSpacing = 1.25f;   // 4 filas caben en el marco con cualquier fuente
         lobbyLevelText = ui.Label(r, "", 32, TextAnchor.MiddleCenter, 0f, -70f, 800f, 50f, UiStyle.Text);
+        // v7.3.0: miniatura del nivel elegido por el anfitrión
+        Image tf = UiStyle.Framed(r, "LobbyThumbFrame", 700f, 120f, 384f, 220f, new Color(0.04f, 0.035f, 0.02f, 0.9f), UiStyle.Border, 2f);
+        lobbyThumbRoot = tf.transform.parent.gameObject;
+        lobbyThumb = new GameObject("LobbyThumb", typeof(RectTransform)).AddComponent<RawImage>(); lobbyThumb.transform.SetParent(tf.transform, false);
+        lobbyThumb.raycastTarget = false; lobbyThumb.rectTransform.sizeDelta = new Vector2(380f, 214f);
         btnPrev = ui.MakeButton(r, "◄", -470f, -70f, 80f, 56f, () => { ui.PlayClick(); LobbyLevel = (LobbyLevel + LevelConfig.Count - 1) % LevelConfig.Count; lobbyDirty = true; }, 30);
         btnNext = ui.MakeButton(r, "►", 470f, -70f, 80f, 56f, () => { ui.PlayClick(); LobbyLevel = (LobbyLevel + 1) % LevelConfig.Count; lobbyDirty = true; }, 30);
         btnStart = ui.MakeButton(r, "Empezar", 0f, -170f, 520f, 74f, OnStartGame);
@@ -587,6 +593,7 @@ public class MultiplayerUI : MonoBehaviour
         if (host) RefreshLobbyAddr(ns);
         lobbyWait.gameObject.SetActive(!host);
         if (host) lobbyLevelText.text = "Nivel " + LobbyLevel + " — " + LevelConfig.Get(LobbyLevel).name;
+        if (lobbyThumbRoot != null) { lobbyThumbRoot.SetActive(host); if (host) UIManager.FitThumb(lobbyThumb, LevelThumbs.Get(LobbyLevel), 380f / 214f); }
         lobbyDirty = false;
     }
 

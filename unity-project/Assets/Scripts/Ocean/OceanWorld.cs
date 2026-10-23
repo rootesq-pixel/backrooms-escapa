@@ -158,40 +158,55 @@ public class OceanWorld : MonoBehaviour
         return Mathf.Max(baseY, iy);
     }
 
-    // v7.3.0: esculturas colosales del fondo (diseño propio, Blender procedural): una cabeza con los ojos cerrados medio enterrada,
-    // una mano que sale de la arena y un rostro tumbado mirando arriba. Alrededor de la fosa de la jaula (sureste, norte y sur), lejos de la
-    // ruta jaula → gruta (oeste) y de la zona de caza del Farolero.
+    // v7.3.0: esculturas colosales del fondo (diseño propio, Blender procedural): una cabeza de piedra tallada de 8 m (cejas, ojos hundidos,
+    // nariz larga, labios), una mano de 8,5 m que sale de la arena con nudillos y falanges, y otra cabeza de 6,5 m ladeada y enterrada hasta
+    // los labios. Alrededor de la fosa de la jaula (sureste, norte y sur), mirando hacia ella, lejos de la ruta jaula → gruta (oeste) y de la
+    // zona de caza del Farolero. Cada una tiene una luz cenital turbia muy suave y un contraluz frío para que su silueta se adivine en la niebla.
     public static readonly Vector3[] SculptSpots = { new Vector3(68f, 0f, 238.5f), new Vector3(58f, 0f, 265f), new Vector3(56f, 0f, 236f) };
+    public static readonly float[] SculptHeight = { 8.0f, 8.5f, 4.7f };
     private void BuildSculptures()
     {
         GameObject src = OceanFloat.OldProps ? null : Resources.Load<GameObject>("Ocean/Sculpt/Sculptures");
         if (src == null) return;
         Material m = OceanGeo.PbrMat("Ocean/Sculpt/SeaStone", Color.white, 1f, track);
-        if (m.HasProperty("_GlossMapScale")) m.SetFloat("_GlossMapScale", 0.7f);
+        if (m.HasProperty("_GlossMapScale")) m.SetFloat("_GlossMapScale", 0.6f);
         GameObject inst = Object.Instantiate(src); inst.name = "Sculptures"; inst.transform.SetParent(root, false);
         string[] names = { "Head", "Hand", "FaceUp" };
-        float[] yaw = { -42f, -178f, 30f }, tilt = { 13f, 10f, 6f }, sink = { 1.1f, 0.7f, 0.35f }, rad = { 4.6f, 3.4f, 3.6f }, cy = { 2.2f, 2.6f, 0.6f };
+        Vector3 cage = new Vector3(CageTop.x, 0f, CageTop.z);
+        float[] tilt = { 6f, 8f, 0f }, sink = { 1.4f, 0.9f, 0.25f };
         for (int i = 0; i < names.Length; i++)
         {
             Transform t = null; foreach (Transform c in inst.GetComponentsInChildren<Transform>(true)) if (c.name == names[i]) t = c;
             if (t == null) continue;
             Vector3 p = SculptSpots[i];
-            float sb = Mathf.Min(SeabedY(p.x - 1.5f, p.z), SeabedY(p.x + 1.5f, p.z), SeabedY(p.x, p.z - 1.5f), SeabedY(p.x, p.z + 1.5f));
+            Vector3 toC = cage - new Vector3(p.x, 0f, p.z); toC.y = 0f; toC.Normalize();
+            float yaw = Mathf.Atan2(toC.x, toC.z) * Mathf.Rad2Deg + (i == 1 ? 12f : 0f);   // la cara / la palma miran a la jaula
+            float sb = Mathf.Min(SeabedY(p.x - 2f, p.z), SeabedY(p.x + 2f, p.z), SeabedY(p.x, p.z - 2f), SeabedY(p.x, p.z + 2f));
             Quaternion r0 = t.rotation; Vector3 s0 = t.lossyScale;
             t.SetParent(root, false);
             t.position = new Vector3(p.x, sb - sink[i], p.z);
-            t.rotation = Quaternion.Euler(0f, yaw[i], 0f) * Quaternion.Euler(0f, 0f, tilt[i]) * r0;
+            t.rotation = Quaternion.Euler(0f, yaw, 0f) * Quaternion.Euler(0f, 0f, tilt[i]) * r0;
             t.localScale = s0;
             foreach (Renderer r in t.GetComponentsInChildren<Renderer>(true)) { r.sharedMaterial = m; r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On; }
             MeshFilter mf = t.GetComponent<MeshFilter>();
             if (mf != null && mf.sharedMesh != null) t.gameObject.AddComponent<MeshCollider>().sharedMesh = mf.sharedMesh;
-            DeepObstacles.Add(new Vector4(p.x, sb + cy[i], p.z, rad[i]));
+            float H = SculptHeight[i];
+            if (i == 0) { DeepObstacles.Add(new Vector4(p.x, sb + 1.8f, p.z, 3.4f)); DeepObstacles.Add(new Vector4(p.x, sb + 5.2f, p.z, 3.3f)); }
+            else if (i == 1) { DeepObstacles.Add(new Vector4(p.x, sb + 1.8f, p.z, 2.2f)); DeepObstacles.Add(new Vector4(p.x, sb + 5.6f, p.z, 2.8f)); }
+            else DeepObstacles.Add(new Vector4(p.x, sb + 1.6f, p.z, 3.4f));
+            // luz cenital turbia (como si bajase algo de claridad) y contraluz frío detrás, sin sombras: silueta legible desde lejos
+            Vector3 side = Vector3.Cross(Vector3.up, toC);
+            SculptLight("SculptMurk", new Vector3(p.x, sb + H + 3.5f, p.z) + toC * 2.5f, new Color(0.42f, 0.62f, 0.7f), H + 7f, 1.25f);
+            SculptLight("SculptRim", new Vector3(p.x, sb + H * 0.6f, p.z) - toC * 4.5f + side * 1.5f, new Color(0.3f, 0.7f, 0.75f), H + 4.5f, 0.95f);
         }
         if (Application.isPlaying) Object.Destroy(inst); else Object.DestroyImmediate(inst);
-        // luz fría y muy tenue sobre la cabeza: se adivina desde la jaula; la linterna y el Farolero hacen el resto
-        GameObject lg = new GameObject("SculptGlow"); lg.transform.SetParent(root, false);
-        Vector3 h = SculptSpots[0]; lg.transform.position = new Vector3(h.x - 2.5f, SeabedY(h.x, h.z) + 7.5f, h.z + 3f);
-        Light li = lg.AddComponent<Light>(); li.type = LightType.Point; li.color = new Color(0.45f, 0.75f, 0.8f); li.range = 11f; li.intensity = 0.55f; li.shadows = LightShadows.None;
+    }
+
+    private void SculptLight(string n, Vector3 pos, Color col, float range, float inten)
+    {
+        GameObject lg = new GameObject(n); lg.transform.SetParent(root, false); lg.transform.position = pos;
+        Light li = lg.AddComponent<Light>(); li.type = LightType.Point; li.color = col; li.range = range; li.intensity = inten;
+        li.shadows = LightShadows.None; li.renderMode = LightRenderMode.ForcePixel;
     }
 
     private void BuildSeabed()

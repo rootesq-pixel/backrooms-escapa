@@ -81,14 +81,21 @@ for sx, top_ in ((1, 1.02), (-1, 0.74)):     # cabecero (+X) y pie
         for i in range(16): bp.append(tube('Arch', pts[i], pts[i + 1], 0.014, 8))
 for sy in (-1, 1): bp.append(tube('SideRail', (-LX, sy * WY, 0.27), (LX, sy * WY, 0.27), 0.02))
 for k in range(5): bp.append(wbox('Slat', (-LX + 0.2 + k * 0.4 - 0.04, -WY, 0.27), (-LX + 0.2 + k * 0.4 + 0.04, WY, 0.29), 0.003, along=1))
-m = box('Mattress', (-0.98, -0.88, 0.29), (0.98, 0.88, 0.455), 0.05, 4, 2)
+m = box('Mattress', (-0.98, -0.88, 0.29), (0.98, 0.88, 0.455), 0.07, 6, 3)
 for v in m.data.vertices:
     fx = max(0.0, 1 - (v.co.x / 0.98) ** 2); fy = max(0.0, 1 - (v.co.y / 0.88) ** 2)
-    v.co.z -= 0.05 * fx * fy * (v.co.z > 0.38)                     # hundido
-    v.co += v.normal * 0.004 * mnoise.noise(v.co * 6)
+    up = max(0.0, (v.co.z - 0.29) / 0.165)
+    v.co.z -= 0.075 * fx * fy * up ** 2                                  # hundido blando del centro (cuerpo)
+    v.co.z += 0.018 * (fx ** 0.3) * (fy ** 0.3) * up                    # corona acolchada
+    bul = 0.022 * math.sin(math.pi * min(1.0, max(0.0, (v.co.z - 0.29) / 0.165)))
+    v.co.x += math.copysign(bul, v.co.x) * (abs(v.co.x) > 0.9); v.co.y += math.copysign(bul, v.co.y) * (abs(v.co.y) > 0.8)   # costados abombados
+    for tx in (-0.6, 0.0, 0.6):                                          # capitoné (hoyuelos)
+        for ty in (-0.45, 0.45):
+            v.co.z -= 0.012 * math.exp(-((v.co.x - tx) ** 2 + (v.co.y - ty) ** 2) / 0.004) * up
+    v.co += v.normal * 0.006 * mnoise.noise(v.co * 5)
 tag(m, R_MATT); bp.append(m)
 # almohada
-pl = box('Pillow', (0.62, -0.42, 0.43), (0.94, 0.4, 0.56), 0.05, 4, 2)
+pl = box('Pillow', (0.62, -0.42, 0.43), (0.94, 0.4, 0.56), 0.06, 6, 3)
 for v in pl.data.vertices:
     fx = max(0.0, 1 - ((v.co.x - 0.78) / 0.16) ** 2); fy = max(0.0, 1 - (v.co.y / 0.41) ** 2)
     v.co.z += (0.05 * fx * fy - 0.03) * (1 if v.co.z > 0.5 else -0.3)
@@ -96,33 +103,46 @@ for v in pl.data.vertices:
     v.co += v.normal * 0.006 * mnoise.noise(v.co * 9 + Vector((3, 0, 0)))
 tag(pl, R_PILLOW); bp.append(pl)
 # sábana: rejilla sobre el colchón que cae por los lados con arrugas; manta arrugada a los pies
-def drape(name, x0, x1, ext, ztop, region, amp, hang, seed, fold_k):
-    bm_ = bmesh.new(); nx, ny = 96, 84
-    vs = []
+def drape(name, x0, x1, ext, ztop, region, amp, hang, seed, fold_k, pad=0.04):
+    EX, EY = 0.98 + pad, 0.88 + pad
+    # (v7.3.0b) tela blanda: envuelve el canto con un radio, cuelga con pliegues verticales y arrugas en diagonal
+    bm_ = bmesh.new(); nx, ny = 120, 104
+    R = 0.07; vs = []
+    def wrap(o):
+        if o <= 0: return 0.0, 0.0
+        if o < R * math.pi / 2: return R * math.sin(o / R), R * (1 - math.cos(o / R))
+        return R + (o - R * math.pi / 2) * 0.06, R + (o - R * math.pi / 2)
     for j in range(ny + 1):
         row = []
         for i in range(nx + 1):
             x = x0 + (x1 - x0) * i / nx; y = -ext + 2 * ext * j / ny
-            ox = max(0.0, x - 0.98, -0.98 - x); oy = max(0.0, abs(y) - 0.88)
-            z = ztop - 0.02 * max(0.0, 1 - (x / 0.98) ** 2) * max(0.0, 1 - (y / 0.88) ** 2) * 2
-            xx, yy = x, y
-            if oy > 0: z -= oy * 1.0; yy = math.copysign(0.88 + 0.03 + oy * 0.1, y)       # cae por el lateral
-            if ox > 0: z -= ox * 1.0; xx = math.copysign(0.98 + 0.03 + ox * 0.1, x)
-            z = max(z, hang)
+            ox = max(0.0, x - EX + R, -EX + R - x); oy = max(0.0, abs(y) - EY + R)
+            fx = max(0.0, 1 - (x / 0.98) ** 2); fy = max(0.0, 1 - (y / 0.88) ** 2)
+            z = ztop - 0.07 * fx * fy + 0.012 * (fx ** 0.3) * (fy ** 0.3)
+            hx, dx = wrap(ox); hy, dy = wrap(oy)
+            xx = math.copysign(EX - R + hx, x) if ox > 0 else x
+            yy = math.copysign(EY - R + hy, y) if oy > 0 else y
+            z -= max(dx, dy)
             q = Vector((x * fold_k, y * fold_k, seed))
-            w = amp * (mnoise.noise(q) + 0.5 * mnoise.noise(q * 2.7) + 0.25 * mnoise.noise(q * 6.1))
-            w += amp * 0.8 * math.sin(x * 9 + y * 4 + 2 * mnoise.noise(q * 0.5)) * (0.5 + 0.5 * mnoise.noise(q * 0.7))
-            if oy > 0 or ox > 0: w *= 1.6
-            row.append(bm_.verts.new((xx + (w * 0.4 if ox > 0 else 0), yy + (w * 0.4 if oy > 0 else 0), z + (w if ox == 0 and oy == 0 else 0))))
+            w = amp * 0.6 + amp * (mnoise.noise(q) + 0.5 * mnoise.noise(q * 2.3) + 0.3 * mnoise.noise(q * 5.7))
+            # arrugas en diagonal que nacen de la zona hundida
+            w += amp * 0.9 * math.sin(x * 11 + y * 6 + 2.5 * mnoise.noise(q * 0.4)) * max(0.0, mnoise.noise(q * 0.6) + 0.2)
+            drop = max(dx, dy)
+            # pliegues verticales al colgar (crecen al bajar)
+            hangw = 0.028 * min(1.0, drop / 0.12) * (1.0 + math.sin((x if oy > 0 else y) * 16 + 3 * mnoise.noise(q * 0.3)) + 0.4 * mnoise.noise(q * 1.7))
+            z = max(z, hang + 0.01 * mnoise.noise(q * 3))
+            nzx = math.copysign(1, x) if ox > 0 else 0; nzy = math.copysign(1, y) if oy > 0 else 0
+            row.append(bm_.verts.new((xx + nzx * (hangw + w * 0.3), yy + nzy * (hangw + w * 0.3), z + (w if drop < 0.02 else w * 0.3))))
         vs.append(row)
     for j in range(ny):
         for i in range(nx): bm_.faces.new((vs[j][i], vs[j][i + 1], vs[j + 1][i + 1], vs[j + 1][i]))
     o = obj_from_bm(name, bm_)
-    s = o.modifiers.new('so', 'SOLIDIFY'); s.thickness = 0.008; s.offset = 1.0
-    sm = o.modifiers.new('sm', 'SMOOTH'); sm.iterations = 1; apply_mods(o)
+    sm = o.modifiers.new('sm', 'SMOOTH'); sm.iterations = 3; sm.factor = 0.6
+    s_ = o.modifiers.new('so', 'SOLIDIFY'); s_.thickness = 0.008; s_.offset = 1.0
+    apply_mods(o)
     return tag(o, region)
-bp.append(drape('Sheet', -1.16, 0.66, 1.12, 0.468, R_SHEET, 0.034, 0.1, 1.3, 5.0))
-bp.append(drape('Blanket', -1.18, -0.3, 1.14, 0.50, R_BLANKET, 0.04, 0.06, 5.7, 3.6))
+bp.append(drape('Sheet', -1.24, 0.66, 1.2, 0.478, R_SHEET, 0.026, 0.1, 1.3, 4.0, 0.04))
+bp.append(drape('Blanket', -1.28, -0.3, 1.24, 0.53, R_BLANKET, 0.03, 0.06, 5.7, 3.2, 0.085))
 for o in bp: smooth(o, 45)
 bed = join(bp, 'Bed'); smooth(bed, 45)
 objs = [table, chair, bed]

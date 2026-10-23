@@ -14,7 +14,7 @@ import numpy as np, cv2
 
 STRENGTH = {'WallpaperYellow': 2.2, 'WallpaperHotel': 2.6, 'CarpetBrown': 3.0, 'CarpetRed': 3.0, 'CeilingBeige': 2.5, 'CeilingPool': 2.5,
             'CeilingDark': 2.5, 'ConcreteWall': 2.4, 'ConcreteFloor': 2.0, 'ConcreteCeiling': 2.0, 'PoolWall': 2.8, 'PoolFloor': 2.8,
-            'MetalWall': 2.6, 'MetalFloor': 3.2}
+            'MetalWall': 2.6, 'MetalFloor': 3.2, 'WallpaperL0': 2.0, 'CarpetL0': 3.0, 'CeilingL0': 2.5}
 
 def load(path):
     a = cv2.imread(path, cv2.IMREAD_UNCHANGED)
@@ -52,7 +52,9 @@ if __name__ == '__main__':
     ref = sys.argv[3] if len(sys.argv) > 3 else None
     os.makedirs(dst, exist_ok=True)
     total = 0
+    only = sys.argv[4].split(',') if len(sys.argv) > 4 else None   # v7.3.0: solo estos estilos
     for name, st in STRENGTH.items():
+        if only and name not in only: continue
         alb = load(os.path.join(src, name + '_albedo.png'))
         data = load(os.path.join(src, name + '_data.png'))
         h, sm, ao = data[..., 0], data[..., 1], data[..., 2]

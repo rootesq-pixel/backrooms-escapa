@@ -58,6 +58,7 @@ public class ShotBuildCheck : MonoBehaviour
         if (PoolRoomSetPiece.Root != null) yield return Pool(gm, pw, mc);
         else if (FieldWorld.Active != null) yield return Field(gm, pw, mc);
         else if (OceanWorld.Active != null) yield return Ocean(gm, pw, mc);
+        else if (GameBootstrap.Instance.CurrentLevel == 0) yield return Level0(gm, pw, mc);
         else Check(false, "nivel con sala de piscina o campo");
         Finish();
     }
@@ -82,6 +83,40 @@ public class ShotBuildCheck : MonoBehaviour
         for (int k = 0; k < 150; k++) { mc.transform.position = p; mc.transform.rotation = Quaternion.LookRotation(t - p); mc.fieldOfView = fov; yield return null; if (k >= 30) ft.Add(Time.unscaledDeltaTime * 1000f); }
         QualitySettings.vSyncCount = vs0; Application.targetFrameRate = tf0;
         ft.Sort(); Info("fotograma " + n + ": mediana " + ft[ft.Count / 2].ToString("F2") + " ms, p90 " + ft[ft.Count * 9 / 10].ToString("F2") + " ms (" + Screen.width + "x" + Screen.height + ")");
+    }
+
+    // v7.3.0: nivel 0 desde un ángulo parecido al de la foto clásica: de pie en una sala abierta, mirando en diagonal entre pilares
+    IEnumerator Level0(GameManager gm, FirstPersonController pw, Camera mc)
+    {
+        VhsEffect vx = mc.GetComponent<VhsEffect>(); if (vx != null) vx.intensityOverride = 0f;
+        BackroomsGenerator gen = gm.generator; float cs = gen.CellSize; int mask = ~((1 << 2) | (1 << 8));
+        Info("nivel 0: pilares " + gen.PillarCount + (LevelConfig.OldL0 ? " (look antiguo, -oldl0)" : ""));
+        var cand = new System.Collections.Generic.List<(float s, Vector3 p, Vector3 d)>();
+        for (int cx = 1; cx < gen.GridWidth - 1; cx++) for (int cz = 1; cz < gen.GridHeight - 1; cz++)
+        {
+            Vector3 wp = gen.Root.TransformPoint(new Vector3((cx + 0.5f) * cs, 1.55f, (cz + 0.5f) * cs));
+            for (int k = 0; k < 4; k++)
+            {
+                Vector3 d = Quaternion.Euler(0f, 45f + 90f * k + 12f, 0f) * Vector3.forward;
+                float L = Physics.Raycast(wp, d, out RaycastHit h, 40f, mask, QueryTriggerInteraction.Ignore) ? h.distance : 40f;
+                float La = Physics.Raycast(wp, Quaternion.Euler(0f, -30f, 0f) * d, out h, 40f, mask, QueryTriggerInteraction.Ignore) ? h.distance : 40f;
+                float Lb = Physics.Raycast(wp, Quaternion.Euler(0f, 30f, 0f) * d, out h, 40f, mask, QueryTriggerInteraction.Ignore) ? h.distance : 40f;
+                float Lback = Physics.Raycast(wp, -d, out h, 3f, mask, QueryTriggerInteraction.Ignore) ? h.distance : 3f;
+                if (Lback < 1.2f) continue;
+                cand.Add((Mathf.Min(L, 24f) + 0.6f * Mathf.Min(La, 16f) + 0.6f * Mathf.Min(Lb, 16f), wp - d * 1.0f, d));
+            }
+        }
+        cand.Sort((a, b) => b.s.CompareTo(a.s));
+        var used = new System.Collections.Generic.List<Vector3>(); int n = 0;
+        foreach (var c in cand)
+        {
+            bool far = true; foreach (Vector3 u in used) if ((u - c.p).sqrMagnitude < 100f) far = false;
+            if (!far) continue; used.Add(c.p);
+            Vector3 stand = new Vector3(c.p.x, gen.Root.TransformPoint(Vector3.zero).y + 0.02f, c.p.z);
+            yield return View(pw, mc, "l0_0" + (n + 1) + "_sala_amarilla", c.p, c.p + c.d * 8f + Vector3.down * 0.75f, 58f, stand);
+            if (++n == 3) break;
+        }
+        if (vx != null) vx.intensityOverride = -1f;
     }
 
     IEnumerator Pool(GameManager gm, FirstPersonController pw, Camera mc)
@@ -380,15 +415,33 @@ public class ShotBuildCheck : MonoBehaviour
         {
             if (fl != null) fl.SetOn(true);
             System.Func<Vector3, float, Vector3> SB = (q, dy) => new Vector3(q.x, w.SeabedY(q.x, q.z) + dy, q.z);
-            Vector3 hd0 = OceanWorld.SculptSpots[0], hn = OceanWorld.SculptSpots[1], fu0 = OceanWorld.SculptSpots[2];
-            Vector3 c1 = SB(new Vector3(61.8f, 0f, 244.6f), 3.0f);
-            yield return View(pw, mc, "l7_50_escultura_cabeza", c1, SB(hd0, 2.9f), 60f, c1 - up);
-            Vector3 c2 = SB(new Vector3(57.0f, 0f, 257.5f), 2.6f);
-            yield return View(pw, mc, "l7_51_escultura_mano", c2, SB(hn, 3.4f), 60f, c2 - up);
-            Vector3 c3 = SB(new Vector3(52.5f, 0f, 241.5f), 4.2f);
-            yield return View(pw, mc, "l7_52_escultura_rostro", c3, SB(fu0, 0.6f), 60f, c3 - up);
-            Vector3 c4 = new Vector3(59.5f, w.CageBottom.y + 1.6f, 248.5f);
-            yield return View(pw, mc, "l7_53_esculturas_desde_jaula", c4, SB(hd0, 2.6f) + new Vector3(0f, 0f, 4f), 66f, c4 - up);
+            // con un buzo (compañero con casco) al pie de cada una para que se lea la escala
+            Vector3 cageP = new Vector3(OceanWorld.CageTop.x, 0f, OceanWorld.CageTop.z);
+            RemotePlayer dv = RemotePlayer.CreateMimic(w.root, 93, "Buzo", StepKind.Metal); dv.ShowTag = false;
+            w.AttachHelmetTo(dv.transform);
+            string[] sn = { "l7_50_escultura_cabeza", "l7_51_escultura_mano", "l7_52_escultura_rostro" };
+            float[] back = { 15f, 14f, 11f }, lift = { 2.2f, 2.4f, 1.8f }, aim = { 4.0f, 4.4f, 2.0f }, sideK = { 3.5f, -3.0f, 3.0f };
+            for (int i = 0; i < 3; i++)
+            {
+                Vector3 sp = OceanWorld.SculptSpots[i];
+                Vector3 toC = cageP - new Vector3(sp.x, 0f, sp.z); toC.y = 0f; toC.Normalize();
+                Vector3 sd = Vector3.Cross(Vector3.up, toC);
+                Vector3 dpos = SB(sp + toC * 4.2f + sd * 1.2f, 0.02f);
+                float dyaw = Mathf.Atan2(-toC.x, -toC.z) * Mathf.Rad2Deg;
+                for (int k = 0; k < 8; k++) { dv.Push(dpos, dyaw, 0f, 0.6f, 0); yield return null; }
+                Vector3 cam = SB(sp + toC * back[i] + sd * sideK[i], lift[i]);
+                yield return View(pw, mc, sn[i], cam, SB(sp, aim[i]), 62f, cam - up);
+            }
+            // desde el fondo de la jaula: el compañero dentro en primer plano, la cabeza colosal al fondo
+            {
+                Vector3 hd0 = OceanWorld.SculptSpots[0];
+                Vector3 dir = new Vector3(hd0.x - cageP.x, 0f, hd0.z - cageP.z).normalized;
+                Vector3 cb = w.CageBottom;
+                for (int k = 0; k < 8; k++) { dv.Push(cb + dir * 1.6f + Vector3.Cross(Vector3.up, dir) * 0.8f, Mathf.Atan2(dir.x, dir.z) * Mathf.Rad2Deg, 0f, 0.6f, 0); yield return null; }
+                Vector3 c4 = cb - dir * 1.2f + Vector3.up * 1.6f;
+                yield return View(pw, mc, "l7_53_esculturas_desde_jaula", c4, SB(hd0, 4.0f), 64f, c4 - up);
+            }
+            Destroy(dv.gameObject);
         }
         // v7.3.0: la jaula bajando con los dos jugadores dentro (pueden andar y mirar): vista desde dentro y desde fuera
         {

@@ -21,7 +21,10 @@ public enum SurfaceStyle
     MetalFloor,
     WaterNormal,
     PlayWall,       // v7.1.0 Parque de bolas (texturas horneadas en Tools/ballpit/textures.py)
-    PlayFloor
+    PlayFloor,
+    WallpaperL0,    // v7.3.0 nivel 0 «fotorrealista» (Tools/blender/styles.py, horneadas en GPU); reserva: las clásicas
+    CarpetL0,
+    CeilingL0
 }
 
 // Conjunto de texturas PBR para el shader Standard:
@@ -151,7 +154,7 @@ public static class ProceduralTextures
     public static bool UseBaked = true;
     private static readonly Dictionary<SurfaceStyle, float> BakedWallHeight = new Dictionary<SurfaceStyle, float>
     {
-        { SurfaceStyle.WallpaperYellow, 3.0f }, { SurfaceStyle.WallpaperHotel, 2.8f }, { SurfaceStyle.ConcreteWall, 3.6f },
+        { SurfaceStyle.WallpaperYellow, 3.0f }, { SurfaceStyle.WallpaperL0, 3.0f }, { SurfaceStyle.WallpaperHotel, 2.8f }, { SurfaceStyle.ConcreteWall, 3.6f },
     };
 
     public static SurfaceSet TryLoadBaked(SurfaceStyle style, float wallHeight)
@@ -194,6 +197,9 @@ public static class ProceduralTextures
             case SurfaceStyle.MetalFloor: c = DiamondPlate(Res(512)); normalStrength = 3.2f; break;
             case SurfaceStyle.PlayWall: c = WallpaperYellow(Res(1024), wallHeight); normalStrength = 2.2f; break;   // reserva si faltan las horneadas
             case SurfaceStyle.PlayFloor: c = Carpet(Res(512), false); normalStrength = 3f; break;
+            case SurfaceStyle.WallpaperL0: c = WallpaperYellow(Res(1024), wallHeight); normalStrength = 2.2f; break;
+            case SurfaceStyle.CarpetL0: c = Carpet(Res(512), false); normalStrength = 3f; break;
+            case SurfaceStyle.CeilingL0: c = CeilingTile(Res(512), new Color(0.86f, 0.86f, 0.80f), true); normalStrength = 2.5f; break;
             default: c = WaterRipples(Res(512)); normalStrength = 5f; break;
         }
         return Finish(c, style, normalStrength, aniso);

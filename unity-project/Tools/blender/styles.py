@@ -504,6 +504,139 @@ def diamond_plate(g):
 # ---------------------------------------------------------------------------------------------
 # Registro: nombre -> (funcion, ancho m, alto m, resolucion albedo, resolucion datos, altura de pared horneada)
 # ---------------------------------------------------------------------------------------------
+# ---------------------------------------------------------------------------------------------
+# v7.3.0 Nivel 0 «fotorrealista» (look de la foto clásica, autoría procedural propia):
+#   papel monocromo amarillo con columnas de chevrones/flechas verticales (damasco simple) separadas por dobles líneas finas,
+#   juntas de rollo, manchas suaves y rodapié claro; moqueta beige-tostada húmeda con fibra; techo blanco de placas acústicas
+#   0,6 × 1,2 m con perfil en T.
+# ---------------------------------------------------------------------------------------------
+def wallpaper_l0(g):
+    u, v = g.u, g.v
+    H = 3.0
+    my = v * H
+    NC = 15.0                                   # 15 columnas en 2,4 m (16 cm)
+    cu = u * NC
+    ci = g.floor(cu)
+    fu = g.fract(cu)
+    cx = g.abs(fu - 0.5)                        # 0 en el eje de la columna, 0.5 en el borde
+    par = g.fract(ci * 0.5) * 2.0               # 0/1 alterna columnas
+    RV = 0.21                                   # paso vertical de los chevrones (m)
+    fv = g.fract(my / RV + par * 0.5)
+    # chevron «^»: dos trazos paralelos que suben hacia el eje
+    k = 0.95
+    d1 = g.abs(fv - (0.70 - k * cx))
+    d2 = g.abs(fv - (0.53 - k * cx))
+    inside = 1.0 - g.smooth(0.30, 0.34, cx)
+    chev = g.maximum(1.0 - g.smooth(0.030, 0.050, d1), 0.75 * (1.0 - g.smooth(0.020, 0.036, d2))) * inside
+    # rombo pequeño entre chevrones
+    dm = g.abs(fv - 0.14) * 1.6 + cx
+    dia = (1.0 - g.smooth(0.05, 0.075, dm))
+    # dobles líneas verticales finas (algo onduladas) entre columnas
+    wob = 0.012 * g.sin(my * 21.0 + ci * 1.7)
+    ex = g.abs(cx - 0.5 + wob)
+    vline = g.maximum(1.0 - g.smooth(0.006, 0.014, ex), 1.0 - g.smooth(0.004, 0.011, g.abs(ex - 0.045)))
+    pat = g.clamp(chev + dia * 0.8 + vline * 0.7)
+    # variación de impresión (tinta irregular)
+    ink = 0.75 + 0.5 * g.noise(60, 60, detail=2.0, seed=81)
+    base = rgbf(g, (0.78, 0.77, 0.40))
+    ink_c = rgbf(g, (0.63, 0.61, 0.27))
+    col = g.cmix(base, ink_c, g.clamp(pat * ink))
+    # fibra/grano del papel
+    fib = g.noise(420, 36, detail=1.0, seed=82)
+    pg = g.noise(700, 700, detail=0.0, seed=83)
+    col = g.cmul(col, 1.0 + 0.08 * (pg - 0.5) + 0.06 * (fib - 0.5))
+    # juntas de rollo (cada 0,48 m: 5 en la baldosa), con un leve despegue más claro
+    su = g.fract(u * 5.0)
+    sd = edge_dist(g, su)
+    seam = 1.0 - g.smooth(0.0, 0.0035, sd)
+    lift = (1.0 - g.smooth(0.0035, 0.012, sd)) * g.smooth(0.55, 0.8, g.noise(2, 6, detail=2.0, seed=84))
+    col = g.cmul(col, 1.0 - 0.16 * seam + 0.05 * lift)
+    # manchas suaves (amarillean y oscurecen un poco), sin dramatismo
+    blot = cn(g, 2.5, 2.5, 1.6, detail=4.0, seed=85)
+    col = g.cmul(col, 0.93 + 0.12 * blot)
+    st = cn(g, 4, 3, 2.0, detail=5.0, rough=0.55, seed=86)
+    stain = g.smooth(0.62, 0.80, st) * (0.4 + 0.6 * g.smooth(0.4, 1.0, v))
+    col = tintmix(g, col, (0.88, 0.80, 0.55), stain * 0.45)
+    ring = g.band(st, 0.60, 0.625, 0.01) * (0.4 + 0.6 * g.smooth(0.4, 1.0, v))
+    col = tintmix(g, col, (0.80, 0.68, 0.45), ring * 0.45)
+    damp = (1.0 - g.smooth(0.0, 0.22, v)) * (0.5 + 0.5 * blot)
+    col = tintmix(g, col, (0.86, 0.82, 0.70), damp * 0.35)
+    # rodapié claro (10 cm) con canto redondeado y ranura de sombra
+    boardMask = 1.0 - g.smooth(0.097, 0.103, my)
+    top = g.band(my, 0.085, 0.100, 0.004)
+    groove = g.smooth(0.100, 0.104, my) * (1.0 - g.smooth(0.108, 0.116, my))
+    scuff = 0.92 + 0.12 * g.noise(30, 8, detail=2.0, seed=87)
+    board = g.cmul(rgbf(g, (0.86, 0.83, 0.62)), scuff)
+    col = g.cmix(col, board, boardMask)
+    col = g.cmul(col, 1.0 - 0.45 * groove + 0.04 * top)
+    ao = g.lerp(0.82, 1.0, g.smooth(0.0, 0.2, v)) * g.lerp(0.88, 1.0, 1.0 - g.smooth(0.9, 1.0, v))
+    col = g.cmul(col, 0.9 + 0.1 * ao)
+    height = (0.5 + 0.035 * pat + 0.03 * (pg - 0.5) + 0.03 * (fib - 0.5) - 0.05 * seam + 0.03 * lift
+              + 0.36 * boardMask + 0.04 * top - 0.3 * groove)
+    smooth = 0.14 + 0.06 * pat + 0.08 * stain + 0.32 * boardMask
+    return finish(g, col, height, g.clamp(smooth), g.clamp(ao))
+
+
+def carpet_l0(g):
+    u, v = g.u, g.v
+    sd = 90
+    d1, c1 = g.voronoi(190, 190, seed=sd)
+    tuft_v = 1.0 - g.smooth(0.0, 0.66, d1)
+    fibre = g.noise(380, 380, detail=0.0, seed=sd + 1)
+    t1 = g.noise(900, 900, detail=0.0, seed=sd + 2)
+    loops = g.noise(140, 140, detail=1.0, seed=sd + 7)
+    tuft = 0.5 * tuft_v + 0.32 * fibre + 0.28 * t1 + 0.14 * c1 + 0.12 * loops
+    patches = cn(g, 5, 5, 1.6, detail=4.0, seed=sd + 3)
+    damp = cn(g, 2.2, 2.2, 1.8, detail=5.0, seed=sd + 4)
+    wear = cn(g, 3, 1.2, 1.6, detail=3.0, seed=sd + 5)
+    base = rgbf(g, (0.55, 0.485, 0.32))           # beige tostado algo oliváceo
+    col = g.cmul(base, (0.74 + 0.50 * tuft) * (0.90 + 0.20 * patches))
+    # húmeda: zonas más oscuras y pardas con borde difuso; pisadas más claras y aplastadas
+    wet = g.smooth(0.50, 0.72, damp)
+    col = tintmix(g, col, (0.80, 0.75, 0.66), wet * 0.45)
+    rim = g.band(damp, 0.49, 0.53, 0.015)
+    col = tintmix(g, col, (0.88, 0.83, 0.74), rim * 0.2)
+    worn = g.smooth(0.55, 0.85, wear)
+    col = g.cmul(col, 1.0 + 0.07 * worn)
+    height = tuft * (0.8 - 0.3 * worn)
+    ao = 0.5 + 0.5 * g.clamp(tuft)
+    return finish(g, col, height, 0.03 + 0.16 * wet, g.clamp(ao))
+
+
+def ceiling_l0(g):
+    """baldosa 2,4 m: 4 × 2 placas de 0,6 × 1,2 m, blancas, perforadas, con perfil en T blanco brillante"""
+    u, v = g.u, g.v
+    bl = cn(g, 6, 6, 1.5, detail=3.0, seed=71)
+    st = cn(g, 2.5, 2.5, 2.0, detail=5.0, seed=72)
+    grain = g.noise(650, 650, detail=0.0, seed=73) - 0.5
+    pu = g.floor(u * 4.0); pv = g.floor(v * 2.0)
+    tile_k = 0.96 + 0.06 * g.cellrand(pu, pv, seed=74)
+    k = tile_k * (0.95 + 0.08 * (bl - 0.5) + 0.10 * grain)
+    col = Col(*[g.val(c) * k for c in (0.86, 0.86, 0.80)])
+    height = 0.5 + 0.05 * grain
+    dv_, cell = g.voronoi(210, 210, seed=75)
+    holes = (cell < 0.12) * (1.0 - g.smooth(0.08, 0.17, dv_))
+    fis = g.smooth(0.80, 0.92, g.noise(16, 16, detail=3.0, rough=0.55, kind='RIDGED_MULTIFRACTAL', seed=76)) * 0.6
+    hole = g.clamp(holes + fis)
+    col = g.cmul(col, 1.0 - 0.35 * hole)
+    height = height - 0.4 * hole
+    ao = 1.0 - 0.25 * hole
+    du = edge_dist(g, g.fract(u * 4.0)) * 0.6          # distancias en metros
+    dv2 = edge_dist(g, g.fract(v * 2.0)) * 1.2
+    d = g.minimum(du, dv2)
+    tee = 1.0 - g.smooth(0.010, 0.0125, d)            # perfil de 2,4 cm
+    shade = (1.0 - g.smooth(0.0125, 0.03, d)) * (1.0 - tee)   # sombra de la placa rehundida junto al perfil
+    col = g.cmul(col, 1.0 - 0.22 * shade)
+    col = g.cmix(col, rgbf(g, (0.93, 0.93, 0.89)), tee)
+    height = height + 0.45 * tee - 0.15 * shade
+    ao = ao - 0.25 * shade
+    sm = g.smooth(0.72, 0.86, st)
+    col = tintmix(g, col, (0.93, 0.88, 0.72), sm * 0.25)
+    ring = g.band(st, 0.70, 0.73, 0.012)
+    col = tintmix(g, col, (0.90, 0.84, 0.68), ring * 0.18)
+    return finish(g, col, height, 0.05 + 0.35 * tee + 0.05 * sm, g.clamp(ao))
+
+
 STYLES = {
     'WallpaperYellow': (lambda g: wallpaper_yellow(g), 2.4, 3.0, 2048, 1024, 3.0),
     'WallpaperHotel':  (lambda g: wallpaper_hotel(g),  2.0, 2.8, 1024, 1024, 2.8),
@@ -519,4 +652,7 @@ STYLES = {
     'PoolFloor':       (lambda g: pool_tile(g, False), 2.0, 2.0, 1024, 1024, 0.0),
     'MetalWall':       (lambda g: metal_wall(g),   2.4, 2.4, 1024, 1024, 0.0),
     'MetalFloor':      (lambda g: diamond_plate(g), 1.0, 1.0, 1024, 1024, 0.0),
+    'WallpaperL0':     (lambda g: wallpaper_l0(g), 2.4, 3.0, 2048, 2048, 3.0),
+    'CarpetL0':        (lambda g: carpet_l0(g),    2.0, 2.0, 2048, 1024, 0.0),
+    'CeilingL0':       (lambda g: ceiling_l0(g),   2.4, 2.4, 1024, 1024, 0.0),
 }

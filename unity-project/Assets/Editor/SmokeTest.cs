@@ -9,6 +9,7 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.AI;
 using UnityEngine.UI;
+using UnityEngine.EventSystems;
 
 // Pruebas de humo (sin necesidad de ventana):
 //  - RunEditMode: genera cada nivel con varias semillas (modo edición) y comprueba materiales, salida, alcanzabilidad (BFS),
@@ -1160,6 +1161,7 @@ public static class SmokeTest
         else if (cfg.layout != LayoutKind.Field) r.Check(gen.FixtureCount > 0, tag + "hay accesorios de luz");
         else r.Check(gen.Root.GetComponentInChildren<FieldExitBeacon>(true) != null, tag + "campo: la salida tiene su farol/radio (pistas sutiles)");
         if (cfg.layout == LayoutKind.OpenPillars) r.Check(gen.PillarCount > 0, tag + "hay pilares");
+        if (cfg.roomPillars > 0f) r.Check(gen.PillarCount > 0, tag + "pilares empapelados en las salas abiertas: " + gen.PillarCount);
 
         // Sin cartel / TextMesh / objetos "Sign" / "Salida" / flechas
         r.Check(go.GetComponentsInChildren<TextMesh>(true).Length == 0, tag + "sin TextMesh");
@@ -2233,6 +2235,17 @@ public static class SmokePlayRunner
         int levelButtons = 0;
         foreach (Button bt in UnityEngine.Object.FindObjectsOfType<Button>(false)) if (bt.name.StartsWith("LevelBtn_")) levelButtons++;
         r.Check(levelButtons >= LevelConfig.Count, "botones de nivel: " + levelButtons);
+        // v7.3.0: menú rediseñado: tarjetas con miniatura real, vista previa y navegación con teclado/mando
+        r.Check(EventSystem.current != null && EventSystem.current.currentSelectedGameObject != null && EventSystem.current.currentSelectedGameObject.name.StartsWith("LevelBtn_"), "al abrir, una tarjeta queda seleccionada (teclado/mando)");
+        r.Check(ui.SelectLevelForTests(5) && ui.LevelFocus == 5, "seleccionar la tarjeta 5 enfoca la vista previa en el nivel 5");
+        int thumbs = 0; for (int i = 0; i < LevelConfig.Count; i++) if (LevelThumbs.Get(i) != null) thumbs++;
+        r.Check(thumbs == LevelConfig.Count, "miniaturas de nivel en Resources/UI/LevelThumbs: " + thumbs + "/" + LevelConfig.Count);
+        {
+            Button c3 = null; foreach (Button bt in UnityEngine.Object.FindObjectsOfType<Button>(false)) if (bt.name == "LevelBtn_3") c3 = bt;
+            r.Check(c3 != null && c3.navigation.selectOnRight != null && c3.navigation.selectOnRight.name.Contains("Jugar este nivel") && c3.navigation.selectOnDown != null && c3.navigation.selectOnDown.name == "LevelBtn_7", "navegación de la rejilla (derecha → «Jugar este nivel», abajo → nivel 7)");
+            bool desc = true; for (int i = 0; i < LevelConfig.Count; i++) { ui.FocusLevel(i); if (string.IsNullOrEmpty(LevelConfig.Get(i).subtitle)) desc = false; }
+            r.Check(desc, "cada nivel tiene descripción en la vista previa");
+        }
         ui.PressEscape();
 
         // Jugar -> nivel 0

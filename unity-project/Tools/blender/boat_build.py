@@ -208,12 +208,12 @@ sweepp('LampBail', bail, 0.006, 0.006, R_IRON, side=lambda i, q: Vector((0, 0, 1
 boxp('Clamp', (-0.065, 0.2, -2.095), (0.065, 0.37, -1.955), R_ALU, 0.012)
 for x in (-0.04, 0.04): cylp('ClampScrew', (x, 0.24, -1.93), 0.008, 0.06, 'Z', R_IRON, 8); cylp('ClampHandle', (x, 0.24, -1.9), 0.004, 0.06, 'X', R_IRON, 6)
 cylp('Leg', (0, -0.02, -2.17), 0.034, 0.62, 'Y', R_ALU, 16, 0.03)
-cw = box('Cowl', (-0.15, 0.36, -2.37), (0.15, 0.72, -2.03), 0.07, 4, 2)
+cw = box('Cowl', (-0.11, 0.36, -2.31), (0.11, 0.62, -2.09), 0.06, 5, 2)   # (v7.3.0b) más pequeño
 for v in cw.data.vertices:
-    f = (v.co.y - 0.36) / 0.36; v.co.x *= 1.0 - 0.18 * f; v.co.z = -2.2 + (v.co.z + 2.2) * (1.0 - 0.1 * f)
+    f = (v.co.y - 0.36) / 0.26; v.co.x *= 1.0 - 0.18 * f; v.co.z = -2.2 + (v.co.z + 2.2) * (1.0 - 0.1 * f)
 set_attr(cw, 'Mask', lambda co, n, i: (R_COWL, 0.0, 0.3, 1.0)); set_attr(cw, 'Grain', lambda co, n, i: (co.z, co.y, 0.3, 1.0)); parts.append(cw)
-cylp('Flywheel', (0, 0.735, -2.2), 0.095, 0.035, 'Y', R_ALU, 24)
-boxp('StartGrip', (-0.045, 0.755, -2.1), (0.045, 0.775, -2.08), R_POST, 0.006, axis=0)
+cylp('Flywheel', (0, 0.635, -2.2), 0.07, 0.03, 'Y', R_ALU, 24)
+boxp('StartGrip', (-0.035, 0.652, -2.14), (0.035, 0.668, -2.125), R_POST, 0.005, axis=0)
 boxp('CavPlate', (-0.09, -0.335, -2.31), (0.09, -0.322, -2.06), R_ALU, 0.004)
 gc = cylp('Gearcase', (0, -0.5, -2.2), 0.045, 0.23, 'Z', R_ALU, 18, 0.03)
 for v in gc.data.vertices:
@@ -264,7 +264,7 @@ streak = t.noise(1.0, 3, 0.5, 0.0, t.vec(t.m('MULTIPLY', t.PX, 26.0), t.m('MULTI
 paint = t.mix(fade, (0.10, 0.22, 0.235), (0.24, 0.36, 0.36))
 paint = t.mix(t.mr(streak, 0.45, 0.75), paint, (0.08, 0.15, 0.15))
 trim = t.mix(fade, (0.25, 0.07, 0.045), (0.40, 0.14, 0.09))
-cowl = t.mix(fade, (0.22, 0.05, 0.035), (0.36, 0.11, 0.07))
+cowl = t.mix(fade, (0.028, 0.028, 0.03), (0.075, 0.068, 0.06))   # (v7.3.0b) negro/gris oscuro gastado
 # desconchones: más en los cantos de las tablas, en la tapa de la regala y cerca del agua
 lapedge = t.mr(across, 0.02, 0.0)
 chipn = t.m('ADD', t.noise(11, 5, 0.66, 0.2), t.m('ADD', t.m('MULTIPLY', lapedge, 0.12), t.m('MULTIPLY', t.mr(t.m('ABSOLUTE', t.m('SUBTRACT', H, WL + 0.06)), 0.1, 0.0), 0.08)))
@@ -298,8 +298,8 @@ blade = t.mr(t.m('MULTIPLY', t.PY, -1.0), 0.5, 0.55)
 c = t.mix(rw(R_OAR), c, t.mix(t.m('MULTIPLY', blade, t.m('SUBTRACT', 1.0, chip)), oak, (0.14, 0.27, 0.27)))
 rust = t.mix(t.noise(14, 4), (0.07, 0.05, 0.04), (0.33, 0.14, 0.05))
 c = t.mix(rw(R_IRON), c, rust)
-alu = t.mix(t.noise(9, 4), (0.14, 0.145, 0.14), (0.27, 0.275, 0.27))
-alu = t.mix(t.m('MULTIPLY', t.mr(t.voro(140), 0.12, 0.05), 0.6), alu, (0.42, 0.42, 0.39))
+alu = t.mix(t.noise(9, 4), (0.075, 0.075, 0.072), (0.15, 0.15, 0.145))
+alu = t.mix(t.m('MULTIPLY', t.mr(t.voro(140), 0.12, 0.05), 0.6), alu, (0.26, 0.25, 0.23))
 c = t.mix(rw(R_COWL), c, t.mix(chip, cowl, alu))
 c = t.mix(rw(R_ALU), c, alu)
 c = t.mix(rw(R_GLASS), c, (0.75, 0.62, 0.40))

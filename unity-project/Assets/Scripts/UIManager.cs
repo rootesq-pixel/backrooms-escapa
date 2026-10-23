@@ -118,6 +118,13 @@ public class UIManager : MonoBehaviour
         }
 
         if (current == Screen.Pause && !inGame) SetScreen(Screen.None);
+        // v7.3.0: selección de nivel con mando/teclado: B vuelve; si nada está seleccionado (tras usar el ratón), flechas/stick recuperan la tarjeta
+        if (current == Screen.Levels)
+        {
+            if (Input.GetKeyDown(KeyCode.JoystickButton1)) { Click(); SetScreen(Screen.Main); }
+            else if (EventSystem.current != null && EventSystem.current.currentSelectedGameObject == null &&
+                     (Mathf.Abs(Input.GetAxisRaw("Horizontal")) > 0.5f || Mathf.Abs(Input.GetAxisRaw("Vertical")) > 0.5f)) SelectLevelCard();
+        }
     }
 
     // Para pruebas: equivalentes a pulsar Esc / I
@@ -203,6 +210,7 @@ public class UIManager : MonoBehaviour
         }
         if (s == Screen.Options) RefreshOptions();
         if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
+        if (s == Screen.Levels) SelectLevelCard();
     }
 
     public void ShowMainMenu() { optionsReturn = Screen.Main; SetScreen(Screen.Main); }
@@ -496,21 +504,130 @@ public class UIManager : MonoBehaviour
     }
 
     // --- Selección de nivel ---
+    // v7.3.0: rediseño. Rejilla de 8 tarjetas (miniatura real del nivel sin VHS, número y nombre) y, a la derecha, la vista previa grande del
+    // nivel resaltado con su descripción y «Jugar este nivel». Ratón (encima = vista previa, clic = jugar), teclado y mando (flechas / stick
+    // mueven la selección, Intro / A juegan, Esc / B vuelven). En multijugador el anfitrión elige el nivel en la sala (con su miniatura).
+    private RawImage lvPreview; private Text lvPrevNum, lvPrevName, lvPrevDesc; private Button lvPlay;
+    private readonly List<Button> lvCards = new List<Button>();
+    private int lvFocus;
+    public int LevelFocus { get { return lvFocus; } }
+    public static void FitThumb(RawImage ri, Texture t, float aspect)
+    {
+        ri.texture = t;
+        if (t == null) { ri.uvRect = new Rect(0, 0, 1, 1); return; }
+        float ta = (float)t.width / t.height;
+        ri.uvRect = ta > aspect ? new Rect((1f - aspect / ta) * 0.5f, 0f, aspect / ta, 1f) : new Rect(0f, (1f - ta / aspect) * 0.5f, 1f, ta / aspect);
+    }
     private GameObject BuildLevels(Transform parent)
     {
-        GameObject root = NewPanelRoot(parent, "LevelSelect", new Color(0f, 0f, 0f, 0.55f));
-        Label(root.transform, "SELECCIONAR NIVEL", 76, TextAnchor.MiddleCenter, 0f, 340f, 1500f, 120f, new Color(0.96f, 0.9f, 0.55f));
-        float y = 210f;
+        GameObject root = NewPanelRoot(parent, "LevelSelect", new Color(0.012f, 0.011f, 0.006f, 0.93f));
+        Text title = Label(root.transform, "SELECCIONAR NIVEL", 66, TextAnchor.MiddleLeft, -230f, 455f, 1300f, 90f, UiStyle.Gold);
+        title.font = UiStyle.SansBold();
+        Label(root.transform, "Elige dónde despertar. Cada nivel es una salida distinta.", 26, TextAnchor.MiddleLeft, -230f, 400f, 1300f, 40f, Dim);
+        UiStyle.Rect(root.transform, "TitleRule", 0f, 372f, 1760f, 2f, UiStyle.Border);
+        const float cw = 300f, chh = 169f, ch = 246f;
+        float[] cx = { -720f, -400f, -80f, 240f }, cy = { 180f, -96f };
+        lvCards.Clear();
         for (int i = 0; i < LevelConfig.Count; i++)
         {
-            int lv = i;
-            LevelConfig c = LevelConfig.Get(i);
-            Button b = MakeButton(root.transform, "Nivel " + i + " — " + c.name, 0f, y, 900f, 70f, () => { Click(); StartGame(lv); }, 32);
-            b.name = "LevelBtn_" + i;
-            y -= 84f;
+            int lv = i; LevelConfig c = LevelConfig.Get(i);
+            float x = i < 8 ? cx[i % 4] : cx[i % 4], y = cy[Mathf.Min(i / 4, 1)] - (i >= 8 ? 276f * (i / 4 - 1) : 0f);
+            Image border = UiStyle.Rect(root.transform, "LevelBtn_" + i, x, y, cw + 6f, ch + 6f, UiStyle.Border);
+            border.raycastTarget = true;
+            Image fill = UiStyle.Rect(border.transform, "Fill", 0f, 0f, cw, ch, new Color(0.055f, 0.05f, 0.03f, 1f));
+            RawImage th = new GameObject("Thumb", typeof(RectTransform)).AddComponent<RawImage>(); th.transform.SetParent(fill.transform, false);
+            th.raycastTarget = false; RectTransform tr = th.rectTransform; tr.anchorMin = tr.anchorMax = new Vector2(0.5f, 1f); tr.pivot = new Vector2(0.5f, 1f);
+            tr.sizeDelta = new Vector2(cw, chh); tr.anchoredPosition = Vector2.zero;
+            Texture2D tx = LevelThumbs.Get(i); FitThumb(th, tx, cw / chh); if (tx == null) th.color = new Color(0.12f, 0.11f, 0.07f, 1f);
+            Text num = Label(fill.transform, "NIVEL " + i, 19, TextAnchor.MiddleLeft, 0f, -ch * 0.5f + 56f, cw - 28f, 28f, Dim);
+            num.font = UiStyle.SansBold();
+            Text nm = Label(fill.transform, c.name, 27, TextAnchor.MiddleLeft, 0f, -ch * 0.5f + 26f, cw - 28f, 36f, UiStyle.Text);
+            nm.font = UiStyle.SansBold(); nm.horizontalOverflow = HorizontalWrapMode.Overflow;
+            Button b = border.gameObject.AddComponent<Button>();
+            b.transition = Selectable.Transition.None; b.targetGraphic = border;
+            b.onClick.AddListener(() => { Click(); StartGame(lv); });
+            LevelCard card = border.gameObject.AddComponent<LevelCard>(); card.Level = i; card.Border = border; card.Title = nm; card.OnFocus = FocusLevel;
+            lvCards.Add(b);
         }
-        MakeButton(root.transform, "Volver", 0f, y - 20f, 400f, 64f, () => { Click(); SetScreen(Screen.Main); });
+        // vista previa grande
+        Image pv = UiStyle.Framed(root.transform, "LevelPreview", 615f, 0f, 690f, 710f, new Color(0.04f, 0.036f, 0.02f, 0.96f), UiStyle.Border, 2f);
+        lvPreview = new GameObject("PreviewImage", typeof(RectTransform)).AddComponent<RawImage>(); lvPreview.transform.SetParent(pv.transform, false);
+        lvPreview.raycastTarget = false; RectTransform pr = lvPreview.rectTransform; pr.anchorMin = pr.anchorMax = new Vector2(0.5f, 1f); pr.pivot = new Vector2(0.5f, 1f);
+        pr.sizeDelta = new Vector2(650f, 366f); pr.anchoredPosition = new Vector2(0f, -20f);
+        lvPrevNum = Label(pv.transform, "", 22, TextAnchor.MiddleLeft, 0f, -60f, 650f, 30f, UiStyle.Gold); lvPrevNum.font = UiStyle.SansBold();
+        lvPrevName = Label(pv.transform, "", 46, TextAnchor.MiddleLeft, 0f, -102f, 650f, 58f, UiStyle.Text); lvPrevName.font = UiStyle.SansBold();
+        UiStyle.Rect(pv.transform, "PreviewRule", 0f, -136f, 650f, 1f, UiStyle.Border);
+        lvPrevDesc = Label(pv.transform, "", 25, TextAnchor.UpperLeft, 0f, -200f, 650f, 110f, new Color(0.86f, 0.82f, 0.66f));
+        lvPrevDesc.lineSpacing = 1.12f;
+        lvPlay = MakeButton(root.transform, "Jugar este nivel", 615f, -296f, 420f, 66f, () => { Click(); StartGame(lvFocus); }, 32);
+        Button back = MakeButton(root.transform, "Volver", -560f, -330f, 300f, 66f, () => { Click(); SetScreen(Screen.Main); }, 30);
+        Label(root.transform, "Ratón: elegir y clic para jugar   ·   Flechas / stick: moverse   ·   Intro / A: jugar   ·   Esc / B: volver", 21, TextAnchor.MiddleCenter, 0f, -440f, 1700f, 34f, Dim);
+        // navegación explícita (rejilla + vista previa) para teclado y mando
+        for (int i = 0; i < lvCards.Count; i++)
+        {
+            Navigation n = new Navigation { mode = Navigation.Mode.Explicit };
+            int col = i % 4, row = i / 4, rows = (lvCards.Count + 3) / 4;
+            n.selectOnLeft = col > 0 ? lvCards[i - 1] : null;
+            n.selectOnRight = col < 3 && i + 1 < lvCards.Count ? lvCards[i + 1] : lvPlay;
+            n.selectOnUp = row > 0 ? lvCards[i - 4] : null;
+            n.selectOnDown = row + 1 < rows && i + 4 < lvCards.Count ? lvCards[i + 4] : back;
+            lvCards[i].navigation = n;
+        }
+        Navigation np = new Navigation { mode = Navigation.Mode.Explicit, selectOnLeft = lvCards.Count > 3 ? lvCards[3] : null, selectOnDown = null };
+        lvPlay.navigation = np;
+        Navigation nb = new Navigation { mode = Navigation.Mode.Explicit, selectOnUp = lvCards.Count > 4 ? lvCards[4] : (lvCards.Count > 0 ? lvCards[0] : null), selectOnRight = lvPlay };
+        back.navigation = nb;
+        FocusLevel(0);
         return root;
+    }
+
+    public void FocusLevel(int lv)
+    {
+        if (lv < 0 || lv >= LevelConfig.Count || lvPreview == null) return;
+        lvFocus = lv; LevelConfig c = LevelConfig.Get(lv);
+        Texture2D t = LevelThumbs.Get(lv); FitThumb(lvPreview, t, 650f / 366f); lvPreview.color = t != null ? Color.white : new Color(0.12f, 0.11f, 0.07f, 1f);
+        lvPrevNum.text = "NIVEL " + lv + " DE " + (LevelConfig.Count - 1);
+        lvPrevName.text = c.name;
+        lvPrevDesc.text = c.subtitle;
+    }
+
+    // al abrir la pantalla: selecciona la tarjeta enfocada (teclado/mando funcionan sin tocar el ratón)
+    private void SelectLevelCard()
+    {
+        if (EventSystem.current == null || lvCards.Count == 0) return;
+        int i = Mathf.Clamp(lvFocus, 0, lvCards.Count - 1);
+        EventSystem.current.SetSelectedGameObject(lvCards[i].gameObject);
+        FocusLevel(i);
+    }
+
+    // para capturas («-thumbs»): pinta el menú (Canvas en modo cámara) sobre lo que ve la cámara dada, a W×H
+    public Texture2D CaptureMenu(Camera cam, int W, int H)
+    {
+        RenderMode m0 = canvas.renderMode; Camera c0 = canvas.worldCamera; float d0 = canvas.planeDistance;
+        canvas.renderMode = RenderMode.ScreenSpaceCamera; canvas.worldCamera = cam; canvas.planeDistance = cam.nearClipPlane + 0.05f;
+        RenderTexture rt = RenderTexture.GetTemporary(W, H, 24); RenderTexture prev = cam.targetTexture;
+        cam.targetTexture = rt; Canvas.ForceUpdateCanvases(); cam.Render(); RenderTexture.active = rt;
+        Texture2D t = new Texture2D(W, H, TextureFormat.RGB24, false); t.ReadPixels(new Rect(0, 0, W, H), 0, 0); t.Apply();
+        RenderTexture.active = null; cam.targetTexture = prev; RenderTexture.ReleaseTemporary(rt);
+        canvas.renderMode = m0; canvas.worldCamera = c0; canvas.planeDistance = d0;
+        return t;
+    }
+
+    // para pruebas y capturas
+    public void RefreshLevelThumbs()
+    {
+        for (int i = 0; i < lvCards.Count; i++)
+        {
+            RawImage th = lvCards[i].transform.Find("Fill/Thumb").GetComponent<RawImage>();
+            Texture2D tx = LevelThumbs.Get(i); FitThumb(th, tx, 300f / 169f); th.color = tx != null ? Color.white : new Color(0.12f, 0.11f, 0.07f, 1f);
+        }
+        FocusLevel(lvFocus);
+    }
+    public bool SelectLevelForTests(int lv)
+    {
+        if (current != Screen.Levels || lv < 0 || lv >= lvCards.Count || EventSystem.current == null) return false;
+        EventSystem.current.SetSelectedGameObject(lvCards[lv].gameObject);
+        return lvFocus == lv;
     }
 
     // --- Opciones ---

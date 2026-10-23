@@ -892,6 +892,25 @@ public class BackroomsGenerator : MonoBehaviour
                 }
             }
         }
+        // v7.3.0: nivel 0 «fotorrealista»: pilares cuadrados empapelados (con el mismo zócalo) en las esquinas libres de las salas abiertas,
+        // como en la foto clásica. RNG propio (no altera el resto de la generación); lejos de la cabina y de la salida.
+        if (cfg.roomPillars > 0f && cfg.layout == LayoutKind.Maze && Garage == null)
+        {
+            System.Random pr = new System.Random(UsedSeed * 977 + 13);
+            for (int i = 1; i < w; i++)
+                for (int j = 1; j < h; j++)
+                {
+                    if (wallsV[i, j - 1] || wallsV[i, j] || wallsH[i - 1, j] || wallsH[i, j]) continue;
+                    bool nearSpecial = false;
+                    foreach (Vector2Int c in new[] { startCell, exitCell })
+                        if ((i == c.x || i == c.x + 1) && (j == c.y || j == c.y + 1)) nearSpecial = true;
+                    if (nearSpecial || pr.NextDouble() > cfg.roomPillars) continue;
+                    int cx = Mathf.Min(i, w - 1) / chunkCells, cz = Mathf.Min(j, h - 1) / chunkCells;
+                    float psz = cfg.roomPillarSize;
+                    wallsB[cx, cz].AddWallBox(SlotWall, new Vector3(i * cs, wh * 0.5f, j * cs), new Vector3(psz, wh, psz), cfg.wallTileU, cfg.wallTileV, (float)pr.NextDouble());
+                    pillars++;
+                }
+        }
         PillarCount = pillars;
 
         // Instanciar los chunks
