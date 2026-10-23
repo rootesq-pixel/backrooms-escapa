@@ -12,9 +12,12 @@ Shader "Hidden/BackroomsPost"
     float4 _Tint, _Lift;
     struct v2f { float4 pos : SV_POSITION; float2 uv : TEXCOORD0; };
     v2f vert(appdata_img v) { v2f o; o.pos = UnityObjectToClipPos(v.vertex); o.uv = v.texcoord; return o; }
+    // v7.3.0b: un solo píxel NaN/Inf de la escena (p. ej. un especular degenerado) se extendía por la cadena de mips del bloom
+    // y salía como rectángulos negros apilados: se sanea en el prefiltro y en la composición
+    half3 Safe(half3 c) { return (dot(c, half3(1, 1, 1)) >= 0 && dot(c, half3(1, 1, 1)) < 65000) ? c : half3(0, 0, 0); }
     half3 Box4(float2 uv, float2 t) {
-        half3 c = tex2D(_MainTex, uv + t * float2(-1,-1)).rgb + tex2D(_MainTex, uv + t * float2(1,-1)).rgb
-                + tex2D(_MainTex, uv + t * float2(-1,1)).rgb + tex2D(_MainTex, uv + t * float2(1,1)).rgb;
+        half3 c = Safe(tex2D(_MainTex, uv + t * float2(-1,-1)).rgb) + Safe(tex2D(_MainTex, uv + t * float2(1,-1)).rgb)
+                + Safe(tex2D(_MainTex, uv + t * float2(-1,1)).rgb) + Safe(tex2D(_MainTex, uv + t * float2(1,1)).rgb);
         return c * 0.25; }
     half3 ToLin(half3 c) { return c * c * (c * 0.305306 + 0.682171) + c * 0.012522; }
     half3 ToGam(half3 c) { return max(1.055 * pow(max(c, 1e-5), 0.416666667) - 0.055, 0); }
@@ -54,7 +57,7 @@ Shader "Hidden/BackroomsPost"
             #pragma target 3.0
             float Lin(float2 uv) { return LinearEyeDepth(SAMPLE_DEPTH_TEXTURE(_CameraDepthTexture, uv)); }
             half4 frag(v2f i) : SV_Target {
-                half4 src = tex2D(_MainTex, i.uv);
+                half4 src = tex2D(_MainTex, i.uv); src.rgb = Safe(src.rgb);
                 half3 c = ToLin(src.rgb);
                 if (_AOOn > 0.5) {
                     float d = Lin(i.uv);
@@ -74,7 +77,7 @@ Shader "Hidden/BackroomsPost"
                         c *= 1 - saturate(occ / 8 * _AOInt);
                     }
                 }
-                c += tex2D(_BloomTex, i.uv).rgb * _BloomInt;
+                c += Safe(tex2D(_BloomTex, i.uv).rgb) * _BloomInt;
                 if (_ToneOn > 0.5) {
                     c *= _Exposure;
                     c = Aces(c);

@@ -289,10 +289,10 @@ hullc = t.mix(ext, bare, paint)
 hullc = t.mix(t.m('MULTIPLY', chip, ext), hullc, bare)
 hullc = t.mix(t.m('MULTIPLY', chiprim, ext), hullc, (0.34, 0.42, 0.40))
 oldp = t.m('MULTIPLY', t.mr(t.noise(5, 4), 0.62, 0.66), t.m('SUBTRACT', 1.0, ext))   # restos de pintura vieja por dentro
-hullc = t.mix(t.m('MULTIPLY', oldp, 0.8), hullc, (0.30, 0.36, 0.33))
+hullc = t.mix(t.m('MULTIPLY', oldp, 0.8), hullc, (0.13, 0.12, 0.10))   # v7.3.0b: sin restos azulados por dentro
 c = hullc
 c = t.mix(rw(R_RIB), c, bare)
-c = t.mix(rw(R_WOOD), c, t.mix(t.mr(t.noise(4, 3), 0.4, 0.7), bare, (0.33, 0.30, 0.25)))
+c = t.mix(rw(R_WOOD), c, t.mix(t.mr(t.noise(4, 3), 0.4, 0.7), t.mix(0.55, bare, (0.10, 0.075, 0.05)), (0.16, 0.115, 0.075)))   # tablas del fondo: madera oscura seca
 c = t.mix(rw(R_TRIM), c, t.mix(chipT, trim, bare))
 blade = t.mr(t.m('MULTIPLY', t.PY, -1.0), 0.5, 0.55)
 c = t.mix(rw(R_OAR), c, t.mix(t.m('MULTIPLY', blade, t.m('SUBTRACT', 1.0, chip)), oak, (0.14, 0.27, 0.27)))
@@ -320,10 +320,11 @@ c = t.mulc(c, t.m('SUBTRACT', 1.0, t.m('MULTIPLY', splash, 0.3)))
 inside = t.m('SUBTRACT', 1.0, outside)
 bilge = t.m('MULTIPLY', t.mr(H, -0.22, -0.32, 0, 1, True), inside)
 c = t.mulc(c, t.m('SUBTRACT', 1.0, t.m('MULTIPLY', bilge, 0.45)))
-c = t.mix(t.m('MULTIPLY', bilge, t.mr(t.noise(8, 4), 0.45, 0.7, 0, 0.7)), c, (0.08, 0.12, 0.05))
+c = t.mix(t.m('MULTIPLY', bilge, t.mr(t.noise(8, 4), 0.45, 0.7, 0, 0.6)), c, (0.055, 0.042, 0.03))   # sentina: sombra seca, no verdosa
+c = t.mulc(c, t.m('SUBTRACT', 1.0, t.m('MULTIPLY', t.m('MULTIPLY', inside, t.m('SUBTRACT', 1.0, t.m('MAXIMUM', rw(R_GLASS), t.m('MAXIMUM', rw(R_OAR), rw(R_ALU))))), 0.25)))
 t.Lk(c, t.bsdf.inputs['Base Color'])
 # rugosidad / metal / emisión
-wetness = t.m('MAXIMUM', t.m('MAXIMUM', slime, deep), t.m('MAXIMUM', t.m('MULTIPLY', splash, 0.5), bilge))
+wetness = t.m('MAXIMUM', t.m('MAXIMUM', slime, deep), t.m('MULTIPLY', splash, 0.5))   # el interior queda seco
 rough = t.m('SUBTRACT', 0.88, t.m('MULTIPLY', wetness, 0.45))
 rough = t.m('SUBTRACT', rough, t.m('MULTIPLY', t.m('MULTIPLY', ext, t.m('SUBTRACT', 1.0, chip)), 0.12))
 rough = t.m('SUBTRACT', rough, t.m('MULTIPLY', rw(R_OAR), 0.25))
