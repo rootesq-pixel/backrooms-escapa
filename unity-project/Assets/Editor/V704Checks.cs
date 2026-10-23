@@ -404,10 +404,17 @@ public static class V704Checks
             r.Check(heart != null && heart.isPlaying && heart.volume > 0.01f, tag + "[Adrenalina] latido sonando (vol " + (heart != null ? heart.volume : 0f).ToString("F2") + ")");
             // fin: el monstruo deja de perseguir (lejos) → dura unos segundos y se apaga
             main.Stop(); main.WarpTo(main.transform.position + FarOff(), 0f);
-            yield return 1.2f;
+            // v7.4.0: las esperas del test van en tiempo real (timeSinceStartup) y la adrenalina en tiempo de juego (deltaTime, con tope
+            // de 0,33 s por fotograma): con un parón de la máquina (fork de la VM, carga de CPU) 4,4 s reales eran < 4 s de juego y fallaba.
+            // Se espera en tiempo de juego y se mide cuánto dura de verdad.
+            float tg0 = Time.time;
+            yield return (System.Func<bool>)(() => Time.time - tg0 >= 1.2f);
             bool lingering = adr.Active && !adr.Chased;
-            yield return Adrenaline.Linger + 0.4f;
-            r.Check(lingering && !adr.Active && fpc.staminaDrainMul == 1f && fpc.sprintMul == 1f, tag + "[Adrenalina] dura unos segundos tras la persecución y se apaga (" + Adrenaline.Linger + " s)");
+            yield return (System.Func<bool>)(() => !adr.Active || Time.time - tg0 > Adrenaline.Linger + 4f);
+            float lasted = Time.time - tg0;
+            yield return 0.2f;
+            r.Check(lingering && !adr.Active && lasted >= Adrenaline.Linger - 0.1f && lasted <= Adrenaline.Linger + 1.5f && fpc.staminaDrainMul == 1f && fpc.sprintMul == 1f,
+                tag + "[Adrenalina] dura unos segundos tras la persecución y se apaga (" + Adrenaline.Linger + " s; medido " + lasted.ToString("F1") + " s de juego, persiste a 1,2 s: " + lingering + ")");
             // segunda persecución enseguida: sin nuevo empujón (enfriamiento)
             int b1 = adr.Boosts;
             main.WarpTo(msp, 0f); main.ChaseForTests();
