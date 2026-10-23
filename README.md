@@ -3,15 +3,15 @@
 Juego de terror en primera persona para PC (Windows 64 bits) hecho con **Unity**: escapa de las Backrooms a través de **8 niveles** encadenados. Cada nivel es un laberinto (o aparcamiento abierto) procedural con su propia estética, luces, dificultad y criaturas que patrullan y te persiguen. La salida es una puerta discreta que **solo se descubre explorando**: sin cartel, sin flecha, sin indicador de distancia.
 
 - 🌐 **Web:** https://rootesq-pixel.github.io/backrooms-escapa/
-- ⬇️ **Descarga directa v7.2.0 (Windows, ZIP ≈ 191 MB):** [BackroomsEscape_v7_2_0_Windows.zip](https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v7.2.0/BackroomsEscape_v7_2_0_Windows.zip)
-- 📦 **Release v7.2.0:** https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.2.0
+- ⬇️ **Descarga directa v7.3.0 (Windows, ZIP ≈ SIZE_TBD MB):** [BackroomsEscape_v7_3_0_Windows.zip](https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v7.3.0/BackroomsEscape_v7_3_0_Windows.zip)
+- 📦 **Release v7.3.0:** https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.3.0
 - 🕓 Versiones anteriores: [v7.1.3](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.1.3) (agua nueva en los Poolrooms) · [v7.1.2](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.1.2) (bolas 3D en el Parque de bolas) · [v7.1.1](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.1.1) (calidad GPU: luz y texturas 4K) · [v7.1.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.1.0) (nivel 6: Parque de bolas) · [v7.0.4](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.4) (adrenalina, llaves señuelo) · [v7.0.3](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.3) (carga rápida del Campo infinito) · [v7.0.2](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.2) (imitador garantizado, silbido, cordura) · [v7.0.1](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.0.1) (Campo infinito pulido, imitadores) · [v6.9.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.9.0) (Poolrooms estilo POOLS) · [v6.5.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.5.0) (audio e intro) · [v6.4.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.4.0) (ascensor) · [v6.3.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.3.0) (5 niveles, sin ascensor) · [v6.2.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.2.0) (multijugador por Internet, 6 niveles) · [v6.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v6.0.0) (multijugador por IP y puerto) · [v5.0.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v5.0.0) (un jugador)
 
 > ⚠️ **Build temprana.** Puede haber errores. El **multijugador** se ha probado en local y con un servidor intermedio real; **las pruebas con amigos por Internet están pendientes**. El ejecutable **no está firmado**, así que Windows SmartScreen puede avisar al abrirlo (*Más información → Ejecutar de todas formas*).
 
 ## Cómo jugar
 
-1. Descarga `BackroomsEscape_v7_2_0_Windows.zip` desde la [release v7.2.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.2.0).
+1. Descarga `BackroomsEscape_v7_3_0_Windows.zip` desde la [release v7.3.0](https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.3.0).
 2. Descomprime el ZIP (≈ 300 MB descomprimido).
 3. Ejecuta `BackroomsEscape.exe`.
 
@@ -39,6 +39,10 @@ La puerta de salida está **cerrada con llave**: en cada nivel hay 4-6 llaves pa
 - **El faro:** una torre enorme a lo lejos que se enciende cuando te acercas. Al final del muelle hay **cascos de buzo** (mantén clic izquierdo para ponértelo; llevan lámpara) y una **jaula** que solo baja si todos los que van dentro llevan casco.
 - **El fondo:** oscuridad casi total y **El Farolero**, un rape gigante que patrulla con su señuelo de luz. Con la lámpara encendida te ve de más lejos. Desde la puerta de la jaula, nada un poco a la izquierda hasta la gruta, sube por el túnel y sal a respirar en la poza: **fin del juego**.
 - **Multijugador:** barca, cascos, bengalas, jaula, peces y El Farolero sincronizados. En cooperativo un mordisco o ahogarse te derriba (no te mata) y un compañero puede reanimarte manteniendo E, también en el agua.
+- **Aspecto:** cascos de buzo de latón con PBR, traje de buzo amarillo realista, muelle de madera con tablas gastadas y cuerdas, y un **Farolero nuevo**, diseño propio: mandíbula enorme, dientes translúcidos como agujas, ojos lechosos, piel oscura y húmeda, aletas rotas y señuelo que palpita. Abre y cierra la boca al cazar.
+- **Guantes a escala real:** las manos del personaje (en tercera y en primera persona) ya no son enormes, en todos los niveles.
+- **Multijugador:** el protocolo pasa a **MP-8**, así que **todos debéis usar la v7.3.0**.
+- Todos los recursos nuevos son trabajo propio o CC0 y están en los créditos.
 
 ## Novedades de la v7.2.0 — Poolrooms como en Blender, Campo más realista y reanimar con E
 - **Ventanas de la sala de la piscina como en los renders de Blender:** brillan menos (menos bloom) y ya no hay huecos oscuros con forma de puerta donde Blender no los tiene: las 3 ventanas están en la pared este y solo quedan las puertas reales (oeste y sur).
@@ -222,7 +226,7 @@ Modo **cooperativo de 2 a 4 jugadores**. El modo de un jugador no cambia: la red
 
 **Opción A: con código (recomendada, sin abrir puertos)**
 
-1. Todos necesitáis la **misma versión** (v7.2.0). El protocolo es **MP-7** (desde la v7.2.0): la v7.1.3 y anteriores **no pueden unirse**.
+1. Todos necesitáis la **misma versión** (v7.3.0). El protocolo es **MP-8** (desde la v7.3.0): la v7.2.0 y anteriores **no pueden unirse**.
 2. **Anfitrión:** menú principal → **Multijugador** → tu nombre → **Alojar con código**. Pasa a tus amigos el código de la sala.
 3. **Clientes:** Multijugador → tu nombre → **Unirse con código** → escribe el código → entras en la sala de espera.
 4. El anfitrión elige el nivel con ◄ ► y pulsa **Empezar**. No se puede entrar en una partida ya empezada.
