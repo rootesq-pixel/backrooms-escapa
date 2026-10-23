@@ -52,8 +52,8 @@ public class OceanBoat : MonoBehaviour
         if (src != null)
         {
             model = Object.Instantiate(src, hull, false); model.name = "Model";
-            Material wm = OceanGeo.PbrMat("Ocean/Props/BoatWood", Color.white, 1f, track);
-            if (wm.HasProperty("_GlossMapScale")) wm.SetFloat("_GlossMapScale", 0.32f);   // v7.3.0b: madera seca (antes 0,8: el fondo reflejaba el cielo en manchas azuladas)
+            Material wm = OceanGeo.PbrMat("Ocean/Props/BoatWood", new Color(1f, 0.9f, 0.78f), 1f, track);   // v7.3.0b: tinte cálido que compensa el ambiente gris azulado del nivel 7 (el fondo seco se veía azulado)
+            if (wm.HasProperty("_GlossMapScale")) wm.SetFloat("_GlossMapScale", 0.18f);   // v7.3.0b: madera seca (antes 0,8: el fondo reflejaba el cielo en manchas azuladas)
             Texture2D em = Resources.Load<Texture2D>("Ocean/Props/BoatWood_e");
             if (em != null) { wm.SetTexture("_EmissionMap", em); wm.SetColor("_EmissionColor", new Color(1f, 0.8f, 0.55f) * 1.6f); wm.EnableKeyword("_EMISSION"); wm.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None; }
             foreach (Renderer r in model.GetComponentsInChildren<Renderer>(true))
