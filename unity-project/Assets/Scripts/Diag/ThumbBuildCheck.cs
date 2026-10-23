@@ -48,7 +48,14 @@ public class ThumbBuildCheck : MonoBehaviour
             foreach (MonsterAI m in gm.monsters) if (m != null) m.Stop();
             Camera mc = Camera.main;
             VhsEffect vx = mc != null ? mc.GetComponent<VhsEffect>() : null; if (vx != null) vx.intensityOverride = 0f;
-            Flashlight fl = pw.GetComponentInChildren<Flashlight>(); if (fl != null) fl.SetOn(lv == 1 || lv == 3 || lv == 4);
+            Flashlight fl = pw.GetComponentInChildren<Flashlight>(); if (fl != null) fl.SetOn(lv == 1 || lv == 3 || lv == 4 || lv == 6);
+            // v7.3.0b: la cabina del ascensor (con su indicador de planta) no debe salir en la miniatura
+            if (ElevatorCabin.Current != null)
+            {
+                foreach (Renderer r in ElevatorCabin.Current.GetComponentsInChildren<Renderer>(true)) r.enabled = false;
+                foreach (Collider cc in ElevatorCabin.Current.GetComponentsInChildren<Collider>(true)) cc.enabled = false;
+                foreach (Light ll in ElevatorCabin.Current.GetComponentsInChildren<Light>(true)) ll.enabled = false;
+            }
             mc.cullingMask &= ~(1 << 8);
             Vector3 p, t, stand;
             if (OceanWorld.Active != null) { stand = new Vector3(15f, -0.3f, 30.6f); p = stand + Vector3.up * 1.62f; t = new Vector3(13f, 1.2f, 70f); }
@@ -66,7 +73,9 @@ public class ThumbBuildCheck : MonoBehaviour
                     float L = Physics.Raycast(e, d, out RaycastHit h, 60f, ~((1 << 2) | (1 << 8)), QueryTriggerInteraction.Ignore) ? h.distance : 60f;
                     if (L > best) { best = L; bd = d; }
                 }
-                stand = pw.transform.position; p = e; t = e + bd * 10f + Vector3.down * 0.9f;
+                // se adelanta fuera del hueco del ascensor, mirando a lo largo del tramo más despejado
+                float fwd = Mathf.Clamp(best - 2.5f, 0f, 3.5f);
+                stand = pw.transform.position + bd * fwd; p = e + bd * fwd; t = p + bd * 10f + Vector3.down * 0.9f;
                 Info("nivel " + lv + ": dirección más larga " + best.ToString("F1") + " m");
             }
             pw.Teleport(stand, Mathf.Atan2(t.x - p.x, t.z - p.z) * Mathf.Rad2Deg);
@@ -75,6 +84,11 @@ public class ThumbBuildCheck : MonoBehaviour
             if (PoolPlanarReflection.Instance != null) PoolPlanarReflection.Instance.Refresh(mc);
             if (FieldGrass.Active != null) FieldGrass.Active.Submit();
             Texture2D tex = Grab(mc, 1920, 1080);
+            if (Mean(tex) < 0.11f)
+            {   // niveles muy oscuros: algo más de luz ambiente solo para que la miniatura se lea
+                Color amb = RenderSettings.ambientLight; RenderSettings.ambientLight = amb * 1.8f;
+                Destroy(tex); tex = Grab(mc, 1920, 1080); RenderSettings.ambientLight = amb;
+            }
             WritePpm(Path.Combine(dir, "thumb_" + lv + ".ppm"), tex);
             LevelThumbs.Override[lv] = tex;
             Info("nivel " + lv + " (" + LevelConfig.Get(lv).name + "): media " + Mean(tex).ToString("F3"));

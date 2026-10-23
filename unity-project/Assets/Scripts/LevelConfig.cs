@@ -25,6 +25,10 @@ public class LevelConfig
     public float pillarSize = 0.9f;
     public float roomPillars = 0f;         // v7.3.0: prob. de pilar cuadrado empapelado en cada esquina libre de las salas abiertas (nivel 0)
     public float roomPillarSize = 0.66f;
+    public float darkClusters = 0f;        // v7.3.0b: fracción de grupos de celdas con todos los paneles apagados (deterministas por semilla)
+    public float flickerClusters = 0f;     // v7.3.0b: fracción de grupos donde los paneles parpadean
+    public int clusterCells = 4;
+    public bool fillerPanels = false;      // v7.3.0: paneles emisivos sin luz en las celdas sin lámpara (mallas combinadas)
     public int decks = 1;                  // v7.0.4: aparcamiento con plantas a medio nivel unidas por rampas (GaragePlan)
     public float deckDrop = 1.6f;
     public int halls = 0;                  // v7.1.0: salas de juego fijas horneadas (Parque de bolas, BallpitSetPiece)
@@ -165,12 +169,18 @@ public class LevelConfig
             // techo blanco de placas con paneles fluorescentes verdosos; luz plana, uniforme y algo enfermiza, con bruma lejana
             c.wallStyle = SurfaceStyle.WallpaperL0; c.floorStyle = SurfaceStyle.CarpetL0; c.ceilingStyle = SurfaceStyle.CeilingL0;
             c.ceilTileU = c.ceilTileV = 2.4f;
-            c.roomPillars = 0.8f; c.roomPillarSize = 0.66f; c.roomCount = 10;
-            c.ambient = new Color(0.30f, 0.285f, 0.13f);
-            c.fog = new Color(0.47f, 0.45f, 0.22f); c.fogDensity = 0.026f;
-            c.lightColor = new Color(1f, 0.97f, 0.70f); c.emissionColor = new Color(1.0f, 1.10f, 0.74f);
-            c.lightIntensity = 1.15f; c.lightRange = 8.5f; c.maxRealtimeLights = 12;
-            c.deadChance = 0.04f; c.flickerChance = 0.18f;
+            c.roomPillars = 0.8f; c.roomPillarSize = 0.66f; c.fillerPanels = true;
+            // largo e «infinito»: 28 × 44 celdas (112 × 176 m; el campo mide 264 × 264 m), muchas salas grandes y bucles = visuales largas
+            c.gridW = 28; c.gridH = 44; c.roomCount = 30; c.roomSize = new Vector2Int(3, 6); c.loopChance = 0.22f;
+            c.batteries = 6; c.monsterCount = 1;
+            // v7.3.0b (usuario): más oscuro, con rincones en penumbra: menos ambiente, caída más corta, grupos de paneles muertos
+            // o parpadeando (deterministas por semilla: iguales en todos los clientes) y bruma lejana más oscura
+            c.ambient = new Color(0.15f, 0.145f, 0.065f);
+            c.fog = new Color(0.17f, 0.17f, 0.075f); c.fogDensity = 0.030f;
+            c.lightColor = new Color(1f, 0.97f, 0.70f); c.emissionColor = new Color(0.80f, 1.0f, 0.58f);
+            c.lightIntensity = 1.05f; c.lightRange = 7.2f; c.maxRealtimeLights = 12;
+            c.deadChance = 0.06f; c.flickerChance = 0.12f;
+            c.darkClusters = 0.27f; c.flickerClusters = 0.10f; c.clusterCells = 4;
             c.grade = 0.55f;
         }
         return c;

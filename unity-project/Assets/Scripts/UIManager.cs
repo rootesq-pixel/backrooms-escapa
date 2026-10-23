@@ -525,8 +525,9 @@ public class UIManager : MonoBehaviour
         title.font = UiStyle.SansBold();
         Label(root.transform, "Elige dónde despertar. Cada nivel es una salida distinta.", 26, TextAnchor.MiddleLeft, -230f, 400f, 1300f, 40f, Dim);
         UiStyle.Rect(root.transform, "TitleRule", 0f, 372f, 1760f, 2f, UiStyle.Border);
-        const float cw = 300f, chh = 169f, ch = 246f;
-        float[] cx = { -720f, -400f, -80f, 240f }, cy = { 180f, -96f };
+        // v7.3.0b: rejilla y vista previa sin solaparse (antes la vista previa tapaba la tarjeta 3)
+        const float cw = 290f, chh = 163f, ch = 240f;
+        float[] cx = { -775f, -469f, -163f, 143f }, cy = { 180f, -90f };
         lvCards.Clear();
         for (int i = 0; i < LevelConfig.Count; i++)
         {
@@ -550,16 +551,16 @@ public class UIManager : MonoBehaviour
             lvCards.Add(b);
         }
         // vista previa grande
-        Image pv = UiStyle.Framed(root.transform, "LevelPreview", 615f, 0f, 690f, 710f, new Color(0.04f, 0.036f, 0.02f, 0.96f), UiStyle.Border, 2f);
+        Image pv = UiStyle.Framed(root.transform, "LevelPreview", 640f, 0f, 560f, 710f, new Color(0.04f, 0.036f, 0.02f, 0.96f), UiStyle.Border, 2f);
         lvPreview = new GameObject("PreviewImage", typeof(RectTransform)).AddComponent<RawImage>(); lvPreview.transform.SetParent(pv.transform, false);
         lvPreview.raycastTarget = false; RectTransform pr = lvPreview.rectTransform; pr.anchorMin = pr.anchorMax = new Vector2(0.5f, 1f); pr.pivot = new Vector2(0.5f, 1f);
-        pr.sizeDelta = new Vector2(650f, 366f); pr.anchoredPosition = new Vector2(0f, -20f);
-        lvPrevNum = Label(pv.transform, "", 22, TextAnchor.MiddleLeft, 0f, -60f, 650f, 30f, UiStyle.Gold); lvPrevNum.font = UiStyle.SansBold();
-        lvPrevName = Label(pv.transform, "", 46, TextAnchor.MiddleLeft, 0f, -102f, 650f, 58f, UiStyle.Text); lvPrevName.font = UiStyle.SansBold();
-        UiStyle.Rect(pv.transform, "PreviewRule", 0f, -136f, 650f, 1f, UiStyle.Border);
-        lvPrevDesc = Label(pv.transform, "", 25, TextAnchor.UpperLeft, 0f, -200f, 650f, 110f, new Color(0.86f, 0.82f, 0.66f));
+        pr.sizeDelta = new Vector2(520f, 293f); pr.anchoredPosition = new Vector2(0f, -20f);
+        lvPrevNum = Label(pv.transform, "", 22, TextAnchor.MiddleLeft, 0f, 13f, 520f, 30f, UiStyle.Gold); lvPrevNum.font = UiStyle.SansBold();
+        lvPrevName = Label(pv.transform, "", 44, TextAnchor.MiddleLeft, 0f, -29f, 520f, 58f, UiStyle.Text); lvPrevName.font = UiStyle.SansBold();
+        UiStyle.Rect(pv.transform, "PreviewRule", 0f, -63f, 520f, 1f, UiStyle.Border);
+        lvPrevDesc = Label(pv.transform, "", 25, TextAnchor.UpperLeft, 0f, -142f, 520f, 140f, new Color(0.86f, 0.82f, 0.66f));
         lvPrevDesc.lineSpacing = 1.12f;
-        lvPlay = MakeButton(root.transform, "Jugar este nivel", 615f, -296f, 420f, 66f, () => { Click(); StartGame(lvFocus); }, 32);
+        lvPlay = MakeButton(root.transform, "Jugar este nivel", 640f, -282f, 420f, 66f, () => { Click(); StartGame(lvFocus); }, 32);
         Button back = MakeButton(root.transform, "Volver", -560f, -330f, 300f, 66f, () => { Click(); SetScreen(Screen.Main); }, 30);
         Label(root.transform, "Ratón: elegir y clic para jugar   ·   Flechas / stick: moverse   ·   Intro / A: jugar   ·   Esc / B: volver", 21, TextAnchor.MiddleCenter, 0f, -440f, 1700f, 34f, Dim);
         // navegación explícita (rejilla + vista previa) para teclado y mando
@@ -585,8 +586,8 @@ public class UIManager : MonoBehaviour
     {
         if (lv < 0 || lv >= LevelConfig.Count || lvPreview == null) return;
         lvFocus = lv; LevelConfig c = LevelConfig.Get(lv);
-        Texture2D t = LevelThumbs.Get(lv); FitThumb(lvPreview, t, 650f / 366f); lvPreview.color = t != null ? Color.white : new Color(0.12f, 0.11f, 0.07f, 1f);
-        lvPrevNum.text = "NIVEL " + lv + " DE " + (LevelConfig.Count - 1);
+        Texture2D t = LevelThumbs.Get(lv); FitThumb(lvPreview, t, 520f / 293f); lvPreview.color = t != null ? Color.white : new Color(0.12f, 0.11f, 0.07f, 1f);
+        lvPrevNum.text = "NIVEL " + lv + "  ·  " + (lv + 1) + " DE " + LevelConfig.Count;   // 8 niveles (0-7)
         lvPrevName.text = c.name;
         lvPrevDesc.text = c.subtitle;
     }

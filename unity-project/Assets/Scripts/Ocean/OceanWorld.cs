@@ -196,8 +196,8 @@ public class OceanWorld : MonoBehaviour
             else DeepObstacles.Add(new Vector4(p.x, sb + 1.6f, p.z, 3.4f));
             // luz cenital turbia (como si bajase algo de claridad) y contraluz frío detrás, sin sombras: silueta legible desde lejos
             Vector3 side = Vector3.Cross(Vector3.up, toC);
-            SculptLight("SculptMurk", new Vector3(p.x, sb + H + 3.5f, p.z) + toC * 2.5f, new Color(0.42f, 0.62f, 0.7f), H + 7f, 1.25f);
-            SculptLight("SculptRim", new Vector3(p.x, sb + H * 0.6f, p.z) - toC * 4.5f + side * 1.5f, new Color(0.3f, 0.7f, 0.75f), H + 4.5f, 0.95f);
+            SculptLight("SculptMurk", new Vector3(p.x, sb + H + 3.5f, p.z) + toC * 2.5f, new Color(0.42f, 0.62f, 0.7f), H + 8f, 1.9f);
+            SculptLight("SculptRim", new Vector3(p.x, sb + H * 0.6f, p.z) - toC * 4.5f + side * 1.5f, new Color(0.3f, 0.7f, 0.75f), H + 5.5f, 1.4f);
         }
         if (Application.isPlaying) Object.Destroy(inst); else Object.DestroyImmediate(inst);
     }

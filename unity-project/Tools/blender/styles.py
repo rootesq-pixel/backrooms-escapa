@@ -514,20 +514,20 @@ def wallpaper_l0(g):
     u, v = g.u, g.v
     H = 3.0
     my = v * H
-    NC = 15.0                                   # 15 columnas en 2,4 m (16 cm)
+    NC = 9.0                                    # 9 columnas en 2,4 m (27 cm), como en la foto
     cu = u * NC
     ci = g.floor(cu)
     fu = g.fract(cu)
     cx = g.abs(fu - 0.5)                        # 0 en el eje de la columna, 0.5 en el borde
     par = g.fract(ci * 0.5) * 2.0               # 0/1 alterna columnas
-    RV = 0.21                                   # paso vertical de los chevrones (m)
+    RV = 0.40                                   # paso vertical de los chevrones (m)
     fv = g.fract(my / RV + par * 0.5)
     # chevron «^»: dos trazos paralelos que suben hacia el eje
     k = 0.95
     d1 = g.abs(fv - (0.70 - k * cx))
     d2 = g.abs(fv - (0.53 - k * cx))
     inside = 1.0 - g.smooth(0.30, 0.34, cx)
-    chev = g.maximum(1.0 - g.smooth(0.030, 0.050, d1), 0.75 * (1.0 - g.smooth(0.020, 0.036, d2))) * inside
+    chev = g.maximum(1.0 - g.smooth(0.045, 0.065, d1), 0.85 * (1.0 - g.smooth(0.030, 0.048, d2))) * inside
     # rombo pequeño entre chevrones
     dm = g.abs(fv - 0.14) * 1.6 + cx
     dia = (1.0 - g.smooth(0.05, 0.075, dm))
@@ -537,9 +537,9 @@ def wallpaper_l0(g):
     vline = g.maximum(1.0 - g.smooth(0.006, 0.014, ex), 1.0 - g.smooth(0.004, 0.011, g.abs(ex - 0.045)))
     pat = g.clamp(chev + dia * 0.8 + vline * 0.7)
     # variación de impresión (tinta irregular)
-    ink = 0.75 + 0.5 * g.noise(60, 60, detail=2.0, seed=81)
-    base = rgbf(g, (0.78, 0.77, 0.40))
-    ink_c = rgbf(g, (0.63, 0.61, 0.27))
+    ink = 0.88 + 0.24 * g.noise(40, 40, detail=2.0, seed=81)
+    base = rgbf(g, (0.78, 0.77, 0.50))  # v2b: algo menos saturado (ref.)
+    ink_c = rgbf(g, (0.50, 0.50, 0.27))
     col = g.cmix(base, ink_c, g.clamp(pat * ink))
     # fibra/grano del papel
     fib = g.noise(420, 36, detail=1.0, seed=82)
@@ -589,7 +589,7 @@ def carpet_l0(g):
     patches = cn(g, 5, 5, 1.6, detail=4.0, seed=sd + 3)
     damp = cn(g, 2.2, 2.2, 1.8, detail=5.0, seed=sd + 4)
     wear = cn(g, 3, 1.2, 1.6, detail=3.0, seed=sd + 5)
-    base = rgbf(g, (0.55, 0.485, 0.32))           # beige tostado algo oliváceo
+    base = rgbf(g, (0.56, 0.45, 0.20))            # mostaza pardo
     col = g.cmul(base, (0.74 + 0.50 * tuft) * (0.90 + 0.20 * patches))
     # húmeda: zonas más oscuras y pardas con borde difuso; pisadas más claras y aplastadas
     wet = g.smooth(0.50, 0.72, damp)
@@ -612,7 +612,7 @@ def ceiling_l0(g):
     pu = g.floor(u * 4.0); pv = g.floor(v * 2.0)
     tile_k = 0.96 + 0.06 * g.cellrand(pu, pv, seed=74)
     k = tile_k * (0.95 + 0.08 * (bl - 0.5) + 0.10 * grain)
-    col = Col(*[g.val(c) * k for c in (0.86, 0.86, 0.80)])
+    col = Col(*[g.val(c) * k for c in (0.92, 0.90, 0.78)])   # blanco crema
     height = 0.5 + 0.05 * grain
     dv_, cell = g.voronoi(210, 210, seed=75)
     holes = (cell < 0.12) * (1.0 - g.smooth(0.08, 0.17, dv_))
@@ -627,7 +627,7 @@ def ceiling_l0(g):
     tee = 1.0 - g.smooth(0.010, 0.0125, d)            # perfil de 2,4 cm
     shade = (1.0 - g.smooth(0.0125, 0.03, d)) * (1.0 - tee)   # sombra de la placa rehundida junto al perfil
     col = g.cmul(col, 1.0 - 0.22 * shade)
-    col = g.cmix(col, rgbf(g, (0.93, 0.93, 0.89)), tee)
+    col = g.cmix(col, rgbf(g, (0.95, 0.94, 0.84)), tee)
     height = height + 0.45 * tee - 0.15 * shade
     ao = ao - 0.25 * shade
     sm = g.smooth(0.72, 0.86, st)

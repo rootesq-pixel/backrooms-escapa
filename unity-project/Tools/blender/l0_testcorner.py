@@ -19,9 +19,9 @@ try:
     sc.cycles.device = 'GPU'; print('device', p.compute_device_type, flush=True)
 except Exception as e: print('cpu', e)
 sc.cycles.samples = int(os.environ.get('SAMPLES', '160')); sc.cycles.use_denoising = True
-sc.cycles.max_bounces = 6; sc.cycles.diffuse_bounces = 4; sc.cycles.volume_bounces = 0
+sc.cycles.max_bounces = 6; sc.cycles.diffuse_bounces = 3; sc.cycles.use_light_tree = True; sc.cycles.volume_bounces = 0
 sc.render.resolution_x = int(os.environ.get('RX', '1600')); sc.render.resolution_y = int(os.environ.get('RY', '1200'))
-sc.view_settings.view_transform = 'Standard'; sc.view_settings.look = 'None'; sc.view_settings.exposure = -0.15
+sc.view_settings.view_transform = 'Standard'; sc.view_settings.look = 'None'; sc.view_settings.exposure = float(os.environ.get('EXPO', '-0.85'))
 H = 3.0
 
 def img(name, data=False):
@@ -57,70 +57,91 @@ def box(name, lo, hi, mat):
 wall = surf_mat('Wallpaper', 'WallpaperL0', 2.4, 3.0, 0.5)
 carpet = surf_mat('Carpet', 'CarpetL0', 2.0, 2.0, 0.9)
 ceil = surf_mat('Ceiling', 'CeilingL0', 2.4, 2.4, 0.5)
-X0, X1, Y0, Y1 = -6.0, 8.0, -6.0, 10.0
+# v2 (revisión del usuario): sala grande y profunda (26 × 36 m) con muchos pilares que se alejan, bloques de pared, techo crema con
+# paneles fluorescentes en filas (uno cada 3 × 2 placas) que iluminan de verdad; sin luz de relleno (no quemar las paredes).
+X0, X1, Y0, Y1 = -9.6, 15.6, -6.0, 30.0
 quad('Floor', [(X0, Y0, 0), (X1, Y0, 0), (X1, Y1, 0), (X0, Y1, 0)], [(X0, Y0), (X1, Y0), (X1, Y1), (X0, Y1)], carpet)
-# techo con 2 huecos de panel (0,6 × 1,2): se hace como placas alrededor (rejilla de 0,6 × 1,2), saltando las de los paneles
-PANELS = [(0.3, 3.0), (2.1, 6.6)]   # centros (x, y) de los 2 paneles (en la rejilla 0,6 × 1,2)
-def is_panel(cx, cy): return any(abs(cx - px) < 0.05 and abs(cy - py) < 0.05 for px, py in PANELS)
-verts, faces, uvs = [], [], []
-x = X0
-while x < X1 - 1e-6:
-    y = Y0
-    while y < Y1 - 1e-6:
-        cx, cy = x + 0.3, y + 0.6
-        if not is_panel(cx, cy):
-            k = len(verts); verts += [(x, y, H), (x, y + 1.2, H), (x + 0.6, y + 1.2, H), (x + 0.6, y, H)]; faces.append([k, k + 1, k + 2, k + 3])
-        y += 1.2
-    x += 0.6
+PANELS = []
+for ix in range(-5, 9):
+    for iy in range(-2, 12):
+        PANELS.append((ix * 1.8 + 0.3 + (0.6 if iy % 2 else 0.0), iy * 2.4 + 0.6))
+# v3 (más oscuro): paneles apagados en grupos y algunos parpadeando (en la foto, a media luz), deterministas: misma regla que el juego
+def _h(a, b, k):
+    n = (a * 73856093) ^ (b * 19349663) ^ (k * 83492791)
+    n = (n ^ (n >> 13)) * 1274126177 & 0xffffffff
+    return ((n ^ (n >> 16)) & 0xffff) / 65535.0
+def _near_path(px, py):   # el camino que se ve delante desde la cámara queda iluminado
+    ax, ay, bx, by = -2.6, -3.2, 4.0, 14.0
+    dx, dy = bx - ax, by - ay; t = max(0.0, min(1.0, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)))
+    return math.hypot(px - (ax + t * dx), py - (ay + t * dy)) < 1.9 and t < 0.75
+PSTATE = {}
+for px, py in PANELS:
+    cx_, cy_ = int(math.floor(px / 5.4)), int(math.floor(py / 7.2))   # grupos de ~3 × 3 paneles
+    dead = _h(cx_, cy_, 1) < 0.30 or _h(int(px * 10), int(py * 10), 2) < 0.08
+    flick = (not dead) and _h(int(px * 10), int(py * 10), 3) < 0.10
+    if _near_path(px, py): dead = False
+    PSTATE[(round(px, 2), round(py, 2))] = 'dead' if dead else ('flick' if flick else 'on')
+print('panels', len(PANELS), 'dead', sum(v == 'dead' for v in PSTATE.values()), 'flick', sum(v == 'flick' for v in PSTATE.values()))
+PSET = set((round(px, 2), round(py, 2)) for px, py in PANELS)
+def is_panel(cx, cy): return (round(cx, 2), round(cy, 2)) in PSET
+verts, faces = [], []
+for i in range(int(round((X1 - X0) / 0.6))):
+    for j in range(int(round((Y1 - Y0) / 1.2))):
+        x = X0 + i * 0.6; y = Y0 + j * 1.2
+        if is_panel(x + 0.3, y + 0.6): continue
+        k = len(verts); verts += [(x, y, H), (x, y + 1.2, H), (x + 0.6, y + 1.2, H), (x + 0.6, y, H)]; faces.append([k, k + 1, k + 2, k + 3])
 me = bpy.data.meshes.new('Ceiling'); me.from_pydata(verts, [], faces); me.update(); ul = me.uv_layers.new()
 for i, l in enumerate(me.loops): v = me.vertices[l.vertex_index].co; ul.data[i].uv = (v.x, v.y)
 co = bpy.data.objects.new('Ceiling', me); sc.collection.objects.link(co); me.materials.append(ceil)
-# paneles fluorescentes rehundidos: caja blanca de 6 cm, difusor emisivo verdoso
 lm = bpy.data.materials.new('Diffuser'); lm.use_nodes = True; e = lm.node_tree.nodes['Principled BSDF']
-e.inputs['Base Color'].default_value = (0.9, 0.95, 0.8, 1); e.inputs['Emission Color'].default_value = (0.86, 1.0, 0.62, 1); e.inputs['Emission Strength'].default_value = 9.0
-fm = bpy.data.materials.new('PanelFrame'); fm.use_nodes = True; fb = fm.node_tree.nodes['Principled BSDF']; fb.inputs['Base Color'].default_value = (0.82, 0.82, 0.78, 1); fb.inputs['Roughness'].default_value = 0.4
+e.inputs['Base Color'].default_value = (0.80, 0.90, 0.66, 1); e.inputs['Emission Color'].default_value = (0.80, 1.0, 0.62, 1); e.inputs['Emission Strength'].default_value = 1.25  # v2b: tinte verde visible (sin saturar a blanco)
+fm = bpy.data.materials.new('PanelFrame'); fm.use_nodes = True; fb = fm.node_tree.nodes['Principled BSDF']; fb.inputs['Base Color'].default_value = (0.86, 0.85, 0.76, 1); fb.inputs['Roughness'].default_value = 0.4
+TL = bpy.data.lights.new('Tube', 'AREA'); TL.shape = 'RECTANGLE'; TL.size = 0.55; TL.size_y = 1.15; TL.energy = float(os.environ.get('PANEL_W', '18')); TL.color = (0.90, 1.0, 0.66)
+lmd = bpy.data.materials.new('DiffuserDead'); lmd.use_nodes = True; lmd.node_tree.nodes['Principled BSDF'].inputs['Base Color'].default_value = (0.42, 0.43, 0.36, 1)
+lmf = lm.copy(); lmf.name = 'DiffuserFlicker'; lmf.node_tree.nodes['Principled BSDF'].inputs['Emission Strength'].default_value = 0.45
+TLf = TL.copy(); TLf.energy = TL.energy * 0.3
 for px, py in PANELS:
     for (a, b) in [((px - 0.3, py - 0.6, H), (px + 0.3, py - 0.585, H + 0.06)), ((px - 0.3, py + 0.585, H), (px + 0.3, py + 0.6, H + 0.06)),
                    ((px - 0.3, py - 0.6, H), (px - 0.285, py + 0.6, H + 0.06)), ((px + 0.285, py - 0.6, H), (px + 0.3, py + 0.6, H + 0.06))]:
         box('PanelFrame', a, b, fm)
-    d = box('Diffuser', (px - 0.285, py - 0.585, H + 0.04), (px + 0.285, py + 0.585, H + 0.05), lm)
-    L = bpy.data.lights.new('Tube', 'AREA'); L.shape = 'RECTANGLE'; L.size = 0.55; L.size_y = 1.15; L.energy = 210; L.color = (0.96, 1.0, 0.70)
-    lo = bpy.data.objects.new('Tube', L); lo.location = (px, py, H + 0.035); sc.collection.objects.link(lo)
-# pared empapelada larga (fondo, y = Y1w) y retorno en esquina (x = XLw); u = distancia horizontal / 2,4, v = z / 3
-Y1w, XLw = 8.0, -4.0
-def wallq(name, a, b):   # a, b = extremos (x, y) en planta, normal hacia la cámara
+    st = PSTATE[(round(px, 2), round(py, 2))]
+    box('Diffuser', (px - 0.285, py - 0.585, H + 0.04), (px + 0.285, py + 0.585, H + 0.05), lm if st == 'on' else (lmf if st == 'flick' else lmd))
+    if st != 'dead':
+        lo = bpy.data.objects.new('Tube', TL if st == 'on' else TLf); lo.location = (px, py, H + 0.035); sc.collection.objects.link(lo)
+def wallq(name, a, b, u0=0.0):
     L_ = math.dist(a, b)
-    return quad(name, [(a[0], a[1], 0), (b[0], b[1], 0), (b[0], b[1], H), (a[0], a[1], H)], [(0, 0), (L_, 0), (L_, H), (0, H)], wall)
-wallq('WallBack', (XLw, Y1w), (X1, Y1w))
-wallq('WallLeft', (XLw, Y0 + 2.0), (XLw, Y1w))
-# tabique a la derecha (como en la foto) con su rodapié
-wallq('WallFarRight', (X1, Y1w), (X1, Y0)); wallq('WallRightF', (4.6, 3.2), (4.6, 7.2)); wallq('WallRightS', (4.6, 7.2), (6.4, 7.2)); wallq('WallRightB', (6.4, 3.2), (4.6, 3.2))
-# pilar cuadrado de 0,66 m empapelado
-PX, PY, S = 1.4, 3.3, 0.33
-for i, (a, b) in enumerate([((PX - S, PY - S), (PX + S, PY - S)), ((PX + S, PY - S), (PX + S, PY + S)), ((PX + S, PY + S), (PX - S, PY + S)), ((PX - S, PY + S), (PX - S, PY - S))]):
-    o = wallq('Pillar%d' % i, a, b)
-    for l in o.data.uv_layers[0].data: l.uv = (l.uv[0] + i * 0.66, l.uv[1])
-# rodapiés reales (1,2 cm de grueso, 10 cm) de color crema
-bm = bpy.data.materials.new('Baseboard'); bm.use_nodes = True; bb = bm.node_tree.nodes['Principled BSDF']; bb.inputs['Base Color'].default_value = (0.70, 0.66, 0.40, 1); bb.inputs['Roughness'].default_value = 0.45
-box('BaseBack', (XLw, Y1w - 0.012, 0), (X1, Y1w, 0.10), bm)
-box('BaseR', (4.6 - 0.012, 3.2, 0), (4.6, 7.2, 0.10), bm)
-box('BaseLeft', (XLw, Y0 + 2.0, 0), (XLw + 0.012, Y1w, 0.10), bm)
-box('BaseP0', (PX - S - 0.012, PY - S - 0.012, 0), (PX + S + 0.012, PY + S + 0.012, 0.10), bm)
-# cielo / rebote: mundo amarillo tenue + bruma (volumen homogéneo) para la distancia
+    return quad(name, [(a[0], a[1], 0), (b[0], b[1], 0), (b[0], b[1], H), (a[0], a[1], H)], [(u0, 0), (u0 + L_, 0), (u0 + L_, H), (u0, H)], wall)
+bm = bpy.data.materials.new('Baseboard'); bm.use_nodes = True; bb = bm.node_tree.nodes['Principled BSDF']; bb.inputs['Base Color'].default_value = (0.72, 0.68, 0.42, 1); bb.inputs['Roughness'].default_value = 0.45
+def block(name, cx, cy, wx, wy):
+    """pilar o bloque de pared empapelado con rodapié"""
+    x0, x1, y0, y1 = cx - wx / 2, cx + wx / 2, cy - wy / 2, cy + wy / 2
+    u = 0.0
+    for i, (a, b) in enumerate([((x0, y0), (x1, y0)), ((x1, y0), (x1, y1)), ((x1, y1), (x0, y1)), ((x0, y1), (x0, y0))]):
+        wallq('%s_%d' % (name, i), a, b, u); u += math.dist(a, b)
+    box(name + '_base', (x0 - 0.012, y0 - 0.012, 0), (x1 + 0.012, y1 + 0.012, 0.10), bm)
+# muros perimetrales (lejos) y bloques/pilares en rejilla de 4,8 m que se alejan
+for (a, b) in [((X0, Y1), (X1, Y1)), ((X1, Y1), (X1, Y0)), ((X0, Y0), (X0, Y1))]: wallq('Perim', a, b)
+import random
+rnd = random.Random(7)
+for gx in range(-2, 4):
+    for gy in range(0, 6):
+        cx, cy = gx * 4.8 + 1.2, gy * 4.8 + 2.4
+        if abs(cx - (-2.6)) < 2.5 and abs(cy - (-2.0)) < 3.0: continue        # deja libre la cámara
+        r_ = rnd.random()
+        if r_ < 0.18: block('Wall%d_%d' % (gx, gy), cx, cy, 2.4, 0.66)       # tramo de pared
+        elif r_ < 0.30: block('Wall%d_%d' % (gx, gy), cx, cy, 0.66, 2.4)
+        else: block('Pillar%d_%d' % (gx, gy), cx, cy, 0.66, 0.66)
 w = bpy.data.worlds.new('W'); sc.world = w; w.use_nodes = True; bg = w.node_tree.nodes['Background']
-bg.inputs['Color'].default_value = (0.30, 0.31, 0.11, 1); bg.inputs['Strength'].default_value = 0.75
-vol = w.node_tree.nodes.new('ShaderNodeVolumePrincipled'); vol.inputs['Density'].default_value = float(os.environ.get('HAZE', '0.012'))
-vol.inputs['Color'].default_value = (0.95, 0.9, 0.55, 1)
+bg.inputs['Color'].default_value = (0.20, 0.21, 0.07, 1); bg.inputs['Strength'].default_value = 0.05
+vol = w.node_tree.nodes.new('ShaderNodeVolumePrincipled'); vol.inputs['Density'].default_value = float(os.environ.get('HAZE', '0.016'))
+vol.inputs['Color'].default_value = (0.55, 0.56, 0.30, 1); vol.inputs['Absorption Color'].default_value = (0.30, 0.30, 0.22, 1)  # bruma lejana más oscura
 w.node_tree.links.new(vol.outputs[0], w.node_tree.nodes['World Output'].inputs['Volume'])
-# luz de relleno muy suave (rebote del techo) para aplanar como en la foto
-f = bpy.data.lights.new('Fill', 'AREA'); f.size = 10; f.energy = 380; f.color = (1.0, 0.95, 0.62)
-fo = bpy.data.objects.new('Fill', f); fo.location = (1.0, 2.0, H - 0.05); sc.collection.objects.link(fo)
 cam = bpy.data.cameras.new('Cam'); cam.lens = 20; cam.sensor_width = 36
 co_ = bpy.data.objects.new('Cam', cam); sc.collection.objects.link(co_); sc.camera = co_
 def shoot(name, pos, tgt, lens):
     cam.lens = lens; co_.location = pos
     d = Vector(tgt) - Vector(pos); co_.rotation_euler = d.to_track_quat('-Z', 'Y').to_euler()
     sc.render.filepath = os.path.join(OUT, name + '.png'); bpy.ops.render.render(write_still=True); print('shot', name, flush=True)
-shoot('l0_test_angulo_foto', (-2.9, -2.6, 1.55), (2.6, 6.2, 1.15), 18)
-shoot('l0_test_pilar_cerca', (-0.4, 0.4, 1.6), (1.6, 4.6, 1.2), 26)
+shoot('l0_test_angulo_foto', (-2.6, -3.2, 1.6), (4.0, 14.0, 1.05), 16)
+shoot('l0_test_pilar_cerca', (-1.0, -1.0, 1.6), (2.2, 6.0, 1.1), 22)
 print('done', flush=True)

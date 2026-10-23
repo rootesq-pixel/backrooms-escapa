@@ -1120,7 +1120,7 @@ public class BackroomsGenerator : MonoBehaviour
             buzzClip = Track(ProceduralAudio.CreateBuzzClip());
         }
 
-        int fixtures = 0, live = 0;
+        int fixtures = 0, live = 0; DarkClusterFixtures = 0;
         int spacing = Mathf.Max(1, cfg.lightSpacing);
         float wh = wallHeight;
 
@@ -1151,14 +1151,72 @@ public class BackroomsGenerator : MonoBehaviour
                 if (x % spacing != 0 || z % spacing != 0) continue;
                 if (InPoolBlock(x, z)) continue;
                 if (Garage != null && Garage.IsRamp(x, z)) continue;   // v7.0.4: techo inclinado   // la sala de piscina tiene su propia luz (tragaluces/ventanas)
-                bool deadFix = rng.NextDouble() < cfg.deadChance;
+                int cst = ClusterState(x, z);
+                bool deadFix = rng.NextDouble() < cfg.deadChance || cst == 1;
+                nextForceFlicker = cst == 2; if (cst == 1) DarkClusterFixtures++;
                 CreateCeilingFixture(lightsRoot, c, deadFix, emissive, dead, housing, rng, buzzClip);
+                nextForceFlicker = false;
                 fixtures++;
                 if (!deadFix) live++;
             }
         }
+        // v7.3.0 nivel 0: paneles fluorescentes «de relleno» en las demás celdas (solo emisivos, sin Light), en mallas combinadas por bloque
+        // de 8 × 8 celdas: el techo se ve lleno de paneles como en la foto sin coste de luces en tiempo real (vale también en Bajo)
+        FillerPanelCount = 0;
+        if (cfg.fillerPanels && cfg.fixture == FixtureKind.Panel && Garage == null)
+        {
+            Mesh cube = Resources.GetBuiltinResource<Mesh>("Cube.fbx");
+            var groups = new Dictionary<int, List<CombineInstance>>();
+            for (int x = 0; x < w; x++)
+                for (int z = 0; z < h; z++)
+                {
+                    if (x % spacing == 0 && z % spacing == 0) continue;
+                    if (InPoolBlock(x, z)) continue;
+                    Vector3 c = CellCenterLocal(x, z);
+                    int key = (x / 8) * 1000 + z / 8 + (ClusterState(x, z) == 1 ? 500000 : 0);   // grupo apagado: material de panel muerto
+                    if (!groups.TryGetValue(key, out List<CombineInstance> l)) groups[key] = l = new List<CombineInstance>();
+                    bool along = ((x * 7 + z * 3) & 1) == 0;
+                    l.Add(new CombineInstance { mesh = cube, transform = Matrix4x4.TRS(new Vector3(c.x, c.y + wh - 0.03f, c.z), Quaternion.identity, along ? new Vector3(1.6f, 0.06f, 0.8f) : new Vector3(0.8f, 0.06f, 1.6f)) });
+                    FillerPanelCount++;
+                }
+            foreach (var kv in groups)
+            {
+                GameObject go = new GameObject("PanelBatch_" + kv.Key); go.transform.SetParent(lightsRoot, false);
+                Mesh m = new Mesh { name = "PanelBatch" }; m.CombineMeshes(kv.Value.ToArray(), true, true); m.RecalculateBounds(); Track(m);
+                go.AddComponent<MeshFilter>().sharedMesh = m;
+                MeshRenderer mr = go.AddComponent<MeshRenderer>(); mr.sharedMaterial = kv.Key >= 500000 ? dead : emissive;
+                mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; mr.receiveShadows = false;
+            }
+        }
         FixtureCount = fixtures;
         LiveFixtureCount = live;
+    }
+    public int FillerPanelCount { get; private set; }
+    public int DarkClusterFixtures { get; private set; }
+
+    // v7.3.0b: grupos de clusterCells × clusterCells celdas apagados (1) o parpadeando (2), deterministas por semilla (iguales en
+    // multijugador); nunca junto a la salida ni al punto de aparición, para que siempre se vea el camino al empezar y al llegar
+    private bool nextForceFlicker;
+    private int ClusterState(int x, int z)
+    {
+        LevelConfig cfg = config;
+        if (cfg.darkClusters <= 0f && cfg.flickerClusters <= 0f) return 0;
+        if (Mathf.Abs(x - startCell.x) <= 2 && Mathf.Abs(z - startCell.y) <= 2) return 0;
+        if (Mathf.Abs(x - exitCell.x) <= 1 && Mathf.Abs(z - exitCell.y) <= 1) return 0;
+        int cc = Mathf.Max(1, cfg.clusterCells);
+        float hsh = ClusterHash(x / cc, z / cc);
+        if (hsh < cfg.darkClusters) return 1;
+        if (hsh < cfg.darkClusters + cfg.flickerClusters) return 2;
+        return 0;
+    }
+    private float ClusterHash(int cx, int cz)
+    {
+        unchecked
+        {
+            uint n = (uint)(UsedSeed * 73856093) ^ (uint)(cx * 19349663) ^ (uint)(cz * 83492791) ^ 0x9E3779B9u;
+            n ^= n >> 13; n *= 1274126177u; n ^= n >> 16;
+            return (n & 0xffffu) / 65535f;
+        }
     }
 
     private void CreateCeilingFixture(Transform parent, Vector3 c, bool isDead, Material emissive, Material dead,
@@ -1242,7 +1300,7 @@ public class BackroomsGenerator : MonoBehaviour
         f.emissiveRenderer = lens;
         f.emissionColor = cfg.emissionColor;
         f.baseIntensity = cfg.lightIntensity;
-        f.flickerEnabled = rng.NextDouble() < cfg.flickerChance;
+        f.flickerEnabled = rng.NextDouble() < cfg.flickerChance || nextForceFlicker;
         f.pulse = cfg.pulse;
         if (cfg.pulse) f.pulseSpeed = 1.2f + (float)rng.NextDouble() * 0.8f;
 

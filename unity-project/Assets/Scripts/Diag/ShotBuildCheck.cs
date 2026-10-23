@@ -225,9 +225,18 @@ public class ShotBuildCheck : MonoBehaviour
             {
                 Transform T = tb.parent.parent; float fy = tb.localPosition.y;
                 if (flm != null) flm.SetOn(true);
-                Vector3 standM = T.TransformPoint(new Vector3(0.3f, fy + 0.02f, -1.9f));
-                yield return View(pw, mc, "l7_46_muebles_casa_pilotes", T.TransformPoint(new Vector3(0.4f, fy + 1.6f, -2.1f)), T.TransformPoint(new Vector3(-0.3f, fy + 0.35f, 1.6f)), 62f, standM);
-                yield return View(pw, mc, "l7_47_muebles_cama", T.TransformPoint(new Vector3(0.2f, fy + 1.35f, -0.2f)), T.TransformPoint(new Vector3(1.9f, fy + 0.35f, 1.55f)), 58f, standM);
+                Vector3 standM = T.TransformPoint(new Vector3(-1.3f, fy + 0.02f, -0.9f));   // v7.3.0b: fuera del hueco de la escalera
+                yield return View(pw, mc, "l7_46_muebles_casa_pilotes", T.TransformPoint(new Vector3(0.1f, fy + 1.65f, -1.25f)), T.TransformPoint(new Vector3(-0.3f, fy + 0.35f, 1.6f)), 62f, standM);
+                {   // diagnóstico: qué hay entre la cámara y la cama (antes salían rectángulos oscuros)
+                    Vector3 c0 = T.TransformPoint(new Vector3(-0.5f, fy + 1.5f, 0.0f));
+                    foreach (Vector3 tq in new[] { new Vector3(1.95f, fy + 0.35f, 1.5f), new Vector3(0.6f, fy + 0.2f, 1.2f), new Vector3(1.0f, fy + 1.2f, 2.0f), new Vector3(2.6f, fy + 0.3f, 0.6f) })
+                    {
+                        Vector3 tw = T.TransformPoint(tq);
+                        foreach (RaycastHit hh in Physics.RaycastAll(c0, (tw - c0).normalized, (tw - c0).magnitude, ~0, QueryTriggerInteraction.Collide))
+                            Info("l7_47 rayo " + tq + ": " + hh.collider.name + " (" + (hh.collider.transform.parent != null ? hh.collider.transform.parent.name : "-") + ") a " + hh.distance.ToString("F2"));
+                    }
+                }
+                yield return View(pw, mc, "l7_47_muebles_cama", T.TransformPoint(new Vector3(-0.5f, fy + 1.5f, 0.0f)), T.TransformPoint(new Vector3(1.95f, fy + 0.35f, 1.5f)), 58f, standM);
                 yield return View(pw, mc, "l7_48_muebles_mesa_silla", T.TransformPoint(new Vector3(-0.6f, fy + 1.3f, -0.2f)), T.TransformPoint(new Vector3(-2.2f, fy + 0.5f, 1.3f)), 55f, standM);
                 if (flm != null) flm.SetOn(false);
             }
@@ -237,9 +246,9 @@ public class ShotBuildCheck : MonoBehaviour
                 Transform T = sh; foreach (Transform c in sh.GetComponentsInChildren<Transform>(true)) if (c.name == "Furniture") T = c.parent;
                 float fy = OceanWorld.DeckY + 2.6f;
                 if (flm != null) flm.SetOn(true);
-                Vector3 standM = T.TransformPoint(new Vector3(0.3f, fy + 0.02f, -1.9f));
-                yield return View(pw, mc, "l7_46_muebles_casa_pilotes", T.TransformPoint(new Vector3(0.4f, fy + 1.6f, -2.1f)), T.TransformPoint(new Vector3(-0.3f, fy + 0.35f, 1.6f)), 62f, standM);
-                yield return View(pw, mc, "l7_47_muebles_cama", T.TransformPoint(new Vector3(0.2f, fy + 1.35f, -0.2f)), T.TransformPoint(new Vector3(1.9f, fy + 0.35f, 1.55f)), 58f, standM);
+                Vector3 standM = T.TransformPoint(new Vector3(-1.3f, fy + 0.02f, -0.9f));   // v7.3.0b: fuera del hueco de la escalera
+                yield return View(pw, mc, "l7_46_muebles_casa_pilotes", T.TransformPoint(new Vector3(0.1f, fy + 1.65f, -1.25f)), T.TransformPoint(new Vector3(-0.3f, fy + 0.35f, 1.6f)), 62f, standM);
+                yield return View(pw, mc, "l7_47_muebles_cama", T.TransformPoint(new Vector3(-0.5f, fy + 1.5f, 0.0f)), T.TransformPoint(new Vector3(1.95f, fy + 0.35f, 1.5f)), 58f, standM);
                 yield return View(pw, mc, "l7_48_muebles_mesa_silla", T.TransformPoint(new Vector3(-0.6f, fy + 1.3f, -0.2f)), T.TransformPoint(new Vector3(-2.2f, fy + 0.5f, 1.3f)), 55f, standM);
                 if (flm != null) flm.SetOn(false);
             }
@@ -420,13 +429,14 @@ public class ShotBuildCheck : MonoBehaviour
             RemotePlayer dv = RemotePlayer.CreateMimic(w.root, 93, "Buzo", StepKind.Metal); dv.ShowTag = false;
             w.AttachHelmetTo(dv.transform);
             string[] sn = { "l7_50_escultura_cabeza", "l7_51_escultura_mano", "l7_52_escultura_rostro" };
-            float[] back = { 15f, 14f, 11f }, lift = { 2.2f, 2.4f, 1.8f }, aim = { 4.0f, 4.4f, 2.0f }, sideK = { 3.5f, -3.0f, 3.0f };
+            // v7.3.0b: más cerca (a 15 m la niebla del fondo se las tragaba): ~8-9 m, buzo a 3 m delante para la escala
+            float[] back = { 9.0f, 9.0f, 7.5f }, lift = { 2.6f, 2.8f, 2.2f }, aim = { 3.8f, 4.2f, 1.8f }, sideK = { 2.4f, -2.2f, 2.0f };
             for (int i = 0; i < 3; i++)
             {
                 Vector3 sp = OceanWorld.SculptSpots[i];
                 Vector3 toC = cageP - new Vector3(sp.x, 0f, sp.z); toC.y = 0f; toC.Normalize();
                 Vector3 sd = Vector3.Cross(Vector3.up, toC);
-                Vector3 dpos = SB(sp + toC * 4.2f + sd * 1.2f, 0.02f);
+                Vector3 dpos = SB(sp + toC * 3.4f + sd * 1.6f, 0.02f);
                 float dyaw = Mathf.Atan2(-toC.x, -toC.z) * Mathf.Rad2Deg;
                 for (int k = 0; k < 8; k++) { dv.Push(dpos, dyaw, 0f, 0.6f, 0); yield return null; }
                 Vector3 cam = SB(sp + toC * back[i] + sd * sideK[i], lift[i]);

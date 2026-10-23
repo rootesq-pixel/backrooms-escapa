@@ -53,13 +53,14 @@ public class OceanBoat : MonoBehaviour
         {
             model = Object.Instantiate(src, hull, false); model.name = "Model";
             Material wm = OceanGeo.PbrMat("Ocean/Props/BoatWood", Color.white, 1f, track);
-            if (wm.HasProperty("_GlossMapScale")) wm.SetFloat("_GlossMapScale", 0.8f);
+            if (wm.HasProperty("_GlossMapScale")) wm.SetFloat("_GlossMapScale", 0.32f);   // v7.3.0b: madera seca (antes 0,8: el fondo reflejaba el cielo en manchas azuladas)
             Texture2D em = Resources.Load<Texture2D>("Ocean/Props/BoatWood_e");
             if (em != null) { wm.SetTexture("_EmissionMap", em); wm.SetColor("_EmissionColor", new Color(1f, 0.8f, 0.55f) * 1.6f); wm.EnableKeyword("_EMISSION"); wm.globalIlluminationFlags = MaterialGlobalIlluminationFlags.None; }
             foreach (Renderer r in model.GetComponentsInChildren<Renderer>(true))
             {
                 Material[] ms = new Material[Mathf.Max(1, r.sharedMaterials.Length)]; for (int i = 0; i < ms.Length; i++) ms[i] = wm;
                 r.sharedMaterials = ms; r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
+                r.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;   // sin reflejo del cielo dentro del casco
             }
         }
         // casco: costillas en «U» unidas (proa estrecha), tablas por dentro y por fuera
