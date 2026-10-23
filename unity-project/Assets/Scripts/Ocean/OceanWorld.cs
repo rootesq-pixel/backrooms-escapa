@@ -809,28 +809,34 @@ public class OceanWorld : MonoBehaviour
         if (NetSession.Instance == null) return;
         foreach (NetPlayer p in NetSession.Instance.Players)
         {
-            if (p.id != id || p.avatar == null || p.avatar.GetComponentsInChildren<Transform>(true).Length > 0 && HasRemoteHelmet(p.avatar.transform)) continue;
-            if (helmetBrass == null)
-            {
-                helmetBrass = ProceduralAssets.CreateMaterial(new Color(0.78f, 0.58f, 0.3f), null, Vector2.one, 0.55f); track(helmetBrass);
-                helmetGlass = ProceduralAssets.CreateMaterial(new Color(0.12f, 0.16f, 0.18f), null, Vector2.one, 0.95f); track(helmetGlass);
-            }
-            GameObject h = OceanHelmetRack.BuildHelmet(p.avatar.transform, helmetBrass, helmetGlass, track);
-            h.name = "RemoteHelmet";
-            h.transform.localPosition = new Vector3(0f, 1.38f, 0.02f);
-            h.transform.localScale = Vector3.one * 1.05f;
-            // sigue al hueso de la cabeza (nadando, agachado o derribado) si el modelo lo tiene
-            Transform head = FindDeep(p.avatar.transform, "Head");
-            if (head != null)
-            {
-                Vector3 up = p.avatar.transform.up;
-                h.transform.SetParent(head, true);
-                h.transform.position = head.position - up * 0.13f;
-                h.transform.rotation = p.avatar.transform.rotation;
-                float ls = Mathf.Max(0.0001f, head.lossyScale.x);
-                h.transform.localScale = Vector3.one * (1.05f / ls);
-            }
+            if (p.id != id || p.avatar == null || HasRemoteHelmet(p.avatar.transform)) continue;
+            AttachHelmetTo(p.avatar.transform);
         }
+    }
+
+    // casco sobre un avatar (compañero remoto o maniquí de las capturas): sigue al hueso de la cabeza si el modelo lo tiene
+    public GameObject AttachHelmetTo(Transform avatar)
+    {
+        if (helmetBrass == null)
+        {
+            helmetBrass = OceanHelmetRack.BrassMaterial(track);
+            helmetGlass = OceanHelmetRack.GlassMaterial(track);
+        }
+        GameObject h = OceanHelmetRack.BuildHelmet(avatar, helmetBrass, helmetGlass, track);
+        h.name = "RemoteHelmet";
+        h.transform.localPosition = new Vector3(0f, 1.38f, 0.02f);
+        h.transform.localScale = Vector3.one * 1.05f;
+        Transform head = FindDeep(avatar, "Head");
+        if (head != null)
+        {
+            Vector3 up = avatar.up;
+            h.transform.SetParent(head, true);
+            h.transform.position = head.position - up * 0.13f;
+            h.transform.rotation = avatar.rotation;
+            float ls = Mathf.Max(0.0001f, head.lossyScale.x);
+            h.transform.localScale = Vector3.one * (1.05f / ls);
+        }
+        return h;
     }
 
 

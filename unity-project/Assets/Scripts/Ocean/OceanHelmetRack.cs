@@ -22,8 +22,8 @@ public class OceanHelmetRack : MonoBehaviour
         OceanGeo.Box(mb, 0, new Vector3(-1.6f, 0.95f, -0.3f), new Vector3(1.6f, 1.02f, 0.1f), 0.6f);
         OceanGeo.Box(mb, 0, new Vector3(-1.6f, 1.45f, -0.05f), new Vector3(1.6f, 1.52f, 0.05f), 0.6f);
         OceanGeo.Emit(mb, "Rack", g.transform, new[] { w.WoodMat }, true, true, track);
-        Material brass = ProceduralAssets.CreateMaterial(new Color(0.78f, 0.58f, 0.3f), null, Vector2.one, 0.55f); track(brass);
-        Material glass = ProceduralAssets.CreateMaterial(new Color(0.12f, 0.16f, 0.18f), null, Vector2.one, 0.95f); track(glass);
+        Material brass = BrassMaterial(track);
+        Material glass = GlassMaterial(track);
         for (int i = 0; i < Count; i++)
         {
             GameObject h = BuildHelmet(g.transform, brass, glass, track);
@@ -35,6 +35,15 @@ public class OceanHelmetRack : MonoBehaviour
     }
 
     // casco de buzo clásico: esfera de latón, ojo de buey con rejilla, collar y la lámpara encima
+    public static Material BrassMaterial(System.Action<Object> track)
+    {
+        Material m = ProceduralAssets.CreateMaterial(new Color(0.78f, 0.58f, 0.3f), null, Vector2.one, 0.55f); track(m); return m;
+    }
+    public static Material GlassMaterial(System.Action<Object> track)
+    {
+        Material m = ProceduralAssets.CreateMaterial(new Color(0.12f, 0.16f, 0.18f), null, Vector2.one, 0.95f); track(m); return m;
+    }
+
     public static GameObject BuildHelmet(Transform p, Material brass, Material glass, System.Action<Object> track)
     {
         GameObject h = new GameObject("DivingHelmet"); h.transform.SetParent(p, false);

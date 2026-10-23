@@ -167,6 +167,24 @@ public class ShotBuildCheck : MonoBehaviour
         yield return View(pw, mc, "l7_06_jaula_cascos", pier2 + up, new Vector3(56f, 2.2f, 251.5f), F, pier2);
         Vector3 rk = w.rack.transform.position;
         yield return View(pw, mc, "l7_07_cascos_cerca", rk + new Vector3(1.1f, 1.55f, -1.5f), rk + new Vector3(0f, 1.05f, 0f), F, pier2);
+        // casco de cerca (macro) y compañero con casco (vista del avatar remoto)
+        Transform hz = null; float hd = 1e9f;
+        foreach (Transform c in w.rack.GetComponentsInChildren<Transform>(true)) if (c.name == "DivingHelmet" && c.gameObject.activeInHierarchy) { float dd = (c.position - (rk + new Vector3(1.1f, 1.55f, -1.5f))).sqrMagnitude; if (dd < hd) { hd = dd; hz = c; } }
+        if (hz != null)
+        {
+            Vector3 hc = hz.position + Vector3.up * 0.22f;
+            yield return View(pw, mc, "l7_07b_casco_macro", hc + new Vector3(0.28f, 0.12f, -0.62f), hc, 45f, pier2);
+        }
+        RemotePlayer mate = RemotePlayer.CreateMimic(w.root, 98, "Compañero", StepKind.Metal); mate.ShowTag = false;
+        Vector3 mp = new Vector3(40f, OceanWorld.PierY + 0.02f, 250f);
+        mate.transform.position = mp; mate.transform.rotation = Quaternion.Euler(0f, 250f, 0f);
+        for (int k = 0; k < 6; k++) { mate.Push(mp, 250f, 0f, 0f, 0); yield return null; }
+        w.AttachHelmetTo(mate.transform);
+        yield return null;
+        Vector3 hp = mate.transform.position + Vector3.up * 1.62f;
+        Vector3 camP = hp + Quaternion.Euler(0f, 250f, 0f) * new Vector3(0.45f, 0.05f, 1.35f);
+        yield return View(pw, mc, "l7_07c_companero_casco", camP, hp - Vector3.up * 0.05f, 50f, pier2);
+        Destroy(mate.gameObject);
         op.SetHelmet(true);
         Vector3 me = new Vector3(60f, -47f, 252f), ap = new Vector3(65f, -45.8f, 256.8f);
         w.angler.ForceForTests(ap, OceanAngler.AState.Patrol); w.angler.transform.rotation = Quaternion.LookRotation(new Vector3(-1f, 0f, 0.45f));
