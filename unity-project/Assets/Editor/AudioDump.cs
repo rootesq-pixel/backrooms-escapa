@@ -46,7 +46,6 @@ public static class AudioDump
         foreach (StepKind k in new[] { StepKind.Carpet, StepKind.Concrete, StepKind.Water, StepKind.Metal }) Add("step_" + k, ProceduralAudio.CreateFootstep(k), false, 1f, "pasos");
         Add("splash", ProceduralAudio.CreateSplash(), false, 1f, "chapoteo");
         Add("drip", ProceduralAudio.CreateDrip(), false, AudioMix.Event(0.65f), "suceso");
-        Add("creak", ProceduralAudio.CreateCreak(), false, AudioMix.Event(0.65f), "suceso");
         Add("clank", ProceduralAudio.CreateClank(), false, AudioMix.Event(0.65f), "suceso");
         foreach (GrowlKind g in new[] { GrowlKind.LowRumble, GrowlKind.Rasp, GrowlKind.Metal, GrowlKind.Hiss, GrowlKind.Moan })
             Add("growl_" + g, ProceduralAudio.CreateGrowl(g, 7), false, 1f, "monstruo");

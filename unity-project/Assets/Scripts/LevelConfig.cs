@@ -2,7 +2,7 @@ using UnityEngine;
 
 public enum LayoutKind { Maze, OpenPillars, Field, Ocean }   // v7.3.0: Ocean = Talasofobia (mar abierto, OceanWorld)
 public enum FixtureKind { Panel, Tube, Sconce, Emergency }
-public enum AmbientEvent { None, Drip, Creak, Clank }
+public enum AmbientEvent { None, Drip, Clank }   // v7.3.0d: sin crujido de madera (el usuario lo quitó)
 public enum StepKind { Carpet, Concrete, Water, Metal, Grass }
 
 // Parámetros de un nivel: tema visual, tamaño, luces, monstruo, batería y audio.
@@ -161,7 +161,7 @@ public class LevelConfig
         c.lightIntensity = 1.3f; c.lightRange = 7.0f; c.maxRealtimeLights = 10;
         c.flashlightDrain = 0.5f; c.flashlightRecharge = 0.15f; c.batteries = 4; c.batteryAmount = 35f;
         c.monsterCount = 1; c.patrolSpeed = 1.8f; c.chaseSpeed = 4.0f; c.sightRange = 18f; c.hearingScale = 1f;
-        c.droneHz = 60f; c.droneNoise = 0.12f; c.droneVolume = 0.30f; c.ambientEvent = AmbientEvent.Creak;
+        c.droneHz = 60f; c.droneNoise = 0.12f; c.droneVolume = 0.30f; c.ambientEvent = AmbientEvent.None;
         c.eventInterval = new Vector2(12f, 26f);
         c.step = StepKind.Carpet;
         c.doorColor = new Color(0.50f, 0.50f, 0.36f); c.doorFrameColor = new Color(0.33f, 0.28f, 0.16f);
@@ -269,7 +269,7 @@ public class LevelConfig
         c.lightIntensity = 0.75f; c.lightRange = 6f; c.maxRealtimeLights = 8; c.buzzChance = 0f;
         c.flashlightDrain = 0.9f; c.flashlightRecharge = 0f; c.batteries = 7; c.batteryAmount = 40f; c.flashlightIntensity = 2.8f;
         c.monsterCount = 2; c.patrolSpeed = 2.0f; c.chaseSpeed = 4.4f; c.sightRange = 14f; c.darkSightFactor = 0.4f; c.hearingScale = 1.2f;
-        c.droneHz = 36f; c.droneNoise = 0.2f; c.droneVolume = 0.38f; c.ambientEvent = AmbientEvent.Creak;
+        c.droneHz = 36f; c.droneNoise = 0.2f; c.droneVolume = 0.38f; c.ambientEvent = AmbientEvent.None;
         c.eventInterval = new Vector2(5f, 13f);
         c.step = StepKind.Carpet;
         c.doorColor = new Color(0.21f, 0.11f, 0.065f); c.doorFrameColor = new Color(0.34f, 0.24f, 0.10f);
@@ -357,7 +357,7 @@ public class LevelConfig
         c.lightIntensity = 1.2f; c.lightRange = 8f; c.maxRealtimeLights = 10; c.buzzChance = 0.45f;
         c.flashlightDrain = 0.6f; c.flashlightRecharge = 0.12f; c.batteries = 5; c.batteryAmount = 35f;
         c.monsterCount = 1; c.patrolSpeed = 1.9f; c.chaseSpeed = 4.6f; c.sightRange = 20f; c.hearingScale = 1.3f;
-        c.droneHz = 52f; c.droneNoise = 0.10f; c.droneVolume = 0.22f; c.ambientEvent = AmbientEvent.Creak;
+        c.droneHz = 52f; c.droneNoise = 0.10f; c.droneVolume = 0.22f; c.ambientEvent = AmbientEvent.None;
         c.eventInterval = new Vector2(10f, 22f);
         c.step = StepKind.Carpet;
         c.doorColor = new Color(0.62f, 0.55f, 0.42f); c.doorFrameColor = new Color(0.36f, 0.30f, 0.22f);
@@ -388,7 +388,7 @@ public class LevelConfig
         c.postExposure = 0.86f; c.postBloom = 0.06f; c.postThreshold = 1.2f;
         c.flashlightDrain = 0.45f; c.flashlightRecharge = 0.1f; c.batteries = 4; c.batteryAmount = 35f;
         c.monsterCount = 0; c.killDistance = 1.3f;
-        c.droneHz = 31f; c.droneNoise = 0.05f; c.droneVolume = 0.16f; c.ambientEvent = AmbientEvent.Creak;
+        c.droneHz = 31f; c.droneNoise = 0.05f; c.droneVolume = 0.16f; c.ambientEvent = AmbientEvent.None;
         c.eventInterval = new Vector2(9f, 20f);
         c.step = StepKind.Water;
         c.doorColor = new Color(0.50f, 0.52f, 0.50f); c.doorFrameColor = new Color(0.30f, 0.28f, 0.24f);

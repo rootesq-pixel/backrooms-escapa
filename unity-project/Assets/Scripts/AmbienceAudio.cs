@@ -1,7 +1,7 @@
 using UnityEngine;
 
 // Ambiente sonoro del nivel: drone en bucle + sucesos aleatorios en 3D alrededor del jugador
-// (gotas, crujidos, golpes metálicos). Todo generado por código.
+// (gotas y golpes metálicos). Todo generado por código.
 public class AmbienceAudio : MonoBehaviour
 {
     private AudioSource drone;
@@ -33,7 +33,6 @@ public class AmbienceAudio : MonoBehaviour
         switch (kind)
         {
             case AmbientEvent.Drip: eventClip = ProceduralAudio.CreateDrip(); break;
-            case AmbientEvent.Creak: eventClip = ProceduralAudio.CreateCreak(); break;
             case AmbientEvent.Clank: eventClip = ProceduralAudio.CreateClank(); break;
         }
         if (eventClip != null)

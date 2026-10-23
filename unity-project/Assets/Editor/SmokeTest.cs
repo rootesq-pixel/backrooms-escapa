@@ -1010,12 +1010,15 @@ public static class SmokeTest
             r.Check(eff <= -29f, "[Audio] zumbido de fluorescente: " + eff.ToString("F1") + " dB (≤ -29)");
             UnityEngine.Object.DestroyImmediate(c);
         }
-        foreach (AudioClip c in new[] { ProceduralAudio.CreateDrip(), ProceduralAudio.CreateCreak(), ProceduralAudio.CreateClank() })
+        foreach (AudioClip c in new[] { ProceduralAudio.CreateDrip(), ProceduralAudio.CreateClank() })
         {
             AudioAudit.Stat st = AudioAudit.Measure(c);
             r.Check(st.peak <= 0.75f && AudioMix.Db(st.rms * AudioMix.EventMaster) <= -20f, "[Audio] suceso ambiental " + c.name + ": pico " + st.peak.ToString("F2"));
             UnityEngine.Object.DestroyImmediate(c);
         }
+        // v7.3.0d: el crujido de madera ya no existe; los niveles 0, 3, 6 y 7 no tienen suceso ambiental
+        foreach (int lv in new[] { 0, 3, 6, 7 })
+            r.Check(LevelConfig.Get(lv).ambientEvent == AmbientEvent.None, "[Audio] nivel " + lv + " sin suceso ambiental (sin crujido de madera)");
         // v6.5: planitud espectral de TODOS los bucles (ruido = «aire/soplo»): un bucle con planitud alta (> 0,02) debe ser casi inaudible
         {
             float stepDbL = AudioMix.Db(AudioAudit.Measure(ProceduralAudio.CreateFootstep(StepKind.Carpet)).rms);

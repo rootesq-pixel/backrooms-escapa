@@ -6,7 +6,7 @@ using UnityEngine;
 //   Volumen final = AudioListener.volume (Volumen general) × grupo (Efectos / Ambiente) × ganancia de la tabla × volumen propio del sonido
 //
 //   · Efectos  : pasos, chapoteos, respiración, gruñidos y pasos de monstruos, recogidas, clics, susto de muerte.
-//   · Ambiente : drone del nivel, sucesos (gotas, crujidos…), zumbido de los fluorescentes y siseo de cinta VHS.
+//   · Ambiente : drone del nivel, sucesos (gotas, golpes…), zumbido de los fluorescentes y siseo de cinta VHS.
 //
 // Objetivo de nivel (RMS efectivo con los deslizadores al máximo): pasos ≈ -24 dBFS · drones ≤ -28 · zumbidos ≤ -29 ·
 // respiración ≤ -38 · siseo VHS ≤ -40 (reposo ≤ -52). Las pruebas (SmokeTest.TestAudioMix) lo comprueban.
@@ -16,7 +16,7 @@ public static class AudioMix
     // ---- tabla de ganancias
     public const float DroneMaster = 0.17f;      // × LevelConfig.droneVolume (v6.7: -3 dB para equilibrar con los pasos más bajos)
     public const float BuzzMaster = 0.50f;       // × volumen de zumbido de cada luz
-    public const float EventMaster = 0.75f;      // gotas / crujidos / golpes aleatorios
+    public const float EventMaster = 0.75f;      // gotas / golpes aleatorios
     public const float BreathMax = 0.064f;      // v6.7: -8 dB, igual que los pasos;        // volumen máximo de una respiración (agotado)
     public const float BreathMin = 0.016f;      // v6.7: -8 dB;        // volumen de la respiración más suave
     public const float HissIdle = 0.010f;        // zumbido VHS (tonal, sin ruido) en reposo (× intensidad VHS)
