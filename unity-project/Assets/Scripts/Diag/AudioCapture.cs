@@ -27,8 +27,16 @@ public class AudioCapture : MonoBehaviour
     {
         Callbacks++; Channels = ch;
         if (rec) lock (buf) buf.AddRange(data);
+        if (srec) lock (sbuf) { for (int i = 0; i + ch - 1 < data.Length; i += ch) { float v = 0f; for (int q = 0; q < ch; q++) v += data[i + q]; sbuf.Add(v / ch); } }
         if (SilenceOutput) System.Array.Clear(data, 0, data.Length);
     }
+
+    // v7.3.0b3: grabación larga en flujo (mono): el hilo de audio acumula y el hilo principal vacía a disco cada poco
+    readonly List<float> sbuf = new List<float>();
+    volatile bool srec;
+    public void StreamBegin() { lock (sbuf) sbuf.Clear(); srec = true; }
+    public float[] StreamDrain() { lock (sbuf) { float[] r = sbuf.ToArray(); sbuf.Clear(); return r; } }
+    public void StreamEnd() { srec = false; }
 
     public void Begin() { lock (buf) buf.Clear(); rec = true; }
     public float[] End() { rec = false; lock (buf) return buf.ToArray(); }
@@ -97,16 +105,89 @@ public class AudioCapture : MonoBehaviour
 public class AudioBuildCheck : MonoBehaviour
 {
     string dir;
+    float longStill, longMove; bool vhsOff;
     public static void MaybeStart(GameObject host)
     {
         string[] a = System.Environment.GetCommandLineArgs();
+        AudioBuildCheck made = null;
         for (int i = 0; i < a.Length - 1; i++)
             if (a[i] == "-audiocheck")
             {
                 AudioListener.pause = true;
-                AudioBuildCheck c = host.AddComponent<AudioBuildCheck>(); c.dir = a[i + 1];
+                AudioBuildCheck c = host.AddComponent<AudioBuildCheck>(); c.dir = a[i + 1]; made = c;
                 GameBootstrap gb = host.GetComponent<GameBootstrap>(); if (gb != null) { gb.useRandomSeed = false; gb.seed = 7110; }
             }
+        if (made == null) return;
+        // «-audiolong <s quieto> <s andando>»: grabación larga por nivel (WAV 16 bits mono + línea temporal cada 10 s)
+        // «-vhsoff»: prueba A/B sin el efecto VHS (imagen y audio de la cinta) SIN tocar las preferencias guardadas del jugador
+        for (int i = 0; i < a.Length; i++)
+        {
+            if (a[i] == "-audiolong" && i + 2 < a.Length) { float.TryParse(a[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out made.longStill); float.TryParse(a[i + 2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out made.longMove); }
+            if (a[i] == "-vhsoff") made.vhsOff = true;
+        }
+    }
+
+    void Update()
+    {
+        if (!vhsOff) return;
+        foreach (VhsEffect v in Object.FindObjectsOfType<VhsEffect>(true)) if (v.EffectEnabled) v.EffectEnabled = false;
+        foreach (VhsOverlay o in Object.FindObjectsOfType<VhsOverlay>(true)) if (o.enabled) o.enabled = false;
+    }
+
+    static void WriteI16Header(BinaryWriter w, int sr, int samples)
+    {
+        int bytes = samples * 2;
+        w.Seek(0, SeekOrigin.Begin);
+        w.Write(Encoding.ASCII.GetBytes("RIFF")); w.Write(36 + bytes); w.Write(Encoding.ASCII.GetBytes("WAVE"));
+        w.Write(Encoding.ASCII.GetBytes("fmt ")); w.Write(16); w.Write((short)1); w.Write((short)1); w.Write(sr); w.Write(sr * 2); w.Write((short)2); w.Write((short)16);
+        w.Write(Encoding.ASCII.GetBytes("data")); w.Write(bytes);
+        w.Seek(0, SeekOrigin.End);
+    }
+
+    string TimelineRow(float t)
+    {
+        List<AudioCensus.Row> rows = AudioCensus.Take();
+        int total = rows.Count, playing = 0, loops = 0;
+        List<AudioCensus.Row> pl = new List<AudioCensus.Row>();
+        foreach (AudioCensus.Row r in rows) if (r.playing) { playing++; if (r.loop) loops++; pl.Add(r); }
+        pl.Sort((x, y) => y.effective.CompareTo(x.effective));
+        StringBuilder sb = new StringBuilder();
+        sb.Append(t.ToString("F0", System.Globalization.CultureInfo.InvariantCulture)).Append("s fuentes=").Append(total).Append(" sonando=").Append(playing).Append(" bucles=").Append(loops);
+        VhsEffect v = Object.FindObjectOfType<VhsEffect>();
+        if (v != null) sb.Append(" vhs=").Append(v.EffectEnabled ? "on" : "off").Append(" int=").Append(v.CurrentIntensity.ToString("F2")).Append(" glitch=").Append(v.Glitch.ToString("F2"));
+        foreach (AudioLowPassFilter f in Object.FindObjectsOfType<AudioLowPassFilter>()) sb.Append(" lp=").Append(f.cutoffFrequency.ToString("F0"));
+        for (int i = 0; i < pl.Count && i < 8; i++) sb.Append(" | ").Append(pl[i].clip).Append("@").Append(pl[i].owner.Length > 28 ? pl[i].owner.Substring(pl[i].owner.Length - 28) : pl[i].owner).Append("=").Append(pl[i].effective.ToString("0.0000"));
+        return sb.ToString();
+    }
+
+    System.Collections.IEnumerator LongRecord(string tag, float secs, int sr, FirstPersonController pw, bool move)
+    {
+        string path = Path.Combine(dir, tag + "_largo.wav"), tl = Path.Combine(dir, tag + "_linea.txt");
+        File.WriteAllText(tl, "== " + tag + " " + secs + " s\n");
+        int written = 0; float t = 0f, nextRow = 0f, nextTurn = 0f; int dirIx = 0;
+        Vector2[] dirs = { new Vector2(0f, 1f), new Vector2(1f, 0f), new Vector2(0f, -1f), new Vector2(-1f, 0f) };
+        using (BinaryWriter w = new BinaryWriter(File.Create(path)))
+        {
+            WriteI16Header(w, sr, 0);
+            cap.StreamBegin();
+            while (t < secs)
+            {
+                if (move && t >= nextTurn) { pw.debugInput = true; pw.debugMove = dirs[dirIx++ % 4]; nextTurn += 6f; }
+                if (t >= nextRow) { File.AppendAllText(tl, TimelineRow(t) + "\n"); nextRow += 10f; }
+                yield return new WaitForSecondsRealtime(0.5f);
+                t += 0.5f;
+                float[] d = cap.StreamDrain();
+                foreach (float f in d) w.Write((short)Mathf.Clamp(Mathf.RoundToInt(f * 32767f), -32768, 32767));
+                written += d.Length;
+            }
+            cap.StreamEnd();
+            float[] rest = cap.StreamDrain();
+            foreach (float f in rest) w.Write((short)Mathf.Clamp(Mathf.RoundToInt(f * 32767f), -32768, 32767));
+            written += rest.Length;
+            WriteI16Header(w, sr, written);
+        }
+        pw.debugInput = false; pw.debugMove = Vector2.zero;
+        File.AppendAllText(tl, TimelineRow(secs) + "\nmuestras " + written + " (" + (written / (float)sr).ToString("F1") + " s)\n");
     }
 
     AudioCapture cap;
@@ -148,6 +229,16 @@ public class AudioBuildCheck : MonoBehaviour
             yield return new WaitForSecondsRealtime(2.5f);
             foreach (MonsterAI m in GameManager.Instance.monsters) if (m != null) m.Stop();
             yield return new WaitForSecondsRealtime(1f);
+            if (longStill > 0f)
+            {
+                while (cap == null) yield return null;
+                FirstPersonController pl = FirstPersonController.LocalInstance;
+                string pre = "L" + lv + (vhsOff ? "_sinvhs" : "_convhs");
+                yield return LongRecord(pre + "_quieto", longStill, sr, pl, false);
+                if (longMove > 0f) yield return LongRecord(pre + "_andando", longMove, sr, pl, true);
+                File.AppendAllText(rep, pre + " " + LevelConfig.Get(lv).name + " callbacks=" + cap.Callbacks + "\n" + AudioCapture.FilterReaders());
+                continue;
+            }
             string[] spots = lv == 7 ? new[] { "inicio", "mar", "bajo_agua" } : new[] { "inicio" };
             foreach (string s in spots)
             {
