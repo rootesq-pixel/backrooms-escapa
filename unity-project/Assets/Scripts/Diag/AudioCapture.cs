@@ -105,7 +105,7 @@ public class AudioCapture : MonoBehaviour
 public class AudioBuildCheck : MonoBehaviour
 {
     string dir;
-    float longStill, longMove; bool vhsOff, vhsOn;
+    float longStill, longMove; bool vhsOff, vhsOn; float[] growlDists;
     public static void MaybeStart(GameObject host)
     {
         string[] a = System.Environment.GetCommandLineArgs();
@@ -125,7 +125,13 @@ public class AudioBuildCheck : MonoBehaviour
         {
             if (a[i] == "-audiolong" && i + 2 < a.Length) { float.TryParse(a[i + 1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out made.longStill); float.TryParse(a[i + 2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out made.longMove); }
             if (a[i] == "-vhsoff") made.vhsOff = true;
-            if (a[i] == "-vhson") made.vhsOn = true;   // VHS encendido a la intensidad por defecto (0,7) aunque las preferencias del PC lo tengan apagado
+            if (a[i] == "-vhson") made.vhsOn = true;
+            if (a[i] == "-growltest" && i + 1 < a.Length)   // «-growltest 8,15,25»: el monstruo quieto a esas distancias, 30 s cada una, gruñidos forzados
+            {
+                List<float> ds = new List<float>();
+                foreach (string q in a[i + 1].Split(',')) { float v; if (float.TryParse(q, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out v)) ds.Add(v); }
+                made.growlDists = ds.ToArray();
+            }   // VHS encendido a la intensidad por defecto (0,7) aunque las preferencias del PC lo tengan apagado
         }
     }
 
@@ -163,6 +169,11 @@ public class AudioBuildCheck : MonoBehaviour
         string ev = AudioEventLog.Drain(); if (ev.Length > 0) sb.Append(" sucesos:").Append(ev);
         for (int i = 0; i < pl.Count && i < 8; i++) sb.Append(" | ").Append(pl[i].clip).Append("@").Append(pl[i].owner.Length > 28 ? pl[i].owner.Substring(pl[i].owner.Length - 28) : pl[i].owner).Append("=").Append(pl[i].effective.ToString("0.0000"));
         return sb.ToString();
+    }
+
+    System.Collections.IEnumerator ForceGrowls(MonsterVisual mv)
+    {
+        for (int k = 0; k < 3 && mv != null; k++) { yield return new WaitForSecondsRealtime(k == 0 ? 3f : 10f); if (mv != null) mv.PlayGrowl(0.55f); }
     }
 
     System.Collections.IEnumerator LongRecord(string tag, float secs, int sr, FirstPersonController pw, bool move)
@@ -234,6 +245,25 @@ public class AudioBuildCheck : MonoBehaviour
             yield return new WaitForSecondsRealtime(2.5f);
             foreach (MonsterAI m in GameManager.Instance.monsters) if (m != null) m.Stop();
             yield return new WaitForSecondsRealtime(1f);
+            if (growlDists != null && growlDists.Length > 0)
+            {
+                while (cap == null) yield return null;
+                FirstPersonController pl = FirstPersonController.LocalInstance;
+                MonsterAI mon = null; foreach (MonsterAI m in GameManager.Instance.monsters) if (m != null) { mon = m; break; }
+                MonsterVisual mv = mon != null ? (mon.visual != null ? mon.visual : mon.GetComponent<MonsterVisual>()) : null;
+                foreach (float dd in growlDists)
+                {
+                    if (mon == null) break;
+                    Vector3 fw = pl.transform.forward; fw.y = 0f; fw.Normalize();
+                    mon.Stop(); mon.transform.position = pl.transform.position + fw * dd;
+                    yield return new WaitForSecondsRealtime(1f);
+                    string tg = "L" + lv + "_grunido_" + dd.ToString("F0", System.Globalization.CultureInfo.InvariantCulture) + "m";
+                    StartCoroutine(ForceGrowls(mv));
+                    yield return LongRecord(tg, 30f, sr, pl, false);
+                }
+                File.AppendAllText(rep, "L" + lv + " gruñidos " + (mon != null ? mon.name : "sin monstruo") + "\n");
+                continue;
+            }
             if (longStill > 0f)
             {
                 while (cap == null) yield return null;
