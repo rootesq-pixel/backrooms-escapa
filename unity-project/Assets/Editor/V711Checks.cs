@@ -162,7 +162,20 @@ public static class V711Checks
                 else if (rr > 0.7f && rr < 1.1f) { nR++; sR += hz; }
             }
             r.Check(nN >= 5 && sN / nN > 0.15f && minN > 0.05f, T + "bolas: junto al jugador se apartan de verdad (" + nN + " bolas a < 0,3 m: media " + (nN > 0 ? sN / nN : 0f).ToString("F2") + " m, mín. " + minN.ToString("F2") + " m)");
-            r.Check(nR >= 5 && sR / nR > 0.012f, T + "bolas: a 0,7-1,1 m también se apartan en cadena (" + nR + " bolas, media " + (nR > 0 ? sR / nR : 0f).ToString("F3") + " m)");
+            // v7.3.0c: el empuje en cadena a 0,7-1,1 m late con el vaivén (fase según el instante): se mira el mejor de 5 instantes en 1 s
+            // (antes un solo instante: a veces caía en un valle, 0,009 m, y la prueba fallaba sin que nada estuviera roto)
+            float bestR = nR > 0 ? sR / nR : 0f;
+            for (int k = 1; k <= 4 && nR > 0; k++)
+            {
+                float s2 = 0f; float tk = tt + k * 0.25f;
+                for (int i = 0; i < cs.Count; i++)
+                {
+                    float rr = new Vector2(cs[i].x - pp.x, cs[i].z - pp.z).magnitude;
+                    if (rr > 0.7f && rr < 1.1f) { Vector3 o = BallPitField.OffsetAt(cs[i], tk, tops[i], 1f); s2 += new Vector2(o.x, o.z).magnitude; }
+                }
+                bestR = Mathf.Max(bestR, s2 / nR);
+            }
+            r.Check(nR >= 5 && bestR > 0.012f, T + "bolas: a 0,7-1,1 m también se apartan en cadena (" + nR + " bolas, media " + (nR > 0 ? sR / nR : 0f).ToString("F3") + " m, mejor instante " + bestR.ToString("F3") + " m)");
             Vector3 pf = f0.transform.TransformPoint(new Vector3(inner.xMax - 0.8f, pit.ball, inner.yMax - 0.8f));
             cs.Clear(); tops.Clear(); f0.TopBallsNear(pf, 0.6f, cs, tops);
             int mv = 0; float sm = 0f;
