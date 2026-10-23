@@ -206,6 +206,22 @@ public class ShotBuildCheck : MonoBehaviour
         Vector3 camP = hp + Quaternion.Euler(0f, 250f, 0f) * new Vector3(0.45f, 0.05f, 1.35f);
         yield return View(pw, mc, "l7_07c_companero_casco", camP, hp - Vector3.up * 0.05f, 50f, pier2);
         Destroy(mate.gameObject);
+        // v7.3.0: traje (compañero sin casco: cuerpo entero y de cerca) y manos en primera persona
+        {
+            RemotePlayer m2 = RemotePlayer.CreateMimic(w.root, 97, "Compañero", StepKind.Metal); m2.ShowTag = false;
+            m2.transform.position = mp; m2.transform.rotation = Quaternion.Euler(0f, 250f, 0f);
+            for (int k = 0; k < 6; k++) { m2.Push(mp, 250f, 0f, 0f, 0); yield return null; }
+            Vector3 f2 = Quaternion.Euler(0f, 250f, 0f) * Vector3.forward, r2 = Quaternion.Euler(0f, 250f, 0f) * Vector3.right;
+            yield return View(pw, mc, "l7_13_traje_cuerpo", mp + f2 * 3.4f + r2 * 0.3f + Vector3.up * 1.05f, mp + Vector3.up * 0.98f, 42f, pier2);
+            yield return View(pw, mc, "l7_14_traje_cerca", mp + f2 * 1.25f + r2 * 0.45f + Vector3.up * 1.3f, mp + Vector3.up * 1.1f + r2 * 0.05f, 40f, pier2);
+            Destroy(m2.gameObject);
+            Vector3 st = new Vector3(44f, OceanWorld.PierY + 0.02f, 250f), eye = st + Vector3.up * 1.55f;
+            pw.Teleport(st, 70f);
+            yield return View(pw, mc, "l7_15_manos_primera_persona", eye, eye + Quaternion.Euler(0f, 70f, 0f) * new Vector3(0f, -0.42f, 1f), 62f, st);
+        }
+        // v7.3.0: muelle de cerca (tablas, barandilla, cuerda) y pilotes en la línea de flotación
+        yield return View(pw, mc, "l7_16_muelle_cerca", new Vector3(27.2f, OceanWorld.PierY + 1.25f, 248.1f), new Vector3(33f, OceanWorld.PierY + 0.2f, 250.4f), 55f, pier2);
+        yield return View(pw, mc, "l7_17_muelle_pilotes", new Vector3(30.6f, 0.85f, 246.6f), new Vector3(29f, 0.05f, 248.9f), 55f, pier2);
         op.SetHelmet(true);
         Vector3 me = new Vector3(60f, -47f, 252f), ap = new Vector3(65f, -45.8f, 256.8f);
         w.angler.ForceForTests(ap, OceanAngler.AState.Patrol); w.angler.transform.rotation = Quaternion.LookRotation(new Vector3(-1f, 0f, 0.45f));
@@ -216,6 +232,21 @@ public class ShotBuildCheck : MonoBehaviour
         w.angler.ForceForTests(ap2, OceanAngler.AState.Patrol); w.angler.transform.rotation = Quaternion.LookRotation(new Vector3(-0.8f, 0f, -0.6f));
         yield return View(pw, mc, "l7_09_farolero_a_oscuras", me + up, ap2 + Vector3.up * 1.5f, F, me);
         if (fl != null) fl.SetOn(true);
+        // El Farolero bien iluminado (cuerpo entero y señuelo): luces de estudio temporales y menos niebla, solo para esta captura
+        {
+            Vector3 ap3 = new Vector3(66f, -45.5f, 257f), fw = new Vector3(-1f, 0f, 0.45f).normalized, sideV = Vector3.Cross(Vector3.up, fw).normalized;
+            w.angler.ForceForTests(ap3, OceanAngler.AState.Patrol); w.angler.transform.rotation = Quaternion.LookRotation(fw);
+            Vector3 camP3 = ap3 + sideV * 7.5f + fw * 2.2f + Vector3.up * 0.9f;
+            float fd = RenderSettings.fogDensity;
+            GameObject studio = new GameObject("ShotStudioLights");
+            Light key = new GameObject("Key").AddComponent<Light>(); key.transform.SetParent(studio.transform); key.type = LightType.Point; key.range = 28f; key.intensity = 2.4f; key.color = new Color(0.75f, 0.88f, 0.95f); key.renderMode = LightRenderMode.ForcePixel; key.transform.position = camP3 + Vector3.up * 2.5f + fw * 1.5f;
+            Light rim = new GameObject("Rim").AddComponent<Light>(); rim.transform.SetParent(studio.transform); rim.type = LightType.Point; rim.range = 16f; rim.intensity = 1.6f; rim.color = new Color(0.55f, 0.8f, 0.85f); rim.renderMode = LightRenderMode.ForcePixel; rim.transform.position = ap3 - sideV * 4f + Vector3.up * 3f;
+            Light fill = new GameObject("Fill").AddComponent<Light>(); fill.transform.SetParent(studio.transform); fill.type = LightType.Point; fill.range = 14f; fill.intensity = 1.0f; fill.color = new Color(0.9f, 0.85f, 0.75f); fill.renderMode = LightRenderMode.ForcePixel; fill.transform.position = ap3 + sideV * 3f - Vector3.up * 1.5f - fw * 3f;
+            RenderSettings.fogDensity = fd * 0.3f;
+            yield return View(pw, mc, "l7_12_farolero_iluminado", camP3, ap3 + fw * 0.6f, 55f, camP3);
+            RenderSettings.fogDensity = fd;
+            Destroy(studio);
+        }
         w.angler.ForceForTests(new Vector3(95f, -40f, 280f), OceanAngler.AState.Patrol);
         Vector3 ts = OceanWorld.TunnelPath[2] + new Vector3(2f, -0.9f, 0f);
         yield return View(pw, mc, "l7_10_tunel_gruta", ts + up, OceanWorld.TunnelPath[4] + Vector3.up * 1.5f, F, ts);
