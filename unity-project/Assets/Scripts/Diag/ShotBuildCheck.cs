@@ -227,6 +227,31 @@ public class ShotBuildCheck : MonoBehaviour
             int cm0 = mc.cullingMask; mc.cullingMask |= 1 << 8;   // capa del cuerpo propio (oculta en el resto de capturas)
             yield return View(pw, mc, "l7_15_manos_primera_persona", eye, look, 62f, st);
             mc.cullingMask = cm0;
+            // v7.3.0: reanimar con las manos a escala: compañero agachado sobre un derribado y la mano propia alargada en primera persona
+            {
+                Vector3 dp = new Vector3(42.6f, OceanWorld.PierY + 0.02f, 250.3f);
+                RemotePlayer dn = RemotePlayer.CreateMimic(w.root, 96, "Derribado", StepKind.Metal); dn.ShowTag = false;
+                RemotePlayer rv = RemotePlayer.CreateMimic(w.root, 95, "Reanima", StepKind.Metal); rv.ShowTag = false;
+                Vector3 rp = dp + new Vector3(-0.9f, 0f, -0.35f);
+                float ryaw = Mathf.Atan2(dp.x - rp.x, dp.z - rp.z) * Mathf.Rad2Deg;
+                for (int k = 0; k < 90; k++) { dn.Push(dp, 160f, 0f, 0f, RemotePlayer.FlagDowned); rv.Push(rp, ryaw, 35f, 0f, RemotePlayer.FlagRevive | RemotePlayer.FlagFlash); yield return null; }
+                Vector3 side = Quaternion.Euler(0f, ryaw + 90f, 0f) * Vector3.forward;
+                Vector3 mid = (dp + rp) * 0.5f;
+                yield return View(pw, mc, "l7_21_reanimar_companero", mid + side * 2.6f + Vector3.up * 1.2f + (rp - dp).normalized * 0.4f, mid + Vector3.up * 0.45f, 50f, pier2);
+                // primera persona: el jugador alarga la mano hacia el derribado
+                Vector3 st2 = dp + new Vector3(-1.1f, 0f, 0f);
+                pw.Teleport(st2, 90f); pw.SetPitch(40f);
+                if (show0 != null) fShow.SetValue(pbd, true);
+                for (int k = 0; k < 40; k++) { PlayerBody.ReachK = 1f; dn.Push(dp, 160f, 0f, 0f, RemotePlayer.FlagDowned); yield return null; }
+                Vector3 eye2 = mc.transform.position, look2 = eye2 + mc.transform.forward;
+                mc.cullingMask |= 1 << 8;
+                PlayerBody.ReachK = 1f;
+                yield return View(pw, mc, "l7_22_reanimar_primera_persona", eye2, look2, 62f, st2);
+                Debug.Log("[ShotBuildCheck] reanimar: ReachK " + PlayerBody.ReachK.ToString("F2") + " reviving " + rv.Reviving + " downed " + dn.Downed);
+                mc.cullingMask = cm0; PlayerBody.ReachK = 0f;
+                if (show0 != null) fShow.SetValue(pbd, show0);
+                Destroy(dn.gameObject); Destroy(rv.gameObject);
+            }
             if (show0 != null) fShow.SetValue(pbd, show0);
             pw.SetPitch(0f);
         }
