@@ -274,25 +274,25 @@ public class ShotBuildCheck : MonoBehaviour
                 Light l = new GameObject(nm).AddComponent<Light>(); l.transform.SetParent(studio.transform); l.type = LightType.Point; l.range = range; l.intensity = inten; l.color = c;
                 l.renderMode = LightRenderMode.ForcePixel; l.transform.position = pos; return l;
             };
-            Vector3 camH = ap4 + sd4 * 10.5f + fw4 * 0.8f + Vector3.up * 1.4f;
-            Light k1 = PL("Key", camH + Vector3.up * 3f + fw4 * 2.5f, 34f, 4.2f, new Color(0.75f, 0.88f, 0.95f));
-            PL("Rim", ap4 - sd4 * 5f + Vector3.up * 3.5f - fw4 * 2f, 18f, 2.4f, new Color(0.55f, 0.8f, 0.85f));
-            PL("Fill", ap4 + sd4 * 4f - Vector3.up * 2f - fw4 * 3f, 18f, 1.8f, new Color(0.9f, 0.85f, 0.75f));
-            PL("Key2", camH - Vector3.up * 2f + fw4 * 2f, 22f, 2.2f, new Color(0.8f, 0.85f, 0.85f));
-            RenderSettings.ambientLight = new Color(0.12f, 0.15f, 0.17f); RenderSettings.ambientIntensity = Mathf.Max(ai0, 1f);
+            Vector3 camH = ap4 + sd4 * 8.4f + fw4 * 0.9f + Vector3.up * 1.2f;
+            Light k1 = PL("Key", camH + Vector3.up * 3f + fw4 * 2.5f, 40f, 7.5f, new Color(0.75f, 0.88f, 0.95f));
+            PL("Rim", ap4 - sd4 * 5f + Vector3.up * 3.5f - fw4 * 2f, 20f, 4.5f, new Color(0.55f, 0.8f, 0.85f));
+            PL("Fill", ap4 + sd4 * 4f - Vector3.up * 2f - fw4 * 3f, 20f, 3.2f, new Color(0.9f, 0.85f, 0.75f));
+            PL("Key2", camH - Vector3.up * 2f + fw4 * 2f, 26f, 4.0f, new Color(0.8f, 0.85f, 0.85f));
+            RenderSettings.ambientLight = new Color(0.26f, 0.3f, 0.32f); RenderSettings.ambientIntensity = Mathf.Max(ai0, 1f);
             RenderSettings.fogDensity = fd * 0.25f;
-            yield return View(pw, mc, "l7_18_farolero2_heroe", camH, ap4 + fw4 * 0.4f - Vector3.up * 0.3f, 52f, camH);
+            yield return View(pw, mc, "l7_18_farolero2_heroe", camH, ap4 + fw4 * 0.2f - Vector3.up * 0.1f, 58f, camH);
             // boca abierta de frente, algo por debajo: agujas a contraluz de la esca
             an.PoseJaw = 40f;
-            Vector3 camM = ap4 + fw4 * 8.6f - Vector3.up * 0.7f + sd4 * 0.8f;
-            k1.transform.position = camM + Vector3.up * 2.5f - fw4 * 1.0f; k1.intensity = 3.2f; k1.range = 20f;
-            yield return View(pw, mc, "l7_19_farolero2_boca", camM, ap4 + fw4 * 2.4f - Vector3.up * 0.7f, 50f, camM);
+            Vector3 camM = ap4 + fw4 * 7.0f - Vector3.up * 0.8f + sd4 * 1.1f;
+            k1.transform.position = camM + Vector3.up * 2.2f - fw4 * 0.5f + sd4 * 1.5f; k1.intensity = 5.5f; k1.range = 24f;
+            yield return View(pw, mc, "l7_19_farolero2_boca", camM, ap4 + fw4 * 2.2f - Vector3.up * 0.6f, 55f, camM);
             RenderSettings.fogDensity = fd; RenderSettings.ambientLight = amb0; RenderSettings.ambientIntensity = ai0;
             Destroy(studio);
             // en juego: sin luces de estudio, niebla normal, la lámpara del casco del jugador encendida
             if (fl != null) fl.SetOn(true);
             Vector3 me3 = new Vector3(60f, -47f, 252f), dirP = new Vector3(0.55f, 0f, 0.84f).normalized;
-            Vector3 ap5 = me3 + dirP * 8.2f + Vector3.up * 2.6f;
+            Vector3 ap5 = me3 + dirP * 7.2f + Vector3.up * 2.4f;
             an.PoseJaw = 34f; an.ForceForTests(ap5, OceanAngler.AState.Hunt); an.transform.rotation = Quaternion.LookRotation(-dirP);
             yield return View(pw, mc, "l7_20_farolero2_lampara", me3 + up, ap5 - dirP * 2.0f - Vector3.up * 0.4f, F, me3);
             an.PoseJaw = -1f; an.FreezeMotion = false; an.ForceForTests(ap4, OceanAngler.AState.Patrol);
