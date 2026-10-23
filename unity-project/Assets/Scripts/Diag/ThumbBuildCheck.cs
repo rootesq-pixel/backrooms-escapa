@@ -32,9 +32,16 @@ public class ThumbBuildCheck : MonoBehaviour
         ElevatorCabin.InstantForTests = true; ExitLock.AutoKeyForTests = true; GameManager.HideControlsHint = true;
         for (int lv = 0; lv < LevelConfig.Count; lv++)
         {
+            // espera a que acabe cualquier carga en curso (p. ej. el menú inicial): LoadLevel se ignora mientras se carga
+            float w = 0f; while (!gb.IsLoaded && w < 120f) { yield return null; w += Time.unscaledDeltaTime; }
             int lc = gb.LoadCount; gb.LoadLevel(lv);
-            float w = 0f;
-            while (w < 180f && !(gb.LoadCount > lc && gb.IsLoaded && GameManager.Instance != null && FirstPersonController.LocalInstance != null)) { yield return null; w += Time.unscaledDeltaTime; }
+            w = 0f;
+            while (w < 180f && !(gb.LoadCount > lc && gb.IsLoaded && !gb.InMenu && gb.CurrentLevel == lv && GameManager.Instance != null && GameManager.Instance.player != null && FirstPersonController.LocalInstance != null))
+            {
+                if (gb.IsLoaded && gb.LoadCount == lc && w > 1f) gb.LoadLevel(lv);   // se ignoró: reintenta
+                yield return null; w += Time.unscaledDeltaTime;
+            }
+            if (GameManager.Instance == null || GameManager.Instance.player == null || Camera.main == null) { Info("nivel " + lv + ": no se cargó (se omite)"); continue; }
             if (ElevatorCabin.Current != null) ElevatorCabin.Current.Skip();
             w = 0f; while (ElevatorCabin.PlayerLocked && w < 20f) { yield return new WaitForSecondsRealtime(0.25f); w += 0.25f; }
             GameManager gm = GameManager.Instance; FirstPersonController pw = gm.player;
