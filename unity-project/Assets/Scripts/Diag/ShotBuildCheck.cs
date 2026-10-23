@@ -73,7 +73,8 @@ public class ShotBuildCheck : MonoBehaviour
         if (PoolPlanarReflection.Instance != null) PoolPlanarReflection.Instance.Refresh(mc);
         if (FieldGrass.Active != null) FieldGrass.Active.Submit();
         Texture2D tex = Grab(mc, n);
-        Check(Mean(tex) > 0.03f, "captura " + n + " no negra (media " + Mean(tex).ToString("F3") + ")");
+        float minMean = n.Contains("a_oscuras") ? 0.008f : 0.03f;   // el plano a oscuras es negro a propósito (solo señuelo y fotóforos)
+        Check(Mean(tex) > minMean, "captura " + n + " no negra (media " + Mean(tex).ToString("F3") + ", mínimo " + minMean.ToString("F3") + ")");
         Destroy(tex);
         // tiempo real de fotograma del ejecutable en esta vista (sin vsync), mediana de 120 fotogramas
         int vs0 = QualitySettings.vSyncCount, tf0 = Application.targetFrameRate; QualitySettings.vSyncCount = 0; Application.targetFrameRate = -1;
@@ -148,7 +149,10 @@ public class ShotBuildCheck : MonoBehaviour
         gm.lostRestartSeconds = 999f;
         const float F = 62f; Vector3 up = Vector3.up * 1.55f;
         Vector3 s1 = new Vector3(18.6f, -0.85f, 21.3f);
+        Flashlight fl0 = pw.GetComponentInChildren<Flashlight>();
+        if (fl0 != null) fl0.SetOn(true);   // dentro de la casa inundada se juega con la linterna
         yield return View(pw, mc, "l7_01_casa_inundada", s1 + up, new Vector3(15.6f, -0.1f, 26.6f), F, s1);
+        if (fl0 != null) fl0.SetOn(false);
         Vector3 porch = new Vector3(15f, -0.3f, 30.6f);
         yield return View(pw, mc, "l7_02_mar_niebla", porch + up, new Vector3(13f, 1.2f, 70f), F, porch);
         Vector3 stop = w.BoatStops.Count > 1 ? w.BoatStops[1] : OceanWorld.BoatHome;

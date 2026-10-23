@@ -106,9 +106,10 @@ public static class V730Shots
         yield return 1.5f;
 
         // 1) salón inundado
-        op.flashlight.SetOn(false);
+        op.flashlight.SetOn(true);
         Look(p, new Vector3(18.6f, -0.85f, 21.3f), new Vector3(15.6f, -0.1f, 26.6f));
         yield return 1.2f; Shot(cam, "01_casa_inundada");
+        op.flashlight.SetOn(false);
         // 2) mar y niebla desde el porche
         Look(p, new Vector3(15f, -0.3f, 30.6f), new Vector3(13f, 1.2f, 70f));
         yield return 1.2f; Shot(cam, "02_mar_niebla");
