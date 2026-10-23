@@ -24,7 +24,10 @@ public enum SurfaceStyle
     PlayFloor,
     WallpaperL0,    // v7.3.0 nivel 0 «fotorrealista» (Tools/blender/styles.py, horneadas en GPU); reserva: las clásicas
     CarpetL0,
-    CeilingL0
+    CeilingL0,
+    ParkingFloor,   // v7.4.0 nivel 1: hormigón PBR CC0 (ambientCG) + líneas/óxido/humedad propios (Tools/v740/compose_l1.py)
+    ParkingWall,
+    ParkingCeiling
 }
 
 // Conjunto de texturas PBR para el shader Standard:
@@ -154,7 +157,7 @@ public static class ProceduralTextures
     public static bool UseBaked = true;
     private static readonly Dictionary<SurfaceStyle, float> BakedWallHeight = new Dictionary<SurfaceStyle, float>
     {
-        { SurfaceStyle.WallpaperYellow, 3.0f }, { SurfaceStyle.WallpaperL0, 3.0f }, { SurfaceStyle.WallpaperHotel, 2.8f }, { SurfaceStyle.ConcreteWall, 3.6f },
+        { SurfaceStyle.WallpaperYellow, 3.0f }, { SurfaceStyle.WallpaperL0, 3.0f }, { SurfaceStyle.WallpaperHotel, 2.8f }, { SurfaceStyle.ConcreteWall, 3.6f }, { SurfaceStyle.ParkingWall, 3.6f },
     };
 
     public static SurfaceSet TryLoadBaked(SurfaceStyle style, float wallHeight)
@@ -191,6 +194,9 @@ public static class ProceduralTextures
             case SurfaceStyle.ConcreteWall: c = Concrete(Res(1024), 0, wallHeight); normalStrength = 2.4f; break;
             case SurfaceStyle.ConcreteFloor: c = Concrete(Res(1024), 1, wallHeight); normalStrength = 2f; break;
             case SurfaceStyle.ConcreteCeiling: c = Concrete(Res(512), 2, wallHeight); normalStrength = 2f; break;
+            case SurfaceStyle.ParkingWall: c = Concrete(Res(1024), 0, wallHeight); normalStrength = 2.4f; break;      // reserva si faltan las horneadas
+            case SurfaceStyle.ParkingFloor: c = Concrete(Res(1024), 1, wallHeight); normalStrength = 2f; break;
+            case SurfaceStyle.ParkingCeiling: c = Concrete(Res(512), 2, wallHeight); normalStrength = 2f; break;
             case SurfaceStyle.PoolWall: c = PoolTile(Res(1024), true); normalStrength = 2.8f; break;
             case SurfaceStyle.PoolFloor: c = PoolTile(Res(1024), false); normalStrength = 2.8f; break;
             case SurfaceStyle.MetalWall: c = MetalPlate(Res(1024)); normalStrength = 2.6f; break;

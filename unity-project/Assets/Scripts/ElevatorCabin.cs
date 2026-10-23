@@ -29,6 +29,9 @@ public class ElevatorCabin : MonoBehaviour
     // v7.4.0: cabina realista propia (acero cepillado, madera, pasamanos, botonera, luminaria, puertas correderas) ya a escala real
     public const string ModelResource740 = "Elevator/Elevator740";
     public bool IsRealistic { get; private set; }
+    // v7.4.0 (pruebas): cuánto se han separado las hojas correderas (m) y cuántos botones iluminados tiene la botonera
+    public float DoorGap { get { return (pivL == null || pivR == null || !IsRealistic) ? 0f : (pivR.localPosition.x - pivRx) + (pivLx - pivL.localPosition.x); } }
+    public int ButtonLightCount { get { return buttonDots.Count; } }
     private const float V740Ow = 0.75f, V740Zf = 1.26f, V740Dt = 2.05f;   // medio hueco de puerta, cara interior del frente, altura del hueco
     private float doorSlide, pivLx, pivRx;
     public const float ScaleX = 1.3f, ScaleZ = 1.3f;          // el modelo original (2×2 m) se ensancha para que quepan 4 jugadores

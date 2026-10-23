@@ -39,8 +39,8 @@ public static class ShaderVariantKeeper
             created++;
         }
 
-        // Transparente premultiplicado (agua), con y sin normal map
-        for (int n = 0; n < 2; n++)
+        // Transparente premultiplicado (agua), con y sin normal map; v7.4.0: + máscara de brillo (calcomanías del aparcamiento)
+        for (int n = 0; n < 3; n++)
         {
             Material m = new Material(standard);
             m.SetFloat("_Mode", 3f);
@@ -50,8 +50,9 @@ public static class ShaderVariantKeeper
             m.SetInt("_ZWrite", 0);
             m.EnableKeyword("_ALPHAPREMULTIPLY_ON");
             if (n == 1) m.EnableKeyword("_NORMALMAP");
+            if (n == 2) m.EnableKeyword("_METALLICGLOSSMAP");
             m.renderQueue = (int)RenderQueue.Transparent;
-            Save(m, "Transparent_N" + n);
+            Save(m, n == 2 ? "Transparent_N0_G1" : "Transparent_N" + n);
             created++;
         }
 

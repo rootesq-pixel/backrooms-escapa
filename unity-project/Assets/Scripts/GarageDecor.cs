@@ -101,6 +101,87 @@ public static class GarageDecor
             track(m);
             Make(parent, "GarageSigns", m, sm);
         }
+        if (cfg.floorDecals) BuildFloorDecals(gen, g, parent, track);
+    }
+
+    public static int OilStains { get; private set; }
+    public static int WetPatches { get; private set; }
+
+    // v7.4.0: manchas de aceite (donde gotean los motores) y charcos (brillo húmedo) como calcomanías sobre el suelo.
+    // RNG propio (no altera el resto de la generación); solo cosmético, sin colisión. Atlas 2x2 de variantes.
+    private static void BuildFloorDecals(BackroomsGenerator gen, GaragePlan g, Transform parent, System.Func<Object, Object> track)
+    {
+        OilStains = 0; WetPatches = 0;
+        Texture2D oilT = Resources.Load<Texture2D>("Textures/Parking/ParkingOil_a"), wetT = Resources.Load<Texture2D>("Textures/Parking/ParkingWet_a");
+        if (oilT == null || wetT == null) return;
+        System.Random dr = new System.Random(gen.UsedSeed * 577 + 29);
+        float cs = g.cs;
+        List<Vector3> ov = new List<Vector3>(), wv = new List<Vector3>(); List<Vector2> ouv = new List<Vector2>(), wuv = new List<Vector2>();
+        List<int> ot = new List<int>(), wt = new List<int>(); List<Vector3> on = new List<Vector3>(), wn = new List<Vector3>();
+        for (int x = 0; x < g.w; x++)
+            for (int z = 0; z < g.h; z++)
+            {
+                bool skip = g.IsRamp(x, z) || g.decoys.Contains(new Vector2Int(x, z));
+                double a = dr.NextDouble(), b = dr.NextDouble(), c = dr.NextDouble(), d = dr.NextDouble(), e = dr.NextDouble(), f = dr.NextDouble();
+                if (skip) continue;
+                if (a < 0.38)
+                {
+                    float sz = 0.7f + (float)b * 0.9f;
+                    Vector3 cpos = new Vector3((x + 0.5f) * cs + ((float)c - 0.5f) * cs * 0.5f, 0f, (z + 0.5f) * cs + ((float)d - 0.5f) * cs * 0.5f);
+                    cpos.y = g.Y(cpos.x, cpos.z) + 0.006f;
+                    Decal(ov, ouv, ot, on, cpos, sz, (float)e * 360f, (int)(f * 4.0) & 3);
+                    OilStains++;
+                }
+                else if (a > 0.90)
+                {
+                    float sz = 1.6f + (float)b * 2.2f;
+                    Vector3 cpos = new Vector3((x + 0.5f) * cs + ((float)c - 0.5f) * cs * 0.6f, 0f, (z + 0.5f) * cs + ((float)d - 0.5f) * cs * 0.6f);
+                    cpos.y = g.Y(cpos.x, cpos.z) + 0.008f;
+                    Decal(wv, wuv, wt, wn, cpos, sz, (float)e * 360f, (int)(f * 4.0) & 3);
+                    WetPatches++;
+                }
+            }
+        if (ov.Count > 0)
+        {
+            Material om = (Material)track(ProceduralAssets.CreateWaterMaterial(null, Color.white));
+            om.mainTexture = oilT; om.SetFloat("_Metallic", 0f); GlossMask(om, "Textures/Parking/ParkingOil_m", 0.55f);   // película de aceite: algo de brillo solo en la mancha
+            Make(parent, "GarageOilStains", MeshOf("GarageOilStains", ov, ouv, ot, on, track), om);
+        }
+        if (wv.Count > 0)
+        {
+            Material wm = (Material)track(ProceduralAssets.CreateWaterMaterial(null, new Color(1f, 1f, 1f, 1f)));
+            wm.mainTexture = wetT; wm.SetFloat("_Metallic", 0f); GlossMask(wm, "Textures/Parking/ParkingWet_m", 0.94f);  // charco: oscurece y refleja solo dentro
+            Make(parent, "GarageWetPatches", MeshOf("GarageWetPatches", wv, wuv, wt, wn, track), wm);
+        }
+    }
+
+    // brillo por píxel (alfa de la máscara = suavidad): fuera de la mancha no hay reflejo que aclare el suelo
+    private static void GlossMask(Material m, string res, float fallback)
+    {
+        Texture2D k = Resources.Load<Texture2D>(res);
+        if (k == null) { m.SetFloat("_Glossiness", fallback * 0.3f); return; }
+        m.SetTexture("_MetallicGlossMap", k); m.SetFloat("_GlossMapScale", 1f); m.EnableKeyword("_METALLICGLOSSMAP");
+    }
+
+    private static Mesh MeshOf(string name, List<Vector3> v, List<Vector2> uv, List<int> t, List<Vector3> n, System.Func<Object, Object> track)
+    {
+        Mesh m = new Mesh { name = name };
+        if (v.Count > 65000) m.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+        m.SetVertices(v); m.SetNormals(n); m.SetUVs(0, uv); m.SetTriangles(t, 0); m.RecalculateBounds(); m.RecalculateTangents();
+        track(m);
+        return m;
+    }
+
+    private static void Decal(List<Vector3> v, List<Vector2> uv, List<int> tri, List<Vector3> nr, Vector3 c, float size, float rotDeg, int variant)
+    {
+        Quaternion q = Quaternion.Euler(0f, rotDeg, 0f);
+        Vector3 ax = q * Vector3.right * (size * 0.5f), az = q * Vector3.forward * (size * 0.5f);
+        int b = v.Count;
+        v.Add(c - ax - az); v.Add(c - ax + az); v.Add(c + ax + az); v.Add(c + ax - az);
+        float u0 = (variant & 1) * 0.5f, v0 = (variant >> 1) * 0.5f;
+        uv.Add(new Vector2(u0, v0)); uv.Add(new Vector2(u0, v0 + 0.5f)); uv.Add(new Vector2(u0 + 0.5f, v0 + 0.5f)); uv.Add(new Vector2(u0 + 0.5f, v0));
+        for (int i = 0; i < 4; i++) nr.Add(Vector3.up);
+        tri.Add(b); tri.Add(b + 1); tri.Add(b + 2); tri.Add(b); tri.Add(b + 2); tri.Add(b + 3);
     }
 
     // cartel colgado del techo de la celda, a doble cara; 'arrowTo' (dirección del mundo) decide qué flecha ve cada lado

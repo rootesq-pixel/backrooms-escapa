@@ -1122,6 +1122,61 @@ public static class SmokeTest
         r.Check(credits.Contains("Elevator car interior") && credits.Contains("3D Assets") && credits.Contains("CC0") && credits.Contains("3dassets.dev"), "[Ascensor] CREDITS.md cita el modelo del ascensor (nombre, autor, licencia, URL)");
         string ui = File.ReadAllText("Assets/Scripts/UIManager.cs");
         r.Check(ui.Contains("Elevator car interior") && ui.Contains("3D Assets"), "[Ascensor] los créditos del juego citan el modelo del ascensor");
+        TestV740Assets(r, credits, ui);
+    }
+
+    // v7.4.0: cabina realista propia + texturas PBR CC0 (ambientCG) del ascensor y del Nivel 1
+    private static void TestV740Assets(Report r, string credits, string ui)
+    {
+        string T = "[v7.4.0] ";
+        GameObject p = Resources.Load<GameObject>(ElevatorCabin.ModelResource740);
+        r.Check(p != null, T + "modelo Resources/" + ElevatorCabin.ModelResource740 + ".fbx importado");
+        if (p != null)
+        {
+            var names = new HashSet<string>(); int tris = 0;
+            foreach (MeshFilter mf in p.GetComponentsInChildren<MeshFilter>(true)) { names.Add(mf.name); if (mf.sharedMesh != null) tris += mf.sharedMesh.triangles.Length / 3; }
+            bool all = true; string miss = "";
+            foreach (string n in new[] { "Door_L", "Door_R", "Car_Steel", "Car_Wood", "Car_Rail", "Car_Panel", "Car_Display", "Car_LightDiffuser", "Car_BtnLit0", "Car_BtnLit4", "Car_Floor", "Car_Ceiling", "Car_Facade", "Car_Grime" })
+                if (!names.Contains(n)) { all = false; miss += " " + n; }
+            r.Check(all, T + "la cabina trae puertas, paneles, pasamanos, botonera, indicador, plafón y suciedad (" + names.Count + " mallas)" + miss);
+            r.Check(tris > 2000 && tris < 40000, T + "triángulos de la cabina en rango (" + tris + ")");
+        }
+        foreach (string n in new[] { "ElevSteel", "ElevSteelDark", "ElevPaint", "ElevWood", "ElevFloor" })
+        {
+            Texture2D a = Resources.Load<Texture2D>("Elevator/V740/" + n + "_a"), nn = Resources.Load<Texture2D>("Elevator/V740/" + n + "_n"), m = Resources.Load<Texture2D>("Elevator/V740/" + n + "_m");
+            r.Check(a != null && nn != null && m != null && a.width <= 1024, T + "texturas PBR " + n + " (albedo/normal/máscara, " + (a != null ? a.width : 0) + " px ≤ 1024)");
+        }
+        foreach (string n in new[] { "ParkingFloor", "ParkingWall", "ParkingCeiling" })
+        {
+            Texture2D a = Resources.Load<Texture2D>("Textures/" + n + "_a");
+            bool ok = a != null && a.width >= 1024 && Resources.Load<Texture2D>("Textures/" + n + "_n") != null && Resources.Load<Texture2D>("Textures/" + n + "_m") != null;
+            r.Check(ok, T + "Nivel 1: " + n + " con albedo/normal/máscara (" + (a != null ? a.width : 0) + " px)");
+            string fp = "Assets/Resources/Textures/" + n + "_m.png";
+            if (File.Exists(fp))
+            {
+                Texture2D t = new Texture2D(2, 2); t.LoadImage(File.ReadAllBytes(fp)); Color32[] px = t.GetPixels32(); double g = 0; int c = 0;
+                for (int i = 0; i < px.Length; i += Mathf.Max(1, px.Length / 65536)) { g += px[i].g; c++; }
+                UnityEngine.Object.DestroyImmediate(t);
+                r.Check(g / Mathf.Max(1, c) / 255.0 > 0.4, T + "Nivel 1: " + n + " máscara con oclusión válida (G " + (g / Mathf.Max(1, c) / 255.0).ToString("F2") + ")");
+            }
+        }
+        LevelConfig l1 = LevelConfig.Get(1);
+        r.Check(l1.floorStyle == SurfaceStyle.ParkingFloor && l1.wallStyle == SurfaceStyle.ParkingWall && l1.ceilingStyle == SurfaceStyle.ParkingCeiling && l1.floorDecals,
+            T + "el Nivel 1 usa los materiales Parking* y las calcomanías de suelo");
+        bool othersKept = true;
+        for (int lv = 0; lv < LevelConfig.Count; lv++) if (lv != 1) { LevelConfig c2 = LevelConfig.Get(lv); if (c2.floorDecals || c2.floorStyle == SurfaceStyle.ParkingFloor || c2.wallStyle == SurfaceStyle.ParkingWall) othersKept = false; }
+        r.Check(othersKept, T + "los demás niveles no cambian de materiales");
+        foreach (string n in new[] { "ParkingOil", "ParkingWet" })
+        {
+            Texture2D a = Resources.Load<Texture2D>("Textures/Parking/" + n + "_a"), m = Resources.Load<Texture2D>("Textures/Parking/" + n + "_m");
+            bool alpha = a != null && (a.format == TextureFormat.DXT5 || a.format == TextureFormat.DXT5Crunched || a.format == TextureFormat.RGBA32 || a.format == TextureFormat.BC7);
+            r.Check(alpha && m != null && a.wrapMode == TextureWrapMode.Clamp, T + "calcomanía " + n + " con alfa (" + (a != null ? a.format.ToString() : "-") + "), máscara de brillo y sin repetición");
+        }
+        Material keep = Resources.Load<Material>("ShaderVariantKeeper/Transparent_N0_G1");
+        r.Check(keep != null && keep.IsKeywordEnabled("_ALPHAPREMULTIPLY_ON") && keep.IsKeywordEnabled("_METALLICGLOSSMAP"), T + "variante transparente con máscara de brillo conservada para el build (Transparent_N0_G1)");
+        bool cr = true;
+        foreach (string id in new[] { "Metal009", "Metal038", "Wood051", "Rubber001", "Concrete042A", "Concrete031", "Concrete012" }) if (!credits.Contains(id) || !ui.Contains(id)) cr = false;
+        r.Check(cr && credits.Contains("ambientcg.com") && credits.Contains("Elevator740"), T + "CREDITS.md y los créditos del juego citan las texturas ambientCG (CC0) y la cabina propia");
     }
 
     private static void ScanSourcesForExitHints(Report r)
@@ -2279,6 +2334,9 @@ public static class SmokePlayRunner
             foreach (MonsterAI m in gmE.monsters) if (!m.IsStopped) allHeld = false;
             r.Check(allHeld, et + "los monstruos esperan quietos hasta que se abran las puertas");
             r.Check(cab.CollidersBlockDoor && cab.ColliderCount >= 9, et + "la cabina tiene colisión (" + cab.ColliderCount + " cajas) y la puerta cerrada bloquea");
+            r.Check(cab.IsRealistic && cab.transform.Find("FrontL") != null && cab.transform.Find("FrontR") != null && cab.transform.Find("Transom") != null,
+                et + "v7.4.0: cabina realista propia (Elevator740) con marco frontal de colisión (" + cab.GetComponentsInChildren<BoxCollider>(true).Length + " cajas)");
+            r.Check(cab.ButtonLightCount >= 5 && cab.DoorGap < 0.01f, et + "v7.4.0: botonera con " + cab.ButtonLightCount + " botones iluminados y puertas cerradas al bajar (hueco " + cab.DoorGap.ToString("F3") + " m)");
             Vector3 f0 = pe.transform.position;
             pe.debugInput = true; pe.debugMove = new Vector2(0f, 1f);
             yield return 0.7f;
@@ -2298,6 +2356,7 @@ public static class SmokePlayRunner
             r.Check(cab.Locked && !pe.InputEnabled, et + "durante el frenazo el jugador sigue bloqueado");
             yield return Until(() => cab.Released || cab == null);
             r.Check(cab.T >= ElevatorCabin.TUnlock - 0.2f && cab.T <= ElevatorCabin.TotalSeconds && cab.T >= 6f, et + "el jugador se libera al abrirse las puertas (T = " + cab.T.ToString("F1") + " s, total " + ElevatorCabin.TotalSeconds + " s)");
+            if (cab != null) r.Check(cab.DoorGap > 0.5f, et + "v7.4.0: las hojas correderas se abren hacia los lados (hueco " + cab.DoorGap.ToString("F2") + " m al liberar)");
             r.Check(!cab.Locked && pe.InputEnabled && !ElevatorCabin.PlayerLocked && !gmE.TitleHeld, et + "tras abrirse: jugador libre y aparece el título del nivel");
             bool anyHeld = false; foreach (MonsterAI m in gmE.monsters) if (m.IsStopped) anyHeld = true;
             r.Check(!anyHeld, et + "los monstruos se liberan cuando se abren las puertas");

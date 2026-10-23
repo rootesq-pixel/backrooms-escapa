@@ -751,8 +751,8 @@ public class UIManager : MonoBehaviour
         sb.AppendLine("   https://poly.pizza/m/z3TSQYx1Kn   (armas retiradas, animaciones Idle/Walk/Run/Duck; malla suavizada, guantes a escala y texturas propias horneadas en Blender)");
         sb.AppendLine("Nivel 7: El Farolero (modelo, texturas y animación), cascos de buzo, muelle, sofá, barca, muebles y esculturas del fondo: trabajo propio (Blender 4.2 y texturas procedurales), CC0 (dominio público)");
         sb.AppendLine();
-        sb.AppendLine("Ascensor de entrada: «Elevator car interior» + «Elevator door pair» (Backrooms and Liminal Spaces Kit) — 3D Assets — CC0 1.0 (dominio público)");
-        sb.AppendLine("   https://3dassets.dev/assets/liminal-spaces-kit-elevator-car-22251ff7   (indicador de planta, luces, sonidos y animación: procedurales)");
+        sb.AppendLine("Ascensor de entrada: modelo propio (Blender 4.2), CC0. Texturas PBR del ascensor y del Nivel 1: ambientCG (Metal009, Metal038, Wood051, Rubber001, Concrete042A, Concrete031, Concrete012) — CC0 1.0");
+        sb.AppendLine("   Reserva: «Elevator car interior» + «Elevator door pair» (Backrooms and Liminal Spaces Kit) — 3D Assets — CC0 1.0   https://3dassets.dev");
         sb.AppendLine();
         sb.AppendLine("Los modelos se han convertido a FBX con Blender y retexturizado donde se indica. Detalles en CREDITS.md.");
         Text t = Label(root.transform, sb.ToString(), 18, TextAnchor.UpperLeft, 0f, 20f, 1640f, 780f);

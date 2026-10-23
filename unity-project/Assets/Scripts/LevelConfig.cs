@@ -21,6 +21,7 @@ public class LevelConfig
     public float loopChance = 0.12f;
     public int roomCount = 8;
     public Vector2Int roomSize = new Vector2Int(2, 4);
+    public bool floorDecals;               // v7.4.0: manchas de aceite y charcos en el suelo (aparcamiento)
     public int pillarEvery = 0;            // 0 = sin pilares; n = pilar cada n celdas (OpenPillars)
     public float pillarSize = 0.9f;
     public float roomPillars = 0f;         // v7.3.0: prob. de pilar cuadrado empapelado en cada esquina libre de las salas abiertas (nivel 0)
@@ -200,8 +201,9 @@ public class LevelConfig
         c.gridW = 32; c.gridH = 36; c.cellSize = 5f; c.wallHeight = 3.6f;   // v7.0.4: 160 x 180 m en 4 plantas (antes 100 x 100 m, una planta)
         c.decks = 4; c.deckDrop = 1.6f;
         c.loopChance = 0.80f; c.roomCount = 0; c.pillarEvery = 2; c.pillarSize = 0.9f;
-        c.wallStyle = SurfaceStyle.ConcreteWall; c.floorStyle = SurfaceStyle.ConcreteFloor; c.ceilingStyle = SurfaceStyle.ConcreteCeiling;
+        c.wallStyle = SurfaceStyle.ParkingWall; c.floorStyle = SurfaceStyle.ParkingFloor; c.ceilingStyle = SurfaceStyle.ParkingCeiling;   // v7.4.0: PBR CC0
         c.wallTileU = 3f; c.wallTileV = 0f; c.floorTileU = 2.7f; c.floorTileV = 5.4f; c.ceilTileU = c.ceilTileV = 3f;
+        c.floorDecals = true;   // v7.4.0: manchas de aceite y charcos
         c.ambient = new Color(0.07f, 0.075f, 0.08f);
         c.fog = new Color(0.10f, 0.105f, 0.115f);
         c.fogDensity = 0.032f;

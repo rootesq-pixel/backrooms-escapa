@@ -124,6 +124,27 @@ public static class V740Shots
                 At(b + Vector3.up * 1.6f + f * 4f, b + f * 12f + r * 3f + Vector3.up * 0.5f); Shot("p06_linterna_pilares");
                 fl.SetOn(false);
             }
+            // versión aclarada (solo para comparar texturas: más luz ambiente y menos niebla; el juego no cambia)
+            Color amb = RenderSettings.ambientLight; float fd = RenderSettings.fogDensity;
+            RenderSettings.ambientLight = amb * 5f + new Color(0.05f, 0.05f, 0.05f); RenderSettings.fogDensity = fd * 0.3f;
+            At(b + Vector3.up * 1.6f, b + f * 14f + Vector3.up * 1.0f); Shot("p11_pasillo_frente_aclarado");
+            At(b + Vector3.up * 1.7f + f * 2f, b + f * 5f + Vector3.down * 0.1f); Shot("p14_suelo_lineas_aclarado");
+            At(b + Vector3.up * 1.5f + f * 3f, b + f * 7f + Vector3.up * 3.6f); Shot("p15_techo_aclarado");
+            At(b + Vector3.up * 1.6f, b - r * 14f + Vector3.up * 0.6f); Shot("p13_lado_izquierdo_aclarado");
+            RenderSettings.ambientLight = amb; RenderSettings.fogDensity = fd;
+            Info("aceite " + GarageDecor.OilStains + " charcos " + GarageDecor.WetPatches);
+            GameObject og = GameObject.Find("GarageOilStains");
+            if (og != null)
+            {
+                MeshRenderer omr = og.GetComponent<MeshRenderer>(); Mesh om = og.GetComponent<MeshFilter>().sharedMesh;
+                Vector3 v0 = og.transform.TransformPoint(om.vertices[0]);
+                RaycastHit hit; bool h = Physics.Raycast(v0 + Vector3.up * 1f, Vector3.down, out hit, 3f);
+                Info("oil bounds " + omr.bounds + " active " + og.activeInHierarchy + " en " + omr.enabled + " v0 " + v0 + " floorhit " + (h ? hit.point.ToString("F3") + " " + hit.collider.name : "none") + " shader " + omr.sharedMaterial.shader.name + " q " + omr.sharedMaterial.renderQueue + " tex " + (omr.sharedMaterial.mainTexture ? omr.sharedMaterial.mainTexture.name + " " + omr.sharedMaterial.mainTexture.width + " fmt " + ((Texture2D)omr.sharedMaterial.mainTexture).format : "NULL") + " kw " + string.Join(",", omr.sharedMaterial.shaderKeywords) + " col " + omr.sharedMaterial.color + " uv0 " + om.uv[0] + " uv2 " + om.uv[2] + " n " + om.normals[0]);
+                Vector3 c4 = (og.transform.TransformPoint(om.vertices[0]) + og.transform.TransformPoint(om.vertices[2])) * 0.5f;
+                RenderSettings.ambientLight = amb * 5f + new Color(0.05f, 0.05f, 0.05f);
+                At(c4 + Vector3.up * 2.2f + Vector3.forward * 0.8f, c4); Shot("p16_mancha_aceite_aclarado");
+                RenderSettings.ambientLight = amb;
+            }
         }
         yield return 0.2f;
     }

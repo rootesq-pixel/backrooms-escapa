@@ -18,13 +18,14 @@ public class TextureImportRules : AssetPostprocessor
         ti.textureType = normal ? TextureImporterType.NormalMap : TextureImporterType.Default;
         ti.sRGBTexture = !(normal || mask);
         bool cutout = n.EndsWith("Net_a") || n.EndsWith("Atlas_a");   // v7.1.0: red y atlas de carteles del parque de bolas (alfa recortado)
-        ti.alphaSource = mask || cutout ? TextureImporterAlphaSource.FromInput : TextureImporterAlphaSource.None;
-        ti.alphaIsTransparency = false;
+        bool decal = assetPath.StartsWith(Folder + "Parking/");          // v7.4.0: calcomanías del aparcamiento (alfa suave, sin repetición)
+        ti.alphaSource = mask || cutout || decal ? TextureImporterAlphaSource.FromInput : TextureImporterAlphaSource.None;
+        ti.alphaIsTransparency = decal;
         ti.mipmapEnabled = true;
         ti.streamingMipmaps = false;
         ti.anisoLevel = 8;
         ti.filterMode = FilterMode.Trilinear;
-        ti.wrapMode = TextureWrapMode.Repeat;
+        ti.wrapMode = decal ? TextureWrapMode.Clamp : TextureWrapMode.Repeat;
         ti.isReadable = false;
         ti.npotScale = TextureImporterNPOTScale.None;
         ti.maxTextureSize = 4096;   // v7.1.1: albedos de 4096 del Nivel 0 (horneado GPU); el resto son de 2048
