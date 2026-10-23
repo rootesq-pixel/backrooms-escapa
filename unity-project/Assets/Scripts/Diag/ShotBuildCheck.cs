@@ -213,11 +213,20 @@ public class ShotBuildCheck : MonoBehaviour
             for (int k = 0; k < 6; k++) { m2.Push(mp, 250f, 0f, 0f, 0); yield return null; }
             Vector3 f2 = Quaternion.Euler(0f, 250f, 0f) * Vector3.forward, r2 = Quaternion.Euler(0f, 250f, 0f) * Vector3.right;
             yield return View(pw, mc, "l7_13_traje_cuerpo", mp + f2 * 3.4f + r2 * 0.3f + Vector3.up * 1.05f, mp + Vector3.up * 0.98f, 42f, pier2);
-            yield return View(pw, mc, "l7_14_traje_cerca", mp + f2 * 1.25f + r2 * 0.45f + Vector3.up * 1.3f, mp + Vector3.up * 1.1f + r2 * 0.05f, 40f, pier2);
+            yield return View(pw, mc, "l7_14_traje_cerca", mp + f2 * 1.9f + r2 * 0.55f + Vector3.up * 1.5f, mp + Vector3.up * 1.25f, 42f, pier2);
             Destroy(m2.gameObject);
-            Vector3 st = new Vector3(44f, OceanWorld.PierY + 0.02f, 250f), eye = st + Vector3.up * 1.55f;
-            pw.Teleport(st, 70f);
-            yield return View(pw, mc, "l7_15_manos_primera_persona", eye, eye + Quaternion.Euler(0f, 70f, 0f) * new Vector3(0f, -0.42f, 1f), 62f, st);
+            Vector3 st = new Vector3(44f, OceanWorld.PierY + 0.02f, 250f);
+            pw.Teleport(st, 70f); pw.SetPitch(32f);
+            PlayerBody pbd = pw.GetComponentInChildren<PlayerBody>(true); if (pbd == null) pbd = Object.FindObjectOfType<PlayerBody>();
+            var fShow = typeof(PlayerBody).GetField("showWanted", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            object show0 = (pbd != null && fShow != null) ? fShow.GetValue(pbd) : null;
+            if (show0 != null) fShow.SetValue(pbd, true);   // solo para esta captura (no toca las preferencias del usuario)
+            for (int k = 0; k < 20; k++) yield return null;
+            Vector3 eye = mc.transform.position, look = eye + mc.transform.forward;
+            Debug.Log("[ShotBuildCheck] manos: cuerpo " + (pbd != null) + " visible " + (pbd != null && pbd.Visible) + " antes " + show0);
+            yield return View(pw, mc, "l7_15_manos_primera_persona", eye, look, 62f, st);
+            if (show0 != null) fShow.SetValue(pbd, show0);
+            pw.SetPitch(0f);
         }
         // v7.3.0: muelle de cerca (tablas, barandilla, cuerda) y pilotes en la línea de flotación
         yield return View(pw, mc, "l7_16_muelle_cerca", new Vector3(27.2f, OceanWorld.PierY + 1.25f, 248.1f), new Vector3(33f, OceanWorld.PierY + 0.2f, 250.4f), 55f, pier2);
@@ -239,9 +248,9 @@ public class ShotBuildCheck : MonoBehaviour
             Vector3 camP3 = ap3 + sideV * 7.5f + fw * 2.2f + Vector3.up * 0.9f;
             float fd = RenderSettings.fogDensity;
             GameObject studio = new GameObject("ShotStudioLights");
-            Light key = new GameObject("Key").AddComponent<Light>(); key.transform.SetParent(studio.transform); key.type = LightType.Point; key.range = 28f; key.intensity = 2.4f; key.color = new Color(0.75f, 0.88f, 0.95f); key.renderMode = LightRenderMode.ForcePixel; key.transform.position = camP3 + Vector3.up * 2.5f + fw * 1.5f;
+            Light key = new GameObject("Key").AddComponent<Light>(); key.transform.SetParent(studio.transform); key.type = LightType.Point; key.range = 32f; key.intensity = 4.5f; key.color = new Color(0.75f, 0.88f, 0.95f); key.renderMode = LightRenderMode.ForcePixel; key.transform.position = camP3 + Vector3.up * 2.5f + fw * 1.5f;
             Light rim = new GameObject("Rim").AddComponent<Light>(); rim.transform.SetParent(studio.transform); rim.type = LightType.Point; rim.range = 16f; rim.intensity = 1.6f; rim.color = new Color(0.55f, 0.8f, 0.85f); rim.renderMode = LightRenderMode.ForcePixel; rim.transform.position = ap3 - sideV * 4f + Vector3.up * 3f;
-            Light fill = new GameObject("Fill").AddComponent<Light>(); fill.transform.SetParent(studio.transform); fill.type = LightType.Point; fill.range = 14f; fill.intensity = 1.0f; fill.color = new Color(0.9f, 0.85f, 0.75f); fill.renderMode = LightRenderMode.ForcePixel; fill.transform.position = ap3 + sideV * 3f - Vector3.up * 1.5f - fw * 3f;
+            Light fill = new GameObject("Fill").AddComponent<Light>(); fill.transform.SetParent(studio.transform); fill.type = LightType.Point; fill.range = 16f; fill.intensity = 2.0f; fill.color = new Color(0.9f, 0.85f, 0.75f); fill.renderMode = LightRenderMode.ForcePixel; fill.transform.position = ap3 + sideV * 3f - Vector3.up * 1.5f - fw * 3f;
             RenderSettings.fogDensity = fd * 0.3f;
             yield return View(pw, mc, "l7_12_farolero_iluminado", camP3, ap3 + fw * 0.6f, 55f, camP3);
             RenderSettings.fogDensity = fd;

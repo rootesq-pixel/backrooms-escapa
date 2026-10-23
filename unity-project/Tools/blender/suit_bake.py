@@ -87,10 +87,10 @@ def build(mat, kind):
     dirt = mr(noise(9.0, 8, 0.65), 0.58, 0.72, 0, 1)    # manchas sueltas
     if kind == 'suit':
         # pliegues: bandas horizontales deformadas (mangas y perneras) + arrugas finas de tejido engomado
-        w = N(nt, 'ShaderNodeTexWave'); w.wave_type = 'BANDS'; w.bands_direction = 'Z'; w.inputs['Scale'].default_value = 6.5
-        w.inputs['Distortion'].default_value = 9.0; w.inputs['Detail'].default_value = 3; w.inputs['Detail Scale'].default_value = 1.5
+        w = N(nt, 'ShaderNodeTexWave'); w.wave_type = 'BANDS'; w.bands_direction = 'Z'; w.inputs['Scale'].default_value = 4.2
+        w.inputs['Distortion'].default_value = 3.2; w.inputs['Detail'].default_value = 2; w.inputs['Detail Scale'].default_value = 1.5
         Lk(geo.outputs['Position'], w.inputs['Vector'])
-        folds = math_('MULTIPLY', w.outputs['Fac'], mr(noise(2.5, 3), 0.35, 0.7, 0.2, 1))
+        folds = math_('MULTIPLY', w.outputs['Fac'], mr(noise(2.5, 3), 0.4, 0.75, 0.1, 0.8))
         fine = noise(55, 6, 0.6)
         side = band(NY, 0.0, 0.07)                      # costura lateral (contorno delante/detrás)
         waist = band(Z, 0.955, 0.008); shoulder = band(Z, 1.33, 0.006)
@@ -110,7 +110,7 @@ def build(mat, kind):
         height = math_('ADD', height, math_('MULTIPLY', zip_, math_('ADD', 0.35, math_('MULTIPLY', teeth, 0.25))))
         height = math_('ADD', height, math_('MULTIPLY', buckle, 0.35))
         yel = mixc(noise(6, 4), (0.80, 0.58, 0.035), (0.88, 0.67, 0.06))
-        col = mixc(math_('MULTIPLY', folds, 0.45), yel, (0.58, 0.40, 0.02))           # fondo de pliegue algo más oscuro
+        col = mixc(math_('MULTIPLY', folds, 0.22), yel, (0.58, 0.40, 0.02))           # fondo de pliegue algo más oscuro
         col = mixc(math_('MULTIPLY', stitch, 0.6), col, (0.55, 0.40, 0.04))
         col = mixc(belt, col, (0.07, 0.07, 0.075))
         col = mixc(zip_, col, (0.30, 0.30, 0.31))
@@ -135,10 +135,10 @@ def build(mat, kind):
         else:
             height = math_('ADD', math_('MULTIPLY', fine, 0.25), math_('MULTIPLY', crease.outputs['Fac'], 0.35))
             height = math_('ADD', height, math_('MULTIPLY', math_('MULTIPLY', sole, tread), 0.8))
-            col = mixc(noise(7, 3), (0.040, 0.040, 0.043), (0.060, 0.058, 0.058))
+            col = mixc(noise(7, 3), (0.085, 0.088, 0.080), (0.110, 0.112, 0.102))
             col = mixc(math_('MULTIPLY', grime, 0.7), col, (0.17, 0.14, 0.09))
             col = mixc(math_('MULTIPLY', wet, 0.4), col, (0.02, 0.02, 0.02))
-            rough = mr(fine, 0, 1, 0.62, 0.78)
+            rough = mr(fine, 0, 1, 0.50, 0.66)
             rough = math_('SUBTRACT', rough, math_('MULTIPLY', wet, 0.35))
         metal = math_('MULTIPLY', fine, 0.0)
     else:  # gris: piezas de plástico/goma del equipo
@@ -147,7 +147,7 @@ def build(mat, kind):
         col = mixc(fine, (0.10, 0.10, 0.11), (0.14, 0.14, 0.15))
         col = mixc(math_('MULTIPLY', grime, 0.7), col, (0.2, 0.17, 0.11))
         rough = mr(fine, 0, 1, 0.45, 0.6); metal = math_('MULTIPLY', fine, 0.0)
-    bump = N(nt, 'ShaderNodeBump'); bump.inputs['Strength'].default_value = 1.0; bump.inputs['Distance'].default_value = (0.012 if kind == 'suit' else 0.006)
+    bump = N(nt, 'ShaderNodeBump'); bump.inputs['Strength'].default_value = 1.0; bump.inputs['Distance'].default_value = (0.0065 if kind == 'suit' else 0.006)
     Lk(height, bump.inputs['Height'])
     Lk(col, bsdf.inputs['Base Color']); Lk(rough, bsdf.inputs['Roughness']); Lk(bump.outputs['Normal'], bsdf.inputs['Normal'])
     Lk(bsdf.outputs[0], out.inputs['Surface'])
