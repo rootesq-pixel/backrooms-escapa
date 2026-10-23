@@ -170,7 +170,7 @@ public class OceanWorld : MonoBehaviour
         if (src == null) return;
         Material m = OceanGeo.PbrMat("Ocean/Sculpt/SeaStone", Color.white, 1f, track);
         if (m.HasProperty("_GlossMapScale")) m.SetFloat("_GlossMapScale", 0.6f);
-        GameObject inst = Object.Instantiate(src); inst.name = "Sculptures"; inst.transform.SetParent(root, false);
+        GameObject inst = Object.Instantiate(src); inst.name = "Sculptures"; inst.transform.SetParent(root, false); OceanGeo.FixInverted(inst);
         string[] names = { "Head", "Hand", "FaceUp" };
         Vector3 cage = new Vector3(CageTop.x, 0f, CageTop.z);
         float[] tilt = { 6f, 8f, 0f }, sink = { 1.4f, 0.9f, 0.25f };
@@ -416,7 +416,7 @@ public class OceanWorld : MonoBehaviour
         GameObject g = new GameObject(piece); g.transform.SetParent(parent, false);
         g.transform.localPosition = localPos; g.transform.localRotation = Quaternion.Euler(0f, yaw, 0f);
         Transform sc = new GameObject("Scale").transform; sc.SetParent(g.transform, false); sc.localScale = scale;   // escala en ejes del juego
-        GameObject m = Object.Instantiate(pick.gameObject, sc, false); m.name = "Mesh";
+        GameObject m = Object.Instantiate(pick.gameObject, sc, false); m.name = "Mesh"; OceanGeo.FixInverted(m);
         m.transform.localPosition = Vector3.zero;
         foreach (Renderer r in m.GetComponentsInChildren<Renderer>(true)) { r.sharedMaterial = FurnMat(); r.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On; }
         if (colliderSize != Vector3.zero)

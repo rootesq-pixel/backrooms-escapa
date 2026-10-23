@@ -51,7 +51,7 @@ public class OceanBoat : MonoBehaviour
         GameObject model = null;
         if (src != null)
         {
-            model = Object.Instantiate(src, hull, false); model.name = "Model";
+            model = Object.Instantiate(src, hull, false); model.name = "Model"; OceanGeo.FixInverted(model);
             Material wm = OceanGeo.PbrMat("Ocean/Props/BoatWood", new Color(1f, 0.9f, 0.78f), 1f, track);   // v7.3.0b: tinte cálido que compensa el ambiente gris azulado del nivel 7 (el fondo seco se veía azulado)
             if (wm.HasProperty("_GlossMapScale")) wm.SetFloat("_GlossMapScale", 0.18f);
             // v7.3.0b3: sin reflejos del cielo ni brillos especulares en la madera (Standard está en «Always Included», las variantes existen):
@@ -157,7 +157,7 @@ public class OceanBoat : MonoBehaviour
             v[i * 2] = new Vector3(-w, gun, z); v[i * 2 + 1] = new Vector3(w, gun, z);
             if (i < N) { int k = i * 6, a = i * 2; tri[k] = a; tri[k + 1] = a + 2; tri[k + 2] = a + 1; tri[k + 3] = a + 1; tri[k + 4] = a + 2; tri[k + 5] = a + 3; }
         }
-        Mesh mesh = new Mesh { name = "BoatWaterMask" }; mesh.vertices = v; mesh.triangles = tri; mesh.RecalculateBounds(); track(mesh);
+        Mesh mesh = new Mesh { name = "BoatWaterMask" }; mesh.vertices = v; mesh.triangles = tri; Vector3[] nu = new Vector3[v.Length]; for (int q = 0; q < nu.Length; q++) nu[q] = Vector3.up; mesh.normals = nu; mesh.RecalculateBounds(); track(mesh);
         GameObject g = new GameObject("WaterMask"); g.transform.SetParent(hull, false);
         g.AddComponent<MeshFilter>().sharedMesh = mesh;
         MeshRenderer r = g.AddComponent<MeshRenderer>(); r.sharedMaterial = m;

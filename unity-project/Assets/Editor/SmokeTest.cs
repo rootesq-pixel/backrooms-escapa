@@ -1212,7 +1212,9 @@ public static class SmokeTest
         foreach (MeshFilter mf in go.GetComponentsInChildren<MeshFilter>(true))
         {
             Mesh mesh = mf.sharedMesh;
+            if (mesh == null) continue;
             Vector3[] vv = mesh.vertices; Vector3[] nn = mesh.normals;
+            if (nn == null || nn.Length != vv.Length) { r.Info(tag + "malla sin normales: " + mf.name); continue; }
             int badBefore = badTris;
             for (int sm = 0; sm < mesh.subMeshCount; sm++)
             {
@@ -1221,7 +1223,9 @@ public static class SmokeTest
                 {
                     Vector3 gn = Vector3.Cross(vv[tr[i + 1]] - vv[tr[i]], vv[tr[i + 2]] - vv[tr[i]]);
                     totalTris++;
-                    if (Vector3.Dot(gn, nn[tr[i]]) <= 0f) badTris++;
+                    // v7.3.0b3: invertido = las TRES normales de vértice al lado contrario (en telas arrugadas, un pliegue puede
+                    // discrepar en una esquina sin que el triángulo esté al revés)
+                    if (Vector3.Dot(gn, nn[tr[i]]) <= 0f && Vector3.Dot(gn, nn[tr[i + 1]]) <= 0f && Vector3.Dot(gn, nn[tr[i + 2]]) <= 0f) badTris++;
                 }
             }
             if (badTris > badBefore) r.Info(tag + "triángulos mal orientados en " + mf.name + ": " + (badTris - badBefore));

@@ -35,7 +35,7 @@ public class OceanFloat : MonoBehaviour
         GameObject src = OldProps ? null : Resources.Load<GameObject>("Ocean/Props/Sofa");
         if (src != null)
         {
-            GameObject inst = Object.Instantiate(src, g.transform, false); inst.name = "Mesh";
+            GameObject inst = Object.Instantiate(src, g.transform, false); inst.name = "Mesh"; OceanGeo.FixInverted(inst);
             Material m = OceanGeo.PbrMat("Ocean/Props/SofaFabric", Color.white, 1f, track);
             if (m.HasProperty("_GlossMapScale")) m.SetFloat("_GlossMapScale", 0.85f);
             foreach (Renderer r in inst.GetComponentsInChildren<Renderer>(true))

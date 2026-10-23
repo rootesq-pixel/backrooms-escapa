@@ -23,6 +23,7 @@ public static class AudioBuzzLimiter
     public static void RegisterExternal(AudioSource a) { if (a != null && !ext.Contains(a)) ext.Add(a); }
     public static bool ExternalOn(AudioSource a) { return Disabled || extOn.Contains(a); }
 
+    static bool InMenuNow() { GameBootstrap gb = GameBootstrap.Instance; return gb != null && gb.InMenu; }
     public static void Tick()
     {
         if (Time.unscaledTime < next) return;
@@ -35,11 +36,12 @@ public static class AudioBuzzLimiter
             FlickeringLight f = lights[i];
             if (f == null) { lights.RemoveAt(i); continue; }
             if (f.buzz == null) continue;
-            f.buzzGateTarget = Disabled ? 1f : 0f;
+            f.buzzGateTarget = Disabled && !InMenuNow() ? 1f : 0f;
             if (Disabled) continue;
             tmp.Add(new KeyValuePair<float, FlickeringLight>((f.transform.position - p).sqrMagnitude, f));
         }
         if (Disabled) return;
+        if (InMenuNow()) { extOn.Clear(); return; }   // v7.3.0b3: en el menú no suena ningún zumbido (el nivel de fondo del menú inicial tiene luces cerca)
         tmp.Sort((a, b) => a.Key.CompareTo(b.Key));
         tmpE.Clear(); extOn.Clear();
         for (int i = ext.Count - 1; i >= 0; i--) { if (ext[i] == null) { ext.RemoveAt(i); continue; } tmpE.Add(new KeyValuePair<float, AudioSource>((ext[i].transform.position - p).sqrMagnitude, ext[i])); }

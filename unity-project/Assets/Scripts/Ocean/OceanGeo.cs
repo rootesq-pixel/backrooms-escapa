@@ -239,6 +239,50 @@ public static class OceanGeo
     }
 
     // material PBR propio (Resources: <base>_a, _n, _m con R metal, G oclusión, A suavidad)
+    // v7.3.0b3: los modelos importados (cama y sofá de tela, casco y hélice de la barca, mano) traían algunos triángulos con el giro
+    // al revés respecto a sus normales (se veían como agujeros o con la luz invertida). Se corrige una copia de la malla (una vez por
+    // malla de origen) dando la vuelta a los triángulos cuyas TRES normales de vértice apuntan al lado contrario.
+    static readonly Dictionary<Mesh, Mesh> fixedMeshes = new Dictionary<Mesh, Mesh>();
+    public static int FlippedTriangles;
+    public static void FixInverted(GameObject root)
+    {
+        if (root == null) return;
+        foreach (MeshFilter mf in root.GetComponentsInChildren<MeshFilter>(true))
+        {
+            Mesh src = mf.sharedMesh; if (src == null || !src.isReadable) continue;
+            Mesh fx;
+            if (!fixedMeshes.TryGetValue(src, out fx))
+            {
+                fx = null;
+                Vector3[] v = src.vertices, n = src.normals;
+                if (n != null && n.Length == v.Length)
+                {
+                    int[][] subs = new int[src.subMeshCount][]; int flipped = 0;
+                    for (int s = 0; s < subs.Length; s++)
+                    {
+                        int[] t = src.GetTriangles(s);
+                        for (int i = 0; i + 2 < t.Length; i += 3)
+                        {
+                            Vector3 g = Vector3.Cross(v[t[i + 1]] - v[t[i]], v[t[i + 2]] - v[t[i]]);
+                            if (g.sqrMagnitude < 1e-20f) continue;
+                            if (Vector3.Dot(g, n[t[i]]) <= 0f && Vector3.Dot(g, n[t[i + 1]]) <= 0f && Vector3.Dot(g, n[t[i + 2]]) <= 0f)
+                            { int q = t[i + 1]; t[i + 1] = t[i + 2]; t[i + 2] = q; flipped++; }
+                        }
+                        subs[s] = t;
+                    }
+                    if (flipped > 0)
+                    {
+                        fx = Object.Instantiate(src); fx.name = src.name; fx.hideFlags = HideFlags.DontSave;
+                        for (int s = 0; s < subs.Length; s++) fx.SetTriangles(subs[s], s, false);
+                        FlippedTriangles += flipped;
+                    }
+                }
+                fixedMeshes[src] = fx;
+            }
+            if (fx != null) mf.sharedMesh = fx;
+        }
+    }
+
     public static Material PbrMat(string bas, Color tint, float occl, System.Action<Object> track)
     {
         Texture2D a = Resources.Load<Texture2D>(bas + "_a"), n = Resources.Load<Texture2D>(bas + "_n"), k = Resources.Load<Texture2D>(bas + "_m");
