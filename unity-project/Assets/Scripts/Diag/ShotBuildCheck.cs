@@ -8,6 +8,14 @@ using UnityEngine;
 
 public class ShotBuildCheck : MonoBehaviour
 {
+    int savedQuality = -2;
+    void RestoreQuality()
+    {
+        if (savedQuality == -2) return;
+        if (savedQuality < 0) PlayerPrefs.DeleteKey("opt_quality"); else PlayerPrefs.SetInt("opt_quality", savedQuality);
+        PlayerPrefs.Save(); savedQuality = -2;
+    }
+    void OnApplicationQuit() { RestoreQuality(); }
     string dir; readonly StringBuilder rep = new StringBuilder(); int pass, fail;
 
     public static void MaybeStart(GameObject host)
@@ -18,6 +26,9 @@ public class ShotBuildCheck : MonoBehaviour
             {
                 ShotBuildCheck c = host.AddComponent<ShotBuildCheck>(); c.dir = a[i + 1];
                 GameBootstrap gb = host.GetComponent<GameBootstrap>(); if (gb != null) { gb.useRandomSeed = false; gb.seed = 7110; }
+                // v7.3.0: «-shotquality N» (0 Bajo, 1 Medio, 2 Alto) solo para esta ejecución: se restaura la preferencia del jugador al salir
+                for (int k = 0; k < a.Length - 1; k++)
+                    if (a[k] == "-shotquality" && int.TryParse(a[k + 1], out int q)) { c.savedQuality = PlayerPrefs.HasKey("opt_quality") ? PlayerPrefs.GetInt("opt_quality") : -1; GameSettings.Quality = q; }
             }
     }
     void Check(bool ok, string m) { if (ok) pass++; else fail++; rep.AppendLine((ok ? "PASS " : "FAIL ") + m); Debug.Log("[ShotBuildCheck] " + (ok ? "PASS " : "FAIL ") + m); }
@@ -46,6 +57,7 @@ public class ShotBuildCheck : MonoBehaviour
         mc.cullingMask &= ~(1 << 8);
         if (PoolRoomSetPiece.Root != null) yield return Pool(gm, pw, mc);
         else if (FieldWorld.Active != null) yield return Field(gm, pw, mc);
+        else if (OceanWorld.Active != null) yield return Ocean(gm, pw, mc);
         else Check(false, "nivel con sala de piscina o campo");
         Finish();
     }
@@ -56,7 +68,7 @@ public class ShotBuildCheck : MonoBehaviour
         // al menos 2 s reales: en -batchmode los fotogramas duran ~2 ms y las luces (LightCuller) tardan en encenderse
         float t0 = Time.realtimeSinceStartup;
         for (int k = 0; k < 30 || Time.realtimeSinceStartup - t0 < 2f; k++) { mc.transform.position = p; mc.transform.rotation = Quaternion.LookRotation(t - p); mc.fieldOfView = fov; yield return null; }
-        yield return new WaitForSeconds(0.3f);
+        yield return new WaitForSecondsRealtime(0.3f);
         mc.transform.position = p; mc.transform.rotation = Quaternion.LookRotation(t - p); mc.fieldOfView = fov;
         if (PoolPlanarReflection.Instance != null) PoolPlanarReflection.Instance.Refresh(mc);
         if (FieldGrass.Active != null) FieldGrass.Active.Submit();
@@ -127,6 +139,48 @@ public class ShotBuildCheck : MonoBehaviour
         FieldGrass.Synchronous = false;
     }
 
+    // v7.3.0: Talasofobia (nivel 7): casa inundada, mar con niebla, barca, bengala, faro, jaula y cascos, fondo con El Farolero, túnel y poza
+    IEnumerator Ocean(GameManager gm, FirstPersonController pw, Camera mc)
+    {
+        OceanWorld w = OceanWorld.Active; OceanPlayer op = OceanPlayer.Local;
+        if (w.fish != null) w.fish.enabled = false;
+        if (w.angler != null) w.angler.enabled = false;
+        gm.lostRestartSeconds = 999f;
+        const float F = 62f; Vector3 up = Vector3.up * 1.55f;
+        Vector3 s1 = new Vector3(18.6f, -0.85f, 21.3f);
+        yield return View(pw, mc, "l7_01_casa_inundada", s1 + up, new Vector3(15.6f, -0.1f, 26.6f), F, s1);
+        Vector3 porch = new Vector3(15f, -0.3f, 30.6f);
+        yield return View(pw, mc, "l7_02_mar_niebla", porch + up, new Vector3(13f, 1.2f, 70f), F, porch);
+        Vector3 stop = w.BoatStops.Count > 1 ? w.BoatStops[1] : OceanWorld.BoatHome;
+        w.boat.ApplyNet(new Vector2(stop.x + 1.5f, stop.z), 200f, 0f, new[] { -1, -1, -1, -1 });
+        yield return View(pw, mc, "l7_03_barca_casa_pilotes", new Vector3(stop.x - 6f, 2.4f, stop.z - 9f), new Vector3(stop.x + 4f, 1.2f, stop.z + 6f), F, porch);
+        OceanFlare.Spawn(0, new Vector3(stop.x, 1.5f, stop.z + 4f), Vector3.up);
+        yield return View(pw, mc, "l7_04_bengala", new Vector3(stop.x - 14f, 1.8f, stop.z - 22f), new Vector3(stop.x, 18f, stop.z + 4f), F, porch);
+        w.lighthouse.SetOn(true);
+        Vector3 pier = new Vector3(55.2f, OceanWorld.PierY + 0.02f, 247f);
+        yield return View(pw, mc, "l7_05_faro_muelle", pier + up, new Vector3(0f, 14f, 250f), F, pier);
+        Vector3 pier2 = new Vector3(46f, OceanWorld.PierY + 0.02f, 249.4f);
+        yield return View(pw, mc, "l7_06_jaula_cascos", pier2 + up, new Vector3(56f, 2.2f, 251.5f), F, pier2);
+        Vector3 rk = w.rack.transform.position;
+        yield return View(pw, mc, "l7_07_cascos_cerca", rk + new Vector3(1.1f, 1.55f, -1.5f), rk + new Vector3(0f, 1.05f, 0f), F, pier2);
+        op.SetHelmet(true);
+        Vector3 me = new Vector3(60f, -47f, 252f), ap = new Vector3(65f, -45.8f, 256.8f);
+        w.angler.ForceForTests(ap, OceanAngler.AState.Patrol); w.angler.transform.rotation = Quaternion.LookRotation(new Vector3(-1f, 0f, 0.45f));
+        yield return View(pw, mc, "l7_08_fondo_farolero", me + up, ap, F, me);
+        Flashlight fl = pw.GetComponentInChildren<Flashlight>();
+        if (fl != null) fl.SetOn(false);
+        Vector3 ap2 = new Vector3(70f, -44.5f, 263f);
+        w.angler.ForceForTests(ap2, OceanAngler.AState.Patrol); w.angler.transform.rotation = Quaternion.LookRotation(new Vector3(-0.8f, 0f, -0.6f));
+        yield return View(pw, mc, "l7_09_farolero_a_oscuras", me + up, ap2 + Vector3.up * 1.5f, F, me);
+        if (fl != null) fl.SetOn(true);
+        w.angler.ForceForTests(new Vector3(95f, -40f, 280f), OceanAngler.AState.Patrol);
+        Vector3 ts = OceanWorld.TunnelPath[2] + new Vector3(2f, -0.9f, 0f);
+        yield return View(pw, mc, "l7_10_tunel_gruta", ts + up, OceanWorld.TunnelPath[4] + Vector3.up * 1.5f, F, ts);
+        Vector3 ps = OceanWorld.PocketCenter + new Vector3(-2.3f, -1.42f, 0.6f);
+        yield return View(pw, mc, "l7_11_poza_salida", ps + up, OceanWorld.PocketCenter + new Vector3(3f, 1.2f, -1f), F, ps);
+        Check(gm.State == GameManager.GameState.Playing || gm.State == GameManager.GameState.Won, "nivel 7 sigue en juego durante las capturas (" + gm.State + ")");
+    }
+
     static float Mean(Texture2D t) { Color32[] px = t.GetPixels32(); double s = 0; for (int i = 0; i < px.Length; i += 17) s += (px[i].r + px[i].g + px[i].b) / 765.0; return (float)(s / (px.Length / 17)); }
 
     Texture2D Grab(Camera c, string name)
@@ -147,6 +201,7 @@ public class ShotBuildCheck : MonoBehaviour
 
     void Finish()
     {
+        RestoreQuality();
         rep.AppendLine("RESULT passed=" + pass + " failed=" + fail);
         File.WriteAllText(Path.Combine(dir, "shotcheck.txt"), rep.ToString());
         Application.Quit(fail == 0 ? 0 : 3);
