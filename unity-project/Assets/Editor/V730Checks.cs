@@ -278,7 +278,9 @@ public static class V730Checks
             route.AddRange(OceanWorld.TunnelPath);
             route.Add(OceanWorld.PocketCenter + Vector3.down * 0.5f);
             p.debugInput = true; p.debugMove = new Vector2(0f, 1f);
+            { CharacterController c0 = p.GetComponent<CharacterController>(); r.Check(c0 != null && c0.minMoveDistance == 0f, T + "el jugador no tiene distancia mínima de movimiento (se mueve igual a cualquier FPS)"); }
             int k = 0; float tt = 0f, stuck = 0f, t0 = Time.time, lastT = Time.time; Vector3 last = p.transform.position;
+            int f0 = Time.frameCount; float minDt = 1f;
             while (k < route.Count && tt < 90f && gm.State == GameManager.GameState.Playing)
             {
                 Vector3 eye = p.cameraPivot.position, body = p.transform.position + Vector3.up * 0.9f;
@@ -296,6 +298,7 @@ public static class V730Checks
                 p.debugJump = route[k].y > body.y + 2f;
                 if (Vector3.Distance(body, route[k]) < 1.6f || (k == route.Count - 1 && Vector3.Distance(eye, route[k]) < 1.6f)) k++;
                 yield return null; tt = Time.time - t0;
+                if (Time.deltaTime > 0f) minDt = Mathf.Min(minDt, Time.deltaTime);
                 if (Time.time - lastT > 0.5f) { stuck = (p.transform.position - last).magnitude < 0.1f ? stuck + (Time.time - lastT) : 0f; last = p.transform.position; lastT = Time.time; }
                 if (stuck > 4f) break;
             }
@@ -320,6 +323,7 @@ public static class V730Checks
                 blk += " swim=" + p.IsSwimming + " under=" + p.IsUnderwater + " free=" + p.freeSwim + " camfwd=" + p.cameraPivot.forward.ToString("F2") + " surf=" + WaterVolume.Active.SurfaceHeightAt(p.transform.position).ToString("F1");
                 r.Info(T + "atasco: objetivo " + route[k].ToString("F1") + ", choques: " + blk);
             }
+            r.Info(T + "túnel: " + (Time.frameCount - f0) + " fotogramas en " + tt.ToString("F1") + " s (media " + (1000f * tt / Mathf.Max(1, Time.frameCount - f0)).ToString("F2") + " ms, mínimo " + (1000f * minDt).ToString("F2") + " ms)");
             p.debugInput = false; p.debugJump = false; p.debugMove = Vector2.zero;
             r.Check(k >= route.Count - 1 || gm.State == GameManager.GameState.Won, T + "se nada por el túnel hasta la poza de la gruta (punto " + k + "/" + route.Count + ", " + tt.ToString("F0") + " s" + (stuck > 4f ? ", atascado en " + p.transform.position.ToString("F1") : "") + ")");
             p.debugInput = true; p.debugJump = true; p.debugMove = Vector2.zero;   // Espacio: subir a respirar

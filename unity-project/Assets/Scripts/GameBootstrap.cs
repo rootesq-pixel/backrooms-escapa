@@ -540,6 +540,9 @@ public class GameBootstrap : MonoBehaviour
         cc.center = new Vector3(0f, 0.9f, 0f);
         cc.stepOffset = 0.3f;
         cc.slopeLimit = 45f;
+        // v7.3.0d: sin distancia mínima de movimiento: con muchos FPS (sin vsync) cada fotograma mueve menos de 1 mm y Unity
+        // descartaba el paso entero (te quedabas quieto nadando despacio o al hundirte); con 0 el movimiento es el mismo a cualquier FPS
+        cc.minMoveDistance = 0f;
 
         // Cámara a la altura de los ojos
         GameObject camGo = new GameObject("PlayerCamera");
