@@ -201,7 +201,7 @@ public static class V702Checks
             Whistle.Emit(W + Vector3.up * 1.55f, 0, 1, false);
             bool heardNow = main.WhistlesHeard == h0 + 1;
             bool notInstant = main.CurrentState != MonsterAI.State.Search || true;
-            yield return 1.3f;
+            { float tg = Time.time; yield return (System.Func<bool>)(() => Time.time - tg >= 1.3f); }   // v7.4.0: tiempo de juego (la reacción al silbido va con deltaTime; con un parón de la VM se medía antes de reaccionar)
             bool searching = main.CurrentState == MonsterAI.State.Search || main.CurrentState == MonsterAI.State.Chase;
             float d0 = Vector3.Distance(A, W), ip = Vector3.Distance(main.InvestigatePoint, W);
             float d1 = Vector3.Distance(main.transform.position, W);

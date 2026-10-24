@@ -149,7 +149,7 @@ public static class V711Checks
             Material bm = BallPitField.SharedMaterial;
             r.Check(bm != null && bm.enableInstancing && BallPitField.MaterialFromKeeper && bm.shader != null && bm.shader.name == "Backrooms/BallInstanced",
                 T + "bolas: material instanciado creado desde Resources/Ballpit/BallInstancedKeeper.mat (la variante con instancing va en el build)");
-            yield return 0.4f;
+            { float tg = Time.time; yield return (System.Func<bool>)(() => Time.time - tg >= 0.4f); }   // v7.4.0: tiempo de juego (un parón de la VM hacía medir antes de que se apartaran)
             Vector3 pp = fpc.transform.position;
             List<Vector3> cs = new List<Vector3>(); List<float> tops = new List<float>();
             f0.TopBallsNear(pp, 1.2f, cs, tops);
