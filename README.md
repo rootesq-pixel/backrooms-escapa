@@ -226,7 +226,7 @@ Modo **cooperativo de 2 a 4 jugadores**. El modo de un jugador no cambia: la red
 
 **Opción A: con código (recomendada, sin abrir puertos)**
 
-1. Todos necesitáis la **misma versión** (v7.3.0). El protocolo es **MP-8** (desde la v7.3.0): la v7.2.0 y anteriores **no pueden unirse**.
+1. Todos necesitáis la **misma versión** (v7.5.0). El protocolo es **MP-9** (desde la v7.5.0): la v7.4.0 y anteriores **no pueden unirse**. Desde la v7.5.0 el menú principal avisa de las versiones nuevas y se actualiza solo con «Actualizar».
 2. **Anfitrión:** menú principal → **Multijugador** → tu nombre → **Alojar con código**. Pasa a tus amigos el código de la sala.
 3. **Clientes:** Multijugador → tu nombre → **Unirse con código** → escribe el código → entras en la sala de espera.
 4. El anfitrión elige el nivel con ◄ ► y pulsa **Empezar**. No se puede entrar en una partida ya empezada.

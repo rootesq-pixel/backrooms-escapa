@@ -237,7 +237,7 @@ public class UIManager : MonoBehaviour
     public void PlayClick() { Click(); }
 
     // Acciones de los botones ---------------------------------------------
-    private void Click()
+    public void Click()
     {
         if (clickSrc != null && clickClip != null) clickSrc.PlayOneShot(clickClip, AudioMix.S(1f));
     }
@@ -325,7 +325,11 @@ public class UIManager : MonoBehaviour
         mpUi.Build(this, cg.transform);
         pMulti = mpUi.MultiRoot;
         pLobby = mpUi.LobbyRoot;
+        updater = gameObject.AddComponent<AutoUpdater>();   // v7.5.0: versión en la esquina y aviso de actualización (encima de todo)
+        updater.Build(this, cg.transform);
     }
+    private AutoUpdater updater;
+    public AutoUpdater Updater { get { return updater; } }
 
     // --- helpers ---
     public RectTransform Panel(Transform parent, string name, Color color, bool fullscreen)

@@ -1126,6 +1126,114 @@ public static class SmokeTest
         r.Check(ui.Contains("Elevator car interior") && ui.Contains("3D Assets"), "[Ascensor] los créditos del juego citan el modelo del ascensor");
         TestV740Assets(r, credits, ui);
         TestV750Hotel(r, credits, ui);
+        TestV750Updater(r);
+    }
+
+    // v7.5.0: auto-actualizador (lógica pura): versiones, JSON de GitHub, lista blanca de descargas, zip seguro y ayudante
+    private static void TestV750Updater(Report r)
+    {
+        string T = "[Actualizador] ";
+        r.Check(GameVersion.Current == PlayerSettings.bundleVersion && GameVersion.Label == "v" + PlayerSettings.bundleVersion, T + "GameVersion " + GameVersion.Current + " = bundleVersion " + PlayerSettings.bundleVersion);
+        int[] v = UpdateCore.ParseVersion("v7.5.0"), v2 = UpdateCore.ParseVersion("7.5"), v3 = UpdateCore.ParseVersion("V10.0.12-beta");
+        r.Check(v != null && v[0] == 7 && v[1] == 5 && v[2] == 0 && v2 != null && v2[1] == 5 && v2[2] == 0 && v3 != null && v3[0] == 10 && v3[2] == 12
+            && UpdateCore.ParseVersion("") == null && UpdateCore.ParseVersion(null) == null && UpdateCore.ParseVersion("latest") == null && UpdateCore.ParseVersion("v7.x") == null && UpdateCore.ParseVersion("7.5.0.1.2") == null,
+            T + "lectura de versiones (v7.5.0, 7.5, V10.0.12-beta; rechaza vacías y basura)");
+        r.Check(UpdateCore.Compare("v7.5.1", "7.5.0") > 0 && UpdateCore.Compare("v7.10.0", "v7.9.9") > 0 && UpdateCore.Compare("v7.5.0", "7.5") == 0 && UpdateCore.Compare("v7.4.0", "7.5.0") < 0
+            && UpdateCore.Compare("v8", "7.99.99") > 0 && UpdateCore.Compare("7.5.0.1", "7.5.0") > 0 && UpdateCore.Compare("basura", "7.5.0") < 0,
+            T + "comparación de versiones (7.10 > 7.9, 7.5 = 7.5.0, ilegible = la más antigua)");
+        r.Check(UpdateCore.IsNewer("v7.6.0", "7.5.0") && !UpdateCore.IsNewer("v7.5.0", "7.5.0") && !UpdateCore.IsNewer("v7.4.0", "7.5.0") && !UpdateCore.IsNewer("nightly", "7.5.0") && !UpdateCore.IsNewer(null, "7.5.0"),
+            T + "solo avisa con una versión estrictamente más nueva");
+
+        const string zipUrl = "https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v7.6.0/BackroomsEscape_v7_6_0_Windows.zip";
+        const string sha = "086f009418d00f1afda30dd6228945593f05a5d3e9841773db6e4d385746b02f";
+        string json = "{\"url\":\"x\",\"html_url\":\"https://github.com/rootesq-pixel/backrooms-escapa/releases/tag/v7.6.0\",\"tag_name\":\"v7.6.0\",\"name\":\"v7.6.0 Otro nivel\",\"draft\":false,\"prerelease\":false,"
+            + "\"author\":{\"login\":\"a\",\"id\":1},\"assets\":[{\"name\":\"notas.txt\",\"size\":10,\"browser_download_url\":\"https://github.com/x\"},{\"name\":\"BackroomsEscape_v7_6_0_Windows.zip\",\"state\":\"uploaded\",\"size\":284416470,\"digest\":\"sha256:" + sha + "\",\"browser_download_url\":\"" + zipUrl + "\"}],"
+            + "\"body\":\"# Notas\\n\\nSHA-256 del zip: `" + new string('a', 64) + "`\\n\"}";
+        string why; UpdateCore.Release rel = UpdateCore.ParseRelease(json, out why);
+        r.Check(rel != null && rel.tag == "v7.6.0" && rel.version == "7.6.0" && rel.title == "v7.6.0 Otro nivel" && rel.zipName == "BackroomsEscape_v7_6_0_Windows.zip" && rel.zipSize == 284416470 && rel.zipUrl == zipUrl && rel.sha256 == sha,
+            T + "JSON de releases/latest: etiqueta, título, zip de Windows, tamaño y SHA-256 del «digest» (" + (rel != null ? rel.sha256 : why) + ")");
+        UpdateCore.Release rb = UpdateCore.ParseRelease(json.Replace("\"digest\":\"sha256:" + sha + "\",", ""), out why);
+        r.Check(rb != null && rb.sha256 == new string('a', 64), T + "sin «digest»: SHA-256 de las notas («SHA-256 del zip: `…`»)");
+        string jsonShaAsset = json.Replace("\"digest\":\"sha256:" + sha + "\",", "").Replace("SHA-256 del zip: `" + new string('a', 64) + "`", "sin hash")
+            .Replace("{\"name\":\"notas.txt\"", "{\"name\":\"BackroomsEscape_v7_6_0_Windows.zip.sha256\",\"size\":100,\"browser_download_url\":\"" + zipUrl + ".sha256\"},{\"name\":\"notas.txt\"");
+        UpdateCore.Release rs = UpdateCore.ParseRelease(jsonShaAsset, out why);
+        r.Check(rs != null && rs.sha256 == null && rs.shaUrl == zipUrl + ".sha256", T + "sin hash en la versión: usa el archivo «.sha256» publicado aparte");
+        r.Check(UpdateCore.ShaFromText(sha.ToUpperInvariant() + "  BackroomsEscape_v7_6_0_Windows.zip\n") == sha && UpdateCore.ShaFromText("nada") == null && UpdateCore.ShaFromText("SHA-256: `" + new string('b', 65) + "`") == null,
+            T + "lectura de archivos .sha256 (hash + nombre) y rechazo de hashes mal formados");
+        r.Check(UpdateCore.ParseRelease(json.Replace("\"draft\":false", "\"draft\":true"), out why) == null && UpdateCore.ParseRelease(json.Replace("\"prerelease\":false", "\"prerelease\":true"), out why) == null
+            && UpdateCore.ParseRelease(json.Replace("_Windows.zip", "_Linux.tar"), out why) == null && UpdateCore.ParseRelease("{no es json", out why) == null && UpdateCore.ParseRelease("{\"message\":\"API rate limit exceeded\"}", out why) == null
+            && UpdateCore.ParseRelease(json.Replace("\"tag_name\":\"v7.6.0\"", "\"tag_name\":\"latest\""), out why) == null,
+            T + "ignora borradores, prereleases, versiones sin zip de Windows, JSON roto, límite de la API y etiquetas raras");
+
+        r.Check(UpdateCore.IsAllowedUrl(zipUrl, true, false) && !UpdateCore.IsAllowedUrl(zipUrl.Replace("https:", "http:"), true, false)
+            && !UpdateCore.IsAllowedUrl("https://github.com/otro/backrooms-escapa/releases/download/v1/x_Windows.zip", true, false)
+            && !UpdateCore.IsAllowedUrl("https://github.com/rootesq-pixel/backrooms-escapa/archive/main.zip", true, false)
+            && !UpdateCore.IsAllowedUrl("https://github.com.evil.example/rootesq-pixel/backrooms-escapa/releases/download/v1/a.zip", true, false)
+            && !UpdateCore.IsAllowedUrl("https://github.com:8443/rootesq-pixel/backrooms-escapa/releases/download/v1/a.zip", true, false)
+            && !UpdateCore.IsAllowedUrl("https://user@github.com/rootesq-pixel/backrooms-escapa/releases/download/v1/a.zip", true, false)
+            && UpdateCore.IsAllowedUrl("https://release-assets.githubusercontent.com/github-production-release-asset/1/abc?sig=1", false, false)
+            && UpdateCore.IsAllowedUrl("https://objects.githubusercontent.com/github-production-release-asset-2e65be/1/abc", false, false)
+            && !UpdateCore.IsAllowedUrl("https://release-assets.githubusercontent.com/x", true, false)
+            && !UpdateCore.IsAllowedUrl("https://evil.example/x.zip", false, false) && !UpdateCore.IsAllowedUrl("http://127.0.0.1:8080/x.zip", true, false)
+            && UpdateCore.IsAllowedUrl("http://127.0.0.1:8080/x.zip", true, true) && !UpdateCore.IsAllowedUrl("http://192.168.1.5/x.zip", true, true)
+            && !UpdateCore.IsAllowedUrl("file:///C:/Windows/x.zip", true, true),
+            T + "descargas solo por HTTPS desde github.com/<este repo>/releases/download y los servidores de archivos de GitHub (127.0.0.1 solo en la prueba)");
+        r.Check(UpdateCore.IsAllowedFeed(UpdateCore.LatestApi, false) && !UpdateCore.IsAllowedFeed("https://api.github.com/repos/otro/x/releases/latest", false) && !UpdateCore.IsAllowedFeed("http://127.0.0.1:1/latest.json", false) && UpdateCore.IsAllowedFeed("http://127.0.0.1:1/latest.json", true)
+            && UpdateCore.LatestApi == "https://api.github.com/repos/rootesq-pixel/backrooms-escapa/releases/latest",
+            T + "consulta solo a " + UpdateCore.LatestApi);
+
+        string tmp = Path.Combine(Path.GetTempPath(), "be_upd_test_" + System.Diagnostics.Process.GetCurrentProcess().Id);
+        try
+        {
+            if (Directory.Exists(tmp)) Directory.Delete(tmp, true);
+            Directory.CreateDirectory(tmp);
+            File.WriteAllText(Path.Combine(tmp, "abc.txt"), "abc");
+            r.Check(UpdateCore.FileSha256(Path.Combine(tmp, "abc.txt")) == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", T + "SHA-256 de archivos (vector conocido «abc»)");
+            Func<string, string[], string> mk = (name, entries) =>
+            {
+                string zp = Path.Combine(tmp, name);
+                using (var z = System.IO.Compression.ZipFile.Open(zp, System.IO.Compression.ZipArchiveMode.Create))
+                    foreach (string e in entries)
+                    {
+                        var en = z.CreateEntry(e);
+                        if (!e.EndsWith("/")) using (var w = new StreamWriter(en.Open())) w.Write("contenido " + e);
+                    }
+                return zp;
+            };
+            string good = mk("bueno.zip", new[] { "BackroomsEscape.exe", "UnityPlayer.dll", "BackroomsEscape_Data/", "BackroomsEscape_Data/globalgamemanagers", "MonoBleedingEdge/x.dll" });
+            string root = UpdateCore.InspectZip(good, out why);
+            string dest = Path.Combine(tmp, "nuevo"); bool ext = false;
+            if (root != null) { UpdateCore.ExtractZip(good, root, dest); ext = File.Exists(Path.Combine(dest, "BackroomsEscape.exe")) && File.Exists(Path.Combine(dest, "BackroomsEscape_Data", "globalgamemanagers")) && File.Exists(Path.Combine(dest, "MonoBleedingEdge", "x.dll")); }
+            r.Check(root == "" && ext, T + "zip como el de la versión (ejecutable en la raíz): se acepta y se extrae entero (" + (why ?? "ok") + ")");
+            string sub = mk("carpeta.zip", new[] { "BackroomsEscapa_v7.6.0/BackroomsEscape.exe", "BackroomsEscapa_v7.6.0/BackroomsEscape_Data/a", "BackroomsEscapa_v7.6.0/UnityPlayer.dll" });
+            string root2 = UpdateCore.InspectZip(sub, out why); bool ext2 = false;
+            if (root2 != null) { UpdateCore.ExtractZip(sub, root2, dest); ext2 = File.Exists(Path.Combine(dest, "BackroomsEscape.exe")) && File.Exists(Path.Combine(dest, "UnityPlayer.dll")) && !File.Exists(Path.Combine(dest, "MonoBleedingEdge", "x.dll")); }
+            r.Check(root2 == "BackroomsEscapa_v7.6.0/" && ext2, T + "zip con una carpeta dentro: se usa su contenido (y la extracción empieza de cero)");
+            string slip = mk("slip.zip", new[] { "BackroomsEscape.exe", "BackroomsEscape_Data/a", "../fuera.txt" });
+            string abs = mk("abs.zip", new[] { "BackroomsEscape.exe", "BackroomsEscape_Data/a", "C:/Windows/x.dll" });
+            string nodata = mk("nodata.zip", new[] { "BackroomsEscape.exe", "UnityPlayer.dll" });
+            string noexe = mk("noexe.zip", new[] { "Otro.exe", "BackroomsEscape_Data/a" });
+            string work = mk("work.zip", new[] { "BackroomsEscape.exe", "BackroomsEscape_Data/a", "_update/actualizar.ps1" });
+            string corrupt = Path.Combine(tmp, "roto.zip"); byte[] gb = File.ReadAllBytes(good); for (int i = 0; i < gb.Length; i += 7) gb[i] ^= 0x5a; File.WriteAllBytes(corrupt, gb);
+            string w1 = null, w2 = null, w3 = null, w4 = null, w5 = null, w6 = null;
+            r.Check(UpdateCore.InspectZip(slip, out w1) == null && UpdateCore.InspectZip(abs, out w2) == null && UpdateCore.InspectZip(nodata, out w3) == null && UpdateCore.InspectZip(noexe, out w4) == null && UpdateCore.InspectZip(work, out w5) == null && UpdateCore.InspectZip(corrupt, out w6) == null
+                && !File.Exists(Path.Combine(tmp, "..", "fuera.txt")),
+                T + "rechaza zips con rutas «..» o absolutas, sin ejecutable o sin datos, con «_update» o dañados (" + w1 + " | " + w6 + ")");
+            bool threw = false; try { UpdateCore.ExtractZip(slip, "", Path.Combine(tmp, "x")); } catch (IOException) { threw = true; }
+            r.Check(threw && !File.Exists(Path.Combine(tmp, "fuera.txt")), T + "la extracción también se niega a escribir fuera de su carpeta");
+            string cw; r.Check(UpdateCore.CanWrite(tmp, out cw) && !File.Exists(Path.Combine(tmp, "_update_prueba.tmp")), T + "prueba de escritura en la carpeta del juego (" + (cw ?? "ok") + ")");
+        }
+        catch (Exception e) { r.Check(false, T + "pruebas de zip: excepción " + e); }
+        finally { try { Directory.Delete(tmp, true); } catch (Exception) { } }
+
+        string ra = UpdateCore.RelaunchArgs(new[] { "C:\\Juego\\BackroomsEscape.exe", "-batchmode", "-logFile", "C:\\a b\\l.log", "-x" });
+        r.Check(UpdateCore.RelaunchArgs(new[] { "exe" }) == "" && ra == "-batchmode -logFile \"C:\\a b\\l.log.relanzado.log\" -x", T + "argumentos al reabrir: ninguno en uso normal; los mismos en pruebas (" + ra + ")");
+        string ps = UpdateCore.HelperScript(4242, "C:\\Users\\O'Neil\\Escritorio\\BackroomsEscapa_v7.5.0", "C:\\Users\\O'Neil\\Escritorio\\BackroomsEscapa_v7.5.0\\_update\\nuevo", "C:\\Users\\O'Neil\\Escritorio\\BackroomsEscapa_v7.5.0\\_update\\viejo", "", "7.6.0", false);
+        r.Check(ps.Contains("$gamePid = 4242") && ps.Contains("'C:\\Users\\O''Neil\\Escritorio\\BackroomsEscapa_v7.5.0'") && ps.Contains("Wait-Process") && ps.Contains("vuelta atrás") && ps.Contains("$simulate = $false")
+            && ps.Contains("'ok|' + $version") && ps.Contains("'fail|' + $err") && ps.Contains("if (-not $keep)") && !ps.Contains("Invoke-Expression") && !ps.Contains("Invoke-WebRequest") && !ps.Contains("http"),
+            T + "ayudante de PowerShell: espera al juego, rutas con comillas escapadas, vuelta atrás, sin descargar ni evaluar nada");
+        r.Check(UpdateCore.HelperScript(1, "a", "a\\_update\\nuevo", "a\\_update\\viejo", "", "1", true).Contains("$simulate = $true"), T + "el ayudante admite el fallo simulado de la prueba de vuelta atrás");
+        r.Check(UpdateCore.Mb(284416470) == "271 MB", T + "tamaño legible (" + UpdateCore.Mb(284416470) + ")");
     }
 
     // v7.5.0: hotel nuevo (Nivel 3): plano determinista y transitable, texturas horneadas, créditos y configuración
@@ -2117,6 +2225,31 @@ public static class SmokePlayRunner
         UIManager ui = UIManager.Instance;
         r.Check(ui != null, "UIManager existe");
         r.Check(gb.InMenu && ui.Current == UIManager.Screen.Main, "el juego arranca en el menú principal");
+        {   // v7.5.0: versión en la esquina y aviso de actualización (en el editor no se consulta la red; se simula la respuesta)
+            AutoUpdater up = ui.Updater;
+            yield return null;
+            r.Check(up != null && up.CornerText == GameVersion.Label && !AutoUpdater.Enabled && up.Current == AutoUpdater.State.Idle && !up.DialogOpen,
+                "[Actualizador] menú: «" + (up != null ? up.CornerText : "") + "» en la esquina; sin consultas en el editor/pruebas; sin diálogo");
+            if (up != null)
+            {
+                up.InjectForTests(new UpdateCore.Release { tag = "v9.9.9", version = "9.9.9", title = "v9.9.9 Prueba", zipName = "BackroomsEscape_v9_9_9_Windows.zip", zipSize = 300000000, zipUrl = "https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v9.9.9/BackroomsEscape_v9_9_9_Windows.zip", sha256 = new string('a', 64) });
+                yield return null; yield return null;
+                GameObject sel = EventSystem.current != null ? EventSystem.current.currentSelectedGameObject : null;
+                r.Check(up.DialogOpen && up.DialogTitle == "Nueva versión disponible: v9.9.9" && up.UpdateButtonsVisible && sel != null && sel.name == "Btn_Actualizar" && up.Current == AutoUpdater.State.Available,
+                    "[Actualizador] versión nueva => diálogo «" + up.DialogTitle + "» con «Actualizar» (seleccionado) y «Más tarde»; nada se descarga sin pulsar");
+                up.ClickLaterForTests(); yield return null; yield return null;
+                r.Check(!up.DialogOpen && up.CornerButtonVisible && up.Current == AutoUpdater.State.Available, "[Actualizador] «Más tarde» cierra el aviso y deja el botón «Actualización disponible» en la esquina");
+                ui.SetScreen(UIManager.Screen.Options); yield return null;
+                r.Check(!up.CornerButtonVisible && !up.DialogOpen, "[Actualizador] fuera del menú principal no se muestra nada");
+                ui.SetScreen(UIManager.Screen.Main); yield return null;
+                up.ShowDialog(); yield return null;
+                ui.SetScreen(UIManager.Screen.Levels); yield return null; yield return null;
+                r.Check(!up.DialogOpen, "[Actualizador] el diálogo se oculta al salir del menú principal (nunca en partida)");
+                ui.SetScreen(UIManager.Screen.Main);
+                up.ResetForTests(); yield return null;
+                r.Check(!up.DialogOpen && !up.CornerButtonVisible && up.CornerText == GameVersion.Label, "[Actualizador] estado restablecido tras la prueba");
+            }
+        }
         try { File.Delete("/workspace/logs/audio-census.txt"); } catch { }
         yield return 0.5f;
         Census(r, "[Audio menú inicial]", false, false);

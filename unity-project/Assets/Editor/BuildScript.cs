@@ -60,6 +60,7 @@ public static class BuildScript
 
     private static void ConfigurePlayerSettings()
     {
+        PlayerSettings.bundleVersion = GameVersion.Current;   // v7.5.0: la versión del ejecutable = la del auto-actualizador
         PlayerSettings.productName = "Backrooms Escape";
         PlayerSettings.companyName = "Pixel";
         PlayerSettings.fullScreenMode = FullScreenMode.FullScreenWindow;

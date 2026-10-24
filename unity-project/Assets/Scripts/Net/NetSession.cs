@@ -42,7 +42,7 @@ public class NetStart
 // Los clientes generan el mismo mundo a partir de la semilla que envía el anfitrión. Transporte: TCP propio (NetTransport).
 public class NetSession : MonoBehaviour
 {
-    public const string Protocol = "BackroomsEscape-MP-8";   // v7.3.0: nivel 7 (Talasofobia): OceanReq / OceanEvent y bloque «mar» en el snapshot; antes MP-7: v7.2.0: reanimar manteniendo E (bit FlagRevive en el estado); v7.1.0: nivel 6 (Parque de bolas); v7.0.4: llaves de la salida (UnlockReq / ExitUnlocked)
+    public const string Protocol = "BackroomsEscape-MP-9";   // v7.5.0: sin mensajes nuevos, pero el Nivel 3 (hotel) es otro mapa y la v7.4.0 no debe entrar; antes MP-8: v7.3.0: nivel 7 (Talasofobia): OceanReq / OceanEvent y bloque «mar» en el snapshot; antes MP-7: v7.2.0: reanimar manteniendo E (bit FlagRevive en el estado); v7.1.0: nivel 6 (Parque de bolas); v7.0.4: llaves de la salida (UnlockReq / ExitUnlocked)
     // antes: "BackroomsEscape-MP-4"   // v7.0.2: silbido (G) y un imitador extra por nivel (más monstruos en la red)
     public const int MaxPlayers = 4;
     public const int DefaultPort = 7777;
@@ -102,6 +102,7 @@ public class NetSession : MonoBehaviour
     public event Action<string> Disconnected;            // motivo
     public event Action<string, string> ChatReceived;   // nombre, texto
     public event Action<string> SystemMessage;
+    public void LocalNotice(string m) { if (SystemMessage != null) SystemMessage(m); }   // v7.5.0: avisos locales (p. ej. hay versión nueva)
 
     private GameBootstrap bootstrap;
     private INetListener listener;
@@ -375,8 +376,10 @@ public class NetSession : MonoBehaviour
                     string proto = r.Str(); string nm = r.Str();
                     if (proto != Protocol)
                     {
-                        c.Send(new NetWriter(NetMsg.Reject).Str("Versión incompatible: tu juego usa «" + proto + "» y el anfitrión «" + Protocol + "». Actualiza el juego a la misma versión.").ToArray());
-                        c.CloseGracefully(); return;
+                        c.Send(new NetWriter(NetMsg.Reject).Str("Versión incompatible: tu juego usa «" + proto + "» y el anfitrión «" + Protocol + "» (" + GameVersion.Label + "). Actualizad todos a la última versión: desde la v7.5.0 el menú principal avisa y se actualiza solo con «Actualizar»; si no, descárgala de la web.").ToArray());
+                        c.CloseGracefully();
+                        if (SystemMessage != null) SystemMessage("Alguien con otra versión del juego intentó unirse (" + CleanName(nm) + "). Actualizad todos a la última versión.");
+                        return;
                     }
                     if (InGame) { c.Send(new NetWriter(NetMsg.Reject).Str("La partida ya ha empezado. Espera a que el anfitrión vuelva a la sala.").ToArray()); c.CloseGracefully(); return; }
                     if (Players.Count >= MaxPlayers) { c.Send(new NetWriter(NetMsg.Reject).Str("La sala está llena (máximo " + MaxPlayers + " jugadores).").ToArray()); c.CloseGracefully(); return; }
@@ -755,8 +758,12 @@ public class NetSession : MonoBehaviour
                     break;
                 }
                 case NetMsg.Reject:
-                    ConnectFailed(r.Str());
+                {
+                    string why = r.Str();
+                    if (why.StartsWith("Versión incompatible") && AutoUpdater.Instance != null) AutoUpdater.Instance.RequestCheck();   // al volver al menú se vuelve a consultar
+                    ConnectFailed(why);
                     break;
+                }
                 case NetMsg.Lobby:
                 {
                     int n = r.Byte();
@@ -1024,7 +1031,7 @@ public class NetSession : MonoBehaviour
         if (p.hash != LocalWorldHash)
         {
             HashMismatches++;
-            string msg = "⚠ El mundo de " + p.name + " no coincide con el del anfitrión (huella distinta).";
+            string msg = "⚠ El mundo de " + p.name + " no coincide con el del anfitrión (huella distinta). ¿Tenéis todos la misma versión?";
             Debug.LogWarning("[NetSession] " + msg);
             if (SystemMessage != null) SystemMessage(msg);
         }
