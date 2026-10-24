@@ -2357,6 +2357,7 @@ public static class SmokePlayRunner
             r.Check(cab.IsRealistic && cab.transform.Find("FrontL") != null && cab.transform.Find("FrontR") != null && cab.transform.Find("Transom") != null,
                 et + "v7.4.0: cabina realista propia (Elevator740) con marco frontal de colisión (" + cab.GetComponentsInChildren<BoxCollider>(true).Length + " cajas)");
             r.Check(cab.HasLanding && cab.LandingLit && cab.HasOuterDisplay && cab.CallButtonLit, et + "v7.4.0: rellano con muro, aplique encendido, indicador exterior y pulsador de llamada");
+            r.Check(cab.HasCabinProbe && (cab.CabinProbeRendered || SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null), et + "v7.4.0: sonda de reflejos de la cabina (" + (cab.CabinProbeRendered ? "capturada" : "sin GPU en la prueba") + ")");
             r.Check(cab.AORendererCount >= 8, et + "v7.4.0: oclusión horneada aplicada a " + cab.AORendererCount + " piezas de la cabina");
             r.Check(cab.ButtonLightCount >= 5 && cab.DoorGap < 0.01f, et + "v7.4.0: botonera con " + cab.ButtonLightCount + " botones iluminados y puertas cerradas al bajar (hueco " + cab.DoorGap.ToString("F3") + " m)");
             Vector3 f0 = pe.transform.position;

@@ -168,6 +168,7 @@ public class ElevatorCabin : MonoBehaviour
         BuildColliders(openShell ? 0f : config.cellSize, frontExtent);
         BuildFixtures();
         BuildAudio();
+        if (IsRealistic) BuildCabinProbe();
 
         InteriorCenter = transform.TransformPoint(new Vector3(0f, 0.14f, 0.1f * ScaleZ));
         ExitPoint = transform.TransformPoint(new Vector3(0f, 0.14f, frontExtent + 0.9f));
@@ -359,6 +360,40 @@ public class ElevatorCabin : MonoBehaviour
             }
             if (any) { r.sharedMaterials = arr; AORendererCount++; }
         }
+    }
+
+    // v7.4.0: sonda de reflejos propia de la cabina (caja del interior). En el ejecutable el reflejo por defecto del nivel es casi
+    // negro y el acero cepillado se veía gris oscuro; se captura una vez el interior (con su luz) en un cubemap de 128 px y se usa
+    // como sonda «Custom» (funciona aunque la calidad tenga desactivadas las sondas en tiempo real). Coste: un render al cargar.
+    private ReflectionProbe cabinProbe; private RenderTexture probeRT; private int probeFrames;
+    public bool CabinProbeRendered { get; private set; }
+    public bool HasCabinProbe { get { return cabinProbe != null; } }
+    private void BuildCabinProbe()
+    {
+        GameObject pg = new GameObject("CabinProbe");
+        pg.transform.SetParent(transform, false); pg.transform.localPosition = new Vector3(0f, 1.2f, 0.11f);
+        cabinProbe = pg.AddComponent<ReflectionProbe>();
+        cabinProbe.mode = UnityEngine.Rendering.ReflectionProbeMode.Custom;
+        cabinProbe.boxProjection = true; cabinProbe.size = new Vector3(2.08f, 2.12f, 2.30f); cabinProbe.center = Vector3.zero;
+        cabinProbe.importance = 10; cabinProbe.blendDistance = 0f; cabinProbe.intensity = 1f;
+        probeFrames = 3;
+    }
+    private void RenderCabinProbe()
+    {
+        if (cabinProbe == null || SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null) return;
+        GameObject cg = new GameObject("CabinProbeCam");
+        cg.transform.position = cabinProbe.transform.position;
+        Camera c = cg.AddComponent<Camera>(); c.enabled = false;
+        c.nearClipPlane = 0.03f; c.farClipPlane = 25f; c.clearFlags = CameraClearFlags.SolidColor; c.backgroundColor = Color.black;
+        c.cullingMask = ~((1 << 2) | (1 << 8));   // sin Ignore Raycast ni el cuerpo del jugador
+        if (probeRT == null)
+        {
+            probeRT = new RenderTexture(128, 128, 16) { dimension = UnityEngine.Rendering.TextureDimension.Cube, useMipMap = true, autoGenerateMips = true, name = "CabinProbe" };
+            probeRT.Create();
+        }
+        bool ok = c.RenderToCubemap(probeRT, 63);
+        Destroy(cg);
+        if (ok) { cabinProbe.customBakedTexture = probeRT; CabinProbeRendered = true; }
     }
 
     private Transform MakePivot(Transform leaf)
@@ -648,6 +683,7 @@ public class ElevatorCabin : MonoBehaviour
         for (int i = 0; i < owned.Count; i++) if (owned[i] != null) ProceduralAssets.SafeDestroy(owned[i]);
         owned.Clear();
         if (skipHint != null) Destroy(skipHint);
+        if (probeRT != null) { probeRT.Release(); Destroy(probeRT); probeRT = null; }
         // el jugador nunca debe quedarse bloqueado por una cabina destruida
         if (Locked && fpc != null) fpc.InputEnabled = true;
     }
@@ -951,6 +987,7 @@ public class ElevatorCabin : MonoBehaviour
     // ------------------------------------------------------------------ cámara (sacudida y mirada guiada)
     private void LateUpdate()
     {
+        if (probeFrames > 0 && --probeFrames == 0) RenderCabinProbe();
         if (frozen) return;
         if (!Locked || pivot == null || !pivotCaptured) { TryClose(Time.deltaTime); return; }
         ApplyCameraPose();
