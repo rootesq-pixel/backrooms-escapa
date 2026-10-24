@@ -45,6 +45,9 @@ public class UpdateBuildCheck : MonoBehaviour
         yield return new WaitForSecondsRealtime(0.5f);
         Info("diálogo abierto: " + up.DialogOpen);
         Shot(ui, "dialogo_aviso");
+        Info("novedades sin solaparse con los botones: " + up.NotesClearOfButtons + "  «" + up.NotesText.Replace("\n", " / ") + "»");
+        foreach (Vector2Int r in new[] { new Vector2Int(1920, 1200), new Vector2Int(1440, 1080), new Vector2Int(2560, 1080), new Vector2Int(1280, 720) })
+            Shot(ui, "dialogo_aviso_" + r.x + "x" + r.y, r.x, r.y);
         bool progShot = false;
         AutoUpdater.OnBeforeQuit = () => BeforeQuit(ui);
         up.ClickUpdateForTests();
@@ -77,11 +80,12 @@ public class UpdateBuildCheck : MonoBehaviour
         Info("END"); Flush();
         yield break;
     }
-    void Shot(UIManager ui, string name)
+    void Shot(UIManager ui, string name) { Shot(ui, name, 1920, 1080); }
+    void Shot(UIManager ui, string name, int W, int H)
     {
         Camera cam = Camera.main; if (cam == null) { Info("sin cámara para " + name); return; }
         VhsEffect v = cam.GetComponent<VhsEffect>(); if (v != null) v.intensityOverride = 0f;
-        Texture2D t = ui.CaptureMenu(cam, 1920, 1080);
+        Texture2D t = ui.CaptureMenu(cam, W, H);
         int w = t.width, h = t.height; Color32[] px = t.GetPixels32();
         byte[] head = Encoding.ASCII.GetBytes("P6\n" + w + " " + h + "\n255\n");
         byte[] b = new byte[head.Length + w * h * 3]; System.Buffer.BlockCopy(head, 0, b, 0, head.Length);

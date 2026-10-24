@@ -2235,11 +2235,15 @@ public static class SmokePlayRunner
                 "[Actualizador] menú: «" + (up != null ? up.CornerText : "") + "» en la esquina; sin consultas en el editor/pruebas; sin diálogo");
             if (up != null)
             {
-                up.InjectForTests(new UpdateCore.Release { tag = "v9.9.9", version = "9.9.9", title = "v9.9.9 Prueba", zipName = "BackroomsEscape_v9_9_9_Windows.zip", zipSize = 300000000, zipUrl = "https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v9.9.9/BackroomsEscape_v9_9_9_Windows.zip", sha256 = new string('a', 64) });
+                up.InjectForTests(new UpdateCore.Release { tag = "v9.9.9", version = "9.9.9", title = "v9.9.9 Prueba", zipName = "BackroomsEscape_v9_9_9_Windows.zip", zipSize = 300000000, zipUrl = "https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v9.9.9/BackroomsEscape_v9_9_9_Windows.zip", sha256 = new string('a', 64),
+                    body = "## Novedades\n\n- **Uno:** " + new string('a', 30) + " " + new string('b', 300) + "\n- **Dos:** texto muy largo de prueba con muchas palabras que no caben en una sola línea del aviso de actualización, ni en dos\n- **Tres:** no debe salir\n" });
                 yield return null; yield return null;
                 GameObject sel = EventSystem.current != null ? EventSystem.current.currentSelectedGameObject : null;
                 r.Check(up.DialogOpen && up.DialogTitle == "Nueva versión disponible: v9.9.9" && up.UpdateButtonsVisible && sel != null && sel.name == "Btn_Actualizar" && up.Current == AutoUpdater.State.Available,
                     "[Actualizador] versión nueva => diálogo «" + up.DialogTitle + "» con «Actualizar» (seleccionado) y «Más tarde»; nada se descarga sin pulsar");
+                string nt = up.NotesText;
+                r.Check(up.NotesClearOfButtons && nt.Split('\n').Length == 3 && !nt.Contains("Tres") && nt.EndsWith("…"),
+                    "[Actualizador] novedades: 2 líneas recortadas con «…» en una caja fija que no pisa los botones (" + nt.Replace("\n", " / ") + ")");
                 up.ClickLaterForTests(); yield return null; yield return null;
                 r.Check(!up.DialogOpen && up.CornerButtonVisible && up.Current == AutoUpdater.State.Available, "[Actualizador] «Más tarde» cierra el aviso y deja el botón «Actualización disponible» en la esquina");
                 ui.SetScreen(UIManager.Screen.Options); yield return null;

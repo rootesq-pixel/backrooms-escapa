@@ -611,7 +611,9 @@ public class UIManager : MonoBehaviour
         RenderMode m0 = canvas.renderMode; Camera c0 = canvas.worldCamera; float d0 = canvas.planeDistance;
         canvas.renderMode = RenderMode.ScreenSpaceCamera; canvas.worldCamera = cam; canvas.planeDistance = cam.nearClipPlane + 0.05f;
         RenderTexture rt = RenderTexture.GetTemporary(W, H, 24); RenderTexture prev = cam.targetTexture;
-        cam.targetTexture = rt; Canvas.ForceUpdateCanvases(); cam.Render(); RenderTexture.active = rt;
+        cam.targetTexture = rt;
+        CanvasScaler cs = canvas.GetComponent<CanvasScaler>(); if (cs != null) { cs.enabled = false; cs.enabled = true; }   // reescala al tamaño de la captura
+        Canvas.ForceUpdateCanvases(); cam.Render(); RenderTexture.active = rt;
         Texture2D t = new Texture2D(W, H, TextureFormat.RGB24, false); t.ReadPixels(new Rect(0, 0, W, H), 0, 0); t.Apply();
         RenderTexture.active = null; cam.targetTexture = prev; RenderTexture.ReleaseTemporary(rt);
         canvas.renderMode = m0; canvas.worldCamera = c0; canvas.planeDistance = d0;

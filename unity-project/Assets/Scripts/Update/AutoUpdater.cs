@@ -82,6 +82,17 @@ public class AutoUpdater : MonoBehaviour
     public bool CornerButtonVisible { get { return cornerBtn != null && cornerBtn.activeInHierarchy; } }
     public string DialogTitle { get { return title != null ? title.text : ""; } }
     public string CornerText { get { return cornerVersion != null && cornerVersion.gameObject.activeInHierarchy ? cornerVersion.text : ""; } }
+    // pruebas: la caja de novedades queda por encima de los botones (en coordenadas del lienzo)
+    public bool NotesClearOfButtons
+    {
+        get
+        {
+            Vector3[] n = new Vector3[4], b = new Vector3[4];
+            notes.rectTransform.GetWorldCorners(n); ((RectTransform)bUpdate.transform).GetWorldCorners(b);
+            return n[0].y > b[1].y && notes.verticalOverflow == VerticalWrapMode.Truncate;
+        }
+    }
+    public string NotesText { get { return notes != null ? notes.text : ""; } }
     public bool UpdateButtonsVisible { get { return bUpdate != null && bUpdate.gameObject.activeInHierarchy && bLater.gameObject.activeInHierarchy; } }
     public void ClickLaterForTests() { if (bLater != null) bLater.onClick.Invoke(); }
     public void ClickUpdateForTests() { if (bUpdate != null && bUpdate.gameObject.activeInHierarchy) bUpdate.onClick.Invoke(); else BeginUpdate(); }
@@ -135,7 +146,10 @@ public class AutoUpdater : MonoBehaviour
         title = ui.Label(panel, "", 50, TextAnchor.MiddleLeft, 0f, 166f, 900f, 64f, UiStyle.Gold); title.font = UiStyle.SansBold();
         subtitle = ui.Label(panel, "", 28, TextAnchor.MiddleLeft, 0f, 116f, 900f, 40f, UiStyle.Text);
         body = ui.Label(panel, "", 25, TextAnchor.UpperLeft, 0f, 10f, 900f, 150f, new Color(0.86f, 0.82f, 0.66f));
-        notes = ui.Label(panel, "", 22, TextAnchor.UpperLeft, 0f, -112f, 900f, 120f, UiStyle.Dim);   // novedades de la versión (extracto de las notas)
+        // novedades (extracto de las notas): caja fija de 3 líneas entre el texto y los botones; lo que no cabe se corta (cada línea ya
+        // lleva su «…»), así nunca se mete debajo de los botones, sea cual sea la resolución o el formato de pantalla
+        notes = ui.Label(panel, "", 22, TextAnchor.UpperLeft, 0f, -100f, 900f, 86f, UiStyle.Dim);
+        notes.verticalOverflow = VerticalWrapMode.Truncate; notes.horizontalOverflow = HorizontalWrapMode.Wrap; notes.lineSpacing = 1f;
         bar = ui.Panel(panel, "Bar", UiStyle.Slot, false).gameObject; RectTransform br = (RectTransform)bar.transform; br.sizeDelta = new Vector2(900f, 26f); br.anchoredPosition = new Vector2(0f, -88f);
         Outline bo = bar.AddComponent<Outline>(); bo.effectColor = UiStyle.Border; bo.effectDistance = new Vector2(2f, -2f);
         barFill = ui.Panel(bar.transform, "Fill", new Color(0.85f, 0.7f, 0.2f, 1f), true); barFill.anchorMax = new Vector2(0f, 1f);
@@ -236,7 +250,7 @@ public class AutoUpdater : MonoBehaviour
             string l = raw.Trim();
             if (!(l.StartsWith("- ") || l.StartsWith("* "))) continue;
             l = l.Substring(2).Replace("**", "").Replace("`", "").Replace("*", "");
-            if (l.Length > 118) { int cut = l.LastIndexOf(' ', 115); l = l.Substring(0, cut > 60 ? cut : 115) + "…"; }
+            if (l.Length > 84) { int cut = l.LastIndexOf(' ', 81); l = l.Substring(0, cut > 40 ? cut : 81).TrimEnd(',', ';', ':', ' ') + "…"; }   // una línea por novedad
             sb.Append(n > 0 ? "\n" : "").Append("• ").Append(l);
             if (++n == 2) break;
         }
