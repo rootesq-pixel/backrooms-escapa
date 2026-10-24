@@ -348,9 +348,13 @@ public class MonsterAI : MonoBehaviour
         bool lineOfSight = HasLineOfSight();
         bool sees = CanSee(toTarget, distance, lineOfSight);
         bool hears = CanHear(distance, lineOfSight);
+        // v7.4.0: el jugador dentro de una casa del Campo infinito está a salvo: el monstruo no lo «ve» ni lo «oye» (pierde el rastro,
+        // busca un rato junto a la puerta y vuelve a patrullar; no se queda empujando en el hueco ni puede atraparlo)
+        bool refuge = FieldWorld.Refuge(TargetPos);
+        if (refuge) { sees = false; hears = false; }
 
         // Matar: muy cerca y con línea de visión directa
-        if (CurrentState != State.Kill && flatDistance < killDistance && Mathf.Abs(toTarget.y) < 2f && lineOfSight && CatchReachable() && (!NetSession.IsHost || NetSession.Instance.CanCatch(target)))
+        if (CurrentState != State.Kill && !refuge && flatDistance < killDistance && Mathf.Abs(toTarget.y) < 2f && lineOfSight && CatchReachable() && (!NetSession.IsHost || NetSession.Instance.CanCatch(target)))
         {
             EnterKill();
             return;
@@ -597,7 +601,7 @@ public class MonsterAI : MonoBehaviour
     {
         Vector2Int c = edgeCrossing; edgeCrossing = Vector2Int.zero;
         Vector3 np = FieldWrap.CrossEdge(transform.position, c, 0.4f);
-        if (useNav && NavMesh.SamplePosition(np, out NavMeshHit h, 3f, NavMesh.AllAreas)) np = h.position;
+        if (useNav && NavMesh.SamplePosition(np, out NavMeshHit h, 3f, NavMesh.AllAreas) && !FieldWorld.Refuge(h.position, 0.5f)) np = h.position;   // v7.4.0: nunca dentro de una casa
         Vector3 goal = edgeDest;
         if (useNav && agent != null && agent.enabled) agent.Warp(np); else transform.position = np;
         lastPos = transform.position; EdgeCrossings++;
@@ -698,6 +702,7 @@ public class MonsterAI : MonoBehaviour
     public bool CatchReachable()
     {
         Vector3 a = transform.position, b = TargetPos;
+        if (FieldWorld.Refuge(b)) return false;   // v7.4.0: dentro de una casa no te atrapa
         int mask = sightMask & ~PlayerBody.LayerMaskBit;
         foreach (float h in CatchHeights)
         {
@@ -866,6 +871,7 @@ public class MonsterAI : MonoBehaviour
         if (generator != null && generator.HasLevel)
         {
             point = generator.GetRandomCellCenter();
+            for (int tr = 0; tr < 6 && FieldWorld.Refuge(point, 1.5f); tr++) point = generator.GetRandomCellCenter();   // v7.4.0: no patrulla hacia dentro de las casas
         }
         else
         {

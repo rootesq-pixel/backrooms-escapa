@@ -358,7 +358,6 @@ public class GameBootstrap : MonoBehaviour
             BallpitSetPiece.BeginNavBuild();
             navBuilt = MonsterAI.TryBuildRuntimeNavMesh(generator.Root.gameObject);
             BallpitSetPiece.EndNavBuild();
-            if (navBuilt && FieldWorld.Active != null) FieldWorld.Active.AddDoorLinks();   // v7.4.0: los monstruos entran en las casas
         }
         Debug.Log("[GameBootstrap] Nivel " + levelIndex + " (" + cfg.name + ") semilla: " + generator.UsedSeed + " | NavMesh en runtime: " + navBuilt);
 

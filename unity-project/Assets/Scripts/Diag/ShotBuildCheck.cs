@@ -230,7 +230,7 @@ public class ShotBuildCheck : MonoBehaviour
             yield return View(pw, mc, "l5_10_puerta_casa_t" + h.template, eyeW, door, 55f, new Vector3(eye.x, gy + 0.05f, eye.z));
             var res = new HouseEntryProbe.Result[1];
             yield return HouseEntryProbe.Run(pw, ht, h, res);
-            Check(res[0].Ok(true), "casa " + k + " (plantilla " + h.template + "): de pie se entra sin agacharse — " + res[0].Describe());
+            Check(res[0].Ok(true), "casa " + k + " (plantilla " + h.template + "): de pie se entra sin agacharse y los monstruos no tienen camino dentro — " + res[0].Describe());
             // dónde se ha quedado el jugador: silueta de 1,8 m (cápsula oscura, sin colisión) vista desde 2,8 m detrás de él
             Vector3 pp = res[0].enterPos, inDir = -ht.forward;   // donde acabó el tramo de entrar andando
             GameObject sil = GameObject.CreatePrimitive(PrimitiveType.Capsule); Destroy(sil.GetComponent<Collider>());

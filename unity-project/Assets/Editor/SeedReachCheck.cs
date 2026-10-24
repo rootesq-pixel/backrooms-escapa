@@ -66,8 +66,7 @@ public static class SeedReachCheck
                 foreach (MonsterAI m in gm5.monsters) if (m != null) m.Stop();
                 FieldWorld fw = FieldWorld.Active;
                 string T5 = "[nivel 5 semilla " + gm5.generator.UsedSeed + "] ";
-                int open5 = 0; foreach (FieldPlan.House hh in fw.plan.houses) if (hh.enterable) open5++;
-                Check(fw.DoorLinkCount == open5, T5 + "enlace de NavMesh en la puerta de cada casa abierta (" + fw.DoorLinkCount + "/" + open5 + ")");
+
                 for (int k = 0; k < fw.plan.houses.Count; k++)
                 {
                     FieldPlan.House h = fw.plan.houses[k]; if (!h.enterable) continue;
@@ -77,8 +76,48 @@ public static class SeedReachCheck
                     gm5.StartCoroutine(HouseEntryProbe.Run(pw, ht, h, res));   // corrutina de verdad (fotogramas y WaitForSeconds del juego)
                     double th = EditorApplication.timeSinceStartup; while (!res[0].done && EditorApplication.timeSinceStartup - th < 30) yield return 0.1f;
                     tpls.Add(h.template); houses++;
-                    Check(res[0].Ok(true), T5 + "casa " + k + " (plantilla " + h.template + "): de pie se entra por la puerta sin agacharse — " + res[0].Describe());
+                    Check(res[0].Ok(true), T5 + "casa " + k + " (plantilla " + h.template + "): de pie se entra por la puerta sin agacharse y ningún monstruo tiene camino dentro — " + res[0].Describe());
                 }
+                // persecución: un monstruo persigue al jugador desde 9 m mientras entra en la primera casa abierta; luego 12 s dentro
+                MonsterAI m0 = null; foreach (MonsterAI m in gm5.monsters) if (m != null && m.UsesNav) { m0 = m; break; }
+                int kc = -1; for (int k = 0; k < fw.plan.houses.Count; k++) if (fw.plan.houses[k].enterable) { kc = k; break; }
+                if (m0 != null && kc >= 0)
+                {
+                    FieldPlan.House hc = fw.plan.houses[kc]; Transform htc = HouseEntryProbe.HouseTransform(fw, kc);
+                    float D = FieldPlan.TemplateSize[hc.template].y, dx = FieldWorld.DoorX(hc.template);
+                    var res = new HouseEntryProbe.Result[1];
+                    gm5.StartCoroutine(HouseEntryProbe.Run(pw, htc, hc, res));
+                    yield return 0.05f;
+                    Vector3 mp = htc.TransformPoint(new Vector3(dx, 0f, D * 0.5f + 2.3f + 9f));
+                    if (UnityEngine.AI.NavMesh.SamplePosition(mp, out UnityEngine.AI.NavMeshHit mh, 4f, UnityEngine.AI.NavMesh.AllAreas)) mp = mh.position;
+                    m0.WarpTo(mp, 0f); m0.ChaseForTests();
+                    bool inside = false, killed = false; float minD = 99f; double tc = EditorApplication.timeSinceStartup; bool chased = false;
+                    while (EditorApplication.timeSinceStartup - tc < 30)
+                    {
+                        if (fw.InsideHouse(m0.transform.position)) inside = true;
+                        if (m0.CurrentState == MonsterAI.State.Kill || gm5.State != GameManager.GameState.Playing) killed = true;
+                        if (m0.CurrentState == MonsterAI.State.Chase) chased = true;
+                        minD = Mathf.Min(minD, Vector3.Distance(m0.transform.position, pw.transform.position));
+                        if (res[0].done && EditorApplication.timeSinceStartup - tc > 2) break;
+                        yield return 0.1f;
+                    }
+                    double t2 = EditorApplication.timeSinceStartup; Vector3 last = m0.transform.position; float jitter = 0f;
+                    while (EditorApplication.timeSinceStartup - t2 < 12)
+                    {
+                        if (fw.InsideHouse(m0.transform.position)) inside = true;
+                        if (m0.CurrentState == MonsterAI.State.Kill || gm5.State != GameManager.GameState.Playing) killed = true;
+                        minD = Mathf.Min(minD, Vector3.Distance(m0.transform.position, pw.transform.position));
+                        if (EditorApplication.timeSinceStartup - t2 > 9) { jitter += Vector3.Distance(last, m0.transform.position); }
+                        last = m0.transform.position;
+                        yield return 0.1f;
+                    }
+                    string st = m0.CurrentState.ToString();
+                    m0.Stop();
+                    Check(chased && res[0].entered && !inside && !killed && m0.CurrentState != MonsterAI.State.Chase,
+                        T5 + "casa " + kc + " como refugio: con un monstruo persiguiendo se entra, el monstruo no entra ni atrapa y deja la persecución (persiguió " + chased +
+                        ", entra " + res[0].entered + ", monstruo dentro " + inside + ", atrapado " + killed + ", distancia mín. " + minD.ToString("F1") + " m, estado a los 12 s " + st + ", movimiento últimos 3 s " + jitter.ToString("F1") + " m)");
+                }
+                else Check(false, T5 + "persecución: sin monstruo con NavMesh o sin casa abierta");
             }
             Check(tpls.Count == FieldPlan.TemplateSize.Length && houses >= (l5 == Level5Seeds ? 8 : 1), "casas abiertas probadas: " + houses + ", plantillas " + tpls.Count + "/" + FieldPlan.TemplateSize.Length);
         }

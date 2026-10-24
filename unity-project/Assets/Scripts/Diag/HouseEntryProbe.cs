@@ -1,7 +1,7 @@
 // v7.4.0: prueba de entrada a las casas del Campo infinito (nivel 5), compartida por la prueba en modo juego (SeedReachCheck)
 // y por las capturas del ejecutable (ShotBuildCheck). Pone al jugador DE PIE delante de la puerta de una casa abierta, lo hace
 // andar hacia dentro con la entrada de depuración (sin agacharse), se mueve por dentro y comprueba que se puede poner de pie.
-// Monstruos: camino por el NavMesh de fuera de la puerta al interior.
+// Monstruos: el camino por el NavMesh de fuera de la puerta al interior NO debe existir (refugio).
 using System.Collections;
 using UnityEngine;
 using UnityEngine.AI;
@@ -16,9 +16,10 @@ public static class HouseEntryProbe
         {
             return "entra " + entered + " (" + depth.ToString("F2") + " m dentro), sin agacharse " + neverCrouched + " (altura mín. " + minHeight.ToString("F2") +
                 " m), se mueve dentro " + movedInside + " (" + moved.ToString("F1") + " m), de pie dentro " + standsInside +
-                (hasNav ? ", monstruos (NavMesh) " + navOk + " (" + navLen.ToString("F1") + " m" + (navOk ? "" : "; " + navWhy) + ")" : ", sin NavMesh");
+                (hasNav ? ", camino de monstruo de fuera a dentro cerrado " + !navOk + (navOk ? " (¡" + navLen.ToString("F1") + " m!)" : "") : ", sin NavMesh");
         }
-        public bool Ok(bool needNav) { return entered && neverCrouched && standsInside && movedInside && (!needNav || !hasNav || navOk); }
+        // v7.4.0: las casas son un refugio: el camino de NavMesh de fuera a dentro tiene que FALLAR
+        public bool Ok(bool needNav) { return entered && neverCrouched && standsInside && movedInside && (!needNav || (hasNav && !navOk)); }
     }
 
     public static Transform HouseTransform(FieldWorld fw, int k)
@@ -124,7 +125,7 @@ public static class HouseEntryProbe
         {
             Vector3 inW = house.TransformPoint(new Vector3(dx, 0.15f, D * 0.5f - 1.4f));   // suelo de la casa (y local 0,15)
             r.navWhy = "";
-            r.navLen = PathLen(outW, inW, out r.navWhy); r.navOk = r.navLen > 0f && r.navLen < 10f; if (!r.navOk) r.navWhy += "; perfil " + NavProfile(house, dx, D) + "; escalones " + steps + ", subida " + (house.position.y + 0.15f - outW.y + 0.05f).ToString("F2") + " m";
+            r.navLen = PathLen(outW, inW, out r.navWhy); r.navOk = r.navLen > 0f && r.navLen < 10f; if (r.navOk) r.navWhy += "; perfil " + NavProfile(house, dx, D) + "; escalones " + steps + ", subida " + (house.position.y + 0.15f - outW.y + 0.05f).ToString("F2") + " m";
         }
         pw.debugInput = false;
         r.done = true; res[0] = r;

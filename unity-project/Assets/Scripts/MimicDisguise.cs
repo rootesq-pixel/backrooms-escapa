@@ -141,6 +141,7 @@ public class MimicDisguise : MonoBehaviour
                 else if (!ai.UsesNav && Physics.Raycast(p + Vector3.up * 3f, Vector3.down, out RaycastHit gh, 8f, ~0, QueryTriggerInteraction.Ignore)) q = gh.point;
                 else { FailNav++; continue; }
                 if (Mathf.Abs(q.y - viewer.position.y) > 3.5f) { FailDy++; continue; }
+                if (FieldWorld.Refuge(q, 0.5f)) { FailNav++; continue; }   // v7.4.0: nunca dentro de una casa del campo
                 Vector3 fq = q - viewer.position; fq.y = 0f;
                 if (fq.magnitude < dMin - 1.5f || fq.magnitude > dMax + 2f) continue;
                 Vector3 chest = q + Vector3.up * 1.3f;

@@ -273,31 +273,19 @@ public class FieldWorld : MonoBehaviour
         }
     }
 
-    // v7.4.0: enlaces de NavMesh por las puertas de las casas abiertas (ida y vuelta), de 0,9 m fuera de la fachada a 0,9 m
-    // dentro. Se llama tras hornear el NavMesh (solo el anfitrión / un jugador: los clientes no tienen monstruos de NavMesh).
-    public int DoorLinkCount { get; private set; }
-    public void AddDoorLinks()
+    // v7.4.0: las casas son un refugio: ningún monstruo entra (la puerta de 1,1 m queda cerrada en el NavMesh al erosionar con
+    // radio 0,5 y no hay enlaces). ¿Está p dentro de alguna casa (interior entre las caras de dentro de las paredes, + margen)?
+    public bool InsideHouse(Vector3 p, float margin = 0f)
     {
-        DoorLinkCount = 0;
         for (int k = 0; k < houseGos.Count && k < plan.houses.Count; k++)
         {
-            FieldPlan.House h = plan.houses[k]; if (!h.enterable) continue;
-            Transform ht = houseGos[k].transform; float dx = DoorX(h.template), D = FieldPlan.TemplateSize[h.template].y;
-            Vector3 o = ht.TransformPoint(new Vector3(dx, 0.15f, D * 0.5f + 0.9f)), i = ht.TransformPoint(new Vector3(dx, 0.15f, D * 0.5f - 0.2f - 0.9f));
-            if (!UnityEngine.AI.NavMesh.SamplePosition(o, out UnityEngine.AI.NavMeshHit ho, 1.0f, UnityEngine.AI.NavMesh.AllAreas) ||
-                !UnityEngine.AI.NavMesh.SamplePosition(i, out UnityEngine.AI.NavMeshHit hi, 0.6f, UnityEngine.AI.NavMesh.AllAreas))
-            { Debug.LogWarning("[FieldWorld] casa " + k + ": sin NavMesh junto a la puerta, sin enlace"); continue; }
-            GameObject lg = new GameObject("DoorNavLink"); lg.transform.SetParent(ht, false);
-            Transform a0 = new GameObject("Out").transform, b0 = new GameObject("In").transform;
-            a0.SetParent(lg.transform, false); b0.SetParent(lg.transform, false); a0.position = ho.position; b0.position = hi.position;
-#pragma warning disable 618
-            UnityEngine.AI.OffMeshLink l = lg.AddComponent<UnityEngine.AI.OffMeshLink>();
-            l.startTransform = a0; l.endTransform = b0; l.biDirectional = true; l.activated = true; l.autoUpdatePositions = false; l.costOverride = -1f;
-            l.UpdatePositions();
-#pragma warning restore 618
-            DoorLinkCount++;
+            Vector2 sz = FieldPlan.TemplateSize[plan.houses[k].template];
+            Vector3 l = houseGos[k].transform.InverseTransformPoint(p);
+            if (Mathf.Abs(l.x) < sz.x * 0.5f - 0.2f + margin && Mathf.Abs(l.z) < sz.y * 0.5f - 0.2f + margin && l.y > -0.6f && l.y < 3.3f) return true;
         }
+        return false;
     }
+    public static bool Refuge(Vector3 p, float margin = 0f) { return Active != null && Active.InsideHouse(p, margin); }
 
     // v7.0.2: muebles sencillos en las casas abiertas (mesa, estantería, caja) y huecos para objetos sobre ellos y sobre la tarima.
     //   Los objetos del Campo infinito (pilas, notas, agua, barras, cinta) solo aparecen aquí, nunca en la hierba.
@@ -341,8 +329,8 @@ public class FieldWorld : MonoBehaviour
     public static float DoorX(int tpl) { return tpl == 1 ? 0f : -FieldPlan.TemplateSize[tpl].x * 0.22f; }
     // v7.4.0: puerta de las casas algo más alta y ancha (antes 1,0 x 2,1 m, con el zócalo de piedra de 30 cm cruzando el umbral:
     // de pie, subido al zócalo, la cabeza (1,8 m) tocaba el dintel y había que agacharse). Ahora 1,1 x 2,2 m, una puerta normal,
-    // y el umbral queda a ras del suelo de la casa. Los monstruos (NavMesh de radio 0,5: un hueco de 1,1 m queda cerrado al
-    // erosionar) cruzan por un enlace de NavMesh en cada puerta abierta (AddDoorLinks, tras hornear).
+    // y el umbral queda a ras del suelo de la casa. Los monstruos NO entran: con radio 0,5 el NavMesh no cruza un hueco de 1,1 m
+    // (las casas son un refugio; ver InsideHouse/Refuge y MonsterAI).
     public const float HouseDoorW = 1.1f, HouseDoorH = 2.2f;
 
     // casa en espacio local: suelo en y=0..0.15, puerta en +Z. Submeshes: 0 paredes, 1 tejado, 2 suelo, 3 madera, 4 cristal, 5 piedra
