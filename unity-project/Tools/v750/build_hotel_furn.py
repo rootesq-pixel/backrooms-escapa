@@ -279,6 +279,11 @@ for (model, mname), m in PARTS.items():
             n = f.normal; ax = max(range(3), key=lambda i: abs(n[i]))
             for lp in f.loops:
                 p = lp.vert.co; lp[uvl].uv = (p[1], p[2]) if ax == 0 else ((p[0], p[2]) if ax == 1 else (p[0], p[1]))
+    if mname == 'TCloth':   # tela de una sola cara: que mire hacia fuera/arriba (desde el centro del mueble, a media altura)
+        Cc = Vector((0, 0, 0.4)) if model.startswith('SquareTable') or model in ('RoundTable0', 'RoundTable1') else Vector((0.12, 0.18, -1.0))   # el montón del suelo: desde abajo
+        acc = sum(f.normal.dot(f.calc_center_median() - Cc) * f.calc_area() for f in bm.faces)
+        if acc < 0: bmesh.ops.reverse_faces(bm, faces=bm.faces[:]); bm.normal_update()
+        print('CLOTH', model, 'flip' if acc < 0 else 'ok')
     for f in bm.faces: f.smooth = True
     for e in bm.edges:
         if len(e.link_faces) == 2 and e.calc_face_angle(0) > math.radians(42): e.smooth = False
