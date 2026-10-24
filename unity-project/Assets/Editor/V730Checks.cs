@@ -247,6 +247,53 @@ public static class V730Checks
             Vector3 pp = p.transform.position;
             r.Check(cage.State == OceanCage.CageState.BottomOpen && !p.IsMounted && pp.y < -40f, T + "la jaula llega al fondo y se abre (" + pp.y.ToString("F1") + " m, " + (Clock() - tD).ToString("F0") + " s)");
             r.Check(p.IsUnderwater && op.Air01 > 0.99f && gm.State == GameManager.GameState.Playing, T + "con el casco no se gasta el aire en el fondo");
+            // v7.4.0: objetivo al llegar al fondo (en pantalla y en el inventario) y señuelo discreto en la boca de la gruta
+            r.Check(op.ObjectiveT > 0f && op.Prompt == OceanCage.BottomObjective && InventoryUI.LevelObjective != null && InventoryUI.LevelObjective.Contains("gruta"),
+                T + "al llegar al fondo sale el objetivo (\"" + op.Prompt + "\"; inventario: " + InventoryUI.LevelObjective + ")");
+            {
+                Transform lu = w.GrottoLure; Light ll = w.GrottoLureLight; int blobs = 0, seen = 0;
+                Vector3 eye = pp + Vector3.left * 1.0f + Vector3.up * 1.55f;
+                if (lu != null)
+                    foreach (MeshRenderer mr in lu.GetComponentsInChildren<MeshRenderer>())
+                    {
+                        if (!mr.enabled || mr.name != "LureAlgae") continue;
+                        blobs++;
+                        Vector3 tq = mr.transform.position, dq = tq - eye; bool blocked = false;
+                        foreach (RaycastHit hh in Physics.RaycastAll(eye, dq.normalized, dq.magnitude - 0.15f, ~((1 << 2) | (1 << WaterVolume.WaterLayer)), QueryTriggerInteraction.Ignore))
+                            if (!hh.collider.transform.IsChildOf(cage.transform)) blocked = true;
+                        if (!blocked) seen++;
+                    }
+                float dl = Vector3.Distance(eye, OceanWorld.TunnelPath[0]);
+                r.Check(blobs >= 12 && seen >= 4 && ll != null && ll.enabled && ll.intensity > 0.5f && dl < 20f,
+                    T + "algas luminosas en la boca de la gruta, visibles desde la puerta de la jaula (" + seen + "/" + blobs + " a la vista, a " + dl.ToString("F0") + " m, luz " + (ll != null ? ll.intensity.ToString("F1") : "-") + ")");
+            }
+            // v7.4.0: nadar desde el fondo. Antes el jugador se quedaba pegado al suelo: al tocar fondo la velocidad vertical se ponía a -2 en
+            // cada fotograma y la natación con casco no llegaba a remontarla (con Espacio o mirando hacia arriba seguía andando por el fondo)
+            {
+                w.angler.ForceForTests(OceanAngler.Region.center + new Vector3(25f, 0f, 30f), OceanAngler.AState.Patrol);
+                Vector3 pp0 = p.transform.position;
+                Vector3 sb = new Vector3(pp0.x - 3.2f, 0f, pp0.z); sb.y = WaterVolume.Active.GroundY(new Vector3(sb.x, pp0.y + 1.5f, sb.z)) + 0.05f;
+                CharacterController cc = p.GetComponent<CharacterController>();
+                p.Teleport(sb, 270f); p.SetPitch(0f);
+                yield return 0.6f;
+                bool onFloor = cc != null && cc.isGrounded && p.IsSwimming && p.freeSwim;
+                float y0 = p.transform.position.y, maxY = y0;
+                p.debugInput = true; p.debugMove = Vector2.zero; p.debugJump = true;
+                float t0 = Time.time; while (Time.time - t0 < 3f) { yield return null; maxY = Mathf.Max(maxY, p.transform.position.y); }
+                p.debugJump = false;
+                float rise = p.transform.position.y - y0;
+                r.Check(onFloor && rise > 3f, T + "con el casco, de pie en el fondo, mantener Espacio 3 s sube nadando (" + rise.ToString("F1") + " m; tocaba fondo " + onFloor + ")");
+                p.debugInput = false; p.Teleport(sb, 270f); p.SetPitch(-40f);
+                yield return 0.5f;
+                float y1 = p.transform.position.y;
+                p.debugInput = true; p.debugMove = new Vector2(0f, 1f);
+                t0 = Time.time; while (Time.time - t0 < 1.5f) yield return null;
+                float rise2 = p.transform.position.y - y1;
+                p.debugInput = false; p.debugMove = Vector2.zero; p.SetPitch(0f);
+                r.Check(rise2 > 1.0f, T + "con el casco, desde el fondo, W mirando hacia arriba sube (" + rise2.ToString("F1") + " m en 1,5 s)");
+                p.Teleport(pp0, 270f);
+                yield return 0.5f;
+            }
         }
         // El Farolero: con la lámpara apagada no te ve a 10 m; encendida sí
         {

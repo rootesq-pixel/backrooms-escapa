@@ -57,9 +57,11 @@ public class ShotBuildCheck : MonoBehaviour
         mc.cullingMask &= ~(1 << 8);
         if (PoolRoomSetPiece.Root != null) yield return Pool(gm, pw, mc);
         else if (FieldWorld.Active != null) yield return Field(gm, pw, mc);
+        else if (OceanWorld.Active != null && System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-swimseq") >= 0) yield return SwimSeq(gm, pw, mc);
         else if (OceanWorld.Active != null) yield return Ocean(gm, pw, mc);
         else if (GameBootstrap.Instance.CurrentLevel == 0) yield return Level0(gm, pw, mc);
         else if (GameBootstrap.Instance.CurrentLevel == 1) yield return Level1(gm, pw, mc);
+        else if (BallPitField.All.Count > 0) yield return Ballpit(gm, pw, mc);
         else Check(false, "nivel con sala de piscina o campo");
         Finish();
     }
@@ -210,6 +212,50 @@ public class ShotBuildCheck : MonoBehaviour
     }
 
     // v7.3.0: Talasofobia (nivel 7): casa inundada, mar con niebla, barca, bengala, faro, jaula y cascos, fondo con El Farolero, túnel y poza
+    // v7.4.0 («-swimseq»): fondo del mar con casco. (1) desde la puerta de la jaula abierta en el fondo, hacia la boca de la gruta
+    // (señuelo de algas); (2) de pie en el fondo, Espacio mantenido: secuencia de fotogramas subiendo; (3) la boca de la gruta de cerca.
+    IEnumerator SwimSeq(GameManager gm, FirstPersonController pw, Camera mc)
+    {
+        OceanWorld w = OceanWorld.Active; OceanPlayer op = OceanPlayer.Local;
+        if (w.fish != null) w.fish.enabled = false;
+        if (w.angler != null) { w.angler.ForceForTests(OceanAngler.Region.center + new Vector3(25f, 0f, 30f), OceanAngler.AState.Patrol); w.angler.enabled = false; }
+        gm.lostRestartSeconds = 999f;
+        op.SetHelmet(true);
+        Flashlight fl = pw.GetComponentInChildren<Flashlight>(); if (fl != null) fl.SetOn(true);
+        w.cage.ForceStateForTests(OceanCage.CageState.BottomOpen, w.CageBottom.y);
+        Vector3 cb = w.CageBottom; Vector3 mouth = OceanWorld.TunnelPath[0];
+        Vector3 inCage = new Vector3(cb.x - 0.3f, cb.y + 0.02f, cb.z);
+        Vector3 eye = inCage + Vector3.up * 1.55f;
+        hero = true;
+        yield return View(pw, mc, "l7_50_puerta_jaula_hacia_gruta", eye, mouth + Vector3.up * 0.3f, 62f, inCage);
+        Info("aviso en pantalla: " + op.Prompt);
+        Vector3 mid = Vector3.Lerp(inCage, mouth, 0.55f); mid.y = w.SeabedY(mid.x, mid.z) + 1.6f;
+        yield return View(pw, mc, "l7_51_boca_gruta_algas", mid, mouth + Vector3.up * 0.2f, 58f, inCage);
+        // de pie en el fondo, fuera de la jaula, mirando la pared (algo hacia arriba); Espacio mantenido
+        Vector3 sb = new Vector3(cb.x - 3.2f, 0f, cb.z); sb.y = WaterVolume.Active.GroundY(new Vector3(sb.x, cb.y + 1.5f, sb.z)) + 0.05f;
+        pw.Teleport(sb, 270f); pw.SetPitch(25f);
+        float t0 = Time.realtimeSinceStartup; while (Time.realtimeSinceStartup - t0 < 1.5f) yield return null;
+        float y0 = pw.transform.position.y;
+        pw.debugInput = true; pw.debugMove = Vector2.zero; pw.debugJump = true;
+        float tg = Time.time; int k = 0;
+        while (k < 6)
+        {
+            if (Time.time - tg >= k * 0.6f)
+            {
+                pw.SetPitch(25f);
+                Destroy(Grab(mc, "l7_52_subiendo_" + k));
+                Info("subiendo " + k + ": t " + (Time.time - tg).ToString("F1") + " s, pies " + pw.transform.position.y.ToString("F2") + " (+" + (pw.transform.position.y - y0).ToString("F2") + " m), nadando " + pw.IsSwimming + ", libre " + pw.freeSwim);
+                k++;
+            }
+            yield return null;
+        }
+        pw.debugJump = false; pw.debugInput = false;
+        float rise = pw.transform.position.y - y0;
+        Check(rise > 2.5f, "con el casco, Espacio desde el fondo sube nadando (" + rise.ToString("F1") + " m en 3 s)");
+        hero = false;
+        pw.SetPitch(0f);
+    }
+
     IEnumerator Ocean(GameManager gm, FirstPersonController pw, Camera mc)
     {
         OceanWorld w = OceanWorld.Active; OceanPlayer op = OceanPlayer.Local;
@@ -514,6 +560,29 @@ public class ShotBuildCheck : MonoBehaviour
     // v7.4.0: cabina del ascensor (interior, rellano abierto/cerrado) y Nivel 1 (Aparcamiento) sin VHS, desde los mismos ángulos
     // que las capturas del editor (V740Shots). Solo usa API que ya existía en v7.3.0 para poder capturar «antes» con el mismo código.
     // Con «-perf»: tiempos de fotograma en la cabina, el rellano y el aparcamiento (VHS por defecto 0,7, 1920x1080, sin vsync).
+    // v7.4.0: nivel 6, un monstruo de pie en una piscina de bolas (como la captura del usuario: antes se abría un círculo hasta una
+    // «foto» plana de bolas). Cámaras fijas desde el borde; el jugador queda fuera de la piscina.
+    IEnumerator Ballpit(GameManager gm, FirstPersonController pw, Camera mc)
+    {
+        BallPitLurker.DisabledForTests = true;
+        BallPitField f0 = BallPitField.All[0]; BallpitSetPiece.PitJ pit = f0.pits[0]; Transform tr = f0.transform;
+        Rect inn = BallpitSetPiece.PitInner(pit, f0.rim);
+        MonsterAI m0 = null; foreach (MonsterAI m in gm.monsters) if (m != null && m0 == null) m0 = m;
+        Vector3 mp = tr.TransformPoint(new Vector3(inn.xMin + 1.4f, pit.floor + 0.02f, inn.center.y));
+        Vector3 stand = tr.TransformPoint(new Vector3(inn.xMin - 1.2f, 0.05f, inn.center.y - 3.0f));
+        if (m0 != null) { m0.WarpTo(mp, -90f + tr.eulerAngles.y); m0.transform.position = mp; }
+        Check(m0 != null, "monstruo disponible para ponerlo en la piscina");
+        hero = true;
+        Vector3 tgt = mp + Vector3.up * 0.55f;
+        yield return View(pw, mc, "l6_01_monstruo_piscina", tr.TransformPoint(new Vector3(inn.xMin - 0.5f, pit.ball + 1.85f, inn.center.y - 0.9f)), tgt, 60f, stand);
+        if (m0 != null) m0.transform.position = mp;
+        yield return View(pw, mc, "l6_02_monstruo_desde_arriba", tr.TransformPoint(new Vector3(inn.xMin + 0.3f, pit.ball + 2.3f, inn.center.y - 1.3f)), mp + Vector3.up * 0.25f, 55f, stand);
+        if (m0 != null) m0.transform.position = mp;
+        yield return View(pw, mc, "l6_03_pies_del_monstruo", tr.TransformPoint(new Vector3(inn.xMin + 0.55f, pit.ball + 1.3f, inn.center.y - 0.6f)), mp + Vector3.up * 0.05f, 50f, stand);
+        Info("monstruo en " + (m0 != null ? m0.transform.position.ToString() : "-") + ", empujadores " + BallPitField.PusherCount);
+        hero = false;
+    }
+
     IEnumerator Level1(GameManager gm, FirstPersonController pw, Camera mc)
     {
         VhsEffect vx = mc.GetComponent<VhsEffect>(); if (vx != null) vx.intensityOverride = 0f;

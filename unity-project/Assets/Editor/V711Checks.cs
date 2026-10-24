@@ -150,7 +150,10 @@ public static class V711Checks
             r.Check(bm != null && bm.enableInstancing && BallPitField.MaterialFromKeeper && bm.shader != null && bm.shader.name == "Backrooms/BallInstanced",
                 T + "bolas: material instanciado creado desde Resources/Ballpit/BallInstancedKeeper.mat (la variante con instancing va en el build)");
             { float tg = Time.time; yield return (System.Func<bool>)(() => Time.time - tg >= 0.4f); }   // v7.4.0: tiempo de juego (un parón de la VM hacía medir antes de que se apartaran)
-            Vector3 pp = fpc.transform.position;
+            // v7.4.0: centro = el empujador que usa el shader este fotograma (antes la posición del jugador: tras un parón de la VM el
+            // jugador ya se había movido respecto al empujador del último fotograma y salía una bola «sin apartar», mín. 0,03 m)
+            Vector4 pu0 = BallPitField.Pusher(0);
+            Vector3 pp = pu0.w > 0f ? new Vector3(pu0.x, pu0.y, pu0.z) : fpc.transform.position;
             List<Vector3> cs = new List<Vector3>(); List<float> tops = new List<float>();
             f0.TopBallsNear(pp, 1.2f, cs, tops);
             float tt = Time.timeSinceLevelLoad; int nN = 0, nR = 0; float sN = 0f, sR = 0f, minN = 9f;
@@ -162,20 +165,28 @@ public static class V711Checks
                 else if (rr > 0.7f && rr < 1.1f) { nR++; sR += hz; }
             }
             r.Check(nN >= 5 && sN / nN > 0.15f && minN > 0.05f, T + "bolas: junto al jugador se apartan de verdad (" + nN + " bolas a < 0,3 m: media " + (nN > 0 ? sN / nN : 0f).ToString("F2") + " m, mín. " + minN.ToString("F2") + " m)");
-            // v7.3.0c: el empuje en cadena a 0,7-1,1 m late con el vaivén (fase según el instante): se mira el mejor de 5 instantes en 1 s
-            // (antes un solo instante: a veces caía en un valle, 0,009 m, y la prueba fallaba sin que nada estuviera roto)
-            float bestR = nR > 0 ? sR / nR : 0f;
-            for (int k = 1; k <= 4 && nR > 0; k++)
+            // v7.4.0: el empuje en cadena se mide sin vaivén ni ondas (solo el término del empujador, componente hacia fuera): es
+            // determinista. Antes se medía el desplazamiento total y dependía de la fase del vaivén y de las ondas (0,009 vs 0,012 a ratos)
+            float sRad = 0f;
+            for (int i = 0; i < cs.Count; i++)
             {
-                float s2 = 0f; float tk = tt + k * 0.25f;
-                for (int i = 0; i < cs.Count; i++)
-                {
-                    float rr = new Vector2(cs[i].x - pp.x, cs[i].z - pp.z).magnitude;
-                    if (rr > 0.7f && rr < 1.1f) { Vector3 o = BallPitField.OffsetAt(cs[i], tk, tops[i], 1f); s2 += new Vector2(o.x, o.z).magnitude; }
-                }
-                bestR = Mathf.Max(bestR, s2 / nR);
+                Vector2 dd = new Vector2(cs[i].x - pp.x, cs[i].z - pp.z); float rr = dd.magnitude;
+                if (rr > 0.7f && rr < 1.1f) { Vector3 o = BallPitField.PusherTerm(cs[i], pu0, tops[i], 1f); sRad += Vector2.Dot(new Vector2(o.x, o.z), dd / rr); }
             }
-            r.Check(nR >= 5 && bestR > 0.012f, T + "bolas: a 0,7-1,1 m también se apartan en cadena (" + nR + " bolas, media " + (nR > 0 ? sR / nR : 0f).ToString("F3") + " m, mejor instante " + bestR.ToString("F3") + " m)");
+            float meanRad = nR > 0 ? sRad / nR : 0f;
+            r.Check(nR >= 5 && pu0.w > 0f && meanRad > 0.004f, T + "bolas: a 0,7-1,1 m también se apartan en cadena (" + nR + " bolas, empuje hacia fuera medio " + meanRad.ToString("F3") + " m)");
+            {   // v7.4.0: el hueco alrededor de las piernas no llega al fondo: las 2 capas que siempre se dibujan (también en Bajo) tapan la corona
+                float cvP = f0.CoverageAround(pp, 0.18f, 0.45f, 2, tt, 800);
+                Vector4 keepP = pu0; BallPitField.SetPusherForTest(0, new Vector4(pp.x, pp.y, pp.z, 0.62f));   // radio de un monstruo
+                float cvM = f0.CoverageAround(pp, 0.22f, 0.55f, 2, tt, 800);
+                BallPitField.SetPusherForTest(0, keepP);
+                r.Check(cvP >= 0.85f && cvM >= 0.85f, T + "bolas: el hueco al vadear no deja ver el fondo (capas 1-2 tapan " + (cvP * 100f).ToString("F0") + " % junto al jugador, " + (cvM * 100f).ToString("F0") + " % junto a un monstruo)");
+                MeshRenderer hr2 = null;
+                foreach (MeshRenderer mr in BallpitSetPiece.Roots[0].GetComponentsInChildren<MeshRenderer>()) if (mr.name == "BallpitHallBaked") hr2 = mr;
+                Material bmat = hr2 != null && hr2.sharedMaterials.Length > BallpitSetPiece.M_BALL ? hr2.sharedMaterials[BallpitSetPiece.M_BALL] : null;
+                Texture btex = bmat != null ? bmat.GetTexture("_MainTex") : null;
+                r.Check(bmat != null && (btex == null || !btex.name.Contains("Ball")), T + "bolas: el fondo de la piscina es una colchoneta lisa, sin foto de bolas (textura " + (btex != null ? btex.name : "ninguna") + ")");
+            }
             Vector3 pf = f0.transform.TransformPoint(new Vector3(inner.xMax - 0.8f, pit.ball, inner.yMax - 0.8f));
             cs.Clear(); tops.Clear(); f0.TopBallsNear(pf, 0.6f, cs, tops);
             int mv = 0; float sm = 0f;

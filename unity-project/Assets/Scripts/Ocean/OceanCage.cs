@@ -117,6 +117,8 @@ public class OceanCage : MonoBehaviour
         return Mathf.Abs(feet.x - c.x) < W * 0.5f - 0.05f && Mathf.Abs(feet.z - c.z) < W * 0.5f - 0.05f && feet.y > c.y - 0.6f && feet.y < c.y + H - 0.4f;
     }
 
+    // v7.4.0: objetivo al llegar al fondo (el jugador no sabía qué hacer abajo)
+    public const string BottomObjective = "Busca la gruta en la pared del acantilado y sube por la chimenea hasta la bolsa de aire";
     public string PromptFor(bool helmet)
     {
         switch (State)

@@ -237,6 +237,7 @@ public static class BallpitSetPiece
         if (cut > 0) { v = V.ToArray(); n = N.ToArray(); a = A.ToArray(); b = B.ToArray(); }
         return cut;
     }
+    public static readonly Color BackingTintLinear = new Color(0.045f, 0.045f, 0.06f);   // v7.4.0: colchoneta del fondo, lisa y oscura
     public const float BackingDrop = 0.30f;   // v7.1.1 (antes 0.085): capa plana a 33 cm bajo la superficie de bolas
     public static Mesh LoadBakedMesh(out Mesh collision)
     {
@@ -352,7 +353,7 @@ public static class BallpitSetPiece
             Mat("PlayPlastic", TB, sharedLm, PlasticYLinear, 0.65f), Mat("PlayPlastic", TB, sharedLm, PlasticBLinear, 0.65f),
             Mat("PlayNet", TB, sharedLm, Color.white, 0.1f, 0.45f, true),
             emit,
-            Mat("BallSurface", TB, sharedLm, new Color(0.08f, 0.075f, 0.075f), 0.05f),   // fondo: bolas más hondas en sombra (en v7.1.1 era lo ÚNICO que se veía porque las bolas instanciadas no llegaban al build); se ve en el hueco que abre el jugador
+            Mat(null, null, sharedLm, BackingTintLinear, 0.05f),   // v7.4.0: fondo liso de colchoneta oscura, SIN la foto de bolas (se veía como imagen falsa en el hueco que abre un monstruo/jugador). Antes: fondo: bolas más hondas en sombra (en v7.1.1 era lo ÚNICO que se veía porque las bolas instanciadas no llegaban al build); se ve en el hueco que abre el jugador
             metal,
             Mat("PartyAtlas", TB, sharedLm, Color.white, 0.15f, 0.5f, true) };
         sharedMesh = LoadBakedMesh(out sharedCol);
@@ -748,20 +749,53 @@ public class BallPitField : MonoBehaviour
             off.y += 0.032f * env * Mathf.Cos(x * 16f);
             off.x += dq.x / rq * 0.014f * env; off.z += dq.y / rq * 0.014f * env;
         }
-        for (int i = 0; i < 6; i++)
-        {
-            Vector4 p = pushers[i];
-            if (p.w == 0f || Mathf.Abs(c.y - p.y) > 1.2f) continue;
-            Vector2 d = new Vector2(c.x - p.x, c.z - p.z); float r = d.magnitude + 1e-4f, R = Mathf.Abs(p.w);
-            float k = Mathf.Clamp01(1f - r / R);
-            if (p.w < 0f) { off.y += k * k * (3f - 2f * k) * 0.24f * dyn; off.x += d.x / r * k * (1f - k) * 0.12f * dyn; off.z += d.y / r * k * (1f - k) * 0.12f * dyn; continue; }
-            float ring = Mathf.Clamp01(1f - Mathf.Abs(r - R * 1.1f) / (R * 0.5f));
-            float k2 = Mathf.Clamp01(1f - r / (R * 2.2f));
-            float hor = (Mathf.Pow(k, 1.3f) * R * 0.85f + k2 * k2 * 0.05f) * dyn;
-            off.x += d.x / r * hor; off.z += d.y / r * hor;
-            off.y += (ring * 0.07f - k * 0.17f + k2 * k2 * 0.02f) * dyn;
-        }
+        for (int i = 0; i < 6; i++) off += PusherTerm(c, pushers[i], topY, dyn);
         return off;
+    }
+    // v7.4.0: término de un empujador (réplica exacta del shader). Las capas de abajo (sink > ~0,3) se apartan mucho menos:
+    // las bolas vuelven a rodear las piernas y el hueco nunca llega hasta el fondo (antes se abría un círculo hasta la capa plana).
+    public const float DeepPushKeep = 0.2f;
+    public static float DeepPushFactor(float sink) { return Mathf.Lerp(1f, DeepPushKeep, Mathf.Clamp01((sink - 0.27f) / 0.12f)); }
+    public static Vector3 PusherTerm(Vector3 c, Vector4 p, float topY, float dyn)
+    {
+        Vector3 off = Vector3.zero;
+        if (p.w == 0f || Mathf.Abs(c.y - p.y) > 1.2f) return off;
+        Vector2 d = new Vector2(c.x - p.x, c.z - p.z); float r = d.magnitude + 1e-4f, R = Mathf.Abs(p.w);
+        float k = Mathf.Clamp01(1f - r / R);
+        if (p.w < 0f) { off.y += k * k * (3f - 2f * k) * 0.24f * dyn; off.x += d.x / r * k * (1f - k) * 0.12f * dyn; off.z += d.y / r * k * (1f - k) * 0.12f * dyn; return off; }
+        float fl = DeepPushFactor(Mathf.Clamp01((topY - c.y) / 0.2f));
+        float ring = Mathf.Clamp01(1f - Mathf.Abs(r - R * 1.1f) / (R * 0.5f));
+        float k2 = Mathf.Clamp01(1f - r / (R * 2.6f));   // v7.4.0: cadena más ancha y visible (antes 2,2 R y 0,05)
+        float hor = (Mathf.Pow(k, 1.3f) * R * 0.85f * fl + k2 * k2 * 0.07f) * dyn;
+        off.x += d.x / r * hor; off.z += d.y / r * hor;
+        off.y += (ring * 0.07f - k * 0.17f) * fl * dyn + k2 * k2 * 0.02f * dyn;
+        return off;
+    }
+    public static void SetPusherForTest(int i, Vector4 v) { if (i >= 0 && i < pushers.Length) pushers[i] = v; }
+    public static Vector4 Pusher(int i) { return i >= 0 && i < pushers.Length ? pushers[i] : Vector4.zero; }
+    // v7.4.0 (prueba): fracción de puntos de una corona alrededor de p tapada desde arriba por las capas 0..layers-1 ya desplazadas
+    public float CoverageAround(Vector3 p, float r0, float r1, int layers, float t, int samples)
+    {
+        List<Vector2> bs = new List<Vector2>(); float rmax = r1 + 0.7f;
+        foreach (TileData td in tiles)
+        {
+            if (td.b.SqrDistance(new Vector3(p.x, td.b.center.y, p.z)) > rmax * rmax) continue;
+            float top = td.mpb.GetFloat("_TopY"); int end = td.layerEnd[Mathf.Clamp(layers, 1, 3) - 1];
+            for (int i = 0; i < end; i++)
+            {
+                Vector3 c = new Vector3(td.m[i].m03, td.m[i].m13, td.m[i].m23);
+                if (new Vector2(c.x - p.x, c.z - p.z).sqrMagnitude > rmax * rmax) continue;
+                Vector3 w = c + OffsetAt(c, t, top, 1f); bs.Add(new Vector2(w.x, w.z));
+            }
+        }
+        System.Random rr = new System.Random(11); int hit = 0; float rc = BallR * 0.92f;
+        for (int k = 0; k < samples; k++)
+        {
+            float a = (float)rr.NextDouble() * 6.2832f, rad = Mathf.Sqrt(Mathf.Lerp(r0 * r0, r1 * r1, (float)rr.NextDouble()));
+            Vector2 q = new Vector2(p.x + Mathf.Cos(a) * rad, p.z + Mathf.Sin(a) * rad);
+            foreach (Vector2 b in bs) if ((b - q).sqrMagnitude < rc * rc) { hit++; break; }
+        }
+        return samples > 0 ? hit / (float)samples : 0f;
     }
     static float Frac(float v) { return v - Mathf.Floor(v); }
     // centros (mundo) de las bolas de la capa de arriba a menos de rmax (en planta) de p, con la altura de su superficie

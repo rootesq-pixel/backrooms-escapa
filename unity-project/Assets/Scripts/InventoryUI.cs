@@ -177,6 +177,7 @@ public class InventoryUI : MonoBehaviour
 
     // Para pruebas: sustituye el texto del objetivo / nombre del nivel (cadenas largas)
     public static string DebugObjective, DebugLevelName;
+    public static string LevelObjective;   // v7.4.0: objetivo propio del momento (p. ej. al llegar al fondo del mar)
 
     // Para pruebas: ¿todos los textos visibles caben en su caja?
     public string OverflowingTexts()
@@ -539,7 +540,7 @@ public class InventoryUI : MonoBehaviour
         // Objetivo
         int foundHere = 0;
         if (gm != null) for (int k = 0; k < LoreNotes.PerLevel; k++) if (inv.HasNote(LoreNotes.IdFor(gm.levelIndex, k))) foundHere++;
-        objectiveText.text = "OBJETIVO: " + (DebugObjective ?? "encuentra la salida de este nivel sin que te atrapen.") + "\n"
+        objectiveText.text = "OBJETIVO: " + (DebugObjective ?? LevelObjective ?? "encuentra la salida de este nivel sin que te atrapen.") + "\n"
             + "Notas de este nivel: " + foundHere + "/" + LoreNotes.PerLevel + "   ·   Pilas: " + inv.BatteryCount;
 
         tabNotesLabel.text = "NOTAS (" + inv.NotesFound + "/" + LoreNotes.Total + ")";

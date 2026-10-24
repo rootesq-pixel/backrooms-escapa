@@ -111,6 +111,7 @@ public class FirstPersonController : MonoBehaviour
     [System.NonSerialized] public bool freeSwim;
     [System.NonSerialized] public float swimStaminaDrain;
     [System.NonSerialized] public float freeSwimSpeed = 2.4f;
+    public const float FreeSwimLift = 2.2f;   // v7.4.0: Espacio / Ctrl con el casco (m/s)
     public bool IsMounted { get { return mount != null; } }
     public Vector3 WishDir { get; private set; }
     public bool JumpHeld { get; private set; }
@@ -524,7 +525,7 @@ public class FirstPersonController : MonoBehaviour
             Vector3 look = cameraPivot.forward;
             Vector3 d3 = (look * input.z + transform.right * input.x) * speed;
             desired = new Vector3(d3.x, 0f, d3.z);
-            freeVy = d3.y + (wantsJump ? 1.7f : 0f) - (CrouchHeld ? 1.7f : 0f) - 0.12f;
+            freeVy = d3.y + (wantsJump ? FreeSwimLift : 0f) - (CrouchHeld ? FreeSwimLift : 0f) - 0.12f;   // v7.4.0: 2,2 m/s (antes 1,7)
         }
         bool grounded = controller.isGrounded;
         float rate = hasInput ? acceleration : deceleration;
@@ -541,7 +542,11 @@ public class FirstPersonController : MonoBehaviour
         bool probe = GroundProbe();
         if (probe) sinceGrounded = 0f; else sinceGrounded += dt;
         if (jumpCooldown > 0f) jumpCooldown -= dt;
-        if (grounded && verticalVelocity < 0f)
+        // v7.4.0: nadando con casco NO se pega al suelo: antes, en el fondo (controller.isGrounded) la velocidad vertical se ponía a -2
+        // en cada fotograma antes de la natación, que solo la acercaba un poco (Lerp) a la de subir: con Espacio o mirando hacia arriba
+        // seguía siendo negativa y el jugador se quedaba andando por el fondo del mar.
+        bool swimFree = IsSwimming && freeSwim;
+        if (grounded && verticalVelocity < 0f && !swimFree)
         {
             verticalVelocity = -2f; // pequeño empuje para mantenerse pegado al suelo
             IsJumping = false;
@@ -561,7 +566,9 @@ public class FirstPersonController : MonoBehaviour
             float topFeet = surfF - standEyeHeight + 0.14f;
             float vy = freeVy;
             if (transform.position.y > topFeet - 0.05f && vy > -0.3f) vy = Mathf.Clamp((topFeet - transform.position.y) * 3.2f, -2.6f, 2.6f);
-            verticalVelocity = Mathf.Lerp(verticalVelocity, vy, 1f - Mathf.Exp(-5f * dt));
+            // v7.4.0: en el fondo, al pedir subir se despega enseguida (sin esperar a que el Lerp remonte desde la velocidad de caída)
+            if (grounded && vy > 0.2f && verticalVelocity < vy * 0.6f) verticalVelocity = vy * 0.6f;
+            verticalVelocity = Mathf.Lerp(verticalVelocity, vy, 1f - Mathf.Exp(-6f * dt));
             airTime = 0f; lastFallSpeed = 0f;
         }
         else if (IsSwimming)

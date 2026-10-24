@@ -70,10 +70,12 @@ Shader "Backrooms/BallInstanced"
                     off.xz += (d / r) * k * (1 - k) * 0.12 * _Dyn;
                     continue;
                 }
+                // v7.4.0: las capas de abajo se apartan mucho menos (vuelven a rodear las piernas; el hueco no llega al fondo)
+                float fl = lerp(1, 0.2, saturate((sink - 0.27) / 0.12));
                 float ring = saturate(1 - abs(r - R * 1.1) / (R * 0.5));
-                float k2 = saturate(1 - r / (R * 2.2));                   // v7.1.1: zona exterior más ancha: las bolas se apartan en cadena
-                off.xz += (d / r) * (pow(k, 1.3) * R * 0.85 + k2 * k2 * 0.05) * _Dyn;
-                off.y += (ring * 0.07 - k * 0.17 + k2 * k2 * 0.02) * _Dyn;
+                float k2 = saturate(1 - r / (R * 2.6));                   // v7.4.0: cadena más ancha y visible (antes 2,2 R y 0,05)
+                off.xz += (d / r) * (pow(k, 1.3) * R * 0.85 * fl + k2 * k2 * 0.07) * _Dyn;
+                off.y += (ring * 0.07 - k * 0.17) * fl * _Dyn + k2 * k2 * 0.02 * _Dyn;
             }
             float3 wp = mul(unity_ObjectToWorld, v.vertex).xyz + off;
             v.vertex.xyz = mul(unity_WorldToObject, float4(wp, 1)).xyz;

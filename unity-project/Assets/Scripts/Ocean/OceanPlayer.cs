@@ -21,6 +21,9 @@ public class OceanPlayer : MonoBehaviour
     public float HelmetHold01 { get; private set; }
     public int DrownCount { get; private set; }
     public string Prompt { get; private set; }
+    public const float ObjectiveSeconds = 10f;
+    public float ObjectiveT { get; private set; }
+    private bool bottomSeen;
     [System.NonSerialized] public bool debugHold, debugInteract;
 
     private float drownT, holdT, savedRange, savedAngle, savedIntensity, savedDrain;
@@ -42,6 +45,7 @@ public class OceanPlayer : MonoBehaviour
     private void OnDestroy()
     {
         if (Local == this) Local = null;
+        InventoryUI.LevelObjective = null;
         if (hudRoot != null) Destroy(hudRoot);
     }
 
@@ -150,6 +154,13 @@ public class OceanPlayer : MonoBehaviour
             else { holdT = 0f; HelmetHold01 = 0f; }
             // jaula
             if (w.cage != null && w.cage.LocalInside && Prompt == null) Prompt = w.cage.PromptFor(HasHelmet);
+            // v7.4.0: al llegar al fondo, el objetivo se queda unos segundos en pantalla (también al salir de la jaula) y en el inventario
+            if (w.cage != null)
+            {
+                bool atBottom = w.cage.State == OceanCage.CageState.BottomOpen && (w.cage.LocalInside || fpc.transform.position.y < OceanWorld.PocketCenter.y - 15f);
+                if (atBottom && !bottomSeen) { bottomSeen = true; ObjectiveT = ObjectiveSeconds; InventoryUI.LevelObjective = OceanCage.BottomObjective.ToLowerInvariant().Substring(0, 1) + OceanCage.BottomObjective.Substring(1) + "."; }
+            }
+            if (ObjectiveT > 0f) { ObjectiveT -= dt; if (Prompt == null || (w.cage != null && w.cage.LocalInside)) Prompt = OceanCage.BottomObjective; }
             // escaleras desde el agua
             foreach (OceanLadder l in w.Ladders) if (l.TryClimb(fpc)) break;
             if (Prompt == null && fpc.IsSwimming && !HasHelmet && Air01 < 0.6f) Prompt = "¡Sal a respirar!";
