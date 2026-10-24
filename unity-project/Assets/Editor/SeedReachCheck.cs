@@ -10,6 +10,7 @@ public static class SeedReachCheck
 {
     public const string Report = "/workspace/logs/smoke-seedreach.txt";
     public static readonly int[] Level5Seeds = { 7110, 1, 42, 1234, 98765, 20261024 };
+    public static readonly int[] Level3Seeds = { 1, 7, 42, 100, 1234, 5555, 98765, 31337, 271828, 8675309, 20261024, 777 };   // v7.5.0
     public static readonly int[] Level6Seeds = { 64257619, 100, 200, 300, 400, 1, 7, 42, 1234, 5555, 98765, 31337, 271828, 314159, 8675309, 20261024, 123456789, 99, 2024, 777 };
     static IEnumerator it; static double wait; static int pass, fail;
     static SeedReachCheck() { if (SessionState.GetString("seedreach", "") != "1") return; EditorApplication.update += Tick; }
@@ -121,7 +122,39 @@ public static class SeedReachCheck
             }
             Check(tpls.Count == FieldPlan.TemplateSize.Length && houses >= (l5 == Level5Seeds ? 8 : 1), "casas abiertas probadas: " + houses + ", plantillas " + tpls.Count + "/" + FieldPlan.TemplateSize.Length);
         }
-        if (only == "5") yield break;
+        if (only == "" || only == "3")
+        {   // v7.5.0: hotel largo (nivel 3): salida, pilas, llaves y salas grandes alcanzables a pie desde el ascensor; tamaño 2-3 veces el antiguo
+            foreach (int s3 in Level3Seeds)
+            {
+                gb.useRandomSeed = false; gb.seed = s3 - 3 * 101;
+                int lc3 = gb.LoadCount; double tl = EditorApplication.timeSinceStartup; gb.LoadLevel(3);
+                while (!(gb.LoadCount > lc3 && gb.IsLoaded && GameManager.Instance != null && GameManager.Instance.generator != null) && EditorApplication.timeSinceStartup - tl < 90) yield return 0.1f;
+                double loadS = EditorApplication.timeSinceStartup - tl;
+                yield return 1.0f;
+                BackroomsGenerator gen = GameManager.Instance.generator; LevelConfig c3 = LevelConfig.Get(3);
+                string T = "[nivel 3 semilla " + gen.UsedSeed + "] ";
+                float area = gen.GridWidth * gen.GridHeight * gen.CellSize * gen.CellSize, oldArea = 17f * 17f * 3.2f * 3.2f;
+                Check(gen.Hotel != null && area >= 2f * oldArea && area <= 3.2f * oldArea, T + "hotel largo: " + gen.GridWidth + "x" + gen.GridHeight + " celdas, " + area.ToString("F0") + " m² (" + (area / oldArea).ToString("F1") + " veces el antiguo), carga " + loadS.ToString("F1") + " s");
+                float pl = PathLen(gen.PlayerStart, gen.ExitPosition);
+                Check(gen.UsedSeed == s3 && pl > 0f, T + "camino a pie inicio -> salida por el NavMesh (" + pl.ToString("F0") + " m)");
+                int bOk = 0; foreach (Vector3 b in gen.BatterySpots) if (PathLen(gen.PlayerStart, b) > 0f) bOk++;
+                int kOk = 0; foreach (Vector3 k in gen.KeySpots) if (PathLen(gen.PlayerStart, k) > 0f) kOk++;
+                Check(gen.BatterySpots.Count == c3.batteries && bOk == gen.BatterySpots.Count && kOk == gen.KeySpots.Count && gen.KeySpots.Count == ExitLock.KeyCount,
+                    T + "pilas " + bOk + "/" + gen.BatterySpots.Count + " (config " + c3.batteries + ") y llaves " + kOk + "/" + gen.KeySpots.Count + " alcanzables a pie");
+                int hOk = 0; string kinds = "";
+                float cs = gen.CellSize; Transform R = gen.Root;
+                foreach (var hl in gen.Hotel.halls)
+                {
+                    kinds += " " + hl.kind;
+                    Vector3 hc = R.TransformPoint(new Vector3((hl.r.x + hl.r.width * 0.5f) * cs, 0.05f, (hl.r.y + 0.5f) * cs));
+                    if (PathLen(gen.PlayerStart, hc) > 0f) hOk++;
+                }
+                Check(gen.Hotel.halls.Count >= 2 && hOk == gen.Hotel.halls.Count, T + "salas grandes alcanzables " + hOk + "/" + gen.Hotel.halls.Count + ":" + kinds);
+                int longest = 0; foreach (var co in gen.Hotel.corridors) longest = Mathf.Max(longest, co.b - co.a + 1);
+                Check(HotelDecor.Doors >= 60 && longest >= 12, T + "puertas numeradas " + HotelDecor.Doors + ", pasillos principales " + gen.Hotel.corridors.Count + " (el más largo " + (longest * cs).ToString("F0") + " m)");
+            }
+        }
+        if (only == "5" || only == "3") yield break;
         const int lv = 6;
         Check(!BackroomsGenerator.HallEastDoor && !BackroomsGenerator.HallDoorV(new RectInt(10, 10, 5, 4), 15, 11) && BackroomsGenerator.HallDoorV(new RectInt(10, 10, 5, 4), 10, 11),
             "salas del parque: la puerta este (sin paso en la malla horneada) no cuenta como abierta; la oeste sí");
