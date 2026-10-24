@@ -9,6 +9,7 @@ using UnityEditor; using UnityEditor.SceneManagement; using UnityEngine; using U
 public static class SeedReachCheck
 {
     public const string Report = "/workspace/logs/smoke-seedreach.txt";
+    public static readonly int[] Level5Seeds = { 7110, 1, 42, 1234, 98765, 20261024 };
     public static readonly int[] Level6Seeds = { 64257619, 100, 200, 300, 400, 1, 7, 42, 1234, 5555, 98765, 31337, 271828, 314159, 8675309, 20261024, 123456789, 99, 2024, 777 };
     static IEnumerator it; static double wait; static int pass, fail;
     static SeedReachCheck() { if (SessionState.GetString("seedreach", "") != "1") return; EditorApplication.update += Tick; }
@@ -45,7 +46,42 @@ public static class SeedReachCheck
         while ((GameBootstrap.Instance == null || !GameBootstrap.Instance.IsLoaded) && EditorApplication.timeSinceStartup - t00 < 120) yield return 0.2f;
         yield return 1f;
         GameSettings.ResetDefaults(); ElevatorCabin.InstantForTests = true; BallPitLurker.DisabledForTests = true; ExitLock.AutoKeyForTests = true;
-        GameBootstrap gb = GameBootstrap.Instance; const int lv = 6;
+        GameBootstrap gb = GameBootstrap.Instance;
+        string only = Environment.GetEnvironmentVariable("SEEDREACH_ONLY") ?? "";
+        if (only == "" || only == "5")
+        {   // v7.4.0: casas del Campo infinito (nivel 5): se entra de pie por todas las puertas, se anda dentro y se puede estar de pie
+            var tpls = new HashSet<int>(); int houses = 0;
+            string l5env = Environment.GetEnvironmentVariable("SEEDREACH_L5SEEDS");
+            int[] l5 = string.IsNullOrEmpty(l5env) ? Level5Seeds : Array.ConvertAll(l5env.Split(','), int.Parse);
+            foreach (int s5 in l5)
+            {
+                gb.useRandomSeed = false; gb.seed = s5 - 5 * 101;
+                int lc5 = gb.LoadCount; gb.LoadLevel(5);
+                double t5 = EditorApplication.timeSinceStartup;
+                while (!(gb.LoadCount > lc5 && gb.IsLoaded && GameManager.Instance != null && FieldWorld.Active != null) && EditorApplication.timeSinceStartup - t5 < 90) yield return 0.1f;
+                yield return 1.0f;
+                if (ElevatorCabin.Current != null) ElevatorCabin.Current.Skip();
+                double tw = EditorApplication.timeSinceStartup; while (ElevatorCabin.PlayerLocked && EditorApplication.timeSinceStartup - tw < 20) yield return 0.25f;
+                GameManager gm5 = GameManager.Instance; FirstPersonController pw = gm5.player;
+                foreach (MonsterAI m in gm5.monsters) if (m != null) m.Stop();
+                FieldWorld fw = FieldWorld.Active;
+                string T5 = "[nivel 5 semilla " + gm5.generator.UsedSeed + "] ";
+                for (int k = 0; k < fw.plan.houses.Count; k++)
+                {
+                    FieldPlan.House h = fw.plan.houses[k]; if (!h.enterable) continue;
+                    Transform ht = HouseEntryProbe.HouseTransform(fw, k);
+                    if (ht == null) { Check(false, T5 + "casa " + k + ": no se encuentra su objeto"); continue; }
+                    var res = new HouseEntryProbe.Result[1];
+                    gm5.StartCoroutine(HouseEntryProbe.Run(pw, ht, h, res));   // corrutina de verdad (fotogramas y WaitForSeconds del juego)
+                    double th = EditorApplication.timeSinceStartup; while (!res[0].done && EditorApplication.timeSinceStartup - th < 30) yield return 0.1f;
+                    tpls.Add(h.template); houses++;
+                    Check(res[0].Ok(true), T5 + "casa " + k + " (plantilla " + h.template + "): de pie se entra por la puerta sin agacharse — " + res[0].Describe());
+                }
+            }
+            Check(tpls.Count == FieldPlan.TemplateSize.Length && houses >= (l5 == Level5Seeds ? 8 : 1), "casas abiertas probadas: " + houses + ", plantillas " + tpls.Count + "/" + FieldPlan.TemplateSize.Length);
+        }
+        if (only == "5") yield break;
+        const int lv = 6;
         Check(!BackroomsGenerator.HallEastDoor && !BackroomsGenerator.HallDoorV(new RectInt(10, 10, 5, 4), 15, 11) && BackroomsGenerator.HallDoorV(new RectInt(10, 10, 5, 4), 10, 11),
             "salas del parque: la puerta este (sin paso en la malla horneada) no cuenta como abierta; la oeste sí");
         foreach (int s in Level6Seeds)

@@ -264,7 +264,7 @@ public class FieldWorld : MonoBehaviour
                 {
                     float top = 0.15f - (s * rise / steps);
                     GameObject st = ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "Step" + s, go.transform,
-                        new Vector3(DoorX(h.template), top - 0.5f, sz.y * 0.5f + 0.2f + s * 0.32f), new Vector3(1.4f, 1f, 0.34f), trim, true);
+                        new Vector3(DoorX(h.template), top - 0.5f, sz.y * 0.5f + 0.2f + s * 0.32f), new Vector3(HouseDoorW + 1.1f, 1f, 0.34f), trim, true);   // v7.4.0: escalera ancha (2,6 m): con 1,4 m el NavMesh (radio 0,5) la descartaba y los monstruos no subían
                     st.GetComponent<Renderer>().sharedMaterial = plinthM;
                 }
             }
@@ -313,11 +313,15 @@ public class FieldWorld : MonoBehaviour
     }
 
     public static float DoorX(int tpl) { return tpl == 1 ? 0f : -FieldPlan.TemplateSize[tpl].x * 0.22f; }
+    // v7.4.0: puerta de las casas más alta y algo más ancha (antes 1,0 x 2,1 m, con el zócalo de piedra de 30 cm cruzando el umbral:
+    // de pie, subido al zócalo, la cabeza (1,8 m) tocaba el dintel y había que agacharse; los monstruos (NavMesh, 2 m de alto y
+    // 0,5 m de radio) no entraban nunca). Ahora 1,5 x 2,25 m (con 1,3 m el NavMesh, radio 0,5 y celda 0,17 m, a veces no cruzaba) y el umbral queda a ras del suelo de la casa.
+    public const float HouseDoorW = 1.5f, HouseDoorH = 2.25f;
 
     // casa en espacio local: suelo en y=0..0.15, puerta en +Z. Submeshes: 0 paredes, 1 tejado, 2 suelo, 3 madera, 4 cristal, 5 piedra
     // v7.2.0: más detalle (techo interior, tejado con grosor, tablas de remate y cumbrera, canalones y bajante, chimenea,
     // zócalo de piedra, cuarterones y cristal sucio en las cerradas, tejadillo sobre la puerta) y UV2 de lightmap para el horneado
-    // de Blender (Tools/field/house_bake.py). Mismos huecos, tamaños y puerta que v7.0 (colisiones, muebles y objetos no cambian).
+    // de Blender (Tools/field/house_bake.py). v7.4.0: puerta 1,5 x 2,25 m y umbral a ras (HouseDoorW/H; horneado rehecho).
     public const int HouseSubs = 6, SubGlass = 4;
     public static int HouseVariant(int tpl, bool enterable) { return tpl * 2 + (enterable ? 1 : 0); }
     public static Rect HouseTile(int variant) { return new Rect((variant % 3) / 3f, (variant / 3) / 2f, 1f / 3f, 0.5f); }   // atlas 3x2 (3072x2048)
@@ -331,7 +335,7 @@ public class FieldWorld : MonoBehaviour
         float dx = DoorX(tpl);
         float winX = dx < 0f ? W * 0.22f : -W * 0.28f;
         // fachada (+Z): puerta + ventana
-        List<Vector4> front = new List<Vector4> { new Vector4(dx - 0.5f, dx + 0.5f, y0, y0 + 2.1f), new Vector4(winX - 0.55f, winX + 0.55f, y0 + 0.9f, y0 + 2.0f) };
+        List<Vector4> front = new List<Vector4> { new Vector4(dx - HouseDoorW * 0.5f, dx + HouseDoorW * 0.5f, y0, y0 + HouseDoorH), new Vector4(winX - 0.55f, winX + 0.55f, y0 + 0.9f, y0 + 2.0f) };
         WallX(fm, D / 2 - t, D / 2, -W / 2, W / 2, y0, y1, new List<Vector4>(front));
         // trasera: dos ventanas
         List<Vector4> back = new List<Vector4> { new Vector4(-W * 0.25f - 0.5f, -W * 0.25f + 0.5f, y0 + 0.9f, y0 + 1.9f), new Vector4(W * 0.25f - 0.5f, W * 0.25f + 0.5f, y0 + 0.9f, y0 + 1.9f) };
@@ -389,7 +393,11 @@ public class FieldWorld : MonoBehaviour
         // bajante en una esquina trasera (cuelga del canalón hasta el zócalo)
         { float bx = W / 2 - 0.25f, bz = -(D / 2 + 0.06f); fm.Box(3, new Vector3(bx - 0.04f, y0 + 0.1f, bz - 0.04f), new Vector3(bx + 0.04f, y1 - 0.3f, bz + 0.04f)); }
         // zócalo de piedra (sobresale 4 cm)
-        foreach (float sz2 in new[] { -1f, 1f }) fm.Box(5, new Vector3(-W / 2 - 0.04f, -0.25f, sz2 > 0 ? D / 2 - 0.02f : -D / 2 - 0.04f), new Vector3(W / 2 + 0.04f, y0 + 0.3f, sz2 > 0 ? D / 2 + 0.04f : -D / 2 + 0.02f));
+        // v7.4.0: en la fachada el zócalo se corta en la puerta y debajo queda un umbral de piedra a ras del suelo (antes cruzaba la puerta 30 cm)
+        fm.Box(5, new Vector3(-W / 2 - 0.04f, -0.25f, -D / 2 - 0.04f), new Vector3(W / 2 + 0.04f, y0 + 0.3f, -D / 2 + 0.02f));
+        fm.Box(5, new Vector3(-W / 2 - 0.04f, -0.25f, D / 2 - 0.02f), new Vector3(dx - HouseDoorW * 0.5f, y0 + 0.3f, D / 2 + 0.04f));
+        fm.Box(5, new Vector3(dx + HouseDoorW * 0.5f, -0.25f, D / 2 - 0.02f), new Vector3(W / 2 + 0.04f, y0 + 0.3f, D / 2 + 0.04f));
+        fm.Box(5, new Vector3(dx - HouseDoorW * 0.5f, -0.25f, D / 2 - 0.02f), new Vector3(dx + HouseDoorW * 0.5f, y0, D / 2 + 0.06f));
         foreach (float sx in new[] { -1f, 1f }) fm.Box(5, new Vector3(sx > 0 ? W / 2 - 0.02f : -W / 2 - 0.04f, -0.25f, -D / 2 + 0.02f), new Vector3(sx > 0 ? W / 2 + 0.04f : -W / 2 + 0.02f, y0 + 0.3f, D / 2 - 0.02f));
         // chimenea de piedra (plantillas 0 y 2)
         if (tpl != 1)
@@ -400,18 +408,18 @@ public class FieldWorld : MonoBehaviour
         }
         // tejadillo sobre la puerta con dos ménsulas
         {
-            float py = y0 + 2.35f, pd = 0.75f;
-            Vector3 a = new Vector3(dx - 0.85f, py, D / 2), b = new Vector3(dx + 0.85f, py, D / 2), c = new Vector3(dx + 0.85f, py - 0.18f, D / 2 + pd), d = new Vector3(dx - 0.85f, py - 0.18f, D / 2 + pd);
+            float py = y0 + 2.4f, pd = 0.75f, pw2 = HouseDoorW * 0.5f + 0.35f;   // v7.4.0: sobre la puerta más alta y ancha (bajo el canalón)
+            Vector3 a = new Vector3(dx - pw2, py, D / 2), b = new Vector3(dx + pw2, py, D / 2), c = new Vector3(dx + pw2, py - 0.18f, D / 2 + pd), d = new Vector3(dx - pw2, py - 0.18f, D / 2 + pd);
             Vector3 pn = Vector3.Cross(b - a, d - a).normalized; if (pn.y < 0f) pn = -pn;
             fm.Quad(1, a + pn * 0.06f, b + pn * 0.06f, c + pn * 0.06f, d + pn * 0.06f, pn, Vector3.right, (d - a).normalized);
             fm.Quad(3, a, b, c, d, -pn, Vector3.right, (d - a).normalized);
             fm.Quad(3, d, c, c + pn * 0.06f, d + pn * 0.06f, Vector3.forward, Vector3.right, Vector3.up);
-            foreach (float bxp in new[] { dx - 0.75f, dx + 0.75f }) fm.Box(3, new Vector3(bxp - 0.04f, py - 0.55f, D / 2), new Vector3(bxp + 0.04f, py - 0.12f, D / 2 + 0.5f));
+            foreach (float bxp in new[] { dx - pw2 + 0.15f, dx + pw2 - 0.15f }) fm.Box(3, new Vector3(bxp - 0.04f, py - 0.55f, D / 2), new Vector3(bxp + 0.04f, py - 0.12f, D / 2 + 0.5f));
         }
         // casas cerradas: puerta de madera, cristal sucio con cuarterones y la ventana delantera tapiada con tablas
         if (!enterable)
         {
-            fm.Box(3, new Vector3(dx - 0.5f, y0, D / 2 - t * 0.6f), new Vector3(dx + 0.5f, y0 + 2.1f, D / 2 - t * 0.2f));
+            fm.Box(3, new Vector3(dx - HouseDoorW * 0.5f, y0, D / 2 - t * 0.6f), new Vector3(dx + HouseDoorW * 0.5f, y0 + HouseDoorH, D / 2 - t * 0.2f));
             foreach (Vector4 wv in new List<Vector4> { front[1] })
                 for (int p = 0; p < 4; p++)
                 {

@@ -200,6 +200,7 @@ public class ShotBuildCheck : MonoBehaviour
         if (rocks != null) foreach (Transform t in rocks) { if (!t.name.EndsWith("1")) continue; float dd = (t.localPosition - a).sqrMagnitude; if (dd < bd) { bd = dd; best = t; } }
         Info("rocas " + fw.RockCount);
         if (best != null) { Vector3 q = best.localPosition; yield return View(pw, mc, "exe_campo_rocas", P(q.x - 3.2f, q.z - 2.4f, 1.6f), P(q.x, q.z, 0.15f), 60f, P(q.x - 3.2f, q.z - 2.4f, 0.05f)); }
+        if (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-housedoor") >= 0) { yield return HouseDoors(gm, pw, mc, fw); FieldGrass.Synchronous = false; yield break; }
         foreach (FieldPlan.House h in fw.plan.houses)
         {
             Quaternion rot = Quaternion.Euler(0f, h.rot * 90f, 0f); Vector2 sz = FieldPlan.TemplateSize[h.template];
@@ -209,6 +210,40 @@ public class ShotBuildCheck : MonoBehaviour
             break;
         }
         FieldGrass.Synchronous = false;
+    }
+
+    // v7.4.0 («-housedoor»): una casa abierta de cada plantilla: la puerta desde fuera (a la altura de los ojos), el jugador de pie
+    // intenta entrar andando (HouseEntryProbe, sin agacharse) y se captura lo que ve al terminar; y la puerta desde dentro
+    IEnumerator HouseDoors(GameManager gm, FirstPersonController pw, Camera mc, FieldWorld fw)
+    {
+        VhsEffect vx = mc.GetComponent<VhsEffect>(); if (vx != null) vx.intensityOverride = 0f;
+        var done = new System.Collections.Generic.HashSet<int>();
+        for (int k = 0; k < fw.plan.houses.Count && done.Count < 3; k++)
+        {
+            FieldPlan.House h = fw.plan.houses[k]; if (!h.enterable || done.Contains(h.template)) continue;
+            Transform ht = HouseEntryProbe.HouseTransform(fw, k); if (ht == null) continue;
+            done.Add(h.template);
+            Vector2 sz = FieldPlan.TemplateSize[h.template]; float dx = FieldWorld.DoorX(h.template), D = sz.y;
+            Vector3 eyeL = new Vector3(dx + 0.9f, 0f, D * 0.5f + 3.4f), eye = ht.TransformPoint(eyeL);
+            float gy = eye.y; if (Physics.Raycast(eye + Vector3.up * 6f, Vector3.down, out RaycastHit gh, 12f, ~0, QueryTriggerInteraction.Ignore)) gy = gh.point.y;
+            Vector3 eyeW = new Vector3(eye.x, gy + 1.65f, eye.z), door = ht.TransformPoint(new Vector3(dx, 1.25f, D * 0.5f));
+            yield return View(pw, mc, "l5_10_puerta_casa_t" + h.template, eyeW, door, 55f, new Vector3(eye.x, gy + 0.05f, eye.z));
+            var res = new HouseEntryProbe.Result[1];
+            yield return HouseEntryProbe.Run(pw, ht, h, res);
+            Check(res[0].Ok(true), "casa " + k + " (plantilla " + h.template + "): de pie se entra sin agacharse — " + res[0].Describe());
+            // dónde se ha quedado el jugador: silueta de 1,8 m (cápsula oscura, sin colisión) vista desde 2,8 m detrás de él
+            Vector3 pp = pw.transform.position, inDir = -ht.forward;
+            GameObject sil = GameObject.CreatePrimitive(PrimitiveType.Capsule); Destroy(sil.GetComponent<Collider>());
+            sil.transform.position = pp + Vector3.up * 0.9f; sil.transform.localScale = new Vector3(0.7f, 0.9f, 0.7f);
+            sil.GetComponent<Renderer>().material.color = new Color(0.55f, 0.12f, 0.08f);
+            Vector3 cam = pp - inDir * 2.8f + Vector3.up * 1.95f;
+            yield return View(pw, mc, "l5_11_jugador_entrando_t" + h.template, cam, pp + Vector3.up * 1.0f + inDir * 1.2f, 60f, pp);
+            Destroy(sil);
+            // la puerta desde dentro
+            Vector3 inn = ht.TransformPoint(new Vector3(dx - 0.6f, 0.15f, D * 0.5f - 2.4f));
+            yield return View(pw, mc, "l5_12_puerta_desde_dentro_t" + h.template, inn + Vector3.up * 1.65f, ht.TransformPoint(new Vector3(dx, 1.3f, D * 0.5f)), 62f, inn + Vector3.up * 0.02f);
+        }
+        if (vx != null) vx.intensityOverride = -1f;
     }
 
     // v7.3.0: Talasofobia (nivel 7): casa inundada, mar con niebla, barca, bengala, faro, jaula y cascos, fondo con El Farolero, túnel y poza
