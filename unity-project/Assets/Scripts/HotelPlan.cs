@@ -505,7 +505,7 @@ public class HotelPlan
         foreach (Edge e in blocked)
         {
             Vector3 c = (Center(e.c.x, e.c.y) + Center(e.c.x + D[e.d].x, e.c.y + D[e.d].y)) * 0.5f;
-            Add(IRubble, c, Yaw(e.d), new Vector3(cs - t, 1.6f, 2.2f), r.Next(4));
+            Add(IRubble, c, Yaw(e.d), new Vector3(cs - t, 1.6f, 1.45f), r.Next(4));   // pegado al muro: no tapa las puertas de al lado
         }
         // vistas de pasillo: los tramos más largos de pasillo de planta, de punta a punta
         int nCorr = 0;
@@ -574,8 +574,8 @@ public class HotelPlan
     // ---------------------------------------------------------------- sitios libres
     // Rejilla de 12,5 cm del plano: muros (con jambas), huecos vacíos y muebles sólidos, erosionada 0,6 m (radio del NavMesh 0,5 + margen)
     // e inundada desde el inicio. Los objetos, llaves y monstruos se ponen en un punto alcanzable (no en un islote entre muebles).
-    const float RR = 0.125f; const float ReachClear = 0.6f, DoorWidth = 1.5f;
-    int rw, rh; byte[] reach;   // 0 bloqueado, 1 libre pero aislado, 2 alcanzable
+    const float RR = 0.125f; const float ReachClear = 0.72f, DoorWidth = 1.8f, SpotClear = 0.9f;   // más prudente que el NavMesh (radio 0,5 + vóxel); el hueco real (1,5 m) sí pasa
+    int rw, rh; byte[] reach; bool[] spotOk;   // 0 bloqueado, 1 libre pero aislado, 2 alcanzable
     void BuildReach()
     {
         rw = Mathf.CeilToInt(w * cs / RR); rh = Mathf.CeilToInt(h * cs / RR);
@@ -643,8 +643,8 @@ public class HotelPlan
             dist[k] = v;
         }
         int need = Mathf.CeilToInt(ReachClear / RR * 3f);
-        reach = new byte[n];
-        for (int k = 0; k < n; k++) reach[k] = (byte)(dist[k] >= need ? 1 : 0);
+        reach = new byte[n]; spotOk = new bool[n]; int needS = Mathf.CeilToInt(SpotClear / RR * 3f);
+        for (int k = 0; k < n; k++) { reach[k] = (byte)(dist[k] >= need ? 1 : 0); spotOk[k] = dist[k] >= needS; }
         // inundación desde el píxel libre más cercano al centro de la celda de inicio
         int sk = NearestPixel(Center(start.x, start.y), 1, 3f);
         if (sk < 0) return;
@@ -694,6 +694,7 @@ public class HotelPlan
             {
                 if (reach[j * rw + i] != 2) continue;
                 float dx = (i + 0.5f) * RR - want.x, dz = (j + 0.5f) * RR - want.z, d2 = dx * dx + dz * dz;
+                if (!spotOk[j * rw + i]) d2 += 100f;   // mejor lejos de muebles y muros
                 if (d2 < bd) { bd = d2; best = j * rw + i; }
             }
             if (best < 0) best = NearestPixel(want, 2, cs * 1.5f);

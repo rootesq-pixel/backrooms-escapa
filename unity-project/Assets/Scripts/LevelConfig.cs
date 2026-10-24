@@ -291,9 +291,9 @@ public class LevelConfig
             c.roomPillars = 0f;
             c.batteries = 14; c.monsterCount = 3; c.extraSpots = 18;
             // más apliques vivos y tenues (casi uno por celda de pasillo), algo de luz ambiente y rebote de la linterna: sigue oscuro
-            c.sconceChance = 0.62f; c.deadChance = 0.22f; c.lightIntensity = 0.7f; c.lightRange = 6.0f; c.maxRealtimeLights = 12;
-            c.ambient = new Color(0.026f, 0.017f, 0.016f);
-            c.flashSpotAngle = 74f; c.flashSoft = true; c.flashBounce = 0.16f; c.flashlightIntensity = 3.0f;
+            c.sconceChance = 0.62f; c.deadChance = 0.22f; c.lightIntensity = 1.15f; c.lightRange = 7.5f; c.maxRealtimeLights = 14;
+            c.ambient = new Color(0.050f, 0.034f, 0.030f); c.fogDensity = 0.04f;
+            c.flashSpotAngle = 76f; c.flashSoft = true; c.flashBounce = 0.30f; c.flashlightIntensity = 3.8f;
         }
         return c;
     }

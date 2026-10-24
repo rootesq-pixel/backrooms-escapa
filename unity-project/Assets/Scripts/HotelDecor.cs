@@ -582,7 +582,7 @@ public static class HotelDecor
                 GameObject bg = new GameObject("ChandelierBulbs"); bg.transform.SetParent(lampRoot, false);
                 bg.AddComponent<MeshFilter>().sharedMesh = bm; MeshRenderer br = bg.AddComponent<MeshRenderer>(); br.sharedMaterial = v == 1 ? bulbOn : bulbOff;
                 br.shadowCastingMode = ShadowCastingMode.Off; br.receiveShadows = false;
-                if (v == 1) { LiveLamps++; gen.AddHotelLight(lampRoot, it.p + Vector3.up * (yb + 0.05f), br, it.k == HotelPlan.IChandelier ? 0.85f : 0.55f, it.k == HotelPlan.IChandelier ? 7.5f : 5f); }
+                if (v == 1) { LiveLamps++; gen.AddHotelLight(lampRoot, it.p + Vector3.up * (yb + 0.05f), br, it.k == HotelPlan.IChandelier ? 1.4f : 0.9f, it.k == HotelPlan.IChandelier ? 9f : 5.5f); }
                 break;
             }
             case HotelPlan.IColumn:
@@ -649,12 +649,12 @@ public static class HotelDecor
             {
                 for (int i = 0; i < 16; i++)
                 {
-                    float fx = (H(i, v + 30) - 0.5f) * it.s.x * 0.95f, fz = (H(i, v + 31) - 0.5f) * 1.6f;
-                    float s = 0.25f + 0.45f * H(i, v + 32), hgt = Mathf.Max(0.1f, (1f - Mathf.Abs(fz) / 0.9f) * 1.3f * H(i, v + 33) + 0.1f);
+                    float fx = (H(i, v + 30) - 0.5f) * it.s.x * 0.95f, fz = (H(i, v + 31) - 0.5f) * 1.0f;
+                    float s = 0.25f + 0.45f * H(i, v + 32), hgt = Mathf.Max(0.1f, (1f - Mathf.Abs(fz) / 0.6f) * 1.3f * H(i, v + 33) + 0.1f);
                     e.BoxR(MDebris, new Vector3(fx, hgt * 0.4f, fz), new Vector3(s, hgt, s * 0.8f), Quaternion.Euler((H(i, v + 34) - 0.5f) * 30f, H(i, v + 35) * 360f, (H(i, v + 36) - 0.5f) * 30f));
                 }
                 e.BoxR(MWood, new Vector3(0.2f, 1.2f, 0f), new Vector3(it.s.x * 1.05f, 0.22f, 0.3f), Quaternion.Euler(0, 6f, 24f));
-                e.BoxR(MDebris, new Vector3(-0.3f, 0.9f, 0.3f), new Vector3(1.6f, 0.04f, 1.2f), Quaternion.Euler(28f, 15f, -10f));
+                e.BoxR(MDebris, new Vector3(-0.3f, 0.9f, 0.15f), new Vector3(1.6f, 0.04f, 0.9f), Quaternion.Euler(28f, 15f, -10f));
                 break;
             }
             case HotelPlan.ISuitcase:
