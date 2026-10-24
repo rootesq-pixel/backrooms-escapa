@@ -520,7 +520,6 @@ public class ShotBuildCheck : MonoBehaviour
         ElevatorCabin cab = ElevatorCabin.Current;
         if (cab == null) { Check(false, "cabina en el nivel 1"); yield break; }
         Transform ct = cab.transform; float F = mc.fieldOfView; hero = true;
-        Info("cabina: sonda de reflejos " + (cab.GetComponentInChildren<ReflectionProbe>() != null ? "sí" : "no"));
         System.Func<float, float, float, Vector3> L = (x, y, z) => ct.TransformPoint(new Vector3(x, y, z));
         Vector3 inStand = cab.InteriorCenter;
         cab.SeekPreview(2.2f, false); yield return null; cab.SeekPreview(2.2f, false);
