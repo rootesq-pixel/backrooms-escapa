@@ -61,8 +61,10 @@ Texturas PBR de [ambientCG](https://ambientcg.com) (CC0 1.0, dominio público; n
 | Nivel 1, techo (`ParkingCeiling`) | Concrete012 | https://ambientcg.com/view?id=Concrete012 |
 | Nivel 3, madera del zócalo, puertas y marcos (`HotelWall`, `HotelDoor`, `HotelWood`) | Wood066 | https://ambientcg.com/view?id=Wood066 |
 | Nivel 3, pelo de la moqueta (`HotelCarpet`; dibujo propio) | Carpet012 | https://ambientcg.com/view?id=Carpet012 |
-| Nivel 3, soporte del papel pintado (`HotelWall`; damasco propio) | Fabric045 | https://ambientcg.com/view?id=Fabric045 |
-| Nivel 3, yeso del techo y de las zonas despegadas (`HotelCeiling`, `HotelWall`) | Plaster001 | https://ambientcg.com/view?id=Plaster001 |
+| Nivel 3, soporte del papel pintado y tapicería/ropa de cama (`HotelWall`, `HotelFabric`; damasco propio) | Fabric045 | https://ambientcg.com/view?id=Fabric045 |
+| Nivel 3, yeso del techo, zonas despegadas y pintura de servicio (`HotelCeiling`, `HotelWall`, `HotelService`) | Plaster001 | https://ambientcg.com/view?id=Plaster001 |
+
+Nivel 3 (v7.5.0), trabajo propio (CC0): dibujo del damasco (`Tools/v750/damask.py`), rombos de la moqueta, cuadros (paisajes, retratos sin cara, marinas y bodegones dibujados por script), linóleo a cuadros de los pasillos de servicio, y todos los muebles del hotel (camas, armarios, mesillas, lámparas, recepción, mesas, sillas, piano, arañas, ventanales, puertas y ascensores), modelados por código en `HotelDecor.cs`. Números de latón: fuente DejaVu Serif (licencia libre Bitstream Vera).
 
 Añadidos propios sobre esas texturas (numpy/Pillow, CC0): líneas amarillas gastadas, rodadas de neumáticos, suciedad, agujeros de encofrado con regueros de óxido, manchas de humedad y eflorescencias, anillos de agua en el techo, manchas de aceite y charcos (calcomanías del suelo del Nivel 1). Además: placa de inspección, rejilla y suciedad de la cabina.
 

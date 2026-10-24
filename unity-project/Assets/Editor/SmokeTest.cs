@@ -1125,6 +1125,37 @@ public static class SmokeTest
         string ui = File.ReadAllText("Assets/Scripts/UIManager.cs");
         r.Check(ui.Contains("Elevator car interior") && ui.Contains("3D Assets"), "[Ascensor] los créditos del juego citan el modelo del ascensor");
         TestV740Assets(r, credits, ui);
+        TestV750Hotel(r, credits, ui);
+    }
+
+    // v7.5.0: hotel nuevo (Nivel 3): plano determinista y transitable, texturas horneadas, créditos y configuración
+    private static void TestV750Hotel(Report r, string credits, string ui)
+    {
+        string T = "[v7.5.0] ";
+        LevelConfig c = LevelConfig.Get(3);
+        r.Check(c.hotel && c.gridW == 24 && c.gridH == 41 && c.roomPillars == 0f && c.maxRealtimeLights >= 18 && c.flashSpotAngle > 60f && c.flashSoft && c.flashBounce > 0f,
+            T + "nivel 3 = hotel " + c.gridW + "x" + c.gridH + ", luces " + c.maxRealtimeLights + ", linterna " + c.flashSpotAngle + "° suave con rebote " + c.flashBounce);
+        int missing = 0; string miss = "";
+        foreach (string n in new[] { "HotelWall", "HotelCarpet", "HotelCeiling" }) foreach (string k in new[] { "_a", "_n", "_m" }) if (Resources.Load<Texture2D>("Textures/" + n + k) == null) { missing++; miss += " " + n + k; }
+        foreach (string n in new[] { "HotelDoor", "HotelWood", "HotelNumbers", "HotelFabric", "HotelPaintings", "HotelService", "HotelLino" }) foreach (string k in new[] { "_a", "_n", "_m" }) if (Resources.Load<Texture2D>("Textures/Hotel/" + n + k) == null) { missing++; miss += " " + n + k; }
+        r.Check(missing == 0, T + "texturas del hotel horneadas presentes (30)" + miss);
+        foreach (int seed in new[] { 1, 7, 42 })
+        {
+            int w = c.gridW, h = c.gridH;
+            bool[,] v1 = new bool[w + 1, h], h1 = new bool[w, h + 1], v2 = new bool[w + 1, h], h2 = new bool[w, h + 1];
+            for (int x = 0; x <= w; x++) for (int z = 0; z < h; z++) { v1[x, z] = true; v2[x, z] = true; }
+            for (int x = 0; x < w; x++) for (int z = 0; z <= h; z++) { h1[x, z] = true; h2[x, z] = true; }
+            HotelPlan a = HotelPlan.Make(seed * 577 + 3, w, h, c.cellSize, 0.2f, c.wallHeight, v1, h1), b = HotelPlan.Make(seed * 577 + 3, w, h, c.cellSize, 0.2f, c.wallHeight, v2, h2);
+            bool same = a.items.Count == b.items.Count && a.doorways.Count == b.doorways.Count && a.fakeDoors.Count == b.fakeDoors.Count;
+            for (int i = 0; same && i < a.items.Count; i++) same = a.items[i].k == b.items[i].k && a.items[i].p == b.items[i].p;
+            for (int x = 0; same && x <= w; x++) for (int z = 0; same && z < h; z++) same = v1[x, z] == v2[x, z];
+            int walk = 0, reach = 0, open = 0;
+            for (int x = 0; x < w; x++) for (int z = 0; z < h; z++) if (a.Walkable(x, z) && a.kind[x, z] != HotelPlan.K.Start) { walk++; if (a.CellReachable(x, z)) reach++; }
+            foreach (var rm in a.rooms) if (rm.open) open++;
+            r.Check(same && reach == walk && open >= 20 && a.halls.Count >= 3 && a.liftDoors.Count >= 2,
+                T + "plano semilla " + seed + ": determinista " + same + ", celdas con paso " + reach + "/" + walk + ", habitaciones abiertas " + open + ", salas " + a.halls.Count + ", muebles " + a.items.Count);
+        }
+        r.Check(credits.Contains("damask.py") && credits.Contains("HotelFabric") && credits.Contains("HotelService") && ui.Contains("muebles del hotel"), T + "créditos del hotel (damasco, tapicería, servicio, muebles propios) en CREDITS.md y en el juego");
     }
 
     // v7.4.0: cabina realista propia + texturas PBR CC0 (ambientCG) del ascensor y del Nivel 1
@@ -1313,7 +1344,8 @@ public static class SmokeTest
         int total = gen.GridWidth * gen.GridHeight, reach = 0;
         for (int x = 0; x < gen.GridWidth; x++) for (int z = 0; z < gen.GridHeight; z++) if (gen.DistanceFromStart(x, z) >= 0) reach++;
         int blockedCells = gen.FieldPlan != null ? gen.FieldPlan.blocked.Count : 0;
-        r.Check(reach == total - blockedCells, tag + "todas las celdas alcanzables desde el inicio (" + reach + "/" + (total - blockedCells) + (blockedCells > 0 ? ", " + blockedCells + " ocupadas por casas/accesorios" : "") + ")");
+        if (gen.Hotel != null) for (int x = 0; x < gen.GridWidth; x++) for (int z = 0; z < gen.GridHeight; z++) if (!gen.Hotel.Walkable(x, z)) blockedCells++;   // v7.5.0: hotel: macizo/huecos de ascensor no son celdas
+        r.Check(reach == total - blockedCells, tag + "todas las celdas alcanzables desde el inicio (" + reach + "/" + (total - blockedCells) + (blockedCells > 0 ? ", " + blockedCells + (gen.Hotel != null ? " macizas (hotel)" : " ocupadas por casas/accesorios") : "") + ")");
         r.Check(gen.DistanceFromStart(gen.ExitCell.x, gen.ExitCell.y) >= 0, tag + "celda de salida alcanzable (dist " + gen.DistanceFromStart(gen.ExitCell.x, gen.ExitCell.y) + ")");
 
         // v6.8: sala de piscina fija horneada (Poolrooms)
@@ -1408,7 +1440,11 @@ public static class SmokeTest
             if (i == 0) { prev = path[i]; continue; }
             if (gen.Halls.Count > 0 && (gen.InHallWorld(prev) || gen.InHallWorld(path[i]))) { prev = path[i]; continue; }   // v7.1.0: salas de juegos con muebles (se cruza por la malla de navegación; se comprueba en V710Checks)
             Vector3 dir = bpt - a;
-            if (dir.magnitude > 0.01f && Physics.SphereCast(a, 0.34f, dir.normalized, out RaycastHit hit, dir.magnitude))
+            bool blockedHit = false; RaycastHit hit = default(RaycastHit);
+            if (dir.magnitude > 0.01f)
+                foreach (RaycastHit hh in Physics.SphereCastAll(a, 0.34f, dir.normalized, dir.magnitude))
+                    if (hh.collider.GetComponentInParent<HotelDoorLeaf>() == null) { blockedHit = true; hit = hh; break; }   // v7.5.0: las hojas del hotel se abren al pasar
+            if (blockedHit)
             {
                 pathFree = false;
                 r.Info(tag + "colisión en el camino cerca de " + hit.point + " (" + hit.collider.name + ")");

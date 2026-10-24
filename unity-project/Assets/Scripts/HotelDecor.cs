@@ -361,6 +361,26 @@ public static class HotelDecor
     }
 
     // ------------------------------------------------------------------ muebles y atrezo
+    // cookie del haz de luna: 2 x 4 cristales con travesaños oscuros y borde suave (se ve el ventanal proyectado en la moqueta)
+    static Texture2D winCookie;
+    static Texture2D WindowCookie()
+    {
+        if (winCookie != null) return winCookie;
+        const int N = 128; winCookie = new Texture2D(N, N, TextureFormat.Alpha8, false) { wrapMode = TextureWrapMode.Clamp, name = "MoonWindowCookie" };
+        Color32[] px = new Color32[N * N];
+        for (int y = 0; y < N; y++) for (int x = 0; x < N; x++)
+        {
+            float u = (x + 0.5f) / N, v = (y + 0.5f) / N;
+            float ex = Mathf.Abs(u - 0.5f) * 2f, ey = Mathf.Abs(v - 0.5f) * 2f;
+            float win = Mathf.Clamp01((0.86f - ex) / 0.08f) * Mathf.Clamp01((0.92f - ey) / 0.06f);   // silueta del ventanal
+            float fu = Mathf.Repeat(u * 2f, 1f), fv = Mathf.Repeat(v * 4f, 1f);
+            float bar = Mathf.Min(Mathf.Clamp01(Mathf.Min(fu, 1f - fu) / 0.05f), Mathf.Clamp01(Mathf.Min(fv, 1f - fv) / 0.08f));   // travesaños
+            float a = win * Mathf.Lerp(0.18f, 1f, bar);
+            px[y * N + x] = new Color32(255, 255, 255, (byte)Mathf.RoundToInt(a * 255f));
+        }
+        winCookie.SetPixels32(px); winCookie.Apply(false, true);
+        return winCookie;
+    }
     static float H(int v, int salt) { unchecked { uint n = (uint)(v * 374761393 + salt * 668265263); n = (n ^ (n >> 13)) * 1274126177u; return (n & 0xffff) / 65535f; } }
 
     static void Chair(E e, int v)
@@ -494,7 +514,7 @@ public static class HotelDecor
                 if (v == 1)
                 {   // haz de luna: foco frío desde el cristal hacia el suelo de la sala
                     Vector3 lp = e.M.MultiplyPoint3x4(new Vector3(0f, y0 + Hh - 0.2f, 0.25f)), ld = e.M.MultiplyVector(new Vector3(0f, -0.62f, 1f)).normalized;
-                    gen.AddHotelSpot(lampRoot, lp, ld, new Color(0.52f, 0.62f, 0.95f), 2.2f, 13f, 62f);
+                    gen.AddHotelSpot(lampRoot, lp, ld, new Color(0.50f, 0.60f, 0.95f), 3.1f, 13f, 52f, WindowCookie());   // v7.5.0: el dibujo del ventanal en el suelo, tenue
                 }
                 break;
             }

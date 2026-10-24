@@ -1421,14 +1421,14 @@ public class BackroomsGenerator : MonoBehaviour
     }
 
     // v7.5.0: haz de luna de los ventanales del hotel (foco frío sin parpadeo, bajo el LightCuller como el resto)
-    public void AddHotelSpot(Transform parent, Vector3 localPos, Vector3 localDir, Color color, float intensity, float range, float angle)
+    public void AddHotelSpot(Transform parent, Vector3 localPos, Vector3 localDir, Color color, float intensity, float range, float angle, Texture cookie = null)
     {
         System.Random lr = new System.Random(UsedSeed * 197 + Mathf.RoundToInt(localPos.x * 29f));
         CreateFixtureLight(parent, localPos, null, lr, null);
         Transform lt = parent.GetChild(parent.childCount - 1);
         lt.localRotation = Quaternion.LookRotation(localDir, Vector3.up);
         Light l = lt.GetComponent<Light>(); FlickeringLight f = lt.GetComponent<FlickeringLight>();
-        if (l != null) { l.type = LightType.Spot; l.spotAngle = angle; l.innerSpotAngle = angle * 0.35f; l.color = color; l.intensity = intensity; l.range = range; }
+        if (l != null) { l.type = LightType.Spot; l.spotAngle = angle; l.innerSpotAngle = angle * 0.35f; l.color = color; l.intensity = intensity; l.range = range; if (cookie != null) l.cookie = cookie; }
         if (f != null) { f.baseIntensity = intensity; f.flickerEnabled = false; }
     }
 
