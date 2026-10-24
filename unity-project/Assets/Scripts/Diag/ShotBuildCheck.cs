@@ -232,11 +232,11 @@ public class ShotBuildCheck : MonoBehaviour
             yield return HouseEntryProbe.Run(pw, ht, h, res);
             Check(res[0].Ok(true), "casa " + k + " (plantilla " + h.template + "): de pie se entra sin agacharse — " + res[0].Describe());
             // dónde se ha quedado el jugador: silueta de 1,8 m (cápsula oscura, sin colisión) vista desde 2,8 m detrás de él
-            Vector3 pp = pw.transform.position, inDir = -ht.forward;
+            Vector3 pp = res[0].enterPos, inDir = -ht.forward;   // donde acabó el tramo de entrar andando
             GameObject sil = GameObject.CreatePrimitive(PrimitiveType.Capsule); Destroy(sil.GetComponent<Collider>());
             sil.transform.position = pp + Vector3.up * 0.9f; sil.transform.localScale = new Vector3(0.7f, 0.9f, 0.7f);
             sil.GetComponent<Renderer>().material.color = new Color(0.55f, 0.12f, 0.08f);
-            Vector3 cam = pp - inDir * 2.8f + Vector3.up * 1.95f;
+            Vector3 cam = pp - inDir * 2.8f + Vector3.up * 1.75f;
             yield return View(pw, mc, "l5_11_jugador_entrando_t" + h.template, cam, pp + Vector3.up * 1.0f + inDir * 1.2f, 60f, pp);
             Destroy(sil);
             // la puerta desde dentro

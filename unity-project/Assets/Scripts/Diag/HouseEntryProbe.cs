@@ -11,7 +11,7 @@ public static class HouseEntryProbe
     public struct Result
     {
         public bool done, entered, neverCrouched, standsInside, movedInside, navOk, hasNav;
-        public float depth, moved, minHeight, navLen; public string navWhy;
+        public float depth, moved, minHeight, navLen; public string navWhy; public Vector3 enterPos;
         public string Describe()
         {
             return "entra " + entered + " (" + depth.ToString("F2") + " m dentro), sin agacharse " + neverCrouched + " (altura mín. " + minHeight.ToString("F2") +
@@ -97,7 +97,7 @@ public static class HouseEntryProbe
             if (r.depth > 1.6f) break;
             yield return null;
         }
-        pw.debugMove = Vector2.zero;
+        pw.debugMove = Vector2.zero; r.enterPos = pw.transform.position;
         r.entered = r.depth > 1.0f;
         // por dentro: a los lados y hacia el fondo
         Vector3 last = pw.transform.position; float moved = 0f;
