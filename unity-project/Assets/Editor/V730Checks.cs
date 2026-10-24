@@ -264,8 +264,9 @@ public static class V730Checks
                         if (!blocked) seen++;
                     }
                 float dl = Vector3.Distance(eye, OceanWorld.TunnelPath[0]);
-                r.Check(blobs >= 12 && seen >= 4 && ll != null && ll.enabled && ll.intensity > 0.5f && dl < 20f,
-                    T + "algas luminosas en la boca de la gruta, visibles desde la puerta de la jaula (" + seen + "/" + blobs + " a la vista, a " + dl.ToString("F0") + " m, luz " + (ll != null ? ll.intensity.ToString("F1") : "-") + ")");
+                Transform hz = lu != null ? lu.Find("LureHalo") : null; bool haloOk = hz != null && hz.GetComponent<MeshRenderer>().enabled;
+                r.Check(blobs >= 12 && seen >= 4 && haloOk && ll != null && ll.enabled && ll.intensity > 0.5f && dl < 20f,
+                    T + "algas luminosas en la boca de la gruta, visibles desde la puerta de la jaula (" + seen + "/" + blobs + " a la vista, a " + dl.ToString("F0") + " m, resplandor " + haloOk + ", luz " + (ll != null ? ll.intensity.ToString("F1") : "-") + ")");
             }
             // v7.4.0: nadar desde el fondo. Antes el jugador se quedaba pegado al suelo: al tocar fondo la velocidad vertical se ponía a -2 en
             // cada fotograma y la natación con casco no llegaba a remontarla (con Espacio o mirando hacia arriba seguía andando por el fondo)

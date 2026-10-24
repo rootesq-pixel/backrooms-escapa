@@ -233,7 +233,7 @@ public class ShotBuildCheck : MonoBehaviour
         yield return View(pw, mc, "l7_51_boca_gruta_algas", mid, mouth + Vector3.up * 0.2f, 58f, inCage);
         // de pie en el fondo, fuera de la jaula, mirando la pared (algo hacia arriba); Espacio mantenido
         Vector3 sb = new Vector3(cb.x - 3.2f, 0f, cb.z); sb.y = WaterVolume.Active.GroundY(new Vector3(sb.x, cb.y + 1.5f, sb.z)) + 0.05f;
-        pw.Teleport(sb, 270f); pw.SetPitch(25f);
+        pw.Teleport(sb, 270f); pw.SetPitch(55f);
         float t0 = Time.realtimeSinceStartup; while (Time.realtimeSinceStartup - t0 < 1.5f) yield return null;
         float y0 = pw.transform.position.y;
         pw.debugInput = true; pw.debugMove = Vector2.zero; pw.debugJump = true;
@@ -242,7 +242,7 @@ public class ShotBuildCheck : MonoBehaviour
         {
             if (Time.time - tg >= k * 0.6f)
             {
-                pw.SetPitch(25f);
+                pw.SetPitch(55f);
                 Destroy(Grab(mc, "l7_52_subiendo_" + k));
                 Info("subiendo " + k + ": t " + (Time.time - tg).ToString("F1") + " s, pies " + pw.transform.position.y.ToString("F2") + " (+" + (pw.transform.position.y - y0).ToString("F2") + " m), nadando " + pw.IsSwimming + ", libre " + pw.freeSwim);
                 k++;
