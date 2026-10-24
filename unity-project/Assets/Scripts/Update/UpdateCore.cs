@@ -239,6 +239,7 @@ function Retry([scriptblock]$b) { for ($i = 0; $i -lt 40; $i++) { try { & $b; re
 function Relaunch() {
   try { if ($relaunchArgs -match '-batchmode') { Start-Process -FilePath $exe -ArgumentList $relaunchArgs -WorkingDirectory $gameDir -WindowStyle Hidden } elseif ($relaunchArgs) { Start-Process -FilePath $exe -ArgumentList $relaunchArgs -WorkingDirectory $gameDir } else { Start-Process -FilePath $exe -WorkingDirectory $gameDir } } catch { L ('no se pudo abrir el juego: ' + $_) }
 }
+try { Set-Location -LiteralPath ([IO.Path]::GetTempPath()) } catch {}   # que la carpeta de trabajo no quede en uso
 L ('ayudante: actualizar a v' + $version + ' en ' + $gameDir)
 try { Wait-Process -Id $gamePid -Timeout 120 -ErrorAction SilentlyContinue } catch {}
 if (Get-Process -Id $gamePid -ErrorAction SilentlyContinue) { L 'el juego no se cerró a tiempo: no se toca nada'; Set-Content -LiteralPath $result -Value ('fail|el juego no se cerró a tiempo') -Encoding UTF8; exit 1 }

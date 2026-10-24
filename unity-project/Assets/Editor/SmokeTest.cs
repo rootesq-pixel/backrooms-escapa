@@ -1233,6 +1233,9 @@ public static class SmokeTest
             && ps.Contains("'ok|' + $version") && ps.Contains("'fail|' + $err") && ps.Contains("if (-not $keep)") && !ps.Contains("Invoke-Expression") && !ps.Contains("Invoke-WebRequest") && !ps.Contains("http"),
             T + "ayudante de PowerShell: espera al juego, rutas con comillas escapadas, vuelta atrás, sin descargar ni evaluar nada");
         r.Check(UpdateCore.HelperScript(1, "a", "a\\_update\\nuevo", "a\\_update\\viejo", "", "1", true).Contains("$simulate = $true"), T + "el ayudante admite el fallo simulado de la prueba de vuelta atrás");
+        string ex = AutoUpdater.Excerpt("# T\n\nBuild.\n\n## Novedades\n\n- **Nivel 3 rehecho:** un hotel de verdad.\n- **Actualización automática:** " + new string('x', 200) + "\n- tercera\n");
+        r.Check(ex.StartsWith("Novedades:\n• Nivel 3 rehecho: un hotel de verdad.\n• Actualización automática: ") && ex.EndsWith("…") && !ex.Contains("tercera") && !ex.Contains("**") && AutoUpdater.Excerpt("") == "" && AutoUpdater.Excerpt("sin viñetas") == "",
+            T + "extracto de novedades para el aviso (2 viñetas, sin Markdown, recortado)");
         r.Check(UpdateCore.Mb(284416470) == "271 MB", T + "tamaño legible (" + UpdateCore.Mb(284416470) + ")");
     }
 

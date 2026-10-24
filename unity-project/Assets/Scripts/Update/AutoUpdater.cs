@@ -37,9 +37,9 @@ public class AutoUpdater : MonoBehaviour
     static string UserAgent { get { return "BackroomsEscapa-Updater/" + GameVersion.Current; } }
 
     UIManager ui;
-    GameObject dialog, cornerBtn; Text cornerVersion, title, subtitle, body, status, cornerBtnText;
+    GameObject dialog, cornerBtn; Text cornerVersion, cornerNotice, title, subtitle, body, notes, status, cornerBtnText;
     RectTransform barFill; GameObject bar, rowAsk, rowCancel, rowError;
-    Button bUpdate, bLater, bCancel, bClose, bWeb;
+    Button bUpdate, bLater, bCancel, bClose, bWeb, bRetry;
     bool mpNotified, checkedOnce, dismissed, cancel, pendingCheck;
     string notice; float noticeUntil;
 
@@ -95,7 +95,7 @@ public class AutoUpdater : MonoBehaviour
         if (StartupResult != null)
         {
             if (StartupResult.StartsWith("ok|")) notice = "Actualizado a la v" + StartupResult.Substring(3) + ". ¡Bienvenido de vuelta!";
-            else { Current = State.Error; LastError = "La actualización no se completó y se ha restaurado la versión anterior.\n" + StartupResult.Substring(StartupResult.IndexOf('|') + 1); pendingShowError = true; }
+            else { Current = State.Error; LastError = "La actualización no se completó y se ha restaurado la versión anterior; puedes seguir jugando con ella.\nMotivo: " + StartupResult.Substring(StartupResult.IndexOf('|') + 1); pendingShowError = true; }
         }
     }
     bool pendingShowError;
@@ -108,6 +108,9 @@ public class AutoUpdater : MonoBehaviour
         cornerVersion = ui.Label(canvas, GameVersion.Label, 22, TextAnchor.LowerRight, 0f, 0f, 400f, 34f, UiStyle.Dim);
         RectTransform cv = cornerVersion.rectTransform; cv.anchorMin = cv.anchorMax = cv.pivot = new Vector2(1f, 0f); cv.anchoredPosition = new Vector2(-28f, 18f);
         cornerVersion.name = "GameVersionLabel";
+        cornerNotice = ui.Label(canvas, "", 24, TextAnchor.LowerRight, 0f, 0f, 1000f, 34f, UiStyle.Good);
+        RectTransform cn = cornerNotice.rectTransform; cn.anchorMin = cn.anchorMax = cn.pivot = new Vector2(1f, 0f); cn.anchoredPosition = new Vector2(-28f, 52f);
+        cornerNotice.horizontalOverflow = HorizontalWrapMode.Overflow; cornerNotice.name = "UpdateNotice"; cornerNotice.gameObject.SetActive(false);
         Button cb = ui.MakeButton(canvas, "", 0f, 0f, 430f, 44f, () => { Click(); dismissed = false; ShowDialog(); }, 22);
         cornerBtn = cb.gameObject; cornerBtn.name = "UpdateCornerBtn";
         RectTransform cr = (RectTransform)cornerBtn.transform; cr.anchorMin = cr.anchorMax = cr.pivot = new Vector2(1f, 0f); cr.anchoredPosition = new Vector2(-24f, 58f);
@@ -125,6 +128,7 @@ public class AutoUpdater : MonoBehaviour
         title = ui.Label(panel, "", 50, TextAnchor.MiddleLeft, 0f, 166f, 900f, 64f, UiStyle.Gold); title.font = UiStyle.SansBold();
         subtitle = ui.Label(panel, "", 28, TextAnchor.MiddleLeft, 0f, 116f, 900f, 40f, UiStyle.Text);
         body = ui.Label(panel, "", 25, TextAnchor.UpperLeft, 0f, 10f, 900f, 150f, new Color(0.86f, 0.82f, 0.66f));
+        notes = ui.Label(panel, "", 22, TextAnchor.UpperLeft, 0f, -112f, 900f, 120f, UiStyle.Dim);   // novedades de la versión (extracto de las notas)
         bar = ui.Panel(panel, "Bar", UiStyle.Slot, false).gameObject; RectTransform br = (RectTransform)bar.transform; br.sizeDelta = new Vector2(900f, 26f); br.anchoredPosition = new Vector2(0f, -88f);
         Outline bo = bar.AddComponent<Outline>(); bo.effectColor = UiStyle.Border; bo.effectDistance = new Vector2(2f, -2f);
         barFill = ui.Panel(bar.transform, "Fill", new Color(0.85f, 0.7f, 0.2f, 1f), true); barFill.anchorMax = new Vector2(0f, 1f);
@@ -136,8 +140,9 @@ public class AutoUpdater : MonoBehaviour
         rowCancel = Row(panel, "RowCancel");
         bCancel = ui.MakeButton(rowCancel.transform, "Cancelar", 0f, 0f, 320f, 66f, () => { Click(); cancel = true; });
         rowError = Row(panel, "RowError");
-        bWeb = ui.MakeButton(rowError.transform, "Abrir la página de descargas", -150f, 0f, 480f, 66f, () => { Click(); Application.OpenURL(Latest != null && Latest.page != null && Latest.page.StartsWith("https://github.com/" + UpdateCore.Owner + "/") ? Latest.page : UpdateCore.ReleasesPage); }, 28);
-        bClose = ui.MakeButton(rowError.transform, "Cerrar", 270f, 0f, 260f, 66f, () => { Click(); dismissed = true; dialog.SetActive(false); if (Current == State.Error) Current = Latest != null ? State.Available : State.Idle; });
+        bRetry = ui.MakeButton(rowError.transform, "Reintentar", -310f, 0f, 260f, 66f, () => { Click(); Current = State.Available; BeginUpdate(); }, 30);
+        bWeb = ui.MakeButton(rowError.transform, "Página de descargas", 0f, 0f, 320f, 66f, () => { Click(); Application.OpenURL(Latest != null && Latest.page != null && Latest.page.StartsWith("https://github.com/" + UpdateCore.Owner + "/") ? Latest.page : UpdateCore.ReleasesPage); }, 30);
+        bClose = ui.MakeButton(rowError.transform, "Cerrar", 310f, 0f, 260f, 66f, () => { Click(); dismissed = true; dialog.SetActive(false); if (Current == State.Error) Current = Latest != null ? State.Available : State.Idle; });
         dialog.SetActive(false);
     }
     GameObject Row(RectTransform panel, string n)
@@ -161,11 +166,11 @@ public class AutoUpdater : MonoBehaviour
             cornerBtn.SetActive(main && avail && !DialogOpen);
             if (avail) cornerBtnText.text = "Actualización disponible: v" + Latest.version;
         }
-        if (notice != null && main && cornerVersion != null)
+        if (cornerNotice != null)
         {
-            if (noticeUntil == 0f) noticeUntil = Time.unscaledTime + 8f;
-            cornerVersion.text = notice + "   " + GameVersion.Label; cornerVersion.color = UiStyle.Good;
-            if (Time.unscaledTime > noticeUntil) { notice = null; cornerVersion.text = GameVersion.Label; cornerVersion.color = UiStyle.Dim; }
+            bool show = notice != null && main;
+            if (show) { if (noticeUntil == 0f) noticeUntil = Time.unscaledTime + 10f; cornerNotice.text = notice; if (Time.unscaledTime > noticeUntil) { notice = null; show = false; } }
+            cornerNotice.gameObject.SetActive(show);
         }
 
         // la consulta: una vez, al llegar al menú principal (no en partida ni en la sala multijugador)
@@ -197,7 +202,10 @@ public class AutoUpdater : MonoBehaviour
     void RefreshDialog()
     {
         bool ask = Current == State.Available, busy = Current == State.Downloading || Current == State.Verifying || Current == State.Installing, err = Current == State.Error;
-        rowAsk.SetActive(ask); rowCancel.SetActive(Current == State.Downloading); rowError.SetActive(err);
+        rowAsk.SetActive(ask); rowCancel.SetActive(Current == State.Downloading); rowError.SetActive(err); bRetry.gameObject.SetActive(err && Latest != null);
+        bool three = err && Latest != null;
+        ((RectTransform)bWeb.transform).anchoredPosition = new Vector2(three ? 0f : -150f, 0f); ((RectTransform)bClose.transform).anchoredPosition = new Vector2(three ? 310f : 200f, 0f);
+        notes.text = ask && Latest != null ? Excerpt(Latest.body) : "";
         bar.SetActive(busy); barFill.anchorMax = new Vector2(Mathf.Clamp01(Progress), 1f);
         string v = Latest != null ? "v" + Latest.version : "";
         title.text = err ? "No se pudo actualizar" : "Nueva versión disponible: " + v;
@@ -209,6 +217,23 @@ public class AutoUpdater : MonoBehaviour
         else if (Current == State.Verifying) status.text = "Comprobando la descarga (tamaño y SHA-256)…";
         else if (Current == State.Installing) status.text = "Preparando la instalación… el juego se cerrará y volverá a abrirse.";
         else status.text = ask ? "" : "";
+    }
+
+    // dos primeras novedades de las notas de la versión («- **Algo:** texto…»), sin Markdown y recortadas
+    public static string Excerpt(string body)
+    {
+        if (string.IsNullOrEmpty(body)) return "";
+        StringBuilder sb = new StringBuilder(); int n = 0;
+        foreach (string raw in body.Replace("\r", "").Split('\n'))
+        {
+            string l = raw.Trim();
+            if (!(l.StartsWith("- ") || l.StartsWith("* "))) continue;
+            l = l.Substring(2).Replace("**", "").Replace("`", "").Replace("*", "");
+            if (l.Length > 118) { int cut = l.LastIndexOf(' ', 115); l = l.Substring(0, cut > 60 ? cut : 115) + "…"; }
+            sb.Append(n > 0 ? "\n" : "").Append("• ").Append(l);
+            if (++n == 2) break;
+        }
+        return n > 0 ? "Novedades:\n" + sb : "";
     }
 
     // ------------------------------------------------------------------ consulta
@@ -299,7 +324,7 @@ public class AutoUpdater : MonoBehaviour
             string ps = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), "WindowsPowerShell", "v1.0", "powershell.exe");
             if (!File.Exists(ps)) ps = "powershell.exe";
             ProcessStartInfo psi = new ProcessStartInfo(ps, "-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File \"" + script + "\"")
-            { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = work };
+            { UseShellExecute = false, CreateNoWindow = true, WorkingDirectory = Path.GetTempPath() };   // fuera de _update: así se puede borrar al terminar
             Process.Start(psi);
         }
         catch (Exception e) { TryDelete(work); Fail("No se pudo iniciar el instalador: " + e.Message + ". No se ha cambiado nada."); yield break; }
