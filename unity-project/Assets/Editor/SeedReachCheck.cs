@@ -66,6 +66,8 @@ public static class SeedReachCheck
                 foreach (MonsterAI m in gm5.monsters) if (m != null) m.Stop();
                 FieldWorld fw = FieldWorld.Active;
                 string T5 = "[nivel 5 semilla " + gm5.generator.UsedSeed + "] ";
+                int open5 = 0; foreach (FieldPlan.House hh in fw.plan.houses) if (hh.enterable) open5++;
+                Check(fw.DoorLinkCount == open5, T5 + "enlace de NavMesh en la puerta de cada casa abierta (" + fw.DoorLinkCount + "/" + open5 + ")");
                 for (int k = 0; k < fw.plan.houses.Count; k++)
                 {
                     FieldPlan.House h = fw.plan.houses[k]; if (!h.enterable) continue;

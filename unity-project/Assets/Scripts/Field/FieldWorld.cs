@@ -264,12 +264,38 @@ public class FieldWorld : MonoBehaviour
                 {
                     float top = 0.15f - (s * rise / steps);
                     GameObject st = ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "Step" + s, go.transform,
-                        new Vector3(DoorX(h.template), top - 0.5f, sz.y * 0.5f + 0.2f + s * 0.32f), new Vector3(HouseDoorW + 1.1f, 1f, 0.34f), trim, true);   // v7.4.0: escalera ancha (2,6 m): con 1,4 m el NavMesh (radio 0,5) la descartaba y los monstruos no subían
+                        new Vector3(DoorX(h.template), top - 0.5f, sz.y * 0.5f + 0.2f + s * 0.32f), new Vector3(HouseDoorW + 0.6f, 1f, 0.34f), trim, true);   // v7.4.0: escalera de 1,7 m (antes 1,4 m)
                     st.GetComponent<Renderer>().sharedMaterial = plinthM;
                 }
             }
             if (h.enterable) BuildFurniture(go.transform, h, k - 1, furnWood, floor);
             houseCount++;
+        }
+    }
+
+    // v7.4.0: enlaces de NavMesh por las puertas de las casas abiertas (ida y vuelta), de 0,9 m fuera de la fachada a 0,9 m
+    // dentro. Se llama tras hornear el NavMesh (solo el anfitrión / un jugador: los clientes no tienen monstruos de NavMesh).
+    public int DoorLinkCount { get; private set; }
+    public void AddDoorLinks()
+    {
+        DoorLinkCount = 0;
+        for (int k = 0; k < houseGos.Count && k < plan.houses.Count; k++)
+        {
+            FieldPlan.House h = plan.houses[k]; if (!h.enterable) continue;
+            Transform ht = houseGos[k].transform; float dx = DoorX(h.template), D = FieldPlan.TemplateSize[h.template].y;
+            Vector3 o = ht.TransformPoint(new Vector3(dx, 0.15f, D * 0.5f + 0.9f)), i = ht.TransformPoint(new Vector3(dx, 0.15f, D * 0.5f - 0.2f - 0.9f));
+            if (!UnityEngine.AI.NavMesh.SamplePosition(o, out UnityEngine.AI.NavMeshHit ho, 1.0f, UnityEngine.AI.NavMesh.AllAreas) ||
+                !UnityEngine.AI.NavMesh.SamplePosition(i, out UnityEngine.AI.NavMeshHit hi, 0.6f, UnityEngine.AI.NavMesh.AllAreas))
+            { Debug.LogWarning("[FieldWorld] casa " + k + ": sin NavMesh junto a la puerta, sin enlace"); continue; }
+            GameObject lg = new GameObject("DoorNavLink"); lg.transform.SetParent(ht, false);
+            Transform a0 = new GameObject("Out").transform, b0 = new GameObject("In").transform;
+            a0.SetParent(lg.transform, false); b0.SetParent(lg.transform, false); a0.position = ho.position; b0.position = hi.position;
+#pragma warning disable 618
+            UnityEngine.AI.OffMeshLink l = lg.AddComponent<UnityEngine.AI.OffMeshLink>();
+            l.startTransform = a0; l.endTransform = b0; l.biDirectional = true; l.activated = true; l.autoUpdatePositions = false; l.costOverride = -1f;
+            l.UpdatePositions();
+#pragma warning restore 618
+            DoorLinkCount++;
         }
     }
 
@@ -313,15 +339,16 @@ public class FieldWorld : MonoBehaviour
     }
 
     public static float DoorX(int tpl) { return tpl == 1 ? 0f : -FieldPlan.TemplateSize[tpl].x * 0.22f; }
-    // v7.4.0: puerta de las casas más alta y algo más ancha (antes 1,0 x 2,1 m, con el zócalo de piedra de 30 cm cruzando el umbral:
-    // de pie, subido al zócalo, la cabeza (1,8 m) tocaba el dintel y había que agacharse; los monstruos (NavMesh, 2 m de alto y
-    // 0,5 m de radio) no entraban nunca). Ahora 1,5 x 2,25 m (con 1,3 m el NavMesh, radio 0,5 y celda 0,17 m, a veces no cruzaba) y el umbral queda a ras del suelo de la casa.
-    public const float HouseDoorW = 1.5f, HouseDoorH = 2.25f;
+    // v7.4.0: puerta de las casas algo más alta y ancha (antes 1,0 x 2,1 m, con el zócalo de piedra de 30 cm cruzando el umbral:
+    // de pie, subido al zócalo, la cabeza (1,8 m) tocaba el dintel y había que agacharse). Ahora 1,1 x 2,2 m, una puerta normal,
+    // y el umbral queda a ras del suelo de la casa. Los monstruos (NavMesh de radio 0,5: un hueco de 1,1 m queda cerrado al
+    // erosionar) cruzan por un enlace de NavMesh en cada puerta abierta (AddDoorLinks, tras hornear).
+    public const float HouseDoorW = 1.1f, HouseDoorH = 2.2f;
 
     // casa en espacio local: suelo en y=0..0.15, puerta en +Z. Submeshes: 0 paredes, 1 tejado, 2 suelo, 3 madera, 4 cristal, 5 piedra
     // v7.2.0: más detalle (techo interior, tejado con grosor, tablas de remate y cumbrera, canalones y bajante, chimenea,
     // zócalo de piedra, cuarterones y cristal sucio en las cerradas, tejadillo sobre la puerta) y UV2 de lightmap para el horneado
-    // de Blender (Tools/field/house_bake.py). v7.4.0: puerta 1,5 x 2,25 m y umbral a ras (HouseDoorW/H; horneado rehecho).
+    // de Blender (Tools/field/house_bake.py). v7.4.0: puerta 1,1 x 2,2 m y umbral a ras (HouseDoorW/H; horneado rehecho).
     public const int HouseSubs = 6, SubGlass = 4;
     public static int HouseVariant(int tpl, bool enterable) { return tpl * 2 + (enterable ? 1 : 0); }
     public static Rect HouseTile(int variant) { return new Rect((variant % 3) / 3f, (variant / 3) / 2f, 1f / 3f, 0.5f); }   // atlas 3x2 (3072x2048)
@@ -408,7 +435,7 @@ public class FieldWorld : MonoBehaviour
         }
         // tejadillo sobre la puerta con dos ménsulas
         {
-            float py = y0 + 2.4f, pd = 0.75f, pw2 = HouseDoorW * 0.5f + 0.35f;   // v7.4.0: sobre la puerta más alta y ancha (bajo el canalón)
+            float py = y0 + 2.4f, pd = 0.75f, pw2 = HouseDoorW * 0.5f + 0.35f;   // v7.4.0: algo más alto, sobre la puerta de 2,2 m (bajo el canalón)
             Vector3 a = new Vector3(dx - pw2, py, D / 2), b = new Vector3(dx + pw2, py, D / 2), c = new Vector3(dx + pw2, py - 0.18f, D / 2 + pd), d = new Vector3(dx - pw2, py - 0.18f, D / 2 + pd);
             Vector3 pn = Vector3.Cross(b - a, d - a).normalized; if (pn.y < 0f) pn = -pn;
             fm.Quad(1, a + pn * 0.06f, b + pn * 0.06f, c + pn * 0.06f, d + pn * 0.06f, pn, Vector3.right, (d - a).normalized);
