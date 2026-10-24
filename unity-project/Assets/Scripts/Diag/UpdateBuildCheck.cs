@@ -26,7 +26,7 @@ public class UpdateBuildCheck : MonoBehaviour
         bool relaunched = AutoUpdater.StartupResult != null;
         tag = relaunched ? "reabierto_" + System.DateTime.Now.ToString("HHmmss") : "inicio_" + System.DateTime.Now.ToString("HHmmss");
         Info("juego " + GameVersion.Label + " en " + AutoUpdater.GameDir + "  pid " + System.Diagnostics.Process.GetCurrentProcess().Id);
-        Info("feed " + AutoUpdater.FeedOverride + "  resultado anterior: " + (AutoUpdater.StartupResult ?? "(ninguno)"));
+        Info("feed " + (AutoUpdater.FeedOverride ?? UpdateCore.LatestApi) + (AutoUpdater.TestPretendVersion != null ? "  (finge ser v" + AutoUpdater.TestPretendVersion + ")" : "") + "  resultado anterior: " + (AutoUpdater.StartupResult ?? "(ninguno)"));
         float t0 = Time.realtimeSinceStartup;
         while ((GameBootstrap.Instance == null || UIManager.Instance == null || !GameBootstrap.Instance.InMenu || UIManager.Instance.Current != UIManager.Screen.Main) && Time.realtimeSinceStartup - t0 < 120f) yield return null;
         yield return new WaitForSecondsRealtime(1.5f);
@@ -41,7 +41,7 @@ public class UpdateBuildCheck : MonoBehaviour
         t0 = Time.realtimeSinceStartup;
         while (up.Current != AutoUpdater.State.Available && up.Current != AutoUpdater.State.UpToDate && Time.realtimeSinceStartup - t0 < 30f) yield return null;
         Info("consulta: " + up.Current + (up.Latest != null ? "  " + up.Latest.tag + " «" + up.Latest.title + "» " + up.Latest.zipName + " " + up.Latest.zipSize + " B sha " + up.Latest.sha256 : ""));
-        if (up.Current != AutoUpdater.State.Available) { Info("FAIL sin versión nueva"); Info("END"); Flush(); Application.Quit(1); yield break; }
+        if (up.Current != AutoUpdater.State.Available) { Info(up.Current == AutoUpdater.State.UpToDate ? "AL DÍA: no hay versión más nueva que la propia" : "FAIL sin respuesta"); Info("END"); Flush(); Application.Quit(up.Current == AutoUpdater.State.UpToDate ? 0 : 1); yield break; }
         yield return new WaitForSecondsRealtime(0.5f);
         Info("diálogo abierto: " + up.DialogOpen);
         Shot(ui, "dialogo_aviso");
@@ -53,6 +53,11 @@ public class UpdateBuildCheck : MonoBehaviour
         {
             if (!progShot && up.Current == AutoUpdater.State.Downloading && up.Progress > 0.3f && up.Progress < 0.8f) { progShot = true; Shot(ui, "dialogo_progreso"); Info("progreso capturado al " + Mathf.FloorToInt(up.Progress * 100f) + " %"); }
             if (up.Current == AutoUpdater.State.Error) break;
+            if (AutoUpdater.TestVerifiedOk)
+            {
+                Info("VERIFICADO sin instalar: zip descargado de " + up.Latest.zipUrl + ", " + up.Latest.zipSize + " B, SHA-256 " + up.Latest.sha256 + " correcto, " + AutoUpdater.TestExtractedFiles + " archivos extraídos; carpeta _update borrada: " + !Directory.Exists(Path.Combine(AutoUpdater.GameDir, UpdateCore.WorkDirName)));
+                Info("END"); Flush(); Application.Quit(0); yield break;
+            }
             yield return null;
         }
         if (up.Current == AutoUpdater.State.Error)

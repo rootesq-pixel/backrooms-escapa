@@ -31,6 +31,10 @@ public class AutoUpdater : MonoBehaviour
     // pruebas («-updatefeed <url>» con un servidor falso en 127.0.0.1, «-updatetest» para la prueba de extremo a extremo)
     public static string FeedOverride;
     public static bool TestSimulateReplaceFailure;
+    // prueba contra el GitHub real sin instalar nada: «-updatetest-asversion 7.3.0» finge ser una versión vieja y
+    // «-updatetest-noinstall» se detiene tras descargar, verificar y extraer (solo con «-updatetest»)
+    public static string TestPretendVersion; public static bool TestStopBeforeInstall, TestVerifiedOk;
+    static string Mine { get { return TestPretendVersion ?? GameVersion.Current; } }
     public static bool ForceEnable;
     bool Loopback { get { return !string.IsNullOrEmpty(FeedOverride); } }
     string Feed { get { return Loopback ? FeedOverride : UpdateCore.LatestApi; } }
@@ -65,7 +69,10 @@ public class AutoUpdater : MonoBehaviour
             if (a[i] == "-updatefeed" && i + 1 < a.Length && UpdateCore.IsAllowedFeed(a[i + 1], true)) FeedOverride = a[i + 1];
             if (a[i] == "-updatetest") ForceEnable = true;
             if (a[i] == "-updatetest-failreplace") TestSimulateReplaceFailure = true;
+            if (a[i] == "-updatetest-noinstall") TestStopBeforeInstall = true;
+            if (a[i] == "-updatetest-asversion" && i + 1 < a.Length && UpdateCore.ParseVersion(a[i + 1]) != null) TestPretendVersion = UpdateCore.Clean(a[i + 1]);
         }
+        if (!ForceEnable) { TestSimulateReplaceFailure = false; TestStopBeforeInstall = false; TestPretendVersion = null; }   // solo valen en la prueba
         ReadStartupResult();
         if (StartupResult != null && Application.isBatchMode) ForceEnable = false;   // prueba: la instancia reabierta no vuelve a consultar
     }
@@ -210,7 +217,7 @@ public class AutoUpdater : MonoBehaviour
         string v = Latest != null ? "v" + Latest.version : "";
         title.text = err ? "No se pudo actualizar" : "Nueva versión disponible: " + v;
         subtitle.text = Latest != null ? (string.IsNullOrEmpty(Latest.title) || Latest.title == Latest.tag ? v : Latest.title) : "";
-        if (ask) body.text = "Tienes la " + GameVersion.Label + ". La nueva versión se descarga desde GitHub (" + UpdateCore.Mb(Latest.zipSize) + "), se comprueba y se instala en esta misma carpeta. El juego se cerrará y volverá a abrirse solo. Tus partidas y opciones se conservan.";
+        if (ask) body.text = "Tienes la v" + Mine + ". La nueva versión se descarga desde GitHub (" + UpdateCore.Mb(Latest.zipSize) + "), se comprueba y se instala en esta misma carpeta. El juego se cerrará y volverá a abrirse solo. Tus partidas y opciones se conservan.";
         else if (busy) body.text = "No cierres el juego: se reiniciará solo cuando termine.";
         else if (err) body.text = LastError ?? "";
         if (Current == State.Downloading) status.text = "Descargando… " + UpdateCore.Mb((long)(Progress * Latest.zipSize)) + " de " + UpdateCore.Mb(Latest.zipSize) + "  (" + Mathf.FloorToInt(Progress * 100f) + " %)";
@@ -251,7 +258,7 @@ public class AutoUpdater : MonoBehaviour
             if (r.result != UnityWebRequest.Result.Success) { Debug.Log("[AutoUpdater] sin respuesta (" + r.error + "): se sigue sin avisar"); Current = State.Idle; yield break; }
             string why; UpdateCore.Release rel = UpdateCore.ParseRelease(r.downloadHandler.text, out why);
             if (rel == null) { Debug.Log("[AutoUpdater] versión publicada no utilizable: " + why); Current = State.Idle; yield break; }
-            if (!UpdateCore.IsNewer(rel.tag, GameVersion.Current)) { Debug.Log("[AutoUpdater] al día (" + GameVersion.Label + ", última " + rel.tag + ")"); Current = State.UpToDate; yield break; }
+            if (!UpdateCore.IsNewer(rel.tag, Mine)) { Debug.Log("[AutoUpdater] al día (v" + Mine + ", última " + rel.tag + ")"); Current = State.UpToDate; yield break; }
             Latest = rel; Current = State.Available;
             Debug.Log("[AutoUpdater] nueva versión " + rel.tag + " «" + rel.title + "» " + rel.zipName + " " + rel.zipSize + " B");
             if (!dismissed && InMainMenu) ShowDialog();
@@ -315,6 +322,12 @@ public class AutoUpdater : MonoBehaviour
         System.Threading.Tasks.Task x = System.Threading.Tasks.Task.Run(() => { UpdateCore.ExtractZip(zip, root, fresh); File.Delete(zip); });
         while (!x.IsCompleted) yield return null;
         if (x.IsFaulted) { TryDelete(work); Fail("No se pudo descomprimir la versión nueva: " + x.Exception.GetBaseException().Message + ". No se ha cambiado nada."); yield break; }
+        if (TestStopBeforeInstall)
+        {
+            int files = Directory.GetFiles(fresh, "*", SearchOption.AllDirectories).Length;
+            Debug.Log("[AutoUpdater] prueba: " + Latest.zipName + " descargado, verificado (" + len + " B, sha " + got + ") y extraído (" + files + " archivos); no se instala");
+            TestVerifiedOk = true; TestExtractedFiles = files; TryDelete(work); Current = State.UpToDate; yield break;
+        }
 
         string script = Path.Combine(work, "actualizar.ps1");
         try
@@ -335,6 +348,7 @@ public class AutoUpdater : MonoBehaviour
     }
     // para la prueba: capturas del diálogo antes de cerrar
     public static Func<IEnumerator> OnBeforeQuit;
+    public static int TestExtractedFiles;
 
     static void TryDelete(string dir) { try { if (Directory.Exists(dir)) Directory.Delete(dir, true); } catch (Exception) { } }
 
