@@ -566,6 +566,11 @@ public class GameBootstrap : MonoBehaviour
         flashlight.drainPerSecond = cfg.flashlightDrain;
         flashlight.rechargePerSecond = cfg.flashlightRecharge;
         flashlight.maxIntensity = cfg.flashlightIntensity;
+        if (cfg.flashSpotAngle > 0f || cfg.flashSoft || cfg.flashBounce > 0f)
+        {   // v7.5.0: hotel: haz más ancho y suave + rebote tenue
+            if (cfg.flashSpotAngle > 0f) flashlight.spotAngle = cfg.flashSpotAngle;
+            flashlight.softCookie = cfg.flashSoft; flashlight.bounce = cfg.flashBounce; flashlight.Reconfigure();
+        }
 
         fpc = player.AddComponent<FirstPersonController>();
         fpc.cameraPivot = camGo.transform;

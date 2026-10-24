@@ -133,8 +133,9 @@ public static class SeedReachCheck
                 yield return 1.0f;
                 BackroomsGenerator gen = GameManager.Instance.generator; LevelConfig c3 = LevelConfig.Get(3);
                 string T = "[nivel 3 semilla " + gen.UsedSeed + "] ";
-                float area = gen.GridWidth * gen.GridHeight * gen.CellSize * gen.CellSize, oldArea = 17f * 17f * 3.2f * 3.2f;
-                Check(gen.Hotel != null && area >= 2f * oldArea && area <= 3.2f * oldArea, T + "hotel largo: " + gen.GridWidth + "x" + gen.GridHeight + " celdas, " + area.ToString("F0") + " m² (" + (area / oldArea).ToString("F1") + " veces el antiguo), carga " + loadS.ToString("F1") + " s");
+                int walk = 0; if (gen.Hotel != null) for (int x = 0; x < gen.GridWidth; x++) for (int z = 0; z < gen.GridHeight; z++) if (gen.Hotel.Walkable(x, z)) walk++;
+                float area = walk * gen.CellSize * gen.CellSize, oldArea = 17f * 17f * 3.2f * 3.2f;
+                Check(gen.Hotel != null && area >= 2f * oldArea && area <= 3.2f * oldArea, T + "hotel grande: " + gen.GridWidth + "x" + gen.GridHeight + " celdas, transitable " + area.ToString("F0") + " m² (" + (area / oldArea).ToString("F1") + " veces el antiguo), carga " + loadS.ToString("F1") + " s");
                 float pl = PathLen(gen.PlayerStart, gen.ExitPosition);
                 Check(gen.UsedSeed == s3 && pl > 0f, T + "camino a pie inicio -> salida por el NavMesh (" + pl.ToString("F0") + " m)");
                 int bOk = 0; foreach (Vector3 b in gen.BatterySpots) if (PathLen(gen.PlayerStart, b) > 0f) bOk++;
@@ -146,12 +147,26 @@ public static class SeedReachCheck
                 foreach (var hl in gen.Hotel.halls)
                 {
                     kinds += " " + hl.kind;
-                    Vector3 hc = R.TransformPoint(new Vector3((hl.r.x + hl.r.width * 0.5f) * cs, 0.05f, (hl.r.y + 0.5f) * cs));
+                    Vector3 hc = R.TransformPoint(gen.Hotel.FreePoint(hl.r.x + hl.r.width / 2, hl.r.y + hl.r.height / 2, gen.Hotel.Center(hl.r.x + hl.r.width / 2, hl.r.y + hl.r.height / 2)));
                     if (PathLen(gen.PlayerStart, hc) > 0f) hOk++;
                 }
-                Check(gen.Hotel.halls.Count >= 2 && hOk == gen.Hotel.halls.Count, T + "salas grandes alcanzables " + hOk + "/" + gen.Hotel.halls.Count + ":" + kinds);
+                Check(gen.Hotel.halls.Count >= 3 && hOk == gen.Hotel.halls.Count, T + "salas grandes alcanzables " + hOk + "/" + gen.Hotel.halls.Count + ":" + kinds);
+                int rOpen = 0, rOk = 0; string rBad = "";
+                foreach (var rm in gen.Hotel.rooms)
+                {
+                    if (!rm.open) continue; rOpen++;
+                    Vector3 bc = R.TransformPoint(gen.Hotel.FreePoint(rm.bed.x, rm.bed.y, gen.Hotel.Center(rm.bed.x, rm.bed.y)));
+                    if (PathLen(gen.PlayerStart, bc) > 0f) rOk++; else if (rBad.Length < 80) rBad += " " + rm.number;
+                }
+                int cOk = 0; string cBad = "";
+                for (int x = 0; x < gen.GridWidth; x++) for (int z = 0; z < gen.GridHeight; z++)
+                {
+                    if (!gen.Hotel.Walkable(x, z)) continue;
+                    if (PathLen(gen.PlayerStart, R.TransformPoint(gen.Hotel.FreePoint(x, z, gen.Hotel.Center(x, z)))) > 0f) cOk++; else if (cBad.Length < 90) cBad += " " + x + "," + z + ":" + gen.Hotel.kind[x, z];
+                }
+                Check(rOpen >= 20 && rOk == rOpen && cOk >= walk - 2, T + "habitaciones abiertas alcanzables " + rOk + "/" + rOpen + rBad + "; celdas transitables con camino " + cOk + "/" + walk + cBad);
                 int longest = 0; foreach (var co in gen.Hotel.corridors) longest = Mathf.Max(longest, co.b - co.a + 1);
-                Check(HotelDecor.Doors >= 60 && longest >= 12, T + "puertas numeradas " + HotelDecor.Doors + ", pasillos principales " + gen.Hotel.corridors.Count + " (el más largo " + (longest * cs).ToString("F0") + " m)");
+                Check(HotelDecor.Doors >= 60 && longest >= 12 && HotelDecor.Leaves.Count == gen.Hotel.doorways.Count, T + "puertas numeradas " + HotelDecor.Doors + " (que se abren " + HotelDecor.Leaves.Count + "), muebles " + HotelDecor.ItemCount + ", pasillos " + gen.Hotel.corridors.Count + " (el más largo " + (longest * cs).ToString("F0") + " m)");
             }
         }
         if (only == "5" || only == "3") yield break;

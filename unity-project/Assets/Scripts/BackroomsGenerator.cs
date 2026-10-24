@@ -385,6 +385,15 @@ public class BackroomsGenerator : MonoBehaviour
         for (int i = 0; i <= w; i++) for (int j = 0; j < h; j++) wallsV[i, j] = true;
         for (int i = 0; i < w; i++) for (int j = 0; j <= h; j++) wallsH[i, j] = true;
 
+        // v7.5.0: hotel: plano de edificio completo (no hay laberinto)
+        if (config.hotel && config.layout == LayoutKind.Maze)
+        {
+            Hotel = HotelPlan.Make(UsedSeed * 577 + 3, w, h, cellSize, wallThickness, wallHeight, wallsV, wallsH);
+            startCell = Hotel.start;
+            ChoosePoolBlock(); ChooseHalls();
+            return;
+        }
+        Hotel = null;
         // 1) Laberinto perfecto con backtracker iterativo
         bool[,] visited = new bool[w, h];
         Stack<Vector2Int> stack = new Stack<Vector2Int>();
@@ -444,8 +453,6 @@ public class BackroomsGenerator : MonoBehaviour
                     wallsH[i, j] = false;
         }
 
-        // v7.5.0: hotel largo: pasillos principales rectos y salas grandes (solo se quitan muros: sigue siendo conexo)
-        Hotel = config.hotel && config.layout == LayoutKind.Maze ? HotelPlan.Make(new System.Random(UsedSeed * 577 + 3), w, h, startCell, wallsV, wallsH) : null;
 
         // v7.0.4: aparcamiento por plantas (rampas, tabiques, callejones, rampas falsas)
         if (config.decks > 1 && config.layout != LayoutKind.Field)
@@ -627,6 +634,7 @@ public class BackroomsGenerator : MonoBehaviour
             {
                 if (distFromStart[i, j] < minExit) continue;
                 if (InPoolBlock(i, j)) continue;
+                if (Hotel != null && !Hotel.ExitAllowed(i, j)) continue;   // v7.5.0: la salida, en un pasillo (no en habitaciones ni salas)
                 Vector2Int c = new Vector2Int(i, j);
                 // v7.0.4: aparcamiento: la salida, en la última planta (la más baja), nunca en una rampa ni en un pasillo falso
                 if (Garage != null && (Garage.DeckOfRow(j) != Garage.decks - 1 || Garage.IsRamp(i, j) || Garage.decoys.Contains(c))) continue;
@@ -881,6 +889,32 @@ public class BackroomsGenerator : MonoBehaviour
                 }
         }
 
+        // v7.5.0: hotel: jambas y dintel de las puertas que se abren (hueco HotelDecor.DoorW x DoorH centrado en el muro)
+        if (Hotel != null)
+        {
+            float hw = HotelDecor.DoorW, hh = HotelDecor.DoorH, side = (cs - hw) * 0.5f + t * 0.5f - 0.002f, lh = wh - hh;
+            foreach (HotelPlan.Edge e in Hotel.doorways)
+            {
+                int i = e.c.x, j = e.c.y; bool vert = e.d == 1 || e.d == 3;
+                int li = e.d == 1 ? i + 1 : i, lj = e.d == 0 ? j + 1 : j;   // línea del muro
+                MeshBuilder mb = wallsB[Mathf.Min(i, w - 1) / chunkCells, Mathf.Min(j, h - 1) / chunkCells];
+                if (vert)
+                {
+                    float c0 = (j + 0.5f) * cs, x = li * cs;
+                    mb.AddWallBox(SlotWall, new Vector3(x, wh * 0.5f, c0 - hw * 0.5f - side * 0.5f), new Vector3(t, wh, side), cfg.wallTileU, cfg.wallTileV, 0.29f);
+                    mb.AddWallBox(SlotWall, new Vector3(x, wh * 0.5f, c0 + hw * 0.5f + side * 0.5f), new Vector3(t, wh, side), cfg.wallTileU, cfg.wallTileV, 0.83f);
+                    mb.AddWallBox(SlotWall, new Vector3(x, hh + lh * 0.5f, c0), new Vector3(t, lh, hw + 0.01f), cfg.wallTileU, cfg.wallTileV, 0.47f);
+                }
+                else
+                {
+                    float c0 = (i + 0.5f) * cs, z = lj * cs;
+                    mb.AddWallBox(SlotWall, new Vector3(c0 - hw * 0.5f - side * 0.5f, wh * 0.5f, z), new Vector3(side, wh, t), cfg.wallTileU, cfg.wallTileV, 0.37f);
+                    mb.AddWallBox(SlotWall, new Vector3(c0 + hw * 0.5f + side * 0.5f, wh * 0.5f, z), new Vector3(side, wh, t), cfg.wallTileU, cfg.wallTileV, 0.61f);
+                    mb.AddWallBox(SlotWall, new Vector3(c0, hh + lh * 0.5f, z), new Vector3(hw + 0.01f, lh, t), cfg.wallTileU, cfg.wallTileV, 0.13f);
+                }
+            }
+        }
+
         // Pilares (aparcamiento): en las intersecciones de la rejilla cada N celdas
         int pillars = 0;
         if (cfg.layout == LayoutKind.OpenPillars && cfg.pillarEvery > 0)
@@ -994,7 +1028,7 @@ public class BackroomsGenerator : MonoBehaviour
 
         MonsterSpawns = new List<Vector3>();
         List<Vector2Int> mc = PickMonsterCells(rng, Mathf.Max(1, cfg.monsterCount) + Mathf.Max(0, extraMonsters));
-        for (int i = 0; i < mc.Count; i++) MonsterSpawns.Add(levelRoot.TransformPoint(CellCenterLocal(mc[i].x, mc[i].y)));
+        for (int i = 0; i < mc.Count; i++) MonsterSpawns.Add(levelRoot.TransformPoint(HotelSpot(mc[i].x, mc[i].y, CellCenterLocal(mc[i].x, mc[i].y))));
         MonsterSpawn = MonsterSpawns[0];
 
         PickBatterySpots(rng, mc);
@@ -1003,7 +1037,7 @@ public class BackroomsGenerator : MonoBehaviour
         if (Halls.Count > 0) PlaceHallSpots(new System.Random(UsedSeed * 53 + 11));   // v7.1.0: llaves y objetos dentro de las salas (una llave entre las bolas)
         BuildExitDoor(rng);
         if (Garage != null) GarageDecor.Build(this, Garage, cfg, decorRoot, wallMat, o => Track(o));
-        if (Hotel != null) HotelDecor.Build(this, Hotel, cfg, decorRoot, sconceAlong, o => Track(o));   // v7.5.0: puertas numeradas   // v7.0.4: topes, señales y números de planta
+        if (Hotel != null) HotelDecor.Build(this, Hotel, cfg, levelRoot, decorRoot, o => Track(o));   // v7.5.0: el hotel entero (puertas, muebles, atrezo)
 
         // Agua realista (shader propio + volumen con interacción)
         if (cfg.water)
@@ -1161,6 +1195,23 @@ public class BackroomsGenerator : MonoBehaviour
             {
                 Vector3 c = CellCenterLocal(x, z);
 
+                if (Hotel != null)
+                {   // v7.5.0: apliques del hotel: en los pasillos casi en cada celda (a un lado y a otro), entre las puertas (a ±1,1 m del centro del muro)
+                    HotelPlan.K hk = Hotel.kind[x, z];
+                    float chance = hk == HotelPlan.K.Corridor || hk == HotelPlan.K.Gallery ? cfg.sconceChance : hk == HotelPlan.K.Linen ? cfg.sconceChance * 0.4f : hk == HotelPlan.K.Lift ? cfg.sconceChance * 0.7f : 0f;
+                    if (chance <= 0f || (x == exitCell.x && z == exitCell.y)) continue;
+                    List<int> hs = new List<int>(4);
+                    for (int d = 0; d < 4; d++) if (!IsOpen(new Vector2Int(x, z), d)) hs.Add(d);
+                    if (hs.Count == 0 || rng.NextDouble() >= chance) continue;
+                    int hside = hs[(x + z) % hs.Count];
+                    Vector3 hdir = new Vector3(Dirs[hside].x, 0f, Dirs[hside].y), hperp = new Vector3(-hdir.z, 0f, hdir.x);
+                    float halong = (((x + z) / Mathf.Max(1, hs.Count)) % 2 == 0 ? 1.1f : -1.1f);
+                    Vector3 hpos = c + hdir * (cellSize * 0.5f - wallThickness * 0.5f) + hperp * halong + new Vector3(0f, wh * 0.66f, 0f);
+                    bool hdead = rng.NextDouble() < cfg.deadChance;
+                    CreateSconce(lightsRoot, hpos, hdir, hdead, emissive, dead, housing, rng, buzzClip);
+                    fixtures++; if (!hdead) live++;
+                    continue;
+                }
                 if (cfg.fixture == FixtureKind.Sconce)
                 {
                     // Aplique en una pared de la celda (si tiene alguna)
@@ -1369,6 +1420,17 @@ public class BackroomsGenerator : MonoBehaviour
         CreateFixtureLight(fx.transform, new Vector3(0f, 0.05f, 0.45f), lens, rng, buzzClip);
     }
 
+    // v7.5.0: luces del atrezo del hotel (lámparas de mesilla, arañas): como las de los apliques, con su parpadeo y bajo el LightCuller
+    public void AddHotelLight(Transform parent, Vector3 localPos, Renderer lens, float intensity, float range)
+    {
+        System.Random lr = new System.Random(UsedSeed * 389 + Mathf.RoundToInt(localPos.x * 31f) * 7 + Mathf.RoundToInt(localPos.z * 17f));
+        CreateFixtureLight(parent, localPos, lens, lr, null);
+        Transform lt = parent.GetChild(parent.childCount - 1);
+        Light l = lt.GetComponent<Light>(); FlickeringLight f = lt.GetComponent<FlickeringLight>();
+        if (l != null) { l.intensity = intensity; l.range = range; }
+        if (f != null) { f.baseIntensity = intensity; f.flickerEnabled = lr.NextDouble() < 0.35; }
+    }
+
     private void CreateFixtureLight(Transform parent, Vector3 localPos, Renderer lens, System.Random rng, AudioClip buzzClip)
     {
         LevelConfig cfg = config;
@@ -1436,7 +1498,7 @@ public class BackroomsGenerator : MonoBehaviour
             picked.Add(c);
             float ox = ((float)rng.NextDouble() - 0.5f) * cellSize * 0.4f;
             float oz = ((float)rng.NextDouble() - 0.5f) * cellSize * 0.4f;
-            BatterySpots.Add(levelRoot.TransformPoint(CellCenterLocal(c.x, c.y) + new Vector3(ox, 0.1f, oz)));
+            BatterySpots.Add(levelRoot.TransformPoint(HotelSpot(c.x, c.y, CellCenterLocal(c.x, c.y) + new Vector3(ox, 0.1f, oz))));
         }
     }
 
@@ -1468,7 +1530,7 @@ public class BackroomsGenerator : MonoBehaviour
             picked.Add(c);
             float ox = ((float)rng.NextDouble() - 0.5f) * cellSize * 0.5f;
             float oz = ((float)rng.NextDouble() - 0.5f) * cellSize * 0.5f;
-            ExtraSpots.Add(levelRoot.TransformPoint(CellCenterLocal(c.x, c.y) + new Vector3(ox, 0.1f, oz)));
+            ExtraSpots.Add(levelRoot.TransformPoint(HotelSpot(c.x, c.y, CellCenterLocal(c.x, c.y) + new Vector3(ox, 0.1f, oz))));
         }
     }
 
@@ -1524,7 +1586,7 @@ public class BackroomsGenerator : MonoBehaviour
             picked.Add(c);
             float ox = ((float)rng.NextDouble() - 0.5f) * cellSize * 0.45f;
             float oz = ((float)rng.NextDouble() - 0.5f) * cellSize * 0.45f;
-            KeySpots.Add(levelRoot.TransformPoint(CellCenterLocal(c.x, c.y) + new Vector3(ox, 0.1f, oz)));
+            KeySpots.Add(levelRoot.TransformPoint(HotelSpot(c.x, c.y, CellCenterLocal(c.x, c.y) + new Vector3(ox, 0.1f, oz))));
         }
     }
 
@@ -1780,6 +1842,9 @@ public class BackroomsGenerator : MonoBehaviour
         }
         return opened;
     }
+
+    // v7.5.0: en el hotel, los objetos y monstruos no aparecen dentro de los muebles (punto libre de la celda con margen para el NavMesh)
+    private Vector3 HotelSpot(int x, int z, Vector3 local) { return Hotel != null ? Hotel.FreePoint(x, z, local) : local; }
 
     private float ComputeStartYaw()
     {

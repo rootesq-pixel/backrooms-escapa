@@ -35,7 +35,10 @@ public class LevelConfig
     public float deckDrop = 1.6f;
     public int halls = 0;                  // v7.1.0: salas de juego fijas horneadas (Parque de bolas, BallpitSetPiece)
     public bool hotel = false;             // v7.5.0: hotel largo (HotelPlan): pasillos rectos larguísimos con puertas numeradas, vestíbulo, salón de baile y comedor
-    public int extraSpots = 9;             // v7.5.0: sitios para notas/agua de almendras/barras/cintas (escala con el tamaño del nivel)
+    public int extraSpots = 9;
+    public float flashSpotAngle = 0f;     // v7.5.0: 0 = el de siempre (60°)
+    public bool flashSoft = false;        // v7.5.0: cookie de foco suave (centro + halo amplio)
+    public float flashBounce = 0f;        // v7.5.0: luz de rebote tenue donde da la linterna (fracción de su intensidad)             // v7.5.0: sitios para notas/agua de almendras/barras/cintas (escala con el tamaño del nivel)
 
     // --- Superficies ---
     public SurfaceStyle wallStyle = SurfaceStyle.WallpaperYellow;
@@ -278,16 +281,19 @@ public class LevelConfig
         c.step = StepKind.Carpet;
         c.doorColor = new Color(0.21f, 0.11f, 0.065f); c.doorFrameColor = new Color(0.34f, 0.24f, 0.10f);
         if (!OldL3)
-        {   // v7.5.0: hotel mucho más largo (22 x 34 celdas de 3,2 m = 70 x 109 m, 2,6 veces el de antes; el campo mide 264 x 264 m):
-            // pasillos rectos de hasta 70 m con puertas numeradas a los dos lados, vestíbulo, salón de baile y comedor con columnas,
-            // y el laberinto de pasillos de servicio entre medias. Damasco burdeos, zócalo de madera, moqueta con rosetones (PBR CC0 + propio).
+        {   // v7.5.0: hotel mucho más grande (24 x 41 celdas de 3,2 m = 77 x 131 m) con plano de edificio (HotelPlan): vestíbulo con recepción,
+            // comedor, salón de baile, galería, 6 plantas de habitaciones (algunas se abren), rellanos de ascensores, lencería y escaleras.
+            // Damasco burdeos, zócalo de caoba, moqueta con rombos dorados (PBR CC0 + propio).
             c.hotel = true;
-            c.gridW = 22; c.gridH = 34; c.roomCount = 4; c.roomSize = new Vector2Int(2, 3); c.loopChance = 0.07f;
+            c.gridW = 24; c.gridH = 41;   // zona transitable ~2,3 veces la de antes (el resto son habitaciones cerradas y huecos de ascensor)
             c.wallStyle = SurfaceStyle.HotelWall; c.floorStyle = SurfaceStyle.HotelCarpet; c.ceilingStyle = SurfaceStyle.HotelCeiling;
             c.wallTileU = 1.6f; c.wallTileV = 0f; c.floorTileU = c.floorTileV = 2f; c.ceilTileU = c.ceilTileV = 2.4f;
-            c.roomPillars = 0.55f; c.roomPillarSize = 0.5f;
+            c.roomPillars = 0f;
             c.batteries = 14; c.monsterCount = 3; c.extraSpots = 18;
-            c.sconceChance = 0.16f; c.maxRealtimeLights = 10;
+            // más apliques vivos y tenues (casi uno por celda de pasillo), algo de luz ambiente y rebote de la linterna: sigue oscuro
+            c.sconceChance = 0.62f; c.deadChance = 0.22f; c.lightIntensity = 0.7f; c.lightRange = 6.0f; c.maxRealtimeLights = 12;
+            c.ambient = new Color(0.026f, 0.017f, 0.016f);
+            c.flashSpotAngle = 74f; c.flashSoft = true; c.flashBounce = 0.16f; c.flashlightIntensity = 3.0f;
         }
         return c;
     }

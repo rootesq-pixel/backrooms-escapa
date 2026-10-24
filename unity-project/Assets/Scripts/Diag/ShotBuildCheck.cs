@@ -78,7 +78,7 @@ public class ShotBuildCheck : MonoBehaviour
         if (PoolPlanarReflection.Instance != null) PoolPlanarReflection.Instance.Refresh(mc);
         if (FieldGrass.Active != null) FieldGrass.Active.Submit();
         Texture2D tex = Grab(mc, n);
-        float minMean = n.Contains("a_oscuras") ? 0.008f : 0.03f;   // el plano a oscuras es negro a propósito (solo señuelo y fotóforos)
+        float minMean = n.Contains("a_oscuras") ? 0.008f : n.StartsWith("l3_") ? 0.010f : 0.03f;   // el plano a oscuras es negro a propósito (solo señuelo y fotóforos); v7.5.0: el hotel es oscuro a propósito
         Check(Mean(tex) > minMean, "captura " + n + " no negra (media " + Mean(tex).ToString("F3") + ", mínimo " + minMean.ToString("F3") + ")");
         Destroy(tex);
         // tiempo real de fotograma del ejecutable en esta vista (sin vsync), mediana de 120 fotogramas
@@ -672,8 +672,19 @@ public class ShotBuildCheck : MonoBehaviour
         for (int z = 0; z < H; z++) { var row = new StringBuilder(); for (int x = 0; x < W; x++) { int m = 0; for (int d = 0; d < 4; d++) if (!gen.IsCellOpen(x, z, d)) m |= 1 << d; row.Append(m.ToString("x")); } sb.AppendLine("row " + row); }
         if (gen.Hotel != null) foreach (var hl in gen.Hotel.halls) sb.AppendLine("hall " + hl.kind + " " + hl.r.x + " " + hl.r.y + " " + hl.r.width + " " + hl.r.height);
         for (int i = 0; i < HotelDecor.DoorCenters.Count && gen.Hotel != null; i++) sb.AppendLine("door " + HotelDecor.DoorCenters[i].x.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) + " " + HotelDecor.DoorCenters[i].z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture));
+        if (gen.Hotel != null)
+        {   // v7.5.0: plano completo (tipos de celda, puertas, ascensores, muebles y vistas) para tools/drawplan.py
+            HotelPlan hp0 = gen.Hotel; var ic = System.Globalization.CultureInfo.InvariantCulture;
+            for (int z = 0; z < H; z++) { var row = new StringBuilder(); for (int x = 0; x < W; x++) row.Append(((int)hp0.kind[x, z]).ToString()); sb.AppendLine("kind " + row); }
+            foreach (var e in hp0.fakeDoors) sb.AppendLine("fake " + e.c.x + " " + e.c.y + " " + e.d + " " + e.kind);
+            foreach (var e in hp0.doorways) sb.AppendLine("dw " + e.c.x + " " + e.c.y + " " + e.d + " " + e.kind);
+            foreach (var e in hp0.liftDoors) sb.AppendLine("lift " + e.c.x + " " + e.c.y + " " + e.d);
+            foreach (var it in hp0.items) sb.AppendLine("item " + it.k + " " + it.p.x.ToString("F2", ic) + " " + it.p.z.ToString("F2", ic) + " " + it.yaw.ToString("F0", ic) + " " + it.s.x.ToString("F2", ic) + " " + it.s.z.ToString("F2", ic) + " " + (it.solid ? 1 : 0));
+            foreach (var v in hp0.views) sb.AppendLine("view " + v.name + " " + v.pos.x.ToString("F1", ic) + " " + v.pos.z.ToString("F1", ic) + " " + v.look.x.ToString("F1", ic) + " " + v.look.z.ToString("F1", ic));
+        }
         File.WriteAllText(Path.Combine(dir, "l3_map.txt"), sb.ToString());
         Info("nivel 3: " + W + " x " + H + " celdas de " + cs + " m (" + (W * cs).ToString("F0") + " x " + (H * cs).ToString("F0") + " m), puertas " + (gen.Hotel != null ? HotelDecor.Doors : 0) + ", salas " + (gen.Hotel != null ? gen.Hotel.halls.Count : 0) + (LevelConfig.OldL3 ? " (hotel antiguo, -oldl3)" : ""));
+        if (gen.Hotel != null) { yield return Level3Views(gm, pw, mc, gen); if (fl != null) fl.SetOn(false); if (vx != null) vx.intensityOverride = -1f; Check(gm.State == GameManager.GameState.Playing, "nivel 3 sigue en juego durante las capturas (" + gm.State + ")"); yield break; }
         // pasillos: celdas con la visual recta más larga
         var cand = new System.Collections.Generic.List<(int L, int x, int z, int d)>();
         for (int x = 0; x < W; x++) for (int z = 0; z < H; z++) for (int d = 0; d < 4; d++)
@@ -728,6 +739,27 @@ public class ShotBuildCheck : MonoBehaviour
         if (fl != null) fl.SetOn(false);
         if (vx != null) vx.intensityOverride = -1f;
         Check(gm.State == GameManager.GameState.Playing, "nivel 3 sigue en juego durante las capturas (" + gm.State + ")");
+    }
+
+    // v7.5.0: hotel nuevo: una captura por tipo de sitio, con el encuadre que propone el plano (a la altura de los ojos, linterna encendida)
+    IEnumerator Level3Views(GameManager gm, FirstPersonController pw, Camera mc, BackroomsGenerator gen)
+    {
+        string[] order = { "pasillo", "habitacion", "ascensores", "recepcion", "salon", "comedor", "escalera", "servicio", "galeria", "ascensores_vestibulo" };
+        Info("hotel: puertas " + HotelDecor.Doors + " (abiertas " + HotelDecor.OpenDoors + "), muebles " + HotelDecor.ItemCount + ", lámparas vivas " + HotelDecor.LiveLamps + ", vistas " + gen.Hotel.views.Count);
+        int n = 0;
+        foreach (string want in order)
+        {
+            int pick = -1, seen = 0;
+            for (int i = 0; i < gen.Hotel.views.Count; i++) if (gen.Hotel.views[i].name == want) { if (pick < 0 || (want == "pasillo" && seen == 1)) pick = i; seen++; }
+            if (pick < 0) { Info("sin vista " + want); continue; }
+            HotelPlan.View v = gen.Hotel.views[pick];
+            Vector3 p = gen.Root.TransformPoint(v.pos), t = gen.Root.TransformPoint(v.look);
+            if (want == "habitacion")   // la puerta de la habitación, abierta (se ve el pasillo detrás)
+                foreach (HotelDoorLeaf lf in HotelDecor.Leaves) if (lf != null && (lf.center - p).sqrMagnitude < 16f) lf.ForceOpen(30f);
+            n++;
+            yield return View(pw, mc, "l3_" + n.ToString("00") + "_" + want, p, t, 66f, new Vector3(p.x, gen.Root.position.y + 0.02f, p.z));
+        }
+        Check(n >= 7, "hotel: " + n + " capturas de sitios distintos");
     }
 
     // 900 fotogramas: cada uno = bucle del juego + render de la cámara a 1920x1080 + espera a la GPU (lectura de 1 píxel)

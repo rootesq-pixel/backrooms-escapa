@@ -14,6 +14,9 @@ public class Flashlight : MonoBehaviour
     public float range = 22f;
     [Range(10f, 120f)] public float spotAngle = 60f;
     public Color color = new Color(1f, 0.96f, 0.82f);
+    public bool softCookie = false;   // v7.5.0: haz suave (centro y halo amplio) en vez del borde duro
+    public float bounce = 0f;         // v7.5.0: luz de rebote tenue donde da el haz (fracción de la intensidad)
+    private Light bounceLight; private static Texture2D softTex;
 
     [Header("Batería")]
     public float batteryMax = 100f;
@@ -115,6 +118,30 @@ public class Flashlight : MonoBehaviour
         spot.color = color;
         spot.intensity = maxIntensity;
         spot.shadows = LightShadows.None; // más rendimiento; cámbialo a Soft si quieres sombras
+        if (softCookie) spot.cookie = SoftCookie();
+        if (bounce > 0f && bounceLight == null)
+        {
+            GameObject bg = new GameObject("FlashlightBounce"); bg.transform.SetParent(transform, false);
+            bounceLight = bg.AddComponent<Light>(); bounceLight.type = LightType.Point; bounceLight.shadows = LightShadows.None;
+            bounceLight.color = new Color(1f, 0.72f, 0.6f); bounceLight.renderMode = LightRenderMode.ForcePixel; bounceLight.enabled = false;
+        }
+    }
+
+    // v7.5.0: cookie radial: centro algo más brillante y caída suave hasta el borde del cono (sin anillo duro)
+    private static Texture2D SoftCookie()
+    {
+        if (softTex != null) return softTex;
+        const int N = 128; softTex = new Texture2D(N, N, TextureFormat.Alpha8, false) { wrapMode = TextureWrapMode.Clamp, name = "FlashSoftCookie" };
+        Color32[] px = new Color32[N * N];
+        for (int y = 0; y < N; y++) for (int x = 0; x < N; x++)
+        {
+            float dx = (x + 0.5f) / N * 2f - 1f, dy = (y + 0.5f) / N * 2f - 1f, r = Mathf.Sqrt(dx * dx + dy * dy);
+            float v = 0.42f * Mathf.Exp(-r * r / 0.10f) + 0.58f * Mathf.Exp(-r * r / 0.42f);
+            v *= 1f - Mathf.SmoothStep(0.78f, 1f, r);
+            px[y * N + x] = new Color32(255, 255, 255, (byte)Mathf.Clamp(Mathf.RoundToInt(v * 255f), 0, 255));
+        }
+        softTex.SetPixels32(px); softTex.Apply(false, true);
+        return softTex;
     }
 
     private void Update()
@@ -145,6 +172,7 @@ public class Flashlight : MonoBehaviour
         if (!IsOn)
         {
             spot.enabled = false;
+            if (bounceLight != null) bounceLight.enabled = false;
             return;
         }
 
@@ -184,5 +212,24 @@ public class Flashlight : MonoBehaviour
         }
         nearK = Mathf.Lerp(nearK, Mathf.Lerp(0.42f, 1f, Mathf.InverseLerp(0.6f, 4.5f, nearHit)), 1f - Mathf.Exp(-8f * dt));
         spot.intensity = intensity * intensityMultiplier * nearK;
+        if (bounceLight != null)
+        {   // rebote: un punto tenue un poco delante de donde da el haz (lo que ilumina la linterna «rellena» un poco el entorno)
+            bounceT -= dt;
+            if (bounceT <= 0f)
+            {
+                bounceT = 0.05f;
+                RaycastHit bh;
+                bool hit = Physics.Raycast(spot.transform.position, spot.transform.forward, out bh, 14f, ~0, QueryTriggerInteraction.Ignore);
+                bounceDist = hit ? bh.distance : 14f;
+                bounceTarget = hit ? bh.point + bh.normal * 0.6f : spot.transform.position + spot.transform.forward * 10f;
+            }
+            Transform bt = bounceLight.transform;
+            bt.position = Vector3.Lerp(bt.position, bounceTarget, 1f - Mathf.Exp(-14f * dt));
+            float k = Mathf.Clamp01(1.4f - bounceDist / 12f);
+            bounceLight.range = 2.5f + bounceDist * 0.35f;
+            bounceLight.intensity = spot.intensity * bounce * k;
+            bounceLight.enabled = spot.enabled && k > 0.02f;
+        }
     }
+    private float bounceT, bounceDist = 14f; private Vector3 bounceTarget;
 }
