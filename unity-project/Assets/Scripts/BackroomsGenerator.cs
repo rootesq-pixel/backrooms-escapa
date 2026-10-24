@@ -1430,6 +1430,7 @@ public class BackroomsGenerator : MonoBehaviour
         Light l = lt.GetComponent<Light>(); FlickeringLight f = lt.GetComponent<FlickeringLight>();
         if (l != null) { l.type = LightType.Spot; l.spotAngle = angle; l.innerSpotAngle = angle * 0.35f; l.color = color; l.intensity = intensity; l.range = range; if (cookie != null) l.cookie = cookie; }
         if (f != null) { f.baseIntensity = intensity; f.flickerEnabled = false; }
+        if (cookie != null && l != null) { l.renderMode = LightRenderMode.ForcePixel; if (f != null) f.cullScale = 0.35f; }   // v7.5.0: luna con cookie: siempre por píxel (si no, Unity la pasa a vértice y el dibujo no se ve) y con prioridad en el límite de luces
     }
 
     // v7.5.0: luces del atrezo del hotel (lámparas de mesilla, arañas): como las de los apliques, con su parpadeo y bajo el LightCuller

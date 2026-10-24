@@ -25,6 +25,7 @@ public class FlickeringLight : MonoBehaviour
     [Header("Modo")]
     [Tooltip("Si es false la luz no parpadea (solo se atenúa por LightCuller).")]
     public bool flickerEnabled = true;
+    public float cullScale = 1f;   // v7.5.0: LightCuller ordena por distancia² × esto (<1 = prioridad: la luna de los ventanales)
     [Tooltip("Pulso lento (luces de emergencia): la intensidad oscila con un seno.")]
     public bool pulse = false;
     public float pulseSpeed = 1.6f;

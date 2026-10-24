@@ -94,7 +94,7 @@ public class LightCuller : MonoBehaviour
         for (int i = 0; i < n; i++)
         {
             FlickeringLight f = fixtures[i];
-            float d = f == null ? float.MaxValue : (f.transform.position - p).sqrMagnitude;
+            float d = f == null ? float.MaxValue : (f.transform.position - p).sqrMagnitude * f.cullScale;
             sqrDist.Add(d);
             order.Add(i);
         }
