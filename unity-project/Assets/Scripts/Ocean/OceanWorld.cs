@@ -749,7 +749,7 @@ public class OceanWorld : MonoBehaviour
     // v7.4.0: señuelo discreto en la boca de la gruta: manchas de algas luminosas (verde pálido y quietas, distintas del cebo cian que
     // late del Farolero) alrededor de la boca y una luz suave dentro. Se distinguen desde la puerta de la jaula sin marcar el camino.
     public static readonly Color LureColor = new Color(0.55f, 0.95f, 0.45f);
-    public const int LureBlobs = 16;
+    public const int LureBlobs = 20;
     public Transform GrottoLure { get; private set; }
     public Light GrottoLureLight { get; private set; }
     private void BuildGrottoLure(Transform parent)
@@ -758,7 +758,7 @@ public class OceanWorld : MonoBehaviour
         Vector3 mouth = TunnelPath[0], inward = (TunnelPath[1] - TunnelPath[0]).normalized;
         Quaternion ring = Quaternion.LookRotation(-inward);
         Material gm = OceanGeo.Unlit("Ocean/Glow", LureColor, track);
-        gm.SetFloat("_Intensity", 0.65f); gm.SetFloat("_Fog", 0.03f); gm.SetFloat("_Soft", 1f);
+        gm.SetFloat("_Intensity", 0.95f); gm.SetFloat("_Fog", 0.022f); gm.SetFloat("_Soft", 1f);
         Vector3 toCage = CageTop - mouth; toCage.y = 0f; toCage.Normalize();
         System.Random r = new System.Random(4071);
         for (int i = 0; i < LureBlobs; i++)
@@ -770,17 +770,18 @@ public class OceanWorld : MonoBehaviour
             GameObject q = ProceduralAssets.CreatePrimitive(PrimitiveType.Quad, "LureAlgae", g.transform, Vector3.zero, Vector3.one, gm, false);
             q.transform.position = p;
             q.transform.rotation = Quaternion.LookRotation(-toCage) * Quaternion.Euler(0f, 0f, (float)(r.NextDouble() * 30.0 - 15.0));
-            float sz = 0.34f + (float)r.NextDouble() * 0.26f;
+            float sz = 0.4f + (float)r.NextDouble() * 0.3f;
             q.transform.localScale = new Vector3(sz, sz * (1.8f + (float)r.NextDouble()), 1f);
             MeshRenderer mr = q.GetComponent<MeshRenderer>(); mr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; mr.receiveShadows = false;
         }
+        // v7.4.0b: algo más fuerte (algas 0,95, halo 0,26 y mayor, luz 1,8 / 9 m) para que se lea desde la puerta de la jaula
         // resplandor tenue que sale de la boca (lo que de verdad se distingue desde la jaula, a ~14 m)
         Material hm = OceanGeo.Unlit("Ocean/Glow", LureColor, track);
-        hm.SetFloat("_Intensity", 0.16f); hm.SetFloat("_Fog", 0.02f); hm.SetFloat("_Soft", 1f);
+        hm.SetFloat("_Intensity", 0.26f); hm.SetFloat("_Fog", 0.015f); hm.SetFloat("_Soft", 1f);
         GameObject halo = ProceduralAssets.CreatePrimitive(PrimitiveType.Quad, "LureHalo", g.transform, Vector3.zero, Vector3.one, hm, false);
-        halo.transform.position = mouth + inward * 0.6f; halo.transform.rotation = Quaternion.LookRotation(-toCage); halo.transform.localScale = new Vector3(5.2f, 4.4f, 1f);
+        halo.transform.position = mouth + inward * 0.6f; halo.transform.rotation = Quaternion.LookRotation(-toCage); halo.transform.localScale = new Vector3(6.0f, 5.0f, 1f);
         { MeshRenderer hr = halo.GetComponent<MeshRenderer>(); hr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; hr.receiveShadows = false; }
-        GrottoLureLight = AddPoint(g.transform, mouth + inward * 0.8f, new Color(0.5f, 0.9f, 0.45f), 1.2f, 7f);
+        GrottoLureLight = AddPoint(g.transform, mouth + inward * 0.8f, new Color(0.5f, 0.9f, 0.45f), 1.8f, 9f);
         GrottoLureLight.renderMode = LightRenderMode.ForcePixel;
     }
 

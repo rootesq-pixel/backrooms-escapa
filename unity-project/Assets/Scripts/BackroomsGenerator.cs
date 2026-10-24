@@ -101,7 +101,11 @@ public class BackroomsGenerator : MonoBehaviour
     private int BlockId(int x, int z) { if (HasPoolRoom && PoolBlock.Contains(new Vector2Int(x, z))) return 0; int k = HallIndex(x, z); return k < 0 ? -1 : 1 + k; }
     // puertas de la sala: S en la columna 3, N en la 0, O y E en la fila 1 (igual que Tools/ballpit/build_hall.py)
     public static bool HallDoorH(RectInt b, int i, int j) { return (j == b.y && i == b.x + 3) || (j == b.yMax && i == b.x); }
-    public static bool HallDoorV(RectInt b, int i, int j) { return j == b.y + 1 && (i == b.x || i == b.xMax); }
+    // v7.4.0: sin la puerta este. En la malla horneada de la sala, justo detrás de ese hueco está la planta alta del parque (1,7 m):
+    // no cabe un monstruo ni el jugador de pie, y el NavMesh no pasaba. Cuando esa era la única entrada a una zona (p. ej. semilla
+    // 64257619: la salida), la salida quedaba inalcanzable a pie. Ahora el muro del laberinto la cierra y EnsureConnected abre otro paso.
+    public static readonly bool HallEastDoor = false;
+    public static bool HallDoorV(RectInt b, int i, int j) { return j == b.y + 1 && (i == b.x || (HallEastDoor && i == b.xMax)); }
     public Vector3 HallCenterLocal(int k) { RectInt b = Halls[k]; return new Vector3((b.x + b.width * 0.5f) * cellSize, 0f, (b.y + b.height * 0.5f) * cellSize); }
     public bool IsPoolCell(int x, int z)
     {
