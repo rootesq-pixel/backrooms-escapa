@@ -48,7 +48,7 @@ Cambios: los dos GLB se importaron en Blender, se unieron en un solo FBX (cabina
 
 Desde la v7.4.0 la cabina es un modelo propio (`Assets/Resources/Elevator/Elevator740.fbx`), modelado por script en Blender 4.2 (`Tools/v740/build_elev.py`): paneles de madera y de acero cepillado con juntas, pasamanos con soportes, botonera con columna de botones iluminados, indicador de planta sobre el dintel, placa de inspección, rejilla del altavoz, plafón con lamas, puertas correderas con marco y umbral, y suciedad acumulada en las esquinas del suelo. Es de dominio público (CC0). El modelo anterior del kit de 3D Assets sigue en el proyecto solo como reserva, si no se encuentra el nuevo.
 
-Texturas PBR de [ambientCG](https://ambientcg.com) (CC0 1.0, dominio público; no exigen atribución, se cita igualmente). Se descargaron a 1K/2K y se reempaquetaron a 512–2048 px como albedo, normales y máscara Standard (metal/AO/suavidad) con `Tools/v740/packtex.py` y `Tools/v740/compose_l1.py`:
+Texturas PBR de [ambientCG](https://ambientcg.com) (CC0 1.0, dominio público; no exigen atribución, se cita igualmente). Se descargaron a 1K/2K y se reempaquetaron a 512–2048 px como albedo, normales y máscara Standard (metal/AO/suavidad) con `Tools/v740/packtex.py`, `Tools/v740/compose_l1.py` y `Tools/v750/compose_l3.py`:
 
 | Uso | Material de ambientCG | Fuente |
 |---|---|---|
@@ -59,6 +59,10 @@ Texturas PBR de [ambientCG](https://ambientcg.com) (CC0 1.0, dominio público; n
 | Nivel 1, suelo del aparcamiento (`ParkingFloor`) | Concrete042A | https://ambientcg.com/view?id=Concrete042A |
 | Nivel 1, muros y pilares (`ParkingWall`) | Concrete031 | https://ambientcg.com/view?id=Concrete031 |
 | Nivel 1, techo (`ParkingCeiling`) | Concrete012 | https://ambientcg.com/view?id=Concrete012 |
+| Nivel 3, madera del zócalo, puertas y marcos (`HotelWall`, `HotelDoor`, `HotelWood`) | Wood066 | https://ambientcg.com/view?id=Wood066 |
+| Nivel 3, pelo de la moqueta (`HotelCarpet`; dibujo propio) | Carpet012 | https://ambientcg.com/view?id=Carpet012 |
+| Nivel 3, soporte del papel pintado (`HotelWall`; damasco propio) | Fabric045 | https://ambientcg.com/view?id=Fabric045 |
+| Nivel 3, yeso del techo y de las zonas despegadas (`HotelCeiling`, `HotelWall`) | Plaster001 | https://ambientcg.com/view?id=Plaster001 |
 
 Añadidos propios sobre esas texturas (numpy/Pillow, CC0): líneas amarillas gastadas, rodadas de neumáticos, suciedad, agujeros de encofrado con regueros de óxido, manchas de humedad y eflorescencias, anillos de agua en el techo, manchas de aceite y charcos (calcomanías del suelo del Nivel 1). Además: placa de inspección, rejilla y suciedad de la cabina.
 

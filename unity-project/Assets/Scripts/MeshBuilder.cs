@@ -61,6 +61,21 @@ public class MeshBuilder
         }
     }
 
+    // v7.5.0: quad con UV explícitas (puertas del hotel, números de latón)
+    public void AddQuadUV(int sub, Vector3 p0, Vector3 p1, Vector3 p2, Vector3 p3, Vector3 n, Vector3 uAxis, Vector3 vAxis,
+        Vector2 uv0, Vector2 uv1, Vector2 uv2, Vector2 uv3)
+    {
+        int b = verts.Count;
+        float w = Vector3.Dot(Vector3.Cross(n, uAxis), vAxis) >= 0f ? 1f : -1f;
+        Vector3[] p = { p0, p1, p2, p3 }; Vector2[] u = { uv0, uv1, uv2, uv3 };
+        for (int i = 0; i < 4; i++) { verts.Add(p[i]); normals.Add(n); tangents.Add(new Vector4(uAxis.x, uAxis.y, uAxis.z, w)); uvs.Add(u[i]); }
+        Vector3 tn = Vector3.Cross(p1 - p0, p2 - p0);
+        List<int> t = tris[sub];
+        if (Vector3.Dot(tn, n) >= 0f) { t.Add(b); t.Add(b + 1); t.Add(b + 2); t.Add(b); t.Add(b + 2); t.Add(b + 3); }
+        else { t.Add(b); t.Add(b + 2); t.Add(b + 1); t.Add(b); t.Add(b + 3); t.Add(b + 2); }
+    }
+    public bool SubEmpty(int sub) { return tris[sub].Count == 0; }
+
     // Caja vertical (pared o pilar) con 4 caras laterales. UV: u a lo largo de la cara,
     // v = y / tileV (si tileV <= 0 se normaliza a la altura: v = y / height).
     public void AddWallBox(int sub, Vector3 center, Vector3 size, float tileU, float tileV, float uOff)

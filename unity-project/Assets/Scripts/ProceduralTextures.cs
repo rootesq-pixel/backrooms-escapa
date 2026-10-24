@@ -27,7 +27,10 @@ public enum SurfaceStyle
     CeilingL0,
     ParkingFloor,   // v7.4.0 nivel 1: hormigón PBR CC0 (ambientCG) + líneas/óxido/humedad propios (Tools/v740/compose_l1.py)
     ParkingWall,
-    ParkingCeiling
+    ParkingCeiling,
+    HotelWall,      // v7.5.0 nivel 3: damasco, zócalo de madera, dado y cornisa (CC0 ambientCG + dibujo propio, Tools/v750/compose_l3.py)
+    HotelCarpet,
+    HotelCeiling
 }
 
 // Conjunto de texturas PBR para el shader Standard:
@@ -157,7 +160,7 @@ public static class ProceduralTextures
     public static bool UseBaked = true;
     private static readonly Dictionary<SurfaceStyle, float> BakedWallHeight = new Dictionary<SurfaceStyle, float>
     {
-        { SurfaceStyle.WallpaperYellow, 3.0f }, { SurfaceStyle.WallpaperL0, 3.0f }, { SurfaceStyle.WallpaperHotel, 2.8f }, { SurfaceStyle.ConcreteWall, 3.6f }, { SurfaceStyle.ParkingWall, 3.6f },
+        { SurfaceStyle.WallpaperYellow, 3.0f }, { SurfaceStyle.WallpaperL0, 3.0f }, { SurfaceStyle.WallpaperHotel, 2.8f }, { SurfaceStyle.ConcreteWall, 3.6f }, { SurfaceStyle.ParkingWall, 3.6f }, { SurfaceStyle.HotelWall, 2.8f },
     };
 
     // ¿Hay textura horneada para este estilo a esta altura de pared? (las paredes horneadas llevan el zócalo a escala)
@@ -193,6 +196,9 @@ public static class ProceduralTextures
         {
             case SurfaceStyle.WallpaperYellow: c = WallpaperYellow(Res(1024), wallHeight); normalStrength = 2.2f; break;
             case SurfaceStyle.WallpaperHotel: c = WallpaperHotel(Res(1024), wallHeight); normalStrength = 2.6f; break;
+            case SurfaceStyle.HotelWall: c = WallpaperHotel(Res(1024), wallHeight); normalStrength = 2.6f; break;   // v7.5.0: reserva si faltan las horneadas
+            case SurfaceStyle.HotelCarpet: c = Carpet(Res(512), true); normalStrength = 3f; break;
+            case SurfaceStyle.HotelCeiling: c = CeilingTile(Res(512), new Color(0.25f, 0.23f, 0.21f), false); normalStrength = 2.5f; break;
             case SurfaceStyle.CarpetBrown: c = Carpet(Res(512), false); normalStrength = 3f; break;
             case SurfaceStyle.CarpetRed: c = Carpet(Res(512), true); normalStrength = 3f; break;
             case SurfaceStyle.CeilingBeige: c = CeilingTile(Res(512), new Color(0.84f, 0.81f, 0.68f), true); normalStrength = 2.5f; break;

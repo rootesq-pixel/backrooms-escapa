@@ -41,6 +41,8 @@ public class BackroomsGenerator : MonoBehaviour
     public bool HasLevel { get { return IsGenerated && levelRoot != null; } }
     public int UsedSeed { get; private set; }
     public FieldPlan FieldPlan { get; private set; }
+    public HotelPlan Hotel { get; private set; }       // v7.5.0: plano del hotel largo (nivel 3; null en otros niveles)
+    private readonly Dictionary<int, float> sconceAlong = new Dictionary<int, float>();   // v7.5.0: apliques por cara de celda (las puertas del hotel los esquivan)
     public GaragePlan Garage { get; private set; }     // v7.0.4: plantas del aparcamiento (null en otros niveles)   // v7.0: casas/postes/puertas del Campo infinito (null en otros niveles)
     public bool IsField { get { return config != null && config.layout == LayoutKind.Field; } }
     public Vector3 PlayerStart { get; private set; }
@@ -441,6 +443,9 @@ public class BackroomsGenerator : MonoBehaviour
                 for (int j = rz + 1; j < rz + rh; j++)
                     wallsH[i, j] = false;
         }
+
+        // v7.5.0: hotel largo: pasillos principales rectos y salas grandes (solo se quitan muros: sigue siendo conexo)
+        Hotel = config.hotel && config.layout == LayoutKind.Maze ? HotelPlan.Make(new System.Random(UsedSeed * 577 + 3), w, h, startCell, wallsV, wallsH) : null;
 
         // v7.0.4: aparcamiento por plantas (rampas, tabiques, callejones, rampas falsas)
         if (config.decks > 1 && config.layout != LayoutKind.Field)
@@ -993,11 +998,12 @@ public class BackroomsGenerator : MonoBehaviour
         MonsterSpawn = MonsterSpawns[0];
 
         PickBatterySpots(rng, mc);
-        PickExtraSpots(new System.Random(UsedSeed * 31 + 7), 9);
+        PickExtraSpots(new System.Random(UsedSeed * 31 + 7), Mathf.Max(1, cfg.extraSpots));
         PickKeySpots(new System.Random(UsedSeed * 71 + 29), ExitLock.KeyCount);
         if (Halls.Count > 0) PlaceHallSpots(new System.Random(UsedSeed * 53 + 11));   // v7.1.0: llaves y objetos dentro de las salas (una llave entre las bolas)
         BuildExitDoor(rng);
-        if (Garage != null) GarageDecor.Build(this, Garage, cfg, decorRoot, wallMat, o => Track(o));   // v7.0.4: topes, señales y números de planta
+        if (Garage != null) GarageDecor.Build(this, Garage, cfg, decorRoot, wallMat, o => Track(o));
+        if (Hotel != null) HotelDecor.Build(this, Hotel, cfg, decorRoot, sconceAlong, o => Track(o));   // v7.5.0: puertas numeradas   // v7.0.4: topes, señales y números de planta
 
         // Agua realista (shader propio + volumen con interacción)
         if (cfg.water)
@@ -1119,6 +1125,7 @@ public class BackroomsGenerator : MonoBehaviour
         ProceduralAssets.SetEmission(emissive, cfg.emissionColor);
         Material dead = Track(ProceduralAssets.CreateMaterial(new Color(0.45f, 0.45f, 0.42f), null, Vector2.one, 0.1f));
         Material housing = Track(ProceduralAssets.CreateMaterial(new Color(0.12f, 0.12f, 0.12f), null, Vector2.one, 0.4f));
+        if (cfg.hotel) { housing.color = new Color(0.50f, 0.37f, 0.19f); housing.SetFloat("_Glossiness", 0.55f); housing.SetFloat("_Metallic", 0.9f); }   // v7.5.0: latón envejecido
         // v7.3.0c nivel 0: pantallas empotradas realistas (marco de chapa + difusor prismático horneado, 4 variantes por atlas)
         trofOn = trofOff = trofFrame = null; trofFrames.Clear();
         if (cfg.troffers && cfg.fixture == FixtureKind.Panel && Garage == null)
@@ -1143,6 +1150,7 @@ public class BackroomsGenerator : MonoBehaviour
             buzzClip = Track(ProceduralAudio.CreateBuzzClip());
         }
 
+        sconceAlong.Clear();
         int fixtures = 0, live = 0; DarkClusterFixtures = 0;
         int spacing = Mathf.Max(1, cfg.lightSpacing);
         float wh = wallHeight;
@@ -1165,6 +1173,7 @@ public class BackroomsGenerator : MonoBehaviour
                     Vector3 perp = new Vector3(-dir.z, 0f, dir.x);
                     Vector3 wallPos = c + dir * (cellSize * 0.5f - wallThickness * 0.5f) + perp * along + new Vector3(0f, wh * 0.66f, 0f);
                     bool isDead = rng.NextDouble() < cfg.deadChance;
+                    sconceAlong[(x * 1000 + z) * 4 + side] = Vector3.Dot(perp * along, new Vector3(dir.z, 0f, -dir.x));   // a lo largo de u = (-n.z, n.x) con n = -dir
                     CreateSconce(lightsRoot, wallPos, dir, isDead, emissive, dead, housing, rng, buzzClip);
                     fixtures++;
                     if (!isDead) live++;
@@ -1339,6 +1348,17 @@ public class BackroomsGenerator : MonoBehaviour
         fx.transform.localPosition = wallPos;
         fx.transform.localRotation = Quaternion.LookRotation(-dirToWall); // +Z local = hacia la habitación
 
+        if (config != null && config.hotel)
+        {   // v7.5.0: aplique de hotel: placa y brazo de latón, pantalla de tela en tambor (emisiva cálida) sobre una vela
+            ProceduralAssets.CreatePrimitive(PrimitiveType.Cylinder, "Plate", fx.transform, new Vector3(0f, -0.02f, 0.008f), new Vector3(0.11f, 0.008f, 0.11f), housing, false).transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "Arm", fx.transform, new Vector3(0f, -0.06f, 0.075f), new Vector3(0.018f, 0.018f, 0.14f), housing, false);
+            ProceduralAssets.CreatePrimitive(PrimitiveType.Cylinder, "Cup", fx.transform, new Vector3(0f, -0.04f, 0.15f), new Vector3(0.05f, 0.02f, 0.05f), housing, false);
+            Renderer shade = ProceduralAssets.CreatePrimitive(PrimitiveType.Cylinder, "Shade", fx.transform, new Vector3(0f, 0.06f, 0.15f),
+                new Vector3(0.17f, 0.075f, 0.17f), isDead ? dead : emissive, false).GetComponent<Renderer>();
+            if (isDead) return;
+            CreateFixtureLight(fx.transform, new Vector3(0f, 0.05f, 0.45f), shade, rng, buzzClip);
+            return;
+        }
         // Placa trasera + pantalla emisiva
         ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "Plate", fx.transform, new Vector3(0f, 0f, 0.015f), new Vector3(0.16f, 0.32f, 0.03f), housing, false);
         Renderer lens = ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "Shade", fx.transform, new Vector3(0f, 0.04f, 0.1f),
@@ -1549,7 +1569,7 @@ public class BackroomsGenerator : MonoBehaviour
         for (int i = 0; i < mc.Count; i++) MonsterSpawns.Add(levelRoot.TransformPoint(CellCenterLocal(mc[i].x, mc[i].y)));
         MonsterSpawn = MonsterSpawns[0];
         PickBatterySpots(rng, mc);
-        PickExtraSpots(new System.Random(UsedSeed * 31 + 7), 9);
+        PickExtraSpots(new System.Random(UsedSeed * 31 + 7), Mathf.Max(1, cfg.extraSpots));
         KeySpots = new List<Vector3>();
         PickFieldHouseSpots();   // v7.0.2: los objetos, solo dentro de las casas abiertas
         BuildFieldExit(rng);

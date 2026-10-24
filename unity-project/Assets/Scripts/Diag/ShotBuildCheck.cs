@@ -61,6 +61,7 @@ public class ShotBuildCheck : MonoBehaviour
         else if (OceanWorld.Active != null) yield return Ocean(gm, pw, mc);
         else if (GameBootstrap.Instance.CurrentLevel == 0) yield return Level0(gm, pw, mc);
         else if (GameBootstrap.Instance.CurrentLevel == 1) yield return Level1(gm, pw, mc);
+        else if (GameBootstrap.Instance.CurrentLevel == 3) yield return Level3(gm, pw, mc);
         else if (BallPitField.All.Count > 0) yield return Ballpit(gm, pw, mc);
         else Check(false, "nivel con sala de piscina o campo");
         Finish();
@@ -655,6 +656,78 @@ public class ShotBuildCheck : MonoBehaviour
             yield return Perf(pw, mc, "aparcamiento_lado", b + Vector3.up * 1.6f, b - r * 14f + Vector3.up * 0.6f, F, b);
         }
         Check(gm.State == GameManager.GameState.Playing, "nivel 1 sigue en juego durante las capturas (" + gm.State + ")");
+    }
+
+    // v7.5.0: hotel (nivel 3) con la linterna encendida y sin VHS: pasillos largos, una puerta de cerca y una sala grande;
+    // además vuelca el plano (muros, salas, puertas, inicio y salida) en l3_map.txt para dibujar el mapa cenital en el box
+    IEnumerator Level3(GameManager gm, FirstPersonController pw, Camera mc)
+    {
+        VhsEffect vx = mc.GetComponent<VhsEffect>(); if (vx != null) vx.intensityOverride = 0f;
+        Flashlight fl = pw.GetComponentInChildren<Flashlight>(); if (fl != null) fl.SetOn(true);
+        BackroomsGenerator gen = gm.generator; float cs = gen.CellSize; int W = gen.GridWidth, H = gen.GridHeight;
+        Vector3 root = gen.Root.TransformPoint(Vector3.zero);
+        var sb = new StringBuilder();
+        sb.AppendLine("grid " + W + " " + H + " " + cs.ToString(System.Globalization.CultureInfo.InvariantCulture) + " old " + LevelConfig.OldL3);
+        sb.AppendLine("start " + gen.StartCell.x + " " + gen.StartCell.y + " exit " + gen.ExitCell.x + " " + gen.ExitCell.y);
+        for (int z = 0; z < H; z++) { var row = new StringBuilder(); for (int x = 0; x < W; x++) { int m = 0; for (int d = 0; d < 4; d++) if (!gen.IsCellOpen(x, z, d)) m |= 1 << d; row.Append(m.ToString("x")); } sb.AppendLine("row " + row); }
+        if (gen.Hotel != null) foreach (var hl in gen.Hotel.halls) sb.AppendLine("hall " + hl.kind + " " + hl.r.x + " " + hl.r.y + " " + hl.r.width + " " + hl.r.height);
+        for (int i = 0; i < HotelDecor.DoorCenters.Count && gen.Hotel != null; i++) sb.AppendLine("door " + HotelDecor.DoorCenters[i].x.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) + " " + HotelDecor.DoorCenters[i].z.ToString("F2", System.Globalization.CultureInfo.InvariantCulture));
+        File.WriteAllText(Path.Combine(dir, "l3_map.txt"), sb.ToString());
+        Info("nivel 3: " + W + " x " + H + " celdas de " + cs + " m (" + (W * cs).ToString("F0") + " x " + (H * cs).ToString("F0") + " m), puertas " + (gen.Hotel != null ? HotelDecor.Doors : 0) + ", salas " + (gen.Hotel != null ? gen.Hotel.halls.Count : 0) + (LevelConfig.OldL3 ? " (hotel antiguo, -oldl3)" : ""));
+        // pasillos: celdas con la visual recta más larga
+        var cand = new System.Collections.Generic.List<(int L, int x, int z, int d)>();
+        for (int x = 0; x < W; x++) for (int z = 0; z < H; z++) for (int d = 0; d < 4; d++)
+        {
+            if (gen.IsCellOpen(x, z, (d + 2) % 4)) continue;   // de espaldas a un muro
+            int L = 0, cx = x, cz = z; Vector2Int dv = d == 0 ? Vector2Int.up : d == 1 ? Vector2Int.right : d == 2 ? Vector2Int.down : Vector2Int.left;
+            while (L < 40 && gen.IsCellOpen(cx, cz, d)) { cx += dv.x; cz += dv.y; L++; }
+            if (L >= 3) cand.Add((L, x, z, d));
+        }
+        cand.Sort((a, b) => b.L.CompareTo(a.L));
+        var used = new System.Collections.Generic.List<Vector2Int>(); int n = 0; Vector3 firstP = Vector3.zero;
+        foreach (var c in cand)
+        {
+            bool far = true; foreach (Vector2Int u in used) if (Mathf.Abs(u.x - c.x) + Mathf.Abs(u.y - c.z) < 8) far = false;
+            if (!far) continue; used.Add(new Vector2Int(c.x, c.z));
+            Vector3 dir = c.d == 0 ? Vector3.forward : c.d == 1 ? Vector3.right : c.d == 2 ? Vector3.back : Vector3.left;
+            Vector3 side = new Vector3(dir.z, 0f, -dir.x);
+            Vector3 stand = gen.Root.TransformPoint(new Vector3((c.x + 0.5f) * cs, 0.02f, (c.z + 0.5f) * cs)) - dir * (cs * 0.3f) + side * 0.35f;
+            Vector3 p = stand + Vector3.up * 1.62f;
+            if (n == 0) firstP = p;
+            yield return View(pw, mc, "l3_0" + (n + 1) + "_pasillo", p, p + dir * 10f + Vector3.down * 0.45f - side * 0.5f, 62f, stand);
+            if (++n == 3) break;
+        }
+        // puerta de cerca (solo el hotel nuevo)
+        if (gen.Hotel != null && HotelDecor.DoorCenters.Count > 0)
+        {
+            int bi = 0; float bd = 1e9f;
+            for (int i = 0; i < HotelDecor.DoorCenters.Count; i++) { float dd = (gen.Root.TransformPoint(HotelDecor.DoorCenters[i]) - firstP).sqrMagnitude; if (dd < bd) { bd = dd; bi = i; } }
+            Vector3 dc = gen.Root.TransformPoint(HotelDecor.DoorCenters[bi]), dn = HotelDecor.DoorNormals[bi], du = new Vector3(-dn.z, 0f, dn.x);
+            Vector3 p = dc + dn * 1.55f + du * 0.55f + Vector3.up * 0.42f;
+            yield return View(pw, mc, "l3_04_puerta", p, dc + Vector3.up * 0.05f, 60f, new Vector3(p.x, root.y + 0.02f, p.z));
+        }
+        // sala grande: salón de baile en el hotel nuevo; en el antiguo, la celda con más espacio libre en diagonal
+        Vector3 hp = Vector3.zero, ht = Vector3.zero; bool hv = false;
+        if (gen.Hotel != null)
+            foreach (var hl in gen.Hotel.halls)
+                if (hl.kind == "salon")
+                {
+                    hp = gen.Root.TransformPoint(new Vector3((hl.r.x + 0.55f) * cs, 1.62f, (hl.r.y + 0.55f) * cs));
+                    ht = gen.Root.TransformPoint(new Vector3((hl.r.xMax - 0.5f) * cs, 1.0f, (hl.r.yMax - 0.5f) * cs)); hv = true;
+                }
+        if (!hv)
+        {
+            int best = -1;
+            for (int x = 0; x < W - 1; x++) for (int z = 0; z < H - 1; z++)
+            {
+                int k = 0; while (x + k < W - 1 && z + k < H - 1 && gen.IsCellOpen(x + k, z + k, 0) && gen.IsCellOpen(x + k, z + k, 1) && gen.IsCellOpen(x + k + 1, z + k, 0) && gen.IsCellOpen(x + k, z + k + 1, 1)) k++;
+                if (k > best) { best = k; hp = gen.Root.TransformPoint(new Vector3((x + 0.55f) * cs, 1.62f, (z + 0.55f) * cs)); ht = gen.Root.TransformPoint(new Vector3((x + k + 0.5f) * cs, 1.0f, (z + k + 0.5f) * cs)); }
+            }
+        }
+        yield return View(pw, mc, "l3_05_sala", hp, ht, 64f, new Vector3(hp.x, root.y + 0.02f, hp.z));
+        if (fl != null) fl.SetOn(false);
+        if (vx != null) vx.intensityOverride = -1f;
+        Check(gm.State == GameManager.GameState.Playing, "nivel 3 sigue en juego durante las capturas (" + gm.State + ")");
     }
 
     // 900 fotogramas: cada uno = bucle del juego + render de la cámara a 1920x1080 + espera a la GPU (lectura de 1 píxel)
