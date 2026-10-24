@@ -760,6 +760,18 @@ public class ShotBuildCheck : MonoBehaviour
             yield return View(pw, mc, "l3_" + n.ToString("00") + "_" + want, p, t, 66f, new Vector3(p.x, gen.Root.position.y + 0.02f, p.z));
         }
         Check(n >= 7, "hotel: " + n + " capturas de sitios distintos");
+        if (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-perf") >= 0)
+        {   // v7.5.0: tiempos de fotograma en las salas con muebles (VHS por defecto 0,7, 1920x1080, sin vsync)
+            VhsEffect vx = mc.GetComponent<VhsEffect>(); if (vx != null) { vx.enabled = true; vx.intensityOverride = 0.7f; }
+            foreach (string want in new[] { "salon", "comedor", "salon_ventanas", "recepcion", "pasillo" })
+            {
+                int pick = -1; for (int i = 0; i < gen.Hotel.views.Count; i++) if (gen.Hotel.views[i].name == want) { pick = i; break; }
+                if (pick < 0) continue;
+                Vector3 p = gen.Root.TransformPoint(gen.Hotel.views[pick].pos), t = gen.Root.TransformPoint(gen.Hotel.views[pick].look);
+                yield return Perf(pw, mc, "hotel_" + want, p, t, 66f, new Vector3(p.x, gen.Root.position.y + 0.02f, p.z));
+            }
+            if (vx != null) vx.intensityOverride = 0f;
+        }
     }
 
     // 900 fotogramas: cada uno = bucle del juego + render de la cámara a 1920x1080 + espera a la GPU (lectura de 1 píxel)
