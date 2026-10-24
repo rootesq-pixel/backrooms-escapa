@@ -1945,6 +1945,7 @@ public static class SmokePlayRunner
     private static void Finish()
     {
         EditorApplication.update -= Tick;
+        Time.captureDeltaTime = 0f;
         report.Check(errorLogs == 0, "Sin errores/excepciones en consola durante el recorrido (" + errorLogs + ")");
         SessionState.SetString("smoke_phase", "");
         report.Finish();
@@ -2974,11 +2975,23 @@ public static class SmokePlayRunner
                     r.Check(reach, eg + "la salida es alcanzable desde la puerta de la cabina (" + (m0 != null && m0.UsesNavMesh ? "NavMesh" : "celdas") + ")");
                     // andando hacia delante se atraviesa la puerta abierta
                     foreach (MonsterAI mm in gm.monsters) mm.Stop();
-                    gm.player.debugInput = true; gm.player.debugMove = new Vector2(0f, 1f);
-                    yield return 2.6f;
-                    gm.player.debugInput = false;
-                    float al = Vector3.Dot(gm.player.transform.position - cb.transform.position, cb.Forward);
-                    r.Check(al > 1.5f, eg + "se sale de la cabina andando (avance " + al.ToString("F1") + " m)");
+                    // v7.4.0: 2,6 s de JUEGO (antes de reloj: un parón de la VM dejaba ~0,4 s de juego y el jugador sólo avanzaba 1,5 m).
+                    // Debe quedar más allá del rellano (ExitPoint), con fotogramas normales y con fotogramas lentos (0,33 s, el tope de deltaTime).
+                    float exitA = Vector3.Dot(cb.ExitPoint - cb.transform.position, cb.Forward);
+                    for (int pass = 0; pass < 2; pass++)
+                    {
+                        gm.player.Teleport(gm.generator.PlayerStart, gm.generator.PlayerStartYaw);
+                        yield return null; yield return null;
+                        float a0 = Vector3.Dot(gm.player.transform.position - cb.transform.position, cb.Forward);
+                        if (pass == 1) Time.captureDeltaTime = 0.33f;
+                        gm.player.debugInput = true; gm.player.debugMove = new Vector2(0f, 1f);
+                        float tw0 = Time.time; int fr0 = Time.frameCount;
+                        yield return Until(() => Time.time - tw0 >= 2.6f);
+                        gm.player.debugInput = false; Time.captureDeltaTime = 0f;
+                        float al = Vector3.Dot(gm.player.transform.position - cb.transform.position, cb.Forward);
+                        r.Check(al > exitA + 0.5f && al - a0 > 1.5f, eg + "se sale de la cabina andando" + (pass == 1 ? " con fotogramas lentos (0,33 s)" : "") + " (avance " + al.ToString("F1") + " m desde " + a0.ToString("F1")
+                            + ", rellano a " + exitA.ToString("F1") + " m; " + (Time.time - tw0).ToString("F1") + " s de juego, " + (Time.frameCount - fr0) + " fotogramas)");
+                    }
                     gm.player.Teleport(gm.generator.PlayerStart, gm.generator.PlayerStartYaw);
                     yield return 0.3f;
                 }
