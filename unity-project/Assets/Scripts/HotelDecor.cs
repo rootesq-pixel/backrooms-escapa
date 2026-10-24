@@ -513,8 +513,8 @@ public static class HotelDecor
                 e.Box(MBrass, new Vector3(0f, cy + 0.01f, 0.12f), new Vector3(W + 0.9f, 0.03f, 0.03f));
                 if (v == 1)
                 {   // haz de luna: foco frío desde el cristal hacia el suelo de la sala
-                    Vector3 lp = e.M.MultiplyPoint3x4(new Vector3(0f, y0 + Hh - 0.2f, 0.25f)), ld = e.M.MultiplyVector(new Vector3(0f, -0.62f, 1f)).normalized;
-                    gen.AddHotelSpot(lampRoot, lp, ld, new Color(0.60f, 0.68f, 0.92f), 3.6f, 22f, 52f, WindowCookie());   // v7.5.0: el dibujo del ventanal en el suelo, tenue (alcance 22 m: con 13 m la caída de Unity dejaba el suelo a ~17 %)
+                    Vector3 lp = e.M.MultiplyPoint3x4(new Vector3(0f, y0 + Hh - 0.2f, 0.25f)), ld = e.M.MultiplyVector(new Vector3(0f, -0.70f, 1f)).normalized;
+                    gen.AddHotelSpot(lampRoot, lp, ld, new Color(0.60f, 0.68f, 0.92f), 3.0f, 18f, 52f, WindowCookie());   // v7.5.0: el dibujo del ventanal en el suelo, tenue (alcance 18 m y algo más inclinada, para no atravesar la sala; con 13 m la caída de Unity dejaba el suelo a ~17 %)
                 }
                 break;
             }
