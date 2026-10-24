@@ -1142,6 +1142,8 @@ public static class SmokeTest
                 if (!names.Contains(n)) { all = false; miss += " " + n; }
             r.Check(all, T + "la cabina trae puertas, paneles, pasamanos, botonera, indicador, plafón y suciedad (" + names.Count + " mallas)" + miss);
             r.Check(tris > 2000 && tris < 40000, T + "triángulos de la cabina en rango (" + tris + ")");
+            MeshFilter lf = null; foreach (MeshFilter mf in p.GetComponentsInChildren<MeshFilter>(true)) if (mf.name == "Land_Face") lf = mf;
+            r.Check(lf != null && lf.sharedMesh != null && lf.sharedMesh.isReadable, T + "Elevator740.fbx con Read/Write (el frente del rellano ajusta sus UV al muro del nivel)");
         }
         foreach (string n in new[] { "ElevSteel", "ElevSteelDark", "ElevPaint", "ElevWood", "ElevFloor" })
         {
@@ -2338,6 +2340,7 @@ public static class SmokePlayRunner
             r.Check(cab.CollidersBlockDoor && cab.ColliderCount >= 9, et + "la cabina tiene colisión (" + cab.ColliderCount + " cajas) y la puerta cerrada bloquea");
             r.Check(cab.IsRealistic && cab.transform.Find("FrontL") != null && cab.transform.Find("FrontR") != null && cab.transform.Find("Transom") != null,
                 et + "v7.4.0: cabina realista propia (Elevator740) con marco frontal de colisión (" + cab.GetComponentsInChildren<BoxCollider>(true).Length + " cajas)");
+            r.Check(cab.HasLanding && cab.LandingLit && cab.HasOuterDisplay && cab.CallButtonLit, et + "v7.4.0: rellano con muro, aplique encendido, indicador exterior y pulsador de llamada");
             r.Check(cab.ButtonLightCount >= 5 && cab.DoorGap < 0.01f, et + "v7.4.0: botonera con " + cab.ButtonLightCount + " botones iluminados y puertas cerradas al bajar (hueco " + cab.DoorGap.ToString("F3") + " m)");
             Vector3 f0 = pe.transform.position;
             pe.debugInput = true; pe.debugMove = new Vector2(0f, 1f);

@@ -18,7 +18,7 @@ public class MonsterModelPostprocessor : AssetPostprocessor
             em.importAnimation = false;
             em.importCameras = false;
             em.importLights = false;
-            em.isReadable = false;
+            em.isReadable = assetPath.EndsWith("Elevator740.fbx");   // v7.4.0: el frente del rellano reescribe sus UV en runtime (malla pequeña)
             em.meshCompression = ModelImporterMeshCompression.Off;
             em.materialImportMode = ModelImporterMaterialImportMode.ImportStandard;
             em.materialLocation = ModelImporterMaterialLocation.InPrefab;

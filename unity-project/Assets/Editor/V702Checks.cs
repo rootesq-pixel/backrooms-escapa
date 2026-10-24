@@ -138,9 +138,13 @@ public static class V702Checks
             }
             Vector3 far = main.transform.position + new Vector3(400f, 0f, 400f);
             Place(main, far, 0f);
-            yield return 0.5f;
-            r.Check(san.MonsterDrain < 0.01f, tag + "[Cordura] lejos (>15 m): sin drenaje por monstruos (" + san.MonsterDrain.ToString("F2") + ")");
-            if (mim != null) Place(mim, far + new Vector3(60f, 0f, 0f), 0f);   // el imitador disfrazado también inquieta un poco: lejos
+            // v7.4.0: el imitador disfrazado también inquieta (DisguisedWeight) y deambula: si pasaba a < 15 m del jugador justo entonces,
+            // esta comprobación fallaba (0,80 en el nivel 3). Se aleja ANTES de medir, y se espera en tiempo de juego.
+            if (mim != null) Place(mim, far + new Vector3(60f, 0f, 0f), 0f);
+            float tg1 = Time.time;
+            yield return (System.Func<bool>)(() => Time.time - tg1 >= 0.5f);
+            string near = ""; foreach (MonsterAI m2 in MonsterAI.Instances) if (m2 != null && m2.isActiveAndEnabled && FieldWrap.Distance(m2.transform.position, gm.player.transform.position) < 15f) near += " " + m2.name + (m2.Disguised ? "(disfrazado)" : "");
+            r.Check(san.MonsterDrain < 0.01f, tag + "[Cordura] lejos (>15 m): sin drenaje por monstruos (" + san.MonsterDrain.ToString("F2") + (near.Length > 0 ? "; cerca:" + near : "") + ")");
             yield return Sanity.RecoverDelay + 0.6f;
             bool under = gm.player.IsUnderwater;
             r.Check(under || (fl != null && fl.IsOn && san.DrainRate > 0f && san.DrainRate <= Sanity.RecoverRate + 0.01f), tag + "[Cordura] lejos y con luz se recupera despacio (" + san.DrainRate.ToString("F2") + "/s)");
