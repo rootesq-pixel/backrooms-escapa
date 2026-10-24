@@ -93,6 +93,8 @@ public class AutoUpdater : MonoBehaviour
         }
     }
     public string NotesText { get { return notes != null ? notes.text : ""; } }
+    // líneas que de verdad se dibujan en la caja (tras generar el texto) frente a las que tiene
+    public string NotesLinesShown { get { Canvas.ForceUpdateCanvases(); return notes.cachedTextGenerator.lineCount + "/" + notes.text.Split('\n').Length; } }
     public bool UpdateButtonsVisible { get { return bUpdate != null && bUpdate.gameObject.activeInHierarchy && bLater.gameObject.activeInHierarchy; } }
     public void ClickLaterForTests() { if (bLater != null) bLater.onClick.Invoke(); }
     public void ClickUpdateForTests() { if (bUpdate != null && bUpdate.gameObject.activeInHierarchy) bUpdate.onClick.Invoke(); else BeginUpdate(); }
@@ -148,7 +150,7 @@ public class AutoUpdater : MonoBehaviour
         body = ui.Label(panel, "", 25, TextAnchor.UpperLeft, 0f, 10f, 900f, 150f, new Color(0.86f, 0.82f, 0.66f));
         // novedades (extracto de las notas): caja fija de 3 líneas entre el texto y los botones; lo que no cabe se corta (cada línea ya
         // lleva su «…»), así nunca se mete debajo de los botones, sea cual sea la resolución o el formato de pantalla
-        notes = ui.Label(panel, "", 22, TextAnchor.UpperLeft, 0f, -100f, 900f, 86f, UiStyle.Dim);
+        notes = ui.Label(panel, "", 22, TextAnchor.UpperLeft, 0f, -106f, 900f, 100f, UiStyle.Dim);   // 3 líneas de 22 px con holgura (Truncate quita la que no cabe entera)
         notes.verticalOverflow = VerticalWrapMode.Truncate; notes.horizontalOverflow = HorizontalWrapMode.Wrap; notes.lineSpacing = 1f;
         bar = ui.Panel(panel, "Bar", UiStyle.Slot, false).gameObject; RectTransform br = (RectTransform)bar.transform; br.sizeDelta = new Vector2(900f, 26f); br.anchoredPosition = new Vector2(0f, -88f);
         Outline bo = bar.AddComponent<Outline>(); bo.effectColor = UiStyle.Border; bo.effectDistance = new Vector2(2f, -2f);
