@@ -744,7 +744,7 @@ public class ShotBuildCheck : MonoBehaviour
     // v7.5.0: hotel nuevo: una captura por tipo de sitio, con el encuadre que propone el plano (a la altura de los ojos, linterna encendida)
     IEnumerator Level3Views(GameManager gm, FirstPersonController pw, Camera mc, BackroomsGenerator gen)
     {
-        string[] order = { "pasillo", "habitacion", "ascensores", "recepcion", "salon", "comedor", "escalera", "servicio", "galeria", "ascensores_vestibulo" };
+        string[] order = { "pasillo", "habitacion", "ascensores", "recepcion", "salon", "comedor", "escalera", "servicio", "galeria", "ascensores_vestibulo", "salon_ventanas", "comedor_ventanas", "vestibulo_ventanas" };
         Info("hotel: puertas " + HotelDecor.Doors + " (abiertas " + HotelDecor.OpenDoors + "), muebles " + HotelDecor.ItemCount + ", lámparas vivas " + HotelDecor.LiveLamps + ", vistas " + gen.Hotel.views.Count);
         int n = 0;
         foreach (string want in order)

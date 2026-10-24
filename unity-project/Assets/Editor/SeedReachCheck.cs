@@ -124,7 +124,9 @@ public static class SeedReachCheck
         }
         if (only == "" || only == "3")
         {   // v7.5.0: hotel largo (nivel 3): salida, pilas, llaves y salas grandes alcanzables a pie desde el ascensor; tamaño 2-3 veces el antiguo
-            foreach (int s3 in Level3Seeds)
+            string l3s = Environment.GetEnvironmentVariable("SEEDREACH_L3SEEDS");
+            int[] l3list = string.IsNullOrEmpty(l3s) ? Level3Seeds : Array.ConvertAll(l3s.Split(','), int.Parse);
+            foreach (int s3 in l3list)
             {
                 gb.useRandomSeed = false; gb.seed = s3 - 3 * 101;
                 int lc3 = gb.LoadCount; double tl = EditorApplication.timeSinceStartup; gb.LoadLevel(3);
@@ -138,7 +140,7 @@ public static class SeedReachCheck
                 Check(gen.Hotel != null && area >= 2f * oldArea && area <= 3.2f * oldArea, T + "hotel grande: " + gen.GridWidth + "x" + gen.GridHeight + " celdas, transitable " + area.ToString("F0") + " m² (" + (area / oldArea).ToString("F1") + " veces el antiguo), carga " + loadS.ToString("F1") + " s");
                 float pl = PathLen(gen.PlayerStart, gen.ExitPosition);
                 Check(gen.UsedSeed == s3 && pl > 0f, T + "camino a pie inicio -> salida por el NavMesh (" + pl.ToString("F0") + " m)");
-                int bOk = 0; foreach (Vector3 b in gen.BatterySpots) if (PathLen(gen.PlayerStart, b) > 0f) bOk++;
+                int bOk = 0; foreach (Vector3 b in gen.BatterySpots) { if (PathLen(gen.PlayerStart, b) > 0f) bOk++; else if (gen.Hotel != null) { Vector3 lb = gen.Root.InverseTransformPoint(b); int bx = Mathf.FloorToInt(lb.x / gen.CellSize), bz = Mathf.FloorToInt(lb.z / gen.CellSize); L("INFO pila sin camino en " + lb.ToString("F2") + " celda " + bx + "," + bz + " " + gen.Hotel.At(bx, bz) + " plano " + gen.Hotel.CellReachable(bx, bz) + " navmesh cerca " + NavMesh.SamplePosition(b, out NavMeshHit bh, 0.4f, NavMesh.AllAreas)); } }
                 int kOk = 0; foreach (Vector3 k in gen.KeySpots) if (PathLen(gen.PlayerStart, k) > 0f) kOk++;
                 Check(gen.BatterySpots.Count == c3.batteries && bOk == gen.BatterySpots.Count && kOk == gen.KeySpots.Count && gen.KeySpots.Count == ExitLock.KeyCount,
                     T + "pilas " + bOk + "/" + gen.BatterySpots.Count + " (config " + c3.batteries + ") y llaves " + kOk + "/" + gen.KeySpots.Count + " alcanzables a pie");
@@ -178,6 +180,28 @@ public static class SeedReachCheck
                                 Vector3 q = bc + HotelPlan.Dir3(rm.doorDir) * o;
                                 dg += NavMesh.SamplePosition(q, out NavMeshHit nh2, 0.25f, NavMesh.AllAreas) ? "+" : "-";
                             }
+                            Vector3 dW = R.TransformPoint(dl);
+                            if (NavMesh.SamplePosition(dW + HotelPlan.Dir3(rm.doorDir) * 0.9f, out NavMeshHit c0, 1f, NavMesh.AllAreas) && NavMesh.SamplePosition(bc, out NavMeshHit c1, 1f, NavMesh.AllAreas))
+                            {
+                                bool blockedRay = NavMesh.Raycast(c0.position, c1.position, out NavMeshHit rh, NavMesh.AllAreas);
+                                dg += " | rayo pasillo->cama " + (blockedRay ? "corta en " + R.InverseTransformPoint(rh.position).ToString("F2") : "libre");
+                                if (blockedRay)
+                                {
+                                    foreach (float hy in new[] { 0.1f, 0.5f, 1.2f, 2.0f })
+                                    {
+                                        Vector3 a0 = c0.position + Vector3.up * hy, a1 = c1.position + Vector3.up * hy;
+                                        if (Physics.Raycast(a0, (a1 - a0).normalized, out RaycastHit ph, (a1 - a0).magnitude)) dg += " fis" + hy + "=" + R.InverseTransformPoint(ph.point).ToString("F2") + "n" + ph.normal.ToString("F1");
+                                        else dg += " fis" + hy + "=libre";
+                                    }
+                                    Bounds cb2 = new Bounds(rh.position + Vector3.up * 0.8f, new Vector3(1.6f, 1.6f, 1.6f));
+                                    foreach (Renderer rr in UnityEngine.Object.FindObjectsOfType<Renderer>()) if (rr.bounds.Intersects(cb2) && rr.bounds.size.magnitude < 12f) dg += " {" + rr.name + "@" + rr.transform.parent?.name + " " + rr.bounds.center.ToString("F1") + rr.bounds.size.ToString("F1") + "}";
+                                    foreach (Collider cc in UnityEngine.Object.FindObjectsOfType<Collider>()) if (cc.bounds.Intersects(cb2) && cc.bounds.size.magnitude < 12f) dg += " [col " + cc.name + "@" + cc.transform.parent?.name + "]";
+                                }
+                                NavMeshPath pp = new NavMeshPath(); NavMesh.CalculatePath(c0.position, c1.position, NavMesh.AllAreas, pp);
+                                dg += " camino " + pp.status;
+                                NavMeshPath pq = new NavMeshPath(); NavMesh.CalculatePath(gen.PlayerStart, c0.position, NavMesh.AllAreas, pq);
+                                dg += " inicio->pasillo " + pq.status;
+                            }
                             L("DIAG" + dg + "]");
                         }
                     }
@@ -190,6 +214,7 @@ public static class SeedReachCheck
                     if (PathLen(gen.PlayerStart, R.TransformPoint(gen.Hotel.FreePoint(x, z, gen.Hotel.Center(x, z)))) > 0f) cOk++; else if (cBad.Length < 90) cBad += " " + x + "," + z + ":" + gen.Hotel.kind[x, z];
                 }
                 Check(rOpen >= 20 && rOk == rOpen && cOk >= walk - 1 - planBad - 1 && planBad <= walk / 40, T + "habitaciones abiertas alcanzables " + rOk + "/" + rOpen + rBad + "; celdas con camino por el NavMesh " + cOk + "/" + (walk - 1 - planBad) + cBad + " (el plano da " + planBad + " celdas sin paso, tras derrumbes o muebles)");
+                if (s3 == l3list[0]) L("INFO huella real - plano (m) por tipo:" + HotelDecor.OverReport());
                 int longest = 0; foreach (var co in gen.Hotel.corridors) longest = Mathf.Max(longest, co.b - co.a + 1);
                 Check(HotelDecor.Doors >= 60 && longest >= 12 && HotelDecor.Leaves.Count == gen.Hotel.doorways.Count, T + "puertas numeradas " + HotelDecor.Doors + " (que se abren " + HotelDecor.Leaves.Count + "), muebles " + HotelDecor.ItemCount + ", pasillos " + gen.Hotel.corridors.Count + " (el más largo " + (longest * cs).ToString("F0") + " m)");
             }

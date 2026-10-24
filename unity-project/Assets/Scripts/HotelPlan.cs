@@ -26,7 +26,7 @@ public class HotelPlan
     public const int IBed = 1, INight = 2, ILamp = 3, IWardrobe = 4, IDesk = 5, IChair = 6, IArmchair = 7, ISofa = 8, ICoffee = 9,
         IPainting = 10, IFallenFrame = 11, IPlant = 12, ICart = 13, IReception = 14, IKeyBoard = 15, IRoundTable = 16, ISquareTable = 17,
         IChandelier = 18, IColumn = 19, IStairs = 20, ILinenShelf = 21, ILaundry = 22, IDebris = 23, ISuitcase = 24, IPiano = 25, IBench = 26,
-        IAshtray = 27, ISmallChand = 28, IBellCart = 29, IRubble = 30;
+        IAshtray = 27, ISmallChand = 28, IBellCart = 29, IRubble = 30, IWindow = 31;
 
     public readonly List<Corridor> corridors = new List<Corridor>();
     public readonly List<Hall> halls = new List<Hall>();
@@ -78,6 +78,7 @@ public class HotelPlan
         p.Furnish(new System.Random(seed * 31 + 5));
         p.ClearDoorways();
         p.BuildReach();
+        p.OpenPockets();
         return p;
     }
 
@@ -396,8 +397,8 @@ public class HotelPlan
         Add(IArmchair, sofaC + new Vector3(1.7f, 0f, 0f), 270f + (float)(r.NextDouble() - 0.5) * 30f, new Vector3(0.8f, 0.9f, 0.8f));
         foreach (Vector3 pc in new[] { new Vector3(lx0 + 0.6f, 0, lz1 - 0.6f), new Vector3(lx1 - 0.6f, 0, lz0 + 0.6f), new Vector3(lx1 - 0.6f, 0, lz1 - 0.6f) })
             Add(IPlant, pc, (float)r.NextDouble() * 360f, new Vector3(0.6f, 1.4f, 0.6f), r.Next(3));
-        Add(IChandelier, new Vector3((lx0 + lx1) * 0.5f, 0f, lz0 + (lz1 - lz0) * 0.3f), 0f, new Vector3(1.3f, 0.75f, 1.3f), r.NextDouble() < 0.6 ? 1 : 0, false);
-        Add(IChandelier, new Vector3((lx0 + lx1) * 0.5f, 0f, lz0 + (lz1 - lz0) * 0.72f), 0f, new Vector3(1.3f, 0.75f, 1.3f), 0, false);
+        Add(IChandelier, new Vector3((lx0 + lx1) * 0.5f, 0f, lz0 + (lz1 - lz0) * 0.3f), 0f, new Vector3(1.3f, 0.75f, 1.3f), 1, false);
+        Add(IChandelier, new Vector3((lx0 + lx1) * 0.5f, 0f, lz0 + (lz1 - lz0) * 0.72f), 0f, new Vector3(1.3f, 0.75f, 1.3f), r.NextDouble() < 0.8 ? 1 : 0, false);
         lob.spot = sofaC + new Vector3(m ? -2.6f : 2.6f, 0f, 0f); halls[0] = lob;
         views.Add(new View { name = "recepcion", pos = new Vector3(m ? lx1 - 2.0f : lx0 + 2.0f, 1.6f, lz0 + 3.0f), look = rc + Vector3.up * 0.9f });
         Vector3 liftV = Center(liftDoors[1].c.x, liftDoors[1].c.y);
@@ -418,8 +419,8 @@ public class HotelPlan
                 Add(IChair, tc + cd * (fallen ? 1.05f : 0.72f), Yaw((c + 2) % 4) + (float)(r.NextDouble() - 0.5) * 24f, new Vector3(0.48f, 0.95f, 0.48f), 0, true, fallen ? 82f : 0f);
             }
         }
-        Add(IChandelier, new Vector3(dx0 + dW * 0.5f, 0, dz0 + dH * 0.3f), 0f, new Vector3(1.1f, 0.7f, 1.1f), r.NextDouble() < 0.5 ? 1 : 0, false);
-        Add(IChandelier, new Vector3(dx0 + dW * 0.5f, 0, dz0 + dH * 0.72f), 0f, new Vector3(1.1f, 0.7f, 1.1f), 0, false);
+        Add(IChandelier, new Vector3(dx0 + dW * 0.5f, 0, dz0 + dH * 0.3f), 0f, new Vector3(1.1f, 0.7f, 1.1f), 1, false);
+        Add(IChandelier, new Vector3(dx0 + dW * 0.5f, 0, dz0 + dH * 0.72f), 0f, new Vector3(1.1f, 0.7f, 1.1f), r.NextDouble() < 0.8 ? 1 : 0, false);
         din_.spot = new Vector3(dx0 + dW * 0.5f, 0f, dz0 + dH * (ncz > 1 ? 1f / ncz : 0.5f)); halls[1] = din_;
         views.Add(new View { name = "comedor", pos = new Vector3(dx0 + 1.2f, 1.6f, dz0 + dH - 1.2f), look = new Vector3(dx0 + dW * 0.6f, 0.6f, dz0 + dH * 0.35f) });
         // salón de baile: mesas redondas en los lados, pista en el centro, columnas, piano, 3 arañas grandes
@@ -445,9 +446,21 @@ public class HotelPlan
             Add(IColumn, new Vector3(bx0 + bW * (0.36f + 0.28f * i), 0f, bz0 + bH * (0.33f + 0.34f * j)), 0f, new Vector3(0.62f, wh, 0.62f), 0);
         Add(IPiano, new Vector3(bx0 + bW * 0.5f + (m ? -1.5f : 1.5f), 0f, bz0 + bH - 2.0f), m ? 160f : 200f, new Vector3(1.5f, 1.0f, 2.1f));
         for (int k = 0; k < 3; k++)
-            Add(IChandelier, new Vector3(bx0 + bW * 0.5f, 0f, bz0 + bH * (0.2f + 0.3f * k)), 0f, new Vector3(1.7f, 0.85f, 1.7f), k == 1 || r.NextDouble() < 0.3 ? 1 : 0, false);
+            Add(IChandelier, new Vector3(bx0 + bW * 0.5f, 0f, bz0 + bH * (0.2f + 0.3f * k)), 0f, new Vector3(1.7f, 0.85f, 1.7f), k == 1 || r.NextDouble() < 0.8 ? 1 : 0, false);
         bal.spot = new Vector3(bx0 + bW * 0.5f, 0f, bz0 + bH * 0.5f); halls[2] = bal;
         views.Add(new View { name = "salon", pos = new Vector3(m ? bx0 + bW - 1.3f : bx0 + 1.3f, 1.65f, bz0 + 1.3f), look = new Vector3(bx0 + bW * 0.5f, 0.9f, bz0 + bH * 0.6f) });
+        // ventanales altos en el muro exterior (sur) de las tres salas: cortinas, cristal con luz de luna y, en uno de cada dos, un haz frío que entra
+        foreach (Hall hl in halls)
+        {
+            if (hl.r.y != 0) continue;
+            for (int x = hl.r.x; x < hl.r.xMax; x++)
+            {
+                if ((x - hl.r.x) % 2 != 1 || IsOpen(x, 0, 2)) continue;
+                Add(IWindow, WallPoint(x, 0, 2, 0f, 0f), Yaw(0), new Vector3(1.36f, 2.4f, 0.1f), ((x - hl.r.x) / 2) % 2 == 0 ? 1 : 0, false);
+            }
+            float hcx = (hl.r.x + hl.r.width * 0.5f) * cs, top = hl.r.yMax * cs;
+            views.Add(new View { name = hl.kind + "_ventanas", pos = new Vector3(hcx - (mirrored ? -1.2f : 1.2f), 1.62f, top - 1.3f), look = new Vector3(hcx + (mirrored ? -2.5f : 2.5f), 0.9f, 0.6f) });
+        }
         // rellanos de ascensores: cenicero, banco, planta, araña pequeña
         for (int j = 0; j < h; j++) for (int i = 0; i < w - 1; i++)
         {
@@ -526,6 +539,52 @@ public class HotelPlan
         views.Add(new View { name = "galeria", pos = Center(halls[0].r.x + 1, halls[0].r.yMax) + Vector3.up * 1.6f, look = Center(halls[2].r.xMax - 1, halls[0].r.yMax) + Vector3.up * 1.2f });
     }
 
+    // Si alguna celda transitable queda sin paso (mesas y sillas muy juntas, plantas en un rincón), se quitan muebles sueltos
+    // cerca de ella (primero sillas, luego mesas y demás) y se rehace la rejilla. Determinista (mismo orden, sin azar).
+    void OpenPockets()
+    {
+        for (int pass = 0; pass < 8; pass++)
+        {
+            var bad = new List<Vector2Int>();
+            for (int x = 0; x < w; x++) for (int z = 0; z < h; z++) if (Walkable(x, z) && kind[x, z] != K.Start && !CellReachable(x, z)) bad.Add(new Vector2Int(x, z));
+            if (bad.Count == 0) return;
+            bool chairsOnly = pass < 3; int removed = 0;
+            for (int i = items.Count - 1; i >= 0; i--)
+            {
+                Item it = items[i]; if (!it.solid) continue;
+                int k = it.k;
+                bool movable = k == IChair || (!chairsOnly && (k == IArmchair || k == ISuitcase || k == ICart || k == IPlant || k == IBench || k == ISquareTable || k == IRoundTable || k == ILaundry || k == IBellCart || k == ICoffee || k == ISofa || k == IDesk || k == IAshtray));
+                if (!movable) continue;
+                int cx = Mathf.FloorToInt(it.p.x / cs), cz = Mathf.FloorToInt(it.p.z / cs);
+                foreach (Vector2Int b in bad) if (Mathf.Abs(b.x - cx) <= 1 && Mathf.Abs(b.y - cz) <= 1) { items.RemoveAt(i); removed++; break; }
+            }
+            clearedItems += removed;
+            if (removed == 0 && !chairsOnly) return;
+            BuildReach();
+        }
+    }
+
+    // Medias huellas reales (local x, z) de cada mueble: la del plano más lo que sobresale la malla por debajo de 1,9 m
+    // (medido con HotelDecor.Over en SeedReachCheck: silla de escritorio, banqueta del piano, hojas, sillas caídas...)
+    static void Half(Item it, out float ex, out float ez)
+    {
+        float px = 0f, pz = 0f;
+        switch (it.k)
+        {
+            case IBed: px = 0.14f; pz = 0.1f; break;
+            case IDesk: px = 0.03f; pz = 0.22f; break;
+            case IReception: px = 0.07f; pz = 0.5f; break;
+            case IPiano: px = 0.03f; pz = 0.5f; break;
+            case IPlant: px = pz = 0.3f; break;
+            case IRubble: px = 0.24f; pz = 0.14f; break;
+            case IColumn: px = pz = 0.12f; break;
+            case ISquareTable: case IRoundTable: px = pz = 0.07f; break;
+            case IBellCart: case ICart: case INight: case IWardrobe: px = pz = 0.04f; break;
+        }
+        ex = it.s.x * 0.5f + px; ez = it.s.z * 0.5f + pz;
+        if (it.k == IChair && it.tilt > 1f) { ex = Mathf.Max(ex, 0.55f); ez = Mathf.Max(ez, 1.05f); }
+    }
+
     // Nada sólido delante de un hueco de puerta (1,7 x 1,3 m a cada lado): el NavMesh (radio 0,5) necesita pasar recto por el hueco
     void ClearDoorways()
     {
@@ -538,8 +597,8 @@ public class HotelPlan
             bool movable = k == ICart || k == IChair || k == IArmchair || k == ISuitcase || k == IPlant || k == ILaundry || k == IDebris || k == IBench || k == IAshtray || k == IBellCart || k == ILinenShelf || k == IDesk || k == ISofa || k == ICoffee;
             if (!movable) continue;
             float ya = it.yaw * Mathf.Deg2Rad, ca = Mathf.Abs(Mathf.Cos(ya)), sa = Mathf.Abs(Mathf.Sin(ya));
-            float hx = ca * it.s.x * 0.5f + sa * it.s.z * 0.5f, hz = sa * it.s.x * 0.5f + ca * it.s.z * 0.5f;
-            if (k == IChair && it.tilt > 1f) { hx = Mathf.Max(hx, 0.5f); hz = Mathf.Max(hz, 0.5f); }
+            Half(it, out float e0, out float e1);
+            float hx = ca * e0 + sa * e1, hz = sa * e0 + ca * e1;
             bool hit = false;
             foreach (Edge e in doorways)
             {
@@ -611,17 +670,18 @@ public class HotelPlan
         foreach (Item it in items)
         {
             if (!it.solid || it.k == IStairs) continue;
-            float ya = it.yaw * Mathf.Deg2Rad, ca = Mathf.Cos(ya), sa = Mathf.Sin(ya), ex = it.s.x * 0.5f, ez = it.s.z * 0.5f;
-            if (it.k == IChair && it.tilt > 1f) { ex = Mathf.Max(ex, 0.5f); ez = Mathf.Max(ez, 0.6f); }
-            float rad = Mathf.Sqrt(ex * ex + ez * ez) + RR;
+            float ya = it.yaw * Mathf.Deg2Rad, ca = Mathf.Cos(ya), sa = Mathf.Sin(ya);
+            Half(it, out float ex, out float ez);
+            float oz = 0f; if (it.k == IChair && it.tilt > 1f) { ez = 0.72f; oz = -0.33f; }   // silla caída: cae hacia atrás (-z local)
+            float rad = Mathf.Sqrt(ex * ex + (ez + 0.4f) * (ez + 0.4f)) + RR;
             int i0 = Mathf.Max(0, Mathf.FloorToInt((it.p.x - rad) / RR)), i1 = Mathf.Min(rw, Mathf.CeilToInt((it.p.x + rad) / RR));
             int j0 = Mathf.Max(0, Mathf.FloorToInt((it.p.z - rad) / RR)), j1 = Mathf.Min(rh, Mathf.CeilToInt((it.p.z + rad) / RR));
             for (int i = i0; i < i1; i++) for (int j = j0; j < j1; j++)
             {
                 float dx = (i + 0.5f) * RR - it.p.x, dz = (j + 0.5f) * RR - it.p.z;
                 bool inside;
-                if (it.k == IRoundTable) inside = dx * dx + dz * dz < (ex + 0.4f) * (ex + 0.4f);
-                else { float lx = dx * ca - dz * sa, lz = dx * sa + dz * ca; inside = Mathf.Abs(lx) < ex && Mathf.Abs(lz) < ez; }
+                if (it.k == IRoundTable) inside = dx * dx + dz * dz < ex * ex;
+                else { float lx = dx * ca - dz * sa, lz = dx * sa + dz * ca; inside = Mathf.Abs(lx) < ex && Mathf.Abs(lz - oz) < ez; }
                 if (inside) occ[j * rw + i] = true;
             }
         }
@@ -687,21 +747,39 @@ public class HotelPlan
     {
         if (reach != null)
         {
-            Vector3 c = Center(x, z);
-            int best = -1; float bd = 1e9f;
-            int i0 = Mathf.FloorToInt(x * cs / RR), i1 = Mathf.Min(rw, Mathf.FloorToInt((x + 1) * cs / RR)), j0 = Mathf.FloorToInt(z * cs / RR), j1 = Mathf.Min(rh, Mathf.FloorToInt((z + 1) * cs / RR));
-            for (int i = i0; i < i1; i++) for (int j = j0; j < j1; j++)
-            {
-                if (reach[j * rw + i] != 2) continue;
-                float dx = (i + 0.5f) * RR - want.x, dz = (j + 0.5f) * RR - want.z, d2 = dx * dx + dz * dz;
-                if (!spotOk[j * rw + i]) d2 += 100f;   // mejor lejos de muebles y muros
-                if (d2 < bd) { bd = d2; best = j * rw + i; }
-            }
+            // 1) el punto más cercano al pedido dentro de la celda con holgura (lejos de muebles y muros)
+            // 2) si la celda no tiene, el punto con holgura más cercano en las vecinas  3) si no, cualquiera alcanzable
+            int best = BestIn(x, z, want, true);
+            if (best < 0) best = NearestSpot(want, cs * 1.6f);
+            if (best < 0) best = BestIn(x, z, want, false);
             if (best < 0) best = NearestPixel(want, 2, cs * 1.5f);
             if (best >= 0) return new Vector3((best % rw + 0.5f) * RR, want.y, (best / rw + 0.5f) * RR);
+            Vector3 c = Center(x, z);
             return new Vector3(c.x, want.y, c.z);
         }
         return FreePointOld(x, z, want);
+    }
+    int BestIn(int x, int z, Vector3 want, bool needSpot)
+    {
+        int best = -1; float bd = 1e9f;
+        int i0 = Mathf.FloorToInt(x * cs / RR), i1 = Mathf.Min(rw, Mathf.FloorToInt((x + 1) * cs / RR)), j0 = Mathf.FloorToInt(z * cs / RR), j1 = Mathf.Min(rh, Mathf.FloorToInt((z + 1) * cs / RR));
+        for (int i = i0; i < i1; i++) for (int j = j0; j < j1; j++)
+        {
+            int k = j * rw + i; if (reach[k] != 2 || (needSpot && !spotOk[k])) continue;
+            float dx = (i + 0.5f) * RR - want.x, dz = (j + 0.5f) * RR - want.z, d2 = dx * dx + dz * dz;
+            if (d2 < bd) { bd = d2; best = k; }
+        }
+        return best;
+    }
+    int NearestSpot(Vector3 p, float maxR)
+    {
+        int ci = Mathf.Clamp(Mathf.FloorToInt(p.x / RR), 0, rw - 1), cj = Mathf.Clamp(Mathf.FloorToInt(p.z / RR), 0, rh - 1), rr = Mathf.CeilToInt(maxR / RR), best = -1; float bd = 1e9f;
+        for (int i = Mathf.Max(0, ci - rr); i <= Mathf.Min(rw - 1, ci + rr); i++) for (int j = Mathf.Max(0, cj - rr); j <= Mathf.Min(rh - 1, cj + rr); j++)
+        {
+            int k = j * rw + i; if (reach[k] != 2 || !spotOk[k]) continue;
+            float d2 = (i - ci) * (i - ci) + (j - cj) * (j - cj); if (d2 < bd) { bd = d2; best = k; }
+        }
+        return best;
     }
     Vector3 FreePointOld(int x, int z, Vector3 want)
     {
@@ -734,9 +812,8 @@ public class HotelPlan
             if (o.sqrMagnitude > 16f) continue;
             float ya = -it.yaw * Mathf.Deg2Rad;
             float lx = o.x * Mathf.Cos(ya) - o.z * Mathf.Sin(ya), lz = o.x * Mathf.Sin(ya) + o.z * Mathf.Cos(ya);
-            float ex = it.s.x * 0.5f + M, ez = it.s.z * 0.5f + M;
+            Half(it, out float ex, out float ez); ex += M; ez += M;
             if (it.k == IRoundTable) { if (o.magnitude < it.s.x * 0.5f + 0.4f + M) return false; continue; }
-            if (it.k == IChair && it.tilt > 1f) { ex = 0.5f + M; ez = 0.6f + M; }
             if (Mathf.Abs(lx) < ex && Mathf.Abs(lz) < ez) return false;
         }
         return true;

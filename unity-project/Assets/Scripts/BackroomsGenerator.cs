@@ -1198,10 +1198,10 @@ public class BackroomsGenerator : MonoBehaviour
                 if (Hotel != null)
                 {   // v7.5.0: apliques del hotel: en los pasillos casi en cada celda (a un lado y a otro), entre las puertas (a ±1,1 m del centro del muro)
                     HotelPlan.K hk = Hotel.kind[x, z];
-                    float chance = hk == HotelPlan.K.Corridor || hk == HotelPlan.K.Gallery ? cfg.sconceChance : hk == HotelPlan.K.Linen ? cfg.sconceChance * 0.4f : hk == HotelPlan.K.Lift ? cfg.sconceChance * 0.7f : 0f;
+                    float chance = hk == HotelPlan.K.Corridor || hk == HotelPlan.K.Gallery ? cfg.sconceChance : hk == HotelPlan.K.Linen ? cfg.sconceChance * 0.4f : hk == HotelPlan.K.Lift ? cfg.sconceChance * 0.7f : hk == HotelPlan.K.Hall ? 0.75f : hk == HotelPlan.K.Stair ? 0.5f : 0f;
                     if (chance <= 0f || (x == exitCell.x && z == exitCell.y)) continue;
                     List<int> hs = new List<int>(4);
-                    for (int d = 0; d < 4; d++) if (!IsOpen(new Vector2Int(x, z), d)) hs.Add(d);
+                    for (int d = 0; d < 4; d++) if (!IsOpen(new Vector2Int(x, z), d) && !(hk == HotelPlan.K.Hall && d == 2 && z == 0)) hs.Add(d);   // el muro sur de las salas lleva ventanales
                     if (hs.Count == 0 || rng.NextDouble() >= chance) continue;
                     int hside = hs[(x + z) % hs.Count];
                     Vector3 hdir = new Vector3(Dirs[hside].x, 0f, Dirs[hside].y), hperp = new Vector3(-hdir.z, 0f, hdir.x);
@@ -1418,6 +1418,18 @@ public class BackroomsGenerator : MonoBehaviour
 
         if (isDead) return;
         CreateFixtureLight(fx.transform, new Vector3(0f, 0.05f, 0.45f), lens, rng, buzzClip);
+    }
+
+    // v7.5.0: haz de luna de los ventanales del hotel (foco frío sin parpadeo, bajo el LightCuller como el resto)
+    public void AddHotelSpot(Transform parent, Vector3 localPos, Vector3 localDir, Color color, float intensity, float range, float angle)
+    {
+        System.Random lr = new System.Random(UsedSeed * 197 + Mathf.RoundToInt(localPos.x * 29f));
+        CreateFixtureLight(parent, localPos, null, lr, null);
+        Transform lt = parent.GetChild(parent.childCount - 1);
+        lt.localRotation = Quaternion.LookRotation(localDir, Vector3.up);
+        Light l = lt.GetComponent<Light>(); FlickeringLight f = lt.GetComponent<FlickeringLight>();
+        if (l != null) { l.type = LightType.Spot; l.spotAngle = angle; l.innerSpotAngle = angle * 0.35f; l.color = color; l.intensity = intensity; l.range = range; }
+        if (f != null) { f.baseIntensity = intensity; f.flickerEnabled = false; }
     }
 
     // v7.5.0: luces del atrezo del hotel (lámparas de mesilla, arañas): como las de los apliques, con su parpadeo y bajo el LightCuller

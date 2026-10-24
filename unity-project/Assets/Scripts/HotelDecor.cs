@@ -17,10 +17,12 @@ public static class HotelDecor
     public static readonly List<Vector3> DoorCenters = new List<Vector3>();   // local al nivel (capturas y pruebas)
     public static readonly List<Vector3> DoorNormals = new List<Vector3>();
     public static readonly List<HotelDoorLeaf> Leaves = new List<HotelDoorLeaf>();
+    public static readonly Dictionary<int, Vector2> Over = new Dictionary<int, Vector2>();   // por tipo: cuánto sobresale la malla de la huella del plano (x, z)
+    public static string OverReport() { var sb = new System.Text.StringBuilder(); foreach (var kv in Over) sb.Append(" k" + kv.Key + ":" + kv.Value.x.ToString("F2") + "/" + kv.Value.y.ToString("F2")); return sb.ToString(); }
     public const float DoorW = 1.5f, DoorH = 2.2f;      // hueco en el muro (las jambas van en la malla del nivel; 1,5 m deja paso en el NavMesh con radio 0,5)
     const float LW = 1.38f, LH = 2.15f;                  // hoja
     const int MDoor = 0, MWood = 1, MBrass = 2, MNum = 3, MBed = 4, MSheet = 5, MCloth = 6, MUph = 7, MPaint = 8, MSteel = 9, MIron = 10,
-        MPlant = 11, MPot = 12, MCrystal = 13, MSvc = 14, MLino = 15, MMarble = 16, MDebris = 17, MBlack = 18, NM = 19;
+        MPlant = 11, MPot = 12, MCrystal = 13, MSvc = 14, MLino = 15, MMarble = 16, MDebris = 17, MBlack = 18, MGlass = 19, NM = 20;
 
     static Material Surface(string n, Color tint, System.Func<Object, Object> track, float smoothMul = 1f)
     {
@@ -97,7 +99,7 @@ public static class HotelDecor
     public static void Build(BackroomsGenerator g, HotelPlan p, LevelConfig cfg, Transform levelRoot, Transform decorRoot, System.Func<Object, Object> track)
     {
         gen = g; plan = p; trk = track;
-        Doors = 0; OpenDoors = 0; ItemCount = 0; LiveLamps = 0; DoorCenters.Clear(); DoorNormals.Clear(); Leaves.Clear(); HotelDoorLeaf.OpenCount = 0;
+        Doors = 0; OpenDoors = 0; ItemCount = 0; LiveLamps = 0; DoorCenters.Clear(); DoorNormals.Clear(); Leaves.Clear(); Over.Clear(); HotelDoorLeaf.OpenCount = 0;
         System.Random r = new System.Random(g.UsedSeed * 733 + 19);
         float cs = p.cs; exitC = g.ExitCell;
         Blocks sol = new Blocks { cs = cs }, dec = new Blocks { cs = cs };
@@ -123,6 +125,7 @@ public static class HotelDecor
         mats[MMarble] = Plain(new Color(0.50f, 0.47f, 0.42f), 0.55f, 0f, track);
         mats[MDebris] = Plain(new Color(0.33f, 0.30f, 0.25f), 0.05f, 0f, track);
         mats[MBlack] = Plain(new Color(0.022f, 0.02f, 0.018f), 0.75f, 0f, track);
+        mats[MGlass] = Plain(new Color(0.05f, 0.06f, 0.08f), 0.9f, 0f, track); ProceduralAssets.SetEmission(mats[MGlass], new Color(0.10f, 0.15f, 0.26f));   // noche fuera: cristal con luna
         Color warm = cfg.emissionColor;
         shadeOn = Plain(new Color(0.9f, 0.78f, 0.55f), 0.1f, 0f, track); ProceduralAssets.SetEmission(shadeOn, warm * 0.55f);
         shadeOff = Plain(new Color(0.42f, 0.36f, 0.27f), 0.08f, 0f, track);
@@ -154,8 +157,18 @@ public static class HotelDecor
             if (it.k == HotelPlan.IFallenFrame) q = q * Quaternion.Euler(-(90f - it.tilt), 0f, 0f);
             if (it.k == HotelPlan.IPainting) q = q * Quaternion.Euler(0f, 0f, ((it.v * 37 + Mathf.RoundToInt(it.p.x * 13f)) % 7 - 3) * 0.7f);
             e.M = Matrix4x4.TRS(pos, q, Vector3.one);
+            int v0 = e.b.verts.Count;
             BuildItem(e, it, r, lampRoot, cfg);
             ItemCount++;
+            if (it.solid)
+            {   // huella real (por debajo de 1,9 m) frente a la del plano: lo que el NavMesh ve de verdad
+                Matrix4x4 inv = Matrix4x4.TRS(it.p, Quaternion.Euler(0f, it.yaw, 0f), Vector3.one).inverse;
+                float ex = 0f, ez = 0f;
+                for (int vi = v0; vi < e.b.verts.Count; vi++) { Vector3 lv = inv.MultiplyPoint3x4(e.b.verts[vi]); if (lv.y > 1.9f || lv.y < 0.15f) continue; ex = Mathf.Max(ex, Mathf.Abs(lv.x)); ez = Mathf.Max(ez, Mathf.Abs(lv.z)); }
+                float ox = ex - it.s.x * 0.5f, oz = ez - it.s.z * 0.5f;
+                if (!Over.ContainsKey(it.k)) Over[it.k] = Vector2.zero;
+                Over[it.k] = new Vector2(Mathf.Max(Over[it.k].x, ox), Mathf.Max(Over[it.k].y, oz));
+            }
         }
         // mallas
         Material[] all = mats;
@@ -449,7 +462,7 @@ public static class HotelDecor
                 e.Box(MWood, new Vector3(0.3f, 0.63f, 0), new Vector3(0.44f, 0.16f, 0.5f));
                 e.Box(MBrass, new Vector3(0.3f, 0.63f, 0.255f), new Vector3(0.06f, 0.015f, 0.012f));
                 e.Box(MSheet, new Vector3(-0.2f, 0.765f, 0.02f), new Vector3(0.22f, 0.01f, 0.3f), 0.5f);
-                Matrix4x4 keep = e.M; e.M = keep * Matrix4x4.TRS(new Vector3(-0.1f, 0, 0.52f), Quaternion.Euler(0, 180f + 14f, 0), Vector3.one); Chair(e, 0); e.M = keep;
+                Matrix4x4 keep = e.M; e.M = keep * Matrix4x4.TRS(new Vector3(-0.1f, 0, 0.24f), Quaternion.Euler(0, 180f + 8f, 0), Vector3.one); Chair(e, 0);   // metida bajo la mesa (deja paso al NavMesh) e.M = keep;
                 break;
             }
             case HotelPlan.IChair: Chair(e, v); break;
@@ -461,6 +474,30 @@ public static class HotelDecor
                 foreach (float sx in new[] { -0.55f, 0.55f }) foreach (float sz in new[] { -0.3f, 0.3f }) e.Box(MWood, new Vector3(sx, 0.19f, sz), new Vector3(0.05f, 0.38f, 0.05f));
                 break;
             case HotelPlan.IPainting: Frame(e, it.s, v, 0f); break;
+            case HotelPlan.IWindow:
+            {   // ventanal: cristal (luna), marco y travesaños de caoba, alféizar, cortinas raídas a los lados
+                float W = it.s.x, Hh = it.s.y, y0 = 0.42f, yc = y0 + Hh * 0.5f;
+                e.Box(MGlass, new Vector3(0f, yc, 0.006f), new Vector3(W - 0.08f, Hh - 0.08f, 0.008f));
+                e.Box(MWood, new Vector3(-W * 0.5f + 0.04f, yc, 0.04f), new Vector3(0.08f, Hh, 0.08f));
+                e.Box(MWood, new Vector3(W * 0.5f - 0.04f, yc, 0.04f), new Vector3(0.08f, Hh, 0.08f));
+                e.Box(MWood, new Vector3(0f, y0 + Hh - 0.04f, 0.04f), new Vector3(W, 0.08f, 0.08f));
+                e.Box(MWood, new Vector3(0f, y0 - 0.02f, 0.09f), new Vector3(W + 0.16f, 0.05f, 0.18f));
+                e.Box(MWood, new Vector3(0f, yc, 0.02f), new Vector3(0.035f, Hh - 0.1f, 0.03f));
+                for (int k = 1; k <= 3; k++) e.Box(MWood, new Vector3(0f, y0 + Hh * k / 4f, 0.02f), new Vector3(W - 0.1f, 0.03f, 0.03f));
+                float ct = 0.05f, cy = Mathf.Min(wh - 0.05f, y0 + Hh + 0.25f);
+                for (int sd = -1; sd <= 1; sd += 2)
+                {
+                    float sway = H(sd + 5, v + Mathf.RoundToInt(it.p.x)) * 0.12f;
+                    e.BoxR(MCloth, new Vector3(sd * (W * 0.5f + 0.12f), cy * 0.5f + 0.02f, 0.1f + ct), new Vector3(0.42f, cy - 0.04f, 0.07f), Quaternion.Euler(0f, sd * (4f + sway * 20f), 0f));
+                }
+                e.Box(MBrass, new Vector3(0f, cy + 0.01f, 0.12f), new Vector3(W + 0.9f, 0.03f, 0.03f));
+                if (v == 1)
+                {   // haz de luna: foco frío desde el cristal hacia el suelo de la sala
+                    Vector3 lp = e.M.MultiplyPoint3x4(new Vector3(0f, y0 + Hh - 0.2f, 0.25f)), ld = e.M.MultiplyVector(new Vector3(0f, -0.62f, 1f)).normalized;
+                    gen.AddHotelSpot(lampRoot, lp, ld, new Color(0.52f, 0.62f, 0.95f), 2.2f, 13f, 62f);
+                }
+                break;
+            }
             case HotelPlan.IFallenFrame: Frame(e, it.s, v, it.s.y * 0.5f); break;
             case HotelPlan.IPlant:
             {
