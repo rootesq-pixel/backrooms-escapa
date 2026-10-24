@@ -2981,6 +2981,12 @@ public static class SmokePlayRunner
                     for (int pass = 0; pass < 2; pass++)
                     {
                         gm.player.Teleport(gm.generator.PlayerStart, gm.generator.PlayerStartYaw);
+                        if (pass == 1)
+                        {
+                            // la pasada anterior se alejó >5 m: la cabina se cierra sola (comportamiento del juego); se reabre para repetir
+                            cb.ReopenForTests();
+                            r.Check(cb.Open01 > 0.99f && !cb.CollidersBlockDoor, eg + "(modo prueba) cabina reabierta para la pasada con fotogramas lentos");
+                        }
                         yield return null; yield return null;
                         float a0 = Vector3.Dot(gm.player.transform.position - cb.transform.position, cb.Forward);
                         if (pass == 1) Time.captureDeltaTime = 0.33f;

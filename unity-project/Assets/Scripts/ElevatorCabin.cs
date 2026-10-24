@@ -1004,6 +1004,15 @@ public class ElevatorCabin : MonoBehaviour
         if (applyCamera) { Locked = true; ApplyCameraPose(); }
     }
 
+    // Sólo pruebas: vuelve a dejar la cabina abierta (tras alejarse el jugador se cierra sola; las pruebas lo devuelven dentro)
+    public void ReopenForTests()
+    {
+        if (!Released) return;
+        CurrentPhase = Phase.Open; closeT = 0f; farTimer = 0f; nextFarCheck = 0.3f; fadeOut = 1f;
+        Open01 = 1f; ApplyDoors(1f);
+        if (doorBlock != null) doorBlock.enabled = false;
+    }
+
     // Cierra la cabina al instante (vista previa exterior)
     public void SeekClosed()
     {
