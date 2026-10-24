@@ -59,6 +59,7 @@ public class ShotBuildCheck : MonoBehaviour
         else if (FieldWorld.Active != null) yield return Field(gm, pw, mc);
         else if (OceanWorld.Active != null) yield return Ocean(gm, pw, mc);
         else if (GameBootstrap.Instance.CurrentLevel == 0) yield return Level0(gm, pw, mc);
+        else if (GameBootstrap.Instance.CurrentLevel == 1) yield return Level1(gm, pw, mc);
         else Check(false, "nivel con sala de piscina o campo");
         Finish();
     }
@@ -510,12 +511,82 @@ public class ShotBuildCheck : MonoBehaviour
         Check(gm.State == GameManager.GameState.Playing || gm.State == GameManager.GameState.Won, "nivel 7 sigue en juego durante las capturas (" + gm.State + ")");
     }
 
+    // v7.4.0: cabina del ascensor (interior, rellano abierto/cerrado) y Nivel 1 (Aparcamiento) sin VHS, desde los mismos ángulos
+    // que las capturas del editor (V740Shots). Solo usa API que ya existía en v7.3.0 para poder capturar «antes» con el mismo código.
+    // Con «-perf»: tiempos de fotograma en la cabina, el rellano y el aparcamiento (VHS por defecto 0,7, 1920x1080, sin vsync).
+    IEnumerator Level1(GameManager gm, FirstPersonController pw, Camera mc)
+    {
+        VhsEffect vx = mc.GetComponent<VhsEffect>(); if (vx != null) vx.intensityOverride = 0f;
+        ElevatorCabin cab = ElevatorCabin.Current;
+        if (cab == null) { Check(false, "cabina en el nivel 1"); yield break; }
+        Transform ct = cab.transform; float F = mc.fieldOfView; hero = true;
+        System.Func<float, float, float, Vector3> L = (x, y, z) => ct.TransformPoint(new Vector3(x, y, z));
+        Vector3 inStand = cab.InteriorCenter;
+        cab.SeekPreview(2.2f, false); yield return null; cab.SeekPreview(2.2f, false);
+        yield return View(pw, mc, "e01_interior_puertas", L(0.75f, 1.55f, -1.0f), L(-0.35f, 1.05f, 1.35f), F, inStand);
+        yield return View(pw, mc, "e02_interior_fondo_botonera", L(-0.55f, 1.6f, 0.9f), L(0.55f, 1.05f, -1.15f), F, inStand);
+        yield return View(pw, mc, "e03_indicador_planta", L(-0.1f, 1.65f, 0.2f), L(0f, 2.14f, 1.3f), F, inStand);
+        yield return View(pw, mc, "e05_pasamanos_pared", L(0.4f, 1.3f, 0.6f), L(1.17f, 1.0f, -0.6f), F, inStand);
+        cab.SeekPreview(8.2f, false); yield return null;
+        Vector3 op = cab.ExitPoint + cab.Forward * 3.0f + Vector3.up * 1.5f + ct.right * 0.8f, opT = cab.InteriorCenter + Vector3.up * 1.1f;
+        Vector3 opStand = new Vector3(op.x, cab.ExitPoint.y, op.z);
+        yield return View(pw, mc, "e08_exterior_abierto", op, opT, F, opStand);
+        Vector3 b = cab.ExitPoint + cab.Forward * 2.5f; Vector3 f = cab.Forward, r = ct.right;
+        yield return View(pw, mc, "e10_rellano_lateral", b + Vector3.up * 1.45f + r * 1.6f - f * 0.6f, L(0.2f, 1.25f, 1.45f), F, b + r * 1.6f - f * 0.6f);
+        yield return View(pw, mc, "p01_pasillo_frente", b + Vector3.up * 1.6f, b + f * 14f + Vector3.up * 1.0f, F, b);
+        yield return View(pw, mc, "p02_lado_derecho", b + Vector3.up * 1.6f, b + r * 14f + Vector3.up * 0.6f, F, b);
+        yield return View(pw, mc, "p03_lado_izquierdo", b + Vector3.up * 1.6f, b - r * 14f + Vector3.up * 0.6f, F, b);
+        yield return View(pw, mc, "p04_suelo_lineas", b + Vector3.up * 1.7f + f * 2f, b + f * 5f + Vector3.down * 0.1f, F, b + f * 2f);
+        cab.SeekClosed(); yield return null;
+        yield return View(pw, mc, "e09_exterior_cerrado", op, opT, F, opStand);
+        hero = false;
+        if (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-perf") >= 0)
+        {
+            if (vx != null) { vx.enabled = true; vx.intensityOverride = 0.7f; }
+            cab.SeekPreview(2.2f, false); yield return null;
+            yield return Perf(pw, mc, "cabina", L(0.75f, 1.55f, -1.0f), L(-0.35f, 1.05f, 1.35f), F, inStand);
+            cab.SeekPreview(8.2f, false); yield return null;
+            yield return Perf(pw, mc, "rellano", op, opT, F, opStand);
+            yield return Perf(pw, mc, "aparcamiento", b + Vector3.up * 1.6f, b + f * 14f + Vector3.up * 1.0f, F, b);
+            yield return Perf(pw, mc, "aparcamiento_lado", b + Vector3.up * 1.6f, b - r * 14f + Vector3.up * 0.6f, F, b);
+        }
+        Check(gm.State == GameManager.GameState.Playing, "nivel 1 sigue en juego durante las capturas (" + gm.State + ")");
+    }
+
+    // 900 fotogramas: cada uno = bucle del juego + render de la cámara a 1920x1080 + espera a la GPU (lectura de 1 píxel)
+    IEnumerator Perf(FirstPersonController pw, Camera mc, string n, Vector3 p, Vector3 t, float fov, Vector3 stand)
+    {
+        pw.Teleport(stand, Mathf.Atan2(t.x - p.x, t.z - p.z) * Mathf.Rad2Deg);
+        int vs0 = QualitySettings.vSyncCount, tf0 = Application.targetFrameRate; QualitySettings.vSyncCount = 0; Application.targetFrameRate = -1;
+        RenderTexture rt = new RenderTexture(1920, 1080, 24); rt.antiAliasing = Mathf.Max(1, QualitySettings.antiAliasing); rt.Create();
+        Texture2D one = new Texture2D(1, 1, TextureFormat.RGBA32, false);
+        bool en = mc.enabled; mc.enabled = false;
+        var ft = new System.Collections.Generic.List<double>(); var sw = new System.Diagnostics.Stopwatch();
+        for (int k = 0; k < 960; k++)
+        {
+            mc.transform.position = p; mc.transform.rotation = Quaternion.LookRotation(t - p); mc.fieldOfView = fov;
+            mc.targetTexture = rt; mc.Render(); mc.targetTexture = null;
+            RenderTexture.active = rt; one.ReadPixels(new Rect(0, 0, 1, 1), 0, 0, false); RenderTexture.active = null;
+            if (k >= 60) ft.Add(sw.Elapsed.TotalMilliseconds);
+            yield return null;
+            sw.Restart();
+        }
+        mc.enabled = en; QualitySettings.vSyncCount = vs0; Application.targetFrameRate = tf0;
+        Destroy(one); rt.Release(); Destroy(rt);
+        double sum = 0; foreach (double x in ft) sum += x; double mean = sum / ft.Count;
+        ft.Sort(); double p99 = ft[(int)(ft.Count * 0.99)];
+        int worst = Mathf.Max(1, ft.Count / 100); double ws = 0; for (int i = ft.Count - worst; i < ft.Count; i++) ws += ft[i];
+        Info("perf " + n + " calidad " + GameSettings.Quality + ": media " + mean.ToString("F2") + " ms = " + (1000.0 / mean).ToString("F0") + " FPS, 1% bajo " + (1000.0 / (ws / worst)).ToString("F0")
+            + " FPS (media del 1% peor " + (ws / worst).ToString("F2") + " ms; p99 " + p99.ToString("F2") + " ms), mediana " + ft[ft.Count / 2].ToString("F2") + " ms, " + ft.Count + " fotogramas, AA " + rt.antiAliasing + ", " + SystemInfo.graphicsDeviceName);
+    }
+
+    bool hero;
     static float Mean(Texture2D t) { Color32[] px = t.GetPixels32(); double s = 0; for (int i = 0; i < px.Length; i += 17) s += (px[i].r + px[i].g + px[i].b) / 765.0; return (float)(s / (px.Length / 17)); }
 
     Texture2D Grab(Camera c, string name)
     {
         const int W = 1920, H = 1080;
-        RenderTexture rt = RenderTexture.GetTemporary(W, H, 24); RenderTexture prev = c.targetTexture;
+        RenderTexture rt = RenderTexture.GetTemporary(W, H, 24, RenderTextureFormat.Default, RenderTextureReadWrite.Default, hero ? 8 : 1); RenderTexture prev = c.targetTexture;
         c.targetTexture = rt; c.Render(); RenderTexture.active = rt;
         Texture2D t = new Texture2D(W, H, TextureFormat.RGB24, false); t.ReadPixels(new Rect(0, 0, W, H), 0, 0); t.Apply();
         RenderTexture.active = null; c.targetTexture = prev; RenderTexture.ReleaseTemporary(rt);

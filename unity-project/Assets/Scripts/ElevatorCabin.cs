@@ -319,12 +319,46 @@ public class ElevatorCabin : MonoBehaviour
             r.receiveShadows = false;
         }
         foreach (Renderer r in lit) if (r != null) buttonDots.Add(r);
+        ApplyBakedAO(inst, new HashSet<Material> { steel, rail, steelDark, facade, wood, floor, ceiling, landSteel });
         doorL = dl; doorR = dr;
         pivL = MakePivot(doorL); pivR = MakePivot(doorR);
         pivLx = pivL.localPosition.x; pivRx = pivR.localPosition.x;
         doorSlide = V740Ow + 0.005f;
         HasModel = true; IsRealistic = true;
         return true;
+    }
+
+    // v7.4.0 (horneado GPU en el PC): oclusión ambiental de la cabina en un atlas compartido (UV2 del FBX).
+    // Se aplica como detalle x2 del Standard (_DETAIL_MULX2, _UVSec = UV2): albedo * 2 * AO/2. Las puertas (se mueven) y las piezas
+    // emisivas no llevan UV2 y conservan su material; el resto recibe una copia del material con el atlas.
+    public const string BakedAOResource = "Elevator/V740/ElevAO";
+    public int AORendererCount { get; private set; }
+    private void ApplyBakedAO(GameObject inst, HashSet<Material> pbr)
+    {
+        Texture2D ao = Resources.Load<Texture2D>(BakedAOResource);
+        if (ao == null) return;
+        Dictionary<Material, Material> aoMat = new Dictionary<Material, Material>();
+        foreach (Renderer r in inst.GetComponentsInChildren<Renderer>(true))
+        {
+            MeshFilter mf = r.GetComponent<MeshFilter>();
+            if (mf == null || mf.sharedMesh == null || !mf.sharedMesh.HasVertexAttribute(UnityEngine.Rendering.VertexAttribute.TexCoord1)) continue;
+            Material[] arr = r.sharedMaterials; bool any = false;
+            for (int i = 0; i < arr.Length; i++)
+            {
+                Material src = arr[i];
+                if (src == null || !pbr.Contains(src)) continue;
+                Material m;
+                if (!aoMat.TryGetValue(src, out m))
+                {
+                    m = new Material(src); m.name = src.name + "_AO";
+                    m.SetTexture("_DetailAlbedoMap", ao); m.SetTextureScale("_DetailAlbedoMap", Vector2.one);
+                    m.SetFloat("_UVSec", 1f); m.EnableKeyword("_DETAIL_MULX2");
+                    aoMat[src] = m; owned.Add(m);
+                }
+                arr[i] = m; any = true;
+            }
+            if (any) { r.sharedMaterials = arr; AORendererCount++; }
+        }
     }
 
     private Transform MakePivot(Transform leaf)

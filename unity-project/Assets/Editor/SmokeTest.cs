@@ -1148,7 +1148,22 @@ public static class SmokeTest
         foreach (string n in new[] { "ElevSteel", "ElevSteelDark", "ElevPaint", "ElevWood", "ElevFloor" })
         {
             Texture2D a = Resources.Load<Texture2D>("Elevator/V740/" + n + "_a"), nn = Resources.Load<Texture2D>("Elevator/V740/" + n + "_n"), m = Resources.Load<Texture2D>("Elevator/V740/" + n + "_m");
-            r.Check(a != null && nn != null && m != null && a.width <= 1024, T + "texturas PBR " + n + " (albedo/normal/máscara, " + (a != null ? a.width : 0) + " px ≤ 1024)");
+            r.Check(a != null && nn != null && m != null && a.width >= 1024 && a.width <= 2048, T + "texturas PBR " + n + " (albedo/normal/máscara, " + (a != null ? a.width : 0) + " px, 1024-2048)");
+        }
+        {
+            // oclusión horneada en GPU (atlas en UV2)
+            Texture2D ao = Resources.Load<Texture2D>(ElevatorCabin.BakedAOResource);
+            int withUv2 = 0; bool doorsNo = true;
+            if (p != null) foreach (MeshFilter mf in p.GetComponentsInChildren<MeshFilter>(true))
+            {
+                bool has = mf.sharedMesh != null && mf.sharedMesh.HasVertexAttribute(UnityEngine.Rendering.VertexAttribute.TexCoord1);
+                if (has) withUv2++;
+                if (has && (mf.name == "Door_L" || mf.name == "Door_R" || mf.name.Contains("BtnLit"))) doorsNo = false;
+            }
+            r.Check(ao != null && ao.width >= 1024, T + "atlas de oclusión de la cabina horneado (" + (ao != null ? ao.width + " px" : "falta") + ")");
+            r.Check(withUv2 >= 8 && doorsNo, T + "la cabina trae UV2 en " + withUv2 + " grupos (sin UV2 en puertas ni pulsadores)");
+            bool keepD = AssetDatabase.LoadAssetAtPath<Material>("Assets/Resources/ShaderVariantKeeper/Opaque_N1_G1_E0_D1.mat") != null;
+            r.Check(keepD, T + "variante Standard con detalle x2 conservada para el build (Opaque_N1_G1_E0_D1)");
         }
         foreach (string n in new[] { "ParkingFloor", "ParkingWall", "ParkingCeiling" })
         {
@@ -2342,6 +2357,7 @@ public static class SmokePlayRunner
             r.Check(cab.IsRealistic && cab.transform.Find("FrontL") != null && cab.transform.Find("FrontR") != null && cab.transform.Find("Transom") != null,
                 et + "v7.4.0: cabina realista propia (Elevator740) con marco frontal de colisión (" + cab.GetComponentsInChildren<BoxCollider>(true).Length + " cajas)");
             r.Check(cab.HasLanding && cab.LandingLit && cab.HasOuterDisplay && cab.CallButtonLit, et + "v7.4.0: rellano con muro, aplique encendido, indicador exterior y pulsador de llamada");
+            r.Check(cab.AORendererCount >= 8, et + "v7.4.0: oclusión horneada aplicada a " + cab.AORendererCount + " piezas de la cabina");
             r.Check(cab.ButtonLightCount >= 5 && cab.DoorGap < 0.01f, et + "v7.4.0: botonera con " + cab.ButtonLightCount + " botones iluminados y puertas cerradas al bajar (hueco " + cab.DoorGap.ToString("F3") + " m)");
             Vector3 f0 = pe.transform.position;
             pe.debugInput = true; pe.debugMove = new Vector2(0f, 1f);

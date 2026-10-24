@@ -39,6 +39,19 @@ public static class ShaderVariantKeeper
             created++;
         }
 
+        // v7.4.0: detalle x2 (oclusión horneada de la cabina del ascensor en UV2)
+        for (int mask = 0; mask < 8; mask++)
+        {
+            bool normal = (mask & 1) != 0, gloss = (mask & 2) != 0, emission = (mask & 4) != 0;
+            Material m = new Material(standard);
+            if (normal) m.EnableKeyword("_NORMALMAP");
+            if (gloss) m.EnableKeyword("_METALLICGLOSSMAP");
+            if (emission) { m.EnableKeyword("_EMISSION"); m.SetColor("_EmissionColor", Color.white); }
+            m.EnableKeyword("_DETAIL_MULX2"); m.SetFloat("_UVSec", 1f);
+            Save(m, "Opaque_N" + (normal ? 1 : 0) + "_G" + (gloss ? 1 : 0) + "_E" + (emission ? 1 : 0) + "_D1");
+            created++;
+        }
+
         // Transparente premultiplicado (agua), con y sin normal map; v7.4.0: + máscara de brillo (calcomanías del aparcamiento)
         for (int n = 0; n < 3; n++)
         {

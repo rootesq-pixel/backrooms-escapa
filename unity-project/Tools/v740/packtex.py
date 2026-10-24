@@ -25,14 +25,14 @@ def pack(id, out, res=None, metal=None, smooth_mul=1.0, smooth_add=0.0, tint=Non
     col.save(f'{odir}/{out}_a.jpg',quality=92); nrm.save(f'{odir}/{out}_n.png')
     Image.fromarray((m*255).astype(np.uint8),'RGBA').save(f'{odir}/{out}_m.png')
     print(out, n, 'metal', round(float(met.mean()),2), 'smooth', round(float(sm.mean()),2))
-if sys.argv[1]=='elev':
+if len(sys.argv)>1 and sys.argv[1]=='elev':
     pack('Metal009','ElevSteel',512, metal=0.55, smooth_mul=0.9)
     pack('Metal038','ElevSteelDark',512, metal=0.6, smooth_mul=0.8)
     pack('Metal009','ElevPaint',512, metal=0.08, smooth_mul=0.4, tint=(0.80,0.80,0.76))
     pack('Wood051','ElevWood',1024, metal=0.0, smooth_mul=0.55, smooth_add=0.0)
     pack('Rubber001','ElevFloor',512, metal=0.0)
 
-if sys.argv[1]=='elev':
+if len(sys.argv)>1 and sys.argv[1]=='elev':
     # suciedad en el borde del suelo (RGBA): oscura, con ruido, alfa que se desvanece desde la pared (v=0) hacia dentro (v=1)
     rng=np.random.default_rng(7); W,H=512,64
     base=np.asarray(Image.fromarray((rng.random((H//4,W//4))*255).astype(np.uint8)).resize((W,H),Image.BICUBIC),np.float32)/255
