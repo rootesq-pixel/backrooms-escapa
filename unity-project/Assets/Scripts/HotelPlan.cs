@@ -76,6 +76,8 @@ public class HotelPlan
         for (int i = 0; i < w; i++) for (int j = 0; j < h; j++) p.hallOf[i, j] = -1;
         for (int k = 0; k < p.halls.Count; k++) { RectInt b = p.halls[k].r; for (int i = b.x; i < b.xMax; i++) for (int j = b.y; j < b.yMax; j++) p.hallOf[i, j] = k; }
         p.Furnish(new System.Random(seed * 31 + 5));
+        p.ClearDoorways();
+        p.BuildReach();
         return p;
     }
 
@@ -373,7 +375,7 @@ public class HotelPlan
             double q = r.NextDouble();
             if (q < 0.45) Add(IArmchair, cb - fw * 0.95f + side * (r.Next(2) == 0 ? 0.95f : -0.95f), Yaw(din) + (float)(r.NextDouble() - 0.5) * 50f, new Vector3(0.78f, 0.9f, 0.78f), 0);
             else if (q < 0.7) Add(ISuitcase, cb - fw * 0.9f + side * 0.9f, (float)r.NextDouble() * 360f, new Vector3(0.7f, 0.25f, 0.45f), r.Next(2), true, 0f);
-            if (r.NextDouble() < 0.3) Add(ICart, ce - fw * 0.6f + side * 0.2f, Yaw(sA) + (float)(r.NextDouble() - 0.5) * 30f, new Vector3(0.9f, 0.85f, 0.55f), 0);
+            if (q >= 0.7 && r.NextDouble() < 0.5) Add(ICart, cb - fw * 1.05f + side * (r.Next(2) == 0 ? 0.85f : -0.85f), Yaw(sA) + (float)(r.NextDouble() - 0.5) * 30f, new Vector3(0.9f, 0.85f, 0.55f), 0);   // al pie de la cama (nunca delante de la puerta)
             if (r.NextDouble() < 0.35) Add(IFallenFrame, ce + dB * (H2 - t * 0.5f - 0.15f) - fw * 0.5f, Yaw((sB + 2) % 4), new Vector3(0.6f, 0.45f, 0.04f), r.Next(8), false, 72f);
             views.Add(new View { name = "habitacion", pos = ce - fw * 1.0f + Vector3.up * 1.6f, look = cb + fw * 0.6f + Vector3.up * 0.7f });
         }
@@ -524,9 +526,183 @@ public class HotelPlan
         views.Add(new View { name = "galeria", pos = Center(halls[0].r.x + 1, halls[0].r.yMax) + Vector3.up * 1.6f, look = Center(halls[2].r.xMax - 1, halls[0].r.yMax) + Vector3.up * 1.2f });
     }
 
-    // ---------------------------------------------------------------- sitios libres (objetos, monstruos, pruebas)
-    // Devuelve un punto (local) dentro de la celda lejos de muros y muebles (margen 0,6 m: cabe el NavMesh), lo más cerca posible del pedido.
+    // Nada sólido delante de un hueco de puerta (1,7 x 1,3 m a cada lado): el NavMesh (radio 0,5) necesita pasar recto por el hueco
+    void ClearDoorways()
+    {
+        int removable = 0;
+        for (int i = items.Count - 1; i >= 0; i--)
+        {
+            Item it = items[i];
+            if (!it.solid) continue;
+            int k = it.k;
+            bool movable = k == ICart || k == IChair || k == IArmchair || k == ISuitcase || k == IPlant || k == ILaundry || k == IDebris || k == IBench || k == IAshtray || k == IBellCart || k == ILinenShelf || k == IDesk || k == ISofa || k == ICoffee;
+            if (!movable) continue;
+            float ya = it.yaw * Mathf.Deg2Rad, ca = Mathf.Abs(Mathf.Cos(ya)), sa = Mathf.Abs(Mathf.Sin(ya));
+            float hx = ca * it.s.x * 0.5f + sa * it.s.z * 0.5f, hz = sa * it.s.x * 0.5f + ca * it.s.z * 0.5f;
+            if (k == IChair && it.tilt > 1f) { hx = Mathf.Max(hx, 0.5f); hz = Mathf.Max(hz, 0.5f); }
+            bool hit = false;
+            foreach (Edge e in doorways)
+            {
+                Vector3 wp = Center(e.c.x, e.c.y) + Dir3(e.d) * (cs * 0.5f);
+                bool alongX = e.d == 0 || e.d == 2;   // muro horizontal: el hueco va a lo largo de x
+                float zx = alongX ? 0.85f : 1.3f, zz = alongX ? 1.3f : 0.85f;
+                if (Mathf.Abs(it.p.x - wp.x) < zx + hx && Mathf.Abs(it.p.z - wp.z) < zz + hz) { hit = true; break; }
+            }
+            // y un carril de 1,4 m por el centro de cada paso abierto entre celdas (salvo dentro de una misma sala)
+            int cx = Mathf.FloorToInt(it.p.x / cs), cz = Mathf.FloorToInt(it.p.z / cs);
+            for (int ox = -1; ox <= 1 && !hit; ox++) for (int oz = -1; oz <= 1 && !hit; oz++)
+            {
+                int x = cx + ox, z = cz + oz;
+                if (!Walkable(x, z)) continue;
+                for (int d = 0; d < 2 && !hit; d++)   // N y E (cada paso una vez)
+                {
+                    Vector2Int n = new Vector2Int(x, z) + D[d == 0 ? 0 : 1]; int dd = d == 0 ? 0 : 1;
+                    if (!Walkable(n.x, n.y) || !IsOpen(x, z, dd) || HasDoorway(x, z, dd)) continue;
+                    if (hallOf[x, z] >= 0 && hallOf[x, z] == hallOf[n.x, n.y]) continue;
+                    if (kind[x, z] == K.Room && kind[n.x, n.y] == K.Room) continue;   // dentro de la habitación ya hay paso
+                    Vector3 wp = Center(x, z) + Dir3(dd) * (cs * 0.5f);
+                    float zx = dd == 0 ? 0.7f : 1.0f, zz = dd == 0 ? 1.0f : 0.7f;
+                    if (Mathf.Abs(it.p.x - wp.x) < zx + hx && Mathf.Abs(it.p.z - wp.z) < zz + hz) hit = true;
+                }
+            }
+            if (hit) { items.RemoveAt(i); removable++; }
+        }
+        clearedItems = removable;
+    }
+    public int clearedItems;
+
+    // ---------------------------------------------------------------- sitios libres
+    // Rejilla de 12,5 cm del plano: muros (con jambas), huecos vacíos y muebles sólidos, erosionada 0,6 m (radio del NavMesh 0,5 + margen)
+    // e inundada desde el inicio. Los objetos, llaves y monstruos se ponen en un punto alcanzable (no en un islote entre muebles).
+    const float RR = 0.125f; const float ReachClear = 0.6f, DoorWidth = 1.5f;
+    int rw, rh; byte[] reach;   // 0 bloqueado, 1 libre pero aislado, 2 alcanzable
+    void BuildReach()
+    {
+        rw = Mathf.CeilToInt(w * cs / RR); rh = Mathf.CeilToInt(h * cs / RR);
+        int n = rw * rh; bool[] occ = new bool[n];
+        System.Action<float, float, float, float> rect = (x0, z0, x1, z1) =>
+        {
+            int i0 = Mathf.Max(0, Mathf.FloorToInt(x0 / RR)), i1 = Mathf.Min(rw, Mathf.CeilToInt(x1 / RR)), j0 = Mathf.Max(0, Mathf.FloorToInt(z0 / RR)), j1 = Mathf.Min(rh, Mathf.CeilToInt(z1 / RR));
+            for (int i = i0; i < i1; i++) for (int j = j0; j < j1; j++) occ[j * rw + i] = true;
+        };
+        float th = t * 0.5f;
+        for (int x = 0; x < w; x++) for (int z = 0; z < h; z++)
+        {
+            float x0 = x * cs, z0 = z * cs, x1 = x0 + cs, z1 = z0 + cs;
+            if (!Walkable(x, z)) { rect(x0, z0, x1, z1); continue; }
+            for (int d = 0; d < 4; d++)
+            {
+                bool open = IsOpen(x, z, d);
+                if (!open)
+                {
+                    if (d == 0) rect(x0 - th, z1 - th, x1 + th, z1 + th); else if (d == 2) rect(x0 - th, z0 - th, x1 + th, z0 + th);
+                    else if (d == 1) rect(x1 - th, z0 - th, x1 + th, z1 + th); else rect(x0 - th, z0 - th, x0 + th, z1 + th);
+                }
+                else if (HasDoorway(x, z, d))
+                {
+                    float c = d == 0 || d == 2 ? x0 + cs * 0.5f : z0 + cs * 0.5f, hw = DoorWidth * 0.5f;
+                    if (d == 0) { rect(x0, z1 - th, c - hw, z1 + th); rect(c + hw, z1 - th, x1, z1 + th); }
+                    else if (d == 2) { rect(x0, z0 - th, c - hw, z0 + th); rect(c + hw, z0 - th, x1, z0 + th); }
+                    else if (d == 1) { rect(x1 - th, z0, x1 + th, c - hw); rect(x1 - th, c + hw, x1 + th, z1); }
+                    else { rect(x0 - th, z0, x0 + th, c - hw); rect(x0 - th, c + hw, x0 + th, z1); }
+                }
+            }
+        }
+        foreach (Item it in items)
+        {
+            if (!it.solid || it.k == IStairs) continue;
+            float ya = it.yaw * Mathf.Deg2Rad, ca = Mathf.Cos(ya), sa = Mathf.Sin(ya), ex = it.s.x * 0.5f, ez = it.s.z * 0.5f;
+            if (it.k == IChair && it.tilt > 1f) { ex = Mathf.Max(ex, 0.5f); ez = Mathf.Max(ez, 0.6f); }
+            float rad = Mathf.Sqrt(ex * ex + ez * ez) + RR;
+            int i0 = Mathf.Max(0, Mathf.FloorToInt((it.p.x - rad) / RR)), i1 = Mathf.Min(rw, Mathf.CeilToInt((it.p.x + rad) / RR));
+            int j0 = Mathf.Max(0, Mathf.FloorToInt((it.p.z - rad) / RR)), j1 = Mathf.Min(rh, Mathf.CeilToInt((it.p.z + rad) / RR));
+            for (int i = i0; i < i1; i++) for (int j = j0; j < j1; j++)
+            {
+                float dx = (i + 0.5f) * RR - it.p.x, dz = (j + 0.5f) * RR - it.p.z;
+                bool inside;
+                if (it.k == IRoundTable) inside = dx * dx + dz * dz < (ex + 0.4f) * (ex + 0.4f);
+                else { float lx = dx * ca - dz * sa, lz = dx * sa + dz * ca; inside = Mathf.Abs(lx) < ex && Mathf.Abs(lz) < ez; }
+                if (inside) occ[j * rw + i] = true;
+            }
+        }
+        // distancia chaflán 3-4 (en unidades de RR/3)
+        int[] dist = new int[n]; const int INF = 1 << 28;
+        for (int k = 0; k < n; k++) dist[k] = occ[k] ? 0 : INF;
+        for (int j = 0; j < rh; j++) for (int i = 0; i < rw; i++)
+        {
+            int k = j * rw + i, v = dist[k]; if (v == 0) continue;
+            if (i > 0) v = Mathf.Min(v, dist[k - 1] + 3);
+            if (j > 0) { v = Mathf.Min(v, dist[k - rw] + 3); if (i > 0) v = Mathf.Min(v, dist[k - rw - 1] + 4); if (i < rw - 1) v = Mathf.Min(v, dist[k - rw + 1] + 4); }
+            dist[k] = v;
+        }
+        for (int j = rh - 1; j >= 0; j--) for (int i = rw - 1; i >= 0; i--)
+        {
+            int k = j * rw + i, v = dist[k]; if (v == 0) continue;
+            if (i < rw - 1) v = Mathf.Min(v, dist[k + 1] + 3);
+            if (j < rh - 1) { v = Mathf.Min(v, dist[k + rw] + 3); if (i < rw - 1) v = Mathf.Min(v, dist[k + rw + 1] + 4); if (i > 0) v = Mathf.Min(v, dist[k + rw - 1] + 4); }
+            dist[k] = v;
+        }
+        int need = Mathf.CeilToInt(ReachClear / RR * 3f);
+        reach = new byte[n];
+        for (int k = 0; k < n; k++) reach[k] = (byte)(dist[k] >= need ? 1 : 0);
+        // inundación desde el píxel libre más cercano al centro de la celda de inicio
+        int sk = NearestPixel(Center(start.x, start.y), 1, 3f);
+        if (sk < 0) return;
+        Queue<int> q = new Queue<int>(); reach[sk] = 2; q.Enqueue(sk);
+        while (q.Count > 0)
+        {
+            int k = q.Dequeue(), i = k % rw, j = k / rw;
+            if (i > 0 && reach[k - 1] == 1) { reach[k - 1] = 2; q.Enqueue(k - 1); }
+            if (i < rw - 1 && reach[k + 1] == 1) { reach[k + 1] = 2; q.Enqueue(k + 1); }
+            if (j > 0 && reach[k - rw] == 1) { reach[k - rw] = 2; q.Enqueue(k - rw); }
+            if (j < rh - 1 && reach[k + rw] == 1) { reach[k + rw] = 2; q.Enqueue(k + rw); }
+        }
+    }
+    int NearestPixel(Vector3 p, byte want, float maxR)
+    {
+        int ci = Mathf.Clamp(Mathf.FloorToInt(p.x / RR), 0, rw - 1), cj = Mathf.Clamp(Mathf.FloorToInt(p.z / RR), 0, rh - 1), best = -1; float bd = 1e9f;
+        int rr = Mathf.CeilToInt(maxR / RR);
+        for (int r = 0; r <= rr; r++)
+        {
+            for (int i = ci - r; i <= ci + r; i++) for (int j = cj - r; j <= cj + r; j++)
+            {
+                if (Mathf.Max(Mathf.Abs(i - ci), Mathf.Abs(j - cj)) != r || i < 0 || j < 0 || i >= rw || j >= rh) continue;
+                int k = j * rw + i; if (reach[k] < want) continue;
+                float d2 = (i - ci) * (i - ci) + (j - cj) * (j - cj); if (d2 < bd) { bd = d2; best = k; }
+            }
+            if (best >= 0 && r * r > bd + 2) break;
+        }
+        return best;
+    }
+    // ¿se llega a pie a esta celda? (según la rejilla del plano)
+    public bool CellReachable(int x, int z)
+    {
+        if (reach == null || !Walkable(x, z)) return false;
+        for (int j = Mathf.FloorToInt(z * cs / RR); j < Mathf.Min(rh, Mathf.FloorToInt((z + 1) * cs / RR)); j++)
+            for (int i = Mathf.FloorToInt(x * cs / RR); i < Mathf.Min(rw, Mathf.FloorToInt((x + 1) * cs / RR)); i++) if (reach[j * rw + i] == 2) return true;
+        return false;
+    }
+    // Devuelve un punto (local) alcanzable, lo más cerca posible del pedido (primero dentro de la celda; si no, en las vecinas)
     public Vector3 FreePoint(int x, int z, Vector3 want)
+    {
+        if (reach != null)
+        {
+            Vector3 c = Center(x, z);
+            int best = -1; float bd = 1e9f;
+            int i0 = Mathf.FloorToInt(x * cs / RR), i1 = Mathf.Min(rw, Mathf.FloorToInt((x + 1) * cs / RR)), j0 = Mathf.FloorToInt(z * cs / RR), j1 = Mathf.Min(rh, Mathf.FloorToInt((z + 1) * cs / RR));
+            for (int i = i0; i < i1; i++) for (int j = j0; j < j1; j++)
+            {
+                if (reach[j * rw + i] != 2) continue;
+                float dx = (i + 0.5f) * RR - want.x, dz = (j + 0.5f) * RR - want.z, d2 = dx * dx + dz * dz;
+                if (d2 < bd) { bd = d2; best = j * rw + i; }
+            }
+            if (best < 0) best = NearestPixel(want, 2, cs * 1.5f);
+            if (best >= 0) return new Vector3((best % rw + 0.5f) * RR, want.y, (best / rw + 0.5f) * RR);
+            return new Vector3(c.x, want.y, c.z);
+        }
+        return FreePointOld(x, z, want);
+    }
+    Vector3 FreePointOld(int x, int z, Vector3 want)
     {
         Vector3 c = Center(x, z);
         if (Free(x, z, want)) return want;

@@ -17,8 +17,8 @@ public static class HotelDecor
     public static readonly List<Vector3> DoorCenters = new List<Vector3>();   // local al nivel (capturas y pruebas)
     public static readonly List<Vector3> DoorNormals = new List<Vector3>();
     public static readonly List<HotelDoorLeaf> Leaves = new List<HotelDoorLeaf>();
-    public const float DoorW = 1.3f, DoorH = 2.2f;      // hueco en el muro (las jambas van en la malla del nivel)
-    const float LW = 1.16f, LH = 2.15f;                  // hoja
+    public const float DoorW = 1.5f, DoorH = 2.2f;      // hueco en el muro (las jambas van en la malla del nivel; 1,5 m deja paso en el NavMesh con radio 0,5)
+    const float LW = 1.38f, LH = 2.15f;                  // hoja
     const int MDoor = 0, MWood = 1, MBrass = 2, MNum = 3, MBed = 4, MSheet = 5, MCloth = 6, MUph = 7, MPaint = 8, MSteel = 9, MIron = 10,
         MPlant = 11, MPot = 12, MCrystal = 13, MSvc = 14, MLino = 15, MMarble = 16, MDebris = 17, MBlack = 18, NM = 19;
 

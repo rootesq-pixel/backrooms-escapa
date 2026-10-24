@@ -156,15 +156,40 @@ public static class SeedReachCheck
                 {
                     if (!rm.open) continue; rOpen++;
                     Vector3 bc = R.TransformPoint(gen.Hotel.FreePoint(rm.bed.x, rm.bed.y, gen.Hotel.Center(rm.bed.x, rm.bed.y)));
-                    if (PathLen(gen.PlayerStart, bc) > 0f) rOk++; else if (rBad.Length < 80) rBad += " " + rm.number;
+                    if (PathLen(gen.PlayerStart, bc) > 0f) rOk++;
+                    else
+                    {
+                        if (rBad.Length < 80) rBad += " " + rm.number;
+                        if (Environment.GetEnvironmentVariable("SEEDREACH_DIAG") == "1" && rBad.Length < 30)
+                        {   // diagnóstico: navmesh a lo largo del hueco y qué hay en el nivel delante de la puerta
+                            Vector3 dl = gen.Hotel.Center(rm.entry.x, rm.entry.y) + HotelPlan.Dir3(rm.doorDir) * (cs * 0.5f);
+                            string dg = " [" + rm.number + " puerta " + dl + " bed " + bc + ":";
+                            for (float o = -1.2f; o <= 1.21f; o += 0.3f)
+                            {
+                                Vector3 q = R.TransformPoint(dl + HotelPlan.Dir3(rm.doorDir) * o);
+                                bool ok = NavMesh.SamplePosition(q, out NavMeshHit nh, 0.25f, NavMesh.AllAreas);
+                                dg += (ok ? "+" : "-");
+                            }
+                            Bounds zb = new Bounds(R.TransformPoint(dl) + Vector3.up, new Vector3(1.8f, 1.9f, 1.8f));
+                            foreach (Renderer rr in R.GetComponentsInChildren<Renderer>()) if (rr.bounds.Intersects(zb) && rr.bounds.size.magnitude < 30f) dg += " " + rr.name + rr.bounds.size.ToString("F1");
+                            dg += " | bedside: ";
+                            for (float o = -1.5f; o <= 1.51f; o += 0.3f)
+                            {
+                                Vector3 q = bc + HotelPlan.Dir3(rm.doorDir) * o;
+                                dg += NavMesh.SamplePosition(q, out NavMeshHit nh2, 0.25f, NavMesh.AllAreas) ? "+" : "-";
+                            }
+                            L("DIAG" + dg + "]");
+                        }
+                    }
                 }
-                int cOk = 0; string cBad = "";
+                int cOk = 0, planBad = 0; string cBad = "";
                 for (int x = 0; x < gen.GridWidth; x++) for (int z = 0; z < gen.GridHeight; z++)
                 {
-                    if (!gen.Hotel.Walkable(x, z)) continue;
+                    if (!gen.Hotel.Walkable(x, z) || gen.Hotel.kind[x, z] == HotelPlan.K.Start) continue;
+                    if (!gen.Hotel.CellReachable(x, z)) { planBad++; continue; }
                     if (PathLen(gen.PlayerStart, R.TransformPoint(gen.Hotel.FreePoint(x, z, gen.Hotel.Center(x, z)))) > 0f) cOk++; else if (cBad.Length < 90) cBad += " " + x + "," + z + ":" + gen.Hotel.kind[x, z];
                 }
-                Check(rOpen >= 20 && rOk == rOpen && cOk >= walk - 2, T + "habitaciones abiertas alcanzables " + rOk + "/" + rOpen + rBad + "; celdas transitables con camino " + cOk + "/" + walk + cBad);
+                Check(rOpen >= 20 && rOk == rOpen && cOk >= walk - 1 - planBad - 1 && planBad <= walk / 40, T + "habitaciones abiertas alcanzables " + rOk + "/" + rOpen + rBad + "; celdas con camino por el NavMesh " + cOk + "/" + (walk - 1 - planBad) + cBad + " (el plano da " + planBad + " celdas sin paso, tras derrumbes o muebles)");
                 int longest = 0; foreach (var co in gen.Hotel.corridors) longest = Mathf.Max(longest, co.b - co.a + 1);
                 Check(HotelDecor.Doors >= 60 && longest >= 12 && HotelDecor.Leaves.Count == gen.Hotel.doorways.Count, T + "puertas numeradas " + HotelDecor.Doors + " (que se abren " + HotelDecor.Leaves.Count + "), muebles " + HotelDecor.ItemCount + ", pasillos " + gen.Hotel.corridors.Count + " (el más largo " + (longest * cs).ToString("F0") + " m)");
             }
