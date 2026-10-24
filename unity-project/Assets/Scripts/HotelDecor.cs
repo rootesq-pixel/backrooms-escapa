@@ -22,7 +22,8 @@ public static class HotelDecor
     public const float DoorW = 1.5f, DoorH = 2.2f;      // hueco en el muro (las jambas van en la malla del nivel; 1,5 m deja paso en el NavMesh con radio 0,5)
     const float LW = 1.38f, LH = 2.15f;                  // hoja
     const int MDoor = 0, MWood = 1, MBrass = 2, MNum = 3, MBed = 4, MSheet = 5, MCloth = 6, MUph = 7, MPaint = 8, MSteel = 9, MIron = 10,
-        MPlant = 11, MPot = 12, MCrystal = 13, MSvc = 14, MLino = 15, MMarble = 16, MDebris = 17, MBlack = 18, MGlass = 19, NM = 20;
+        MPlant = 11, MPot = 12, MCrystal = 13, MSvc = 14, MLino = 15, MMarble = 16, MDebris = 17, MBlack = 18, MGlass = 19,
+        MTCloth = 20, MColumn = 21, MMarbleT = 22, NM = 23;
 
     static Material Surface(string n, Color tint, System.Func<Object, Object> track, float smoothMul = 1f)
     {
@@ -79,6 +80,9 @@ public static class HotelDecor
             }
         }
         public void Tube(int s, Vector3 a, Vector3 c, float r) { b.AddTube(s, P(a), P(c), r, 1f); }
+        // v7.5.0: mueble modelado en Blender (HotelFurniture); local = colocación dentro del objeto
+        public bool Model(string name, Vector2 uvOff, Matrix4x4 local) { return HotelFurniture.Append(b, name, M * local, FurnMat, uvOff); }
+        public bool Model(string name, Vector2 uvOff) { return Model(name, uvOff, Matrix4x4.identity); }
     }
 
     class Blocks
@@ -93,6 +97,11 @@ public static class HotelDecor
         }
     }
 
+    static int FurnMat(string n)
+    {
+        switch (n) { case "Wood": return MWood; case "TCloth": return MTCloth; case "Uph": return MUph; case "Bed": return MBed; case "Brass": return MBrass; case "Column": return MColumn; case "Marble": return MMarbleT; }
+        return -1;
+    }
     static BackroomsGenerator gen; static HotelPlan plan; static Material[] mats; static System.Func<Object, Object> trk;
     static Material shadeOn, shadeOff, bulbOn, bulbOff; static Vector2Int exitC;
 
@@ -125,6 +134,9 @@ public static class HotelDecor
         mats[MMarble] = Plain(new Color(0.50f, 0.47f, 0.42f), 0.55f, 0f, track);
         mats[MDebris] = Plain(new Color(0.33f, 0.30f, 0.25f), 0.05f, 0f, track);
         mats[MBlack] = Plain(new Color(0.022f, 0.02f, 0.018f), 0.75f, 0f, track);
+        mats[MTCloth] = Surface("HotelTablecloth", Color.white, track);
+        mats[MColumn] = Surface("HotelColumn", Color.white, track);
+        mats[MMarbleT] = Surface("HotelMarble", Color.white, track);
         mats[MGlass] = Plain(new Color(0.05f, 0.06f, 0.08f), 0.9f, 0f, track); ProceduralAssets.SetEmission(mats[MGlass], new Color(0.10f, 0.15f, 0.26f));   // noche fuera: cristal con luna
         Color warm = cfg.emissionColor;
         shadeOn = Plain(new Color(0.9f, 0.78f, 0.55f), 0.1f, 0f, track); ProceduralAssets.SetEmission(shadeOn, warm * 0.55f);
@@ -365,6 +377,7 @@ public static class HotelDecor
 
     static void Chair(E e, int v)
     {
+        if (e.Model(v == 1 ? "Chair1" : "Chair0", Vector2.zero)) return;   // v7.5.0: sillas modeladas (comedor: respaldo curvo de madera; banquete: latón y cojín rojo)
         int fr = v == 1 ? MBrass : MWood, seat = v == 1 ? MBed : MUph;
         foreach (float sx in new[] { -0.19f, 0.19f }) foreach (float sz in new[] { -0.19f, 0.19f }) e.Box(fr, new Vector3(sx, 0.22f, sz), new Vector3(0.035f, 0.44f, 0.035f));
         e.Box(seat, new Vector3(0, 0.465f, 0), new Vector3(0.46f, 0.06f, 0.46f), 0.5f);
@@ -548,12 +561,15 @@ public static class HotelDecor
             case HotelPlan.IReception:
             {
                 float L = it.s.x;
+                if (!e.Model("Reception", Vector2.zero, Matrix4x4.Scale(new Vector3(L / 4.6f, 1f, 1f))))   // v7.5.0: mostrador modelado (paneles, cornisa, mármol)
+                {
                 e.Box(MWood, new Vector3(0, 0.55f, 0), new Vector3(L, 1.1f, 0.7f));
                 for (int i = 0; i < 5; i++) e.Box(MWood, new Vector3(-L * 0.5f + L * (i + 0.5f) / 5f, 0.56f, 0.355f), new Vector3(L / 5f - 0.12f, 0.75f, 0.018f));
                 e.Box(MMarble, new Vector3(0, 1.125f, 0.06f), new Vector3(L + 0.1f, 0.05f, 0.88f));
                 e.Box(MBrass, new Vector3(0, 0.1f, 0.36f), new Vector3(L, 0.04f, 0.015f));
                 e.Box(MBrass, new Vector3(0, 1.08f, 0.36f), new Vector3(L, 0.03f, 0.015f));
                 e.Box(MWood, new Vector3(0, 0.78f, -0.6f), new Vector3(L - 0.2f, 0.04f, 0.5f));
+                }
                 e.Cyl(MBrass, new Vector3(0.7f, 1.15f, 0.15f), 0.05f, 0.012f, 0.05f, 12, true, false);
                 e.Box(MBed, new Vector3(-0.6f, 1.17f, 0.1f), new Vector3(0.42f, 0.04f, 0.3f), 0.5f);
                 e.Box(MSheet, new Vector3(-0.6f, 1.192f, 0.1f), new Vector3(0.38f, 0.004f, 0.27f), 0.5f);
@@ -576,7 +592,9 @@ public static class HotelDecor
             }
             case HotelPlan.IRoundTable:
             {
-                e.Cyl(MCloth, Vector3.zero, 0.80f, 0.79f, 0.765f, 18, true, false, 0.5f);
+                int rv = H(v + 3, Mathf.RoundToInt(it.p.x * 7f + it.p.z * 13f)) < 0.16f ? 2 : v;   // v7.5.0: 0 mantel largo, 1 torcido, 2 sin mantel (caído al suelo)
+                if (!e.Model("RoundTable" + rv, new Vector2(H(1, Mathf.RoundToInt(it.p.x * 10f)) * 7f, H(2, Mathf.RoundToInt(it.p.z * 10f)) * 7f)))
+                    e.Cyl(MCloth, Vector3.zero, 0.80f, 0.79f, 0.765f, 18, true, false, 0.5f);
                 e.Cyl(MBrass, new Vector3(0, 0.765f, 0), 0.07f, 0.05f, 0.03f, 10, true, false);
                 e.Cyl(MBrass, new Vector3(0, 0.795f, 0), 0.012f, 0.012f, 0.32f, 6, false, false);
                 for (int i = 0; i < 3; i++) { float a = i * 2.094f; e.Cyl(MCloth, new Vector3(Mathf.Cos(a) * 0.08f, 1.06f, Mathf.Sin(a) * 0.08f), 0.012f, 0.012f, 0.09f - 0.03f * i, 6, true, false); }
@@ -585,11 +603,17 @@ public static class HotelDecor
                 break;
             }
             case HotelPlan.ISquareTable:
-                e.Box(MCloth, new Vector3(0, 0.38f, 0), new Vector3(1.0f, 0.76f, 1.0f), 0.5f);
-                e.Box(MCloth, new Vector3(0, 0.765f, 0), new Vector3(1.04f, 0.012f, 1.04f), 0.5f);
+            {
+                int sv = H(v + 7, Mathf.RoundToInt(it.p.x * 11f + it.p.z * 5f)) < 0.22f ? 2 : v;   // v7.5.0: 0 mantel, 1 mantel deslizado, 2 madera con camino de mesa
+                if (!e.Model("SquareTable" + sv, new Vector2(H(3, Mathf.RoundToInt(it.p.x * 10f)) * 7f, H(4, Mathf.RoundToInt(it.p.z * 10f)) * 7f)))
+                {
+                    e.Box(MCloth, new Vector3(0, 0.38f, 0), new Vector3(1.0f, 0.76f, 1.0f), 0.5f);
+                    e.Box(MCloth, new Vector3(0, 0.765f, 0), new Vector3(1.04f, 0.012f, 1.04f), 0.5f);
+                }
                 for (int i = 0; i < 4; i++) { if (H(i, v + 9) < 0.35f) continue; Vector3 d = HotelPlan.Dir3(i) * 0.3f; e.Cyl(MCloth, new Vector3(d.x, 0.772f, d.z), 0.11f, 0.11f, 0.008f, 12, true, false); }
                 e.Cyl(MBrass, new Vector3(0, 0.772f, 0), 0.04f, 0.03f, 0.02f, 8, true, false); e.Cyl(MCloth, new Vector3(0, 0.79f, 0), 0.012f, 0.012f, 0.07f, 6, true, false);
                 break;
+            }
             case HotelPlan.IChandelier:
             case HotelPlan.ISmallChand:
             {
@@ -623,6 +647,15 @@ public static class HotelDecor
                 break;
             }
             case HotelPlan.IColumn:
+                if (HotelFurniture.Has("ColumnShaft"))
+                {   // v7.5.0: columna clásica modelada: plinto y basa (0,25 m), fuste estriado (alto 1 escalado) y capitel (0,30 m)
+                    float sh = wh - 0.25f - 0.30f; int cr = Mathf.RoundToInt(H(v + 11, Mathf.RoundToInt(it.p.x * 9f + it.p.z * 3f)) * 3f) * 90;
+                    Quaternion qy = Quaternion.Euler(0f, cr, 0f);
+                    e.Model("ColumnBase", Vector2.zero, Matrix4x4.Rotate(qy));
+                    e.Model("ColumnShaft", Vector2.zero, Matrix4x4.TRS(new Vector3(0f, 0.25f, 0f), qy, new Vector3(1f, sh, 1f)));
+                    e.Model("ColumnCap", Vector2.zero, Matrix4x4.TRS(new Vector3(0f, 0.25f + sh, 0f), qy, Vector3.one));
+                    break;
+                }
                 e.Box(MMarble, new Vector3(0, 0.1f, 0), new Vector3(0.82f, 0.2f, 0.82f));
                 e.Cyl(MMarble, new Vector3(0, 0.2f, 0), 0.3f, 0.3f, wh - 0.45f, 16, false, false);
                 e.Cyl(MMarble, new Vector3(0, wh - 0.25f, 0), 0.3f, 0.38f, 0.1f, 16, false, false);

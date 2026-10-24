@@ -1137,8 +1137,12 @@ public static class SmokeTest
             T + "nivel 3 = hotel " + c.gridW + "x" + c.gridH + ", luces " + c.maxRealtimeLights + ", linterna " + c.flashSpotAngle + "° suave con rebote " + c.flashBounce);
         int missing = 0; string miss = "";
         foreach (string n in new[] { "HotelWall", "HotelCarpet", "HotelCeiling" }) foreach (string k in new[] { "_a", "_n", "_m" }) if (Resources.Load<Texture2D>("Textures/" + n + k) == null) { missing++; miss += " " + n + k; }
-        foreach (string n in new[] { "HotelDoor", "HotelWood", "HotelNumbers", "HotelFabric", "HotelPaintings", "HotelService", "HotelLino" }) foreach (string k in new[] { "_a", "_n", "_m" }) if (Resources.Load<Texture2D>("Textures/Hotel/" + n + k) == null) { missing++; miss += " " + n + k; }
-        r.Check(missing == 0, T + "texturas del hotel horneadas presentes (30)" + miss);
+        foreach (string n in new[] { "HotelDoor", "HotelWood", "HotelNumbers", "HotelFabric", "HotelPaintings", "HotelService", "HotelLino", "HotelTablecloth", "HotelColumn", "HotelMarble" }) foreach (string k in new[] { "_a", "_n", "_m" }) if (Resources.Load<Texture2D>("Textures/Hotel/" + n + k) == null) { missing++; miss += " " + n + k; }
+        r.Check(missing == 0, T + "texturas del hotel horneadas presentes (39)" + miss);
+        string[] furn = { "RoundTable0", "RoundTable1", "RoundTable2", "SquareTable0", "SquareTable1", "SquareTable2", "Chair0", "Chair1", "ColumnBase", "ColumnShaft", "ColumnCap", "Reception" };
+        int fOk = 0, fTris = 0; string fMiss = "";
+        foreach (string f in furn) { int t = HotelFurniture.TriCount(f); fTris += t; if (HotelFurniture.Has(f) && t > 20 && t < 12000) fOk++; else fMiss += " " + f + "(" + t + ")"; }
+        r.Check(fOk == furn.Length, T + "muebles modelados en Blender (Resources/" + HotelFurniture.Resource + "): " + fOk + "/" + furn.Length + ", " + fTris + " triángulos" + fMiss);
         foreach (int seed in new[] { 1, 7, 42 })
         {
             int w = c.gridW, h = c.gridH;
@@ -1155,7 +1159,7 @@ public static class SmokeTest
             r.Check(same && reach == walk && open >= 20 && a.halls.Count >= 3 && a.liftDoors.Count >= 2,
                 T + "plano semilla " + seed + ": determinista " + same + ", celdas con paso " + reach + "/" + walk + ", habitaciones abiertas " + open + ", salas " + a.halls.Count + ", muebles " + a.items.Count);
         }
-        r.Check(credits.Contains("damask.py") && credits.Contains("HotelFabric") && credits.Contains("HotelService") && ui.Contains("muebles del hotel"), T + "créditos del hotel (damasco, tapicería, servicio, muebles propios) en CREDITS.md y en el juego");
+        r.Check(credits.Contains("damask.py") && credits.Contains("HotelFabric") && credits.Contains("HotelService") && credits.Contains("Fabric062") && credits.Contains("Marble006") && credits.Contains("PaintedPlaster017") && credits.Contains("build_hotel_furn.py") && ui.Contains("muebles del hotel") && ui.Contains("Marble006"), T + "créditos del hotel (damasco, tapicería, servicio, muebles propios) en CREDITS.md y en el juego");
     }
 
     // v7.4.0: cabina realista propia + texturas PBR CC0 (ambientCG) del ascensor y del Nivel 1
