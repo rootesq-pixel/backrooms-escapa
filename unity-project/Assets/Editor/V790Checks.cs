@@ -6,6 +6,200 @@ using UnityEngine;
 
 public static class V790Checks
 {
+    // ---- v7.9.0 (t428u–t432u): huellas con relieve, lluvia por capas, vida, empuje del viento
+    static float SeamJump(float[] d)
+    {   // salto en el empalme del bucle comparado con el paso típico de la señal
+        double s = 0; for (int i = 1; i < d.Length; i++) s += Mathf.Abs(d[i] - d[i - 1]);
+        float mean = (float)(s / (d.Length - 1)); return Mathf.Abs(d[0] - d[d.Length - 1]) / Mathf.Max(1e-6f, mean);
+    }
+    static void EditMore(SmokeTest.Report r, string T)
+    {
+        // huella: talón más hondo que la punta, reborde de arena por encima del suelo, fuera plano
+        float heel = DesertTracks.FootHeight(0f, 0.16f), toe = DesertTracks.FootHeight(0.05f, 0.80f), flat = DesertTracks.FootHeight(0.98f, 0.5f);
+        float rim = 0f; for (int k = 0; k < 64; k++) { float u = -1f + k / 31.5f; for (float v = 0.02f; v < 1f; v += 0.02f) rim = Mathf.Max(rim, DesertTracks.FootHeight(u, v)); }
+        r.Check(heel < toe - 0.05f && toe < 0.4f && rim > 0.56f && Mathf.Abs(flat - 0.5f) < 0.03f, T + "[Huellas] suela con relieve: talón " + heel.ToString("F2") + " más hondo que la punta " + toe.ToString("F2") + ", reborde " + rim.ToString("F2") + " (0,5 = arena)");
+        r.Check(DesertTracks.StrideFor(2) > DesertTracks.StrideFor(1) && DesertTracks.StrideFor(0) < DesertTracks.StrideFor(1) && DesertTracks.FootLife <= 12f, T + "[Huellas] zancada " + DesertTracks.StrideFor(0) + " / " + DesertTracks.StrideFor(1) + " / " + DesertTracks.StrideFor(2) + " m (agachado / andando / corriendo); se borran en " + DesertTracks.FootLife + " s");
+        Shader sd = Resources.Load<Shader>("Desert/Shaders/SandDecal");
+        r.Check(sd != null && sd.isSupported, T + "[Huellas] sombreado de huellas con relieve y erosión (SandDecal)");
+        // lluvia: capas sin siseo y bucles sin costura
+        DesertRain.Build();
+        string info = ""; bool ok = true;
+        float[][] layers = { DesertRain.BedData, DesertRain.NearData, DesertRain.RoofData, DesertRain.MetalData };
+        string[] names = { "lecho", "gotas", "tejado", "chapa" };
+        for (int i = 0; i < layers.Length; i++)
+        {
+            float hi = HighRatio(layers[i], DesertSynth.SR, 5000f), seam = SeamJump(layers[i]);
+            info += " " + names[i] + " " + (hi * 100f).ToString("F2") + " %/" + seam.ToString("F1");
+            if (hi > 0.02f || seam > 6f || layers[i].Length < DesertSynth.SR * 6) ok = false;
+        }
+        bool lens = layers[0].Length != layers[1].Length && layers[1].Length != layers[2].Length && layers[2].Length != layers[3].Length;
+        r.Check(ok && lens, T + "[Lluvia] 4 capas sin siseo (energía >5 kHz) y sin costura de bucle (salto/paso medio):" + info);
+        bool thOk = DesertRain.ThunderData.Length == 3; string ti = "";
+        foreach (float[] th in DesertRain.ThunderData) { float hi = HighRatio(th, DesertSynth.SR, 400f); ti += " " + (hi * 100f).ToString("F2") + " %"; if (hi > 0.01f) thOk = false; }
+        r.Check(thOk, T + "[Lluvia] truenos lejanos: solo retumbo grave (energía >400 Hz:" + ti + ")");
+        // vida
+        r.Check(100f / Health.PainRainRate > 180f && 100f / Health.PainRainRate < 600f && Health.AlmondRainRate < Health.PainRainRate && Health.Regen > 0f && Health.ReviveHealth >= 25f, T + "[Vida] la lluvia de dolor quita la vida en " + (100f / Health.PainRainRate / 60f).ToString("F1") + " min a la intemperie; la de almendras en " + (100f / Health.AlmondRainRate / 60f).ToString("F0") + " min; se recupera " + Health.Regen + "/s a salvo");
+        r.Check(OceanNet.KillText(OceanNet.KillHealth) == Health.DeathText, T + "[Vida] a 0: «" + Health.DeathText + "» (derribado en multijugador)");
+        r.Check(DesertFx.MaxPush > 0.8f && DesertFx.MaxPush < 2.5f, T + "[Tormenta] el viento empuja como mucho " + DesertFx.MaxPush + " m/s (andar 3,5, correr 6,5: nunca atrapa)");
+    }
+
+    // Nivel 114: huellas, lluvia, vida y empuje del viento (jugando)
+    public static IEnumerator Desert790(SmokeTest.Report r, string tag, GameManager gm)
+    {
+        string T = tag + "[v7.9.0] ";
+        DesertWorld w = DesertWorld.Active; DesertCars dc = DesertCars.Active; DesertSky sky = DesertSky.Active; DesertFx fx = DesertFx.Active;
+        FirstPersonController p = gm.player; Health hp = Health.Instance; DesertRain rain = DesertRain.Active;
+        r.Check(w != null && dc != null && sky != null && fx != null && hp != null && rain != null && gm.healthFill != null, T + "desierto con huellas, lluvia por capas y VIDA en el HUD");
+        if (w == null || dc == null || sky == null || fx == null || hp == null || rain == null) yield break;
+        DesertTracks tr = dc.tracks;
+        // sitio despejado en llano
+        Vector3 spot = w.levelRoot.InverseTransformPoint(p.transform.position);
+        for (int k = 0; k < 60; k++)
+        {
+            float ang = k * 2.4f, dist = 20f + k * 6f;
+            Vector3 q = spot + new Vector3(Mathf.Cos(ang), 0f, Mathf.Sin(ang)) * dist;
+            float x = Mathf.Repeat(q.x, w.L), z = Mathf.Repeat(q.z, w.L);
+            if (w.plan.QuickAt(new Vector2(x, z), 12f) >= 0 || DesertHeight.Normal(x, z).y < 0.97f || w.UnderRoof(w.levelRoot.TransformPoint(q)) || fx.InCave(w.levelRoot.TransformPoint(q))) continue;
+            bool clear = true;
+            foreach (Collider c in Physics.OverlapSphere(w.levelRoot.TransformPoint(new Vector3(q.x, DesertHeight.H(x, z) + 1f, q.z)), 14f, ~0, QueryTriggerInteraction.Ignore))
+                if (!(c.name.StartsWith("Dune_") || c is CharacterController || (dc.Drivable != null && c.transform.IsChildOf(dc.Drivable.transform)))) { clear = false; break; }
+            if (clear) { spot = new Vector3(q.x, DesertHeight.H(x, z), q.z); break; }
+        }
+        System.Func<Vector3> local = () => w.levelRoot.InverseTransformPoint(p.transform.position);
+        DesertSky.ForceWeather = 0; DesertSky.ForceHour = 12f; Health.DisableForTests = false;
+        p.Teleport(w.levelRoot.TransformPoint(spot + Vector3.up * 0.3f), 0f); yield return 1.0f;
+        // ---- huellas: andando, corriendo y agachado; polvo; erosión
+        int f0 = tr.FootAdded, pf0 = tr.PuffEmitted;
+        p.debugInput = true; p.debugMove = new Vector2(0f, 1f); p.debugSprint = false; p.debugCrouch = false;
+        yield return 2.5f;
+        float sWalk = tr.LastFootScale, dWalk = tr.LastFootDepth; int nWalk = tr.FootAdded - f0;
+        p.debugSprint = true; int f1 = tr.FootAdded; yield return 2.0f;
+        float sRun = tr.LastFootScale, dRun = tr.LastFootDepth; int nRun = tr.FootAdded - f1;
+        p.debugSprint = false; p.debugCrouch = true; int f2 = tr.FootAdded; yield return 2.5f;
+        float sCr = tr.LastFootScale, dCr = tr.LastFootDepth; int nCr = tr.FootAdded - f2;
+        p.debugCrouch = false; p.debugMove = Vector2.zero; yield return 0.5f;
+        r.Check(nWalk >= 3 && nRun >= 3 && nCr >= 1 && sRun > sWalk && dRun > dWalk && sCr < sWalk && dCr < dWalk, T + "[Huellas] corriendo más grandes y hondas (" + sRun.ToString("F2") + "×, " + dRun.ToString("F2") + "), agachado más pequeñas (" + sCr.ToString("F2") + "×, " + dCr.ToString("F2") + "); " + nWalk + "/" + nRun + "/" + nCr + " pisadas");
+        int alive = tr.PuffSystem != null ? tr.PuffSystem.particleCount : -1;
+        r.Check(tr.PuffEmitted > pf0 && alive >= 0 && alive <= DesertTracks.PuffMax, T + "[Huellas] polvo al pisar (" + (tr.PuffEmitted - pf0) + " granos, " + alive + " vivos, tope " + DesertTracks.PuffMax + ")");
+        float e0 = tr.MeanErosionFoot();
+        tr.AgeAll(DesertTracks.FootLife * 0.5f); yield return 0.3f;
+        float e1 = tr.MeanErosionFoot(), a1 = tr.MeanAlphaFoot();
+        r.Check(e1 > e0 + 0.3f && a1 > 0.05f, T + "[Huellas] el viento ablanda los bordes antes de borrarlas (erosión " + e0.ToString("F2") + " → " + e1.ToString("F2") + ", aún visibles " + a1.ToString("F2") + ")");
+        tr.AgeAll(DesertTracks.FootLife * 2f);
+        // ---- lluvia: capas, vida, truenos
+        hp.value = 100f;
+        DesertSky.ForceWeather = (int)DesertSky.Weather.PainRain; yield return 1.0f;
+        float h0 = hp.value; yield return 4.0f;
+        float lost = h0 - hp.value;
+        r.Check(sky.Rain > 0.9f && lost > Health.PainRainRate * 4f * 0.6f && lost < Health.PainRainRate * 4f * 1.6f && hp.LastCause == "lluvia", T + "[Vida] la lluvia de dolor quita vida poco a poco a la intemperie (" + lost.ToString("F2") + " en 4 s)");
+        yield return 2.5f;
+        r.Check(rain.Where == "fuera" && rain.BedVolume > 0.2f && rain.NearVolume > 0.12f && rain.RoofVolume < 0.01f && rain.Cutoff > 3000f && rain.bed.isPlaying && rain.near.isPlaying, T + "[Lluvia] fuera: lecho " + rain.BedVolume.ToString("F2") + " + gotas " + rain.NearVolume.ToString("F2") + ", filtro " + rain.Cutoff.ToString("F0") + " Hz");
+        int th0 = rain.Thunders; DesertRain.ForceThunderIn = 0f; yield return 0.3f;
+        float thd = rain.thunder != null ? rain.thunder.transform.localPosition.magnitude : 0f;
+        r.Check(rain.Thunders == th0 + 1 && rain.thunder.isPlaying && thd > 300f && rain.thunder.volume < AudioMix.A(0.3f), T + "[Lluvia] trueno lejano (" + thd.ToString("F0") + " m) y flojo (" + rain.thunder.volume.ToString("F2") + ")");
+        float wv0 = DesertWind.Active != null ? DesertWind.Active.BaseVolume : 0f;
+        r.Check(wv0 > 0f, T + "[Lluvia] mezclada con el viento (" + wv0.ToString("F3") + ")");
+        // a cubierto en una casa: tejado, sin gotas cerca, apagado; sin daño
+        Vector3 houseIn = Vector3.zero; bool hasHouse = false;
+        foreach (DesertWorld.HouseBox hb in w.HouseBoxes) if (hb.roofed) { houseIn = new Vector3(hb.c.x, 0f, hb.c.y); hasHouse = true; break; }
+        if (hasHouse)
+        {
+            float hx = Mathf.Repeat(houseIn.x, w.L), hz = Mathf.Repeat(houseIn.z, w.L);
+            p.Teleport(w.levelRoot.TransformPoint(new Vector3(houseIn.x, DesertHeight.H(hx, hz) + 0.6f, houseIn.z)), 0f);
+            yield return 3.5f;
+            float hIn = hp.value; yield return 2.0f;
+            r.Check(rain.Where == "casa" && rain.RoofVolume > 0.15f && rain.NearVolume < 0.03f && rain.Cutoff < 900f && hp.DrainRate == 0f && Mathf.Abs(hp.value - hIn) < 0.05f + Health.Regen * 2f, T + "[Lluvia] en casa: golpeteo en el tejado " + rain.RoofVolume.ToString("F2") + ", fuera apagado (" + rain.Cutoff.ToString("F0") + " Hz), sin perder vida");
+            // a salvo se recupera
+            hp.value = 50f; hp.Damage(0.01f, "prueba"); yield return Health.RegenDelay + 2.0f;
+            r.Check(hp.value > 50.5f && hp.RegenRate > 0f, T + "[Vida] a salvo se recupera despacio (" + hp.value.ToString("F1") + ")");
+        }
+        else r.Info(T + "sin casa con tejado en esta semilla");
+        // en el coche: gotas en la chapa
+        DesertCar car = dc.Drivable;
+        if (car != null)
+        {
+            p.Teleport(car.transform.TransformPoint(car.DoorLocal(0)) + Vector3.up * 0.1f, 0f); yield return 0.5f;
+            DesertCars.DebugInteract = true; yield return null; yield return null; yield return 2.5f;
+            r.Check(p.IsMounted && rain.Where == "coche" && rain.metal != null && rain.metal.isPlaying && rain.MetalVolume > 0.3f && rain.metal.spatialBlend > 0.9f && rain.Cutoff < 1000f && hp.DrainRate == 0f, T + "[Lluvia] en el coche: gotas en la chapa del techo (" + rain.MetalVolume.ToString("F2") + ", 3D), fuera apagado, sin perder vida");
+            DesertCars.DebugInteract = true; yield return null; yield return null; yield return 0.5f;
+        }
+        // ---- tormenta de arena: empuja (no frena), sin daño; contra el viento se avanza
+        DesertSky.ForceWeather = (int)DesertSky.Weather.Sandstorm; hp.value = 80f;
+        p.Teleport(w.levelRoot.TransformPoint(spot + Vector3.up * 0.3f), 0f); yield return 2.5f;
+        Vector3 a0 = local(); yield return 2.0f; Vector3 a1v = local() - a0; a1v.y = 0f;
+        Vector3 pd = w.levelRoot.InverseTransformDirection(fx.PushDir); pd.y = 0f; pd.Normalize();
+        float along = Vector3.Dot(a1v, pd), drift = a1v.magnitude;
+        r.Check(sky.Storm > 0.9f && fx.Push > 0.3f && along > 0.5f && drift < DesertFx.MaxPush * 2f + 0.3f && hp.value >= 80f - 0.01f && p.walkSpeed > 3f, T + "[Tormenta] el viento empuja al jugador quieto " + along.ToString("F1") + " m en 2 s (máx. " + (DesertFx.MaxPush * 2f).ToString("F1") + "), sin quitar vida ni frenar (andar " + p.walkSpeed.ToString("F1") + " m/s)");
+        float yawAgainst = Mathf.Atan2(-fx.PushDir.x, -fx.PushDir.z) * Mathf.Rad2Deg;
+        p.Teleport(p.transform.position, yawAgainst); yield return 0.2f;
+        Vector3 b0 = local(); p.debugInput = true; p.debugMove = new Vector2(0f, 1f); p.debugSprint = true; yield return 2.0f;
+        Vector3 b1 = local() - b0; b1.y = 0f; p.debugMove = Vector2.zero; p.debugSprint = false;
+        float against = -Vector3.Dot(b1, pd);
+        r.Check(against > 4f, T + "[Tormenta] corriendo contra el viento cuesta pero se avanza (" + against.ToString("F1") + " m en 2 s)");
+        if (hasHouse)
+        {
+            float hx = Mathf.Repeat(houseIn.x, w.L), hz = Mathf.Repeat(houseIn.z, w.L);
+            p.Teleport(w.levelRoot.TransformPoint(new Vector3(houseIn.x, DesertHeight.H(hx, hz) + 0.6f, houseIn.z)), 0f); yield return 1.5f;
+            r.Check(fx.Push == 0f && p.ExternalPush.magnitude < 0.05f, T + "[Tormenta] dentro de casa no empuja");
+        }
+        // ---- caída grande: quita vida (pequeña no)
+        hp.value = 100f; p.debugInput = false;
+        p.Teleport(w.levelRoot.TransformPoint(spot + Vector3.up * 3.0f), 0f); yield return 1.5f;
+        float small = 100f - hp.value;
+        p.Teleport(w.levelRoot.TransformPoint(spot + Vector3.up * 16f), 0f); yield return 2.5f;
+        float big = 100f - small - hp.value;
+        r.Check(small < 0.01f && big > 5f && big < 60f && hp.value > 0f, T + "[Vida] una caída de 3 m no hace daño; una de 16 m quita " + big.ToString("F0") + " (no mata)");
+        hp.value = 100f;
+        DesertSky.ForceWeather = 0; DesertSky.ForceHour = 12f; yield return 1.0f;
+    }
+
+    // v7.9.0: claxon, cámaras, manos en el volante y objetos guardados (dentro del todoterreno, parado, al volante)
+    public static IEnumerator CarExtras(SmokeTest.Report r, string T, DesertCar car, FirstPersonController p, GameManager gm)
+    {
+        // objetos guardados
+        Flashlight fl = p.GetComponentInChildren<Flashlight>();
+        PlayerBody pb = Object.FindObjectOfType<PlayerBody>();
+        bool bodyOn = pb != null && pb.Loaded && pb.Visible;
+        r.Check(fl != null && !fl.IsOn && (!bodyOn || !pb.PropShown), T + "al subir la linterna se apaga y se guarda (encendida " + (fl != null && fl.IsOn) + ", en la mano " + (bodyOn && pb.PropShown) + ")");
+        // manos en el volante, siguiendo el giro
+        DesertCars.DbgSteer = 0f; yield return 0.6f;
+        Vector3 gl0, gr0; bool hasG = car.Grips(out gl0, out gr0);
+        r.Check(hasG && Vector3.Distance(gl0, gr0) > 0.18f && Vector3.Distance(gl0, gr0) < 0.5f, T + "agarres del volante a las 10 y a las 2 (" + Vector3.Distance(gl0, gr0).ToString("F2") + " m entre manos)");
+        if (bodyOn)
+        {
+            r.Check(pb.OnWheel && pb.WheelErrL < 0.06f && pb.WheelErrR < 0.06f, T + "primera persona: las dos manos en el volante (error " + pb.WheelErrL.ToString("F3") + " / " + pb.WheelErrR.ToString("F3") + " m, se inclina " + pb.WheelLean.ToString("F2") + " m)");
+            DesertCars.DbgSteer = 1f; yield return 0.8f;
+            Vector3 gl1, gr1; car.Grips(out gl1, out gr1);
+            float mv = Vector3.Distance(gr0, gr1);
+            r.Check(mv > 0.04f && pb.OnWheel && pb.WheelErrL < 0.06f && pb.WheelErrR < 0.06f, T + "al girar el volante las manos lo siguen (agarre movido " + mv.ToString("F2") + " m, error " + pb.WheelErrL.ToString("F3") + " / " + pb.WheelErrR.ToString("F3") + " m)");
+            DesertCars.DbgSteer = 0f; yield return 0.5f;
+        }
+        else r.Info(T + "cuerpo en primera persona no cargado (sin gráficos): manos comprobadas en MP / capturas");
+        // la tecla de la linterna no la saca dentro del coche
+        int tc = fl != null ? fl.ToggleCount : 0;
+        r.Check(fl != null && !fl.IsOn && fl.ToggleCount == tc, T + "dentro del coche no se usan objetos (linterna guardada)");
+        // claxon
+        int he = car.HornEvents;
+        DesertCars.DbgHorn = true; yield return 0.5f;
+        bool honk = car.HornOn && car.HornLevel > 0.5f;
+        DesertCars.DbgHorn = false; yield return 0.6f;
+        AudioSource hs = null; foreach (AudioSource a in car.GetComponentsInChildren<AudioSource>()) if (a.clip == DesertCar.HornClip) hs = a;
+        float[] hd = DesertCar.HornData(); float hi = HighRatio(hd, 22050, 4000f);
+        r.Check(honk && car.HornEvents == he + 1 && !car.HornOn && car.HornLevel < 0.05f && hs != null && hs.spatialBlend > 0.9f && hi < 0.02f, T + "H: claxon 3D (suena " + honk + ", sucesos " + (car.HornEvents - he) + ", 3D " + (hs != null ? hs.spatialBlend.ToString("F1") : "-") + ", energía >4 kHz " + (hi * 100f).ToString("F2") + " %)");
+        // cámaras: asiento → por detrás → capó → asiento
+        Transform cam = gm.playerCamera;
+        Vector3 seatCam = car.transform.InverseTransformPoint(cam.position);
+        DesertCars.DbgCamCycle = true; yield return 1.2f;
+        Vector3 chase = car.transform.InverseTransformPoint(cam.position);
+        r.Check(DesertCars.CamView == 1 && DesertCarCam.AppliedView == 1 && chase.z < -3.5f && chase.y > 1.5f && DesertCarCam.LastClearance >= DesertCarCam.MinAboveSand - 0.01f, T + "C: cámara por detrás (" + chase.z.ToString("F1") + " m detrás, " + chase.y.ToString("F1") + " m alto, " + DesertCarCam.LastClearance.ToString("F1") + " m sobre la arena)");
+        DesertCars.DbgCamCycle = true; yield return 1.2f;
+        Vector3 hood = car.transform.InverseTransformPoint(cam.position);
+        r.Check(DesertCars.CamView == 2 && DesertCarCam.AppliedView == 2 && hood.z > seatCam.z + 0.5f, T + "C otra vez: cámara sobre el capó (" + hood.z.ToString("F1") + " m)");
+        DesertCars.DbgCamCycle = true; yield return 1.2f;
+        Vector3 back = car.transform.InverseTransformPoint(cam.position);
+        r.Check(DesertCars.CamView == 0 && DesertCarCam.AppliedView == 0 && Vector3.Distance(back, seatCam) < 0.15f, T + "C otra vez: de vuelta al asiento (" + Vector3.Distance(back, seatCam).ToString("F2") + " m)");
+    }
+
     static float Lum(Color c) { return 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b; }
 
     // fracción de energía por encima de f0 (paso-alto biquad de 2.º orden)
@@ -26,6 +220,7 @@ public static class V790Checks
     public static void Edit(SmokeTest.Report r)
     {
         string T = "[v7.9.0] ";
+        EditMore(r, T);
         r.Check(GameVersion.Current == "7.9.0" && NetSession.Protocol == "BackroomsEscape-MP-12", T + "versión " + GameVersion.Current + ", protocolo " + NetSession.Protocol);
         // ruidos
         string bad = ""; float worst = 0f;
@@ -88,6 +283,13 @@ public static class V790Checks
     {
         Level0Events le = Level0Events.Active;
         r.Check(le != null, tag + "[Nivel 0] sucesos del nivel (ruidos y apagones rojos) activos");
+        {   // v7.9.0: VIDA en el HUD, encima de la batería; sin lluvia no baja; caída grande sí
+            Health hp = Health.Instance;
+            RectTransform hb = gm.healthFill != null ? (RectTransform)gm.healthFill.parent : null, bb = gm.batteryFill != null ? (RectTransform)gm.batteryFill.parent : null;
+            r.Check(hp != null && hb != null && bb != null && hb.anchoredPosition.y > bb.anchoredPosition.y + 10f && hb.GetComponentInChildren<UnityEngine.UI.Text>().text == "VIDA", tag + "[Vida] barra roja VIDA encima de la de batería en el HUD");
+            float v0 = hp != null ? hp.value : 0f; yield return 1.0f;
+            r.Check(hp != null && hp.DrainRate == 0f && hp.value >= v0 - 0.001f, tag + "[Vida] en el nivel 0 no baja sola (" + (hp != null ? hp.value.ToString("F0") : "-") + ")");
+        }
         if (le == null) yield break;
         FlickeringLight[] fls = Object.FindObjectsOfType<FlickeringLight>();
         FlickeringLight lit = null; foreach (FlickeringLight f in fls) if (f.targetLight != null && f.targetLight.type == LightType.Point) { lit = f; break; }

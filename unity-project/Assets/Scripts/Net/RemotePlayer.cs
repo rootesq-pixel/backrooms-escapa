@@ -129,6 +129,7 @@ public class RemotePlayer : MonoBehaviour
                 r.receiveShadows = true;
             }
             armU = Find(model, "UpperArm.R"); armL = Find(model, "LowerArm.R"); armH = Find(model, "Middle1.R");
+            armUL = Find(model, "UpperArm.L"); armLL = Find(model, "LowerArm.L"); armHL = Find(model, "Middle1.L");   // v7.9.0: volante
             ModelLoaded = true;
         }
         else
@@ -323,8 +324,24 @@ public class RemotePlayer : MonoBehaviour
     public bool ArmIkActive { get; private set; }
     public bool AnimatorRunning { get { return animator != null && animator.isActiveAndEnabled && animator.isInitialized && animator.speed > 0.05f && animator.GetCurrentAnimatorClipInfoCount(0) > 0; } }
     public float ArmHandError { get; private set; }
+    private Transform armUL, armLL, armHL;
+    public bool OnWheel { get; private set; }
+    public bool LampShown { get { return lamp != null && lamp.gameObject.activeSelf; } }
+    public float WheelErr { get; private set; }
     private void LateUpdate()
     {
+        // v7.9.0: en el todoterreno la linterna va guardada; el conductor lleva las dos manos en el volante
+        bool seated = DesertCars.IsSeated(playerId);
+        if (lamp != null && lamp.gameObject.activeSelf == seated) lamp.gameObject.SetActive(!seated);
+        OnWheel = false;
+        DesertCar dcar = seated ? DesertCars.DrivenBy(playerId) : null;
+        if (dcar != null && model != null && model.gameObject.activeInHierarchy && !Downed && dcar.Grips(out Vector3 gl, out Vector3 gr))
+        {
+            float e1 = ArmIk.Solve(armU, armL, armH, gr, transform.right * 0.6f + Vector3.down);
+            float e2 = ArmIk.Solve(armUL, armLL, armHL, gl, -transform.right * 0.6f + Vector3.down);
+            WheelErr = Mathf.Max(e1, e2); OnWheel = true; ArmIkActive = true;
+            return;
+        }
         ArmIkActive = false;
         if (armU == null || armL == null || armH == null || lamp == null || model == null || !model.gameObject.activeInHierarchy || Downed) return;
         Vector3 S = armU.position;

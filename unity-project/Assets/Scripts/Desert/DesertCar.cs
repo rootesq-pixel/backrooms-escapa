@@ -28,6 +28,18 @@ public class DesertCar : MonoBehaviour
     public Rigidbody rb;
     public Transform visual, steering;
     private Quaternion steer0; private Vector3 steerAxis = Vector3.forward;
+    private Vector3 gripC, gripUp, gripRight; private float gripR;
+    // v7.9.0: puntos del aro donde van las manos del conductor (mundo); giran con el volante
+    public bool Grips(out Vector3 left, out Vector3 right)
+    {
+        left = right = transform.position;
+        if (steering == null || gripR <= 0f) return false;
+        const float c = 0.866f, s = 0.5f;   // 10 y 2 en punto
+        Vector3 ls = steering.lossyScale; float k = 1f / Mathf.Max(1e-4f, Mathf.Max(ls.x, Mathf.Max(ls.y, ls.z)));
+        left = steering.TransformPoint(gripC + (-gripRight * c + gripUp * s) * gripR);
+        right = steering.TransformPoint(gripC + (gripRight * c + gripUp * s) * gripR);
+        return k > 0f;
+    }
     private readonly Transform[] hub = new Transform[4], wheelMesh = new Transform[4];
     private readonly Quaternion[] wheelBase = new Quaternion[4];
     private readonly float[] spin = new float[4], springLen = new float[4], prevLen = new float[4];
@@ -167,6 +179,12 @@ public class DesertCar : MonoBehaviour
             steer0 = steering.localRotation;
             Mesh m = steering.GetComponent<MeshFilter>().sharedMesh; Vector3 s = m.bounds.size;
             steerAxis = s.x < s.y && s.x < s.z ? Vector3.right : s.y < s.z ? Vector3.up : Vector3.forward;
+            // v7.9.0: agarres del volante (a las 10 y a las 2) en el plano del aro, en coordenadas del volante (giran con él)
+            gripC = m.bounds.center; gripR = Mathf.Max(s.x, Mathf.Max(s.y, s.z)) * 0.5f * 0.9f;
+            Vector3 upL = steering.InverseTransformDirection(transform.up); upL -= Vector3.Dot(upL, steerAxis) * steerAxis;
+            if (upL.sqrMagnitude < 1e-4f) upL = steerAxis == Vector3.up ? Vector3.forward : Vector3.up;
+            gripUp = upL.normalized; gripRight = Vector3.Cross(steerAxis, gripUp).normalized;
+            if (Vector3.Dot(steering.TransformDirection(gripRight), transform.right) < 0f) gripRight = -gripRight;
         }
     }
 
@@ -238,6 +256,46 @@ public class DesertCar : MonoBehaviour
     private void BuildAudio(System.Action<Object> track)
     {
         engLo = Src("EngineLo", DesertCars.EngineLo, 0.6f); engHi = Src("EngineHi", DesertCars.EngineHi, 0.6f); tyreSrc = Src("Tyres", DesertCars.TyreClip, 0.2f);
+        if (HornClip == null) HornClip = CreateHorn();
+        hornSrc = Src("Horn", HornClip, 0.7f); hornSrc.minDistance = 7f; hornSrc.maxDistance = 140f; hornSrc.dopplerLevel = 0.2f; hornSrc.spread = 30f;
+    }
+
+    // v7.9.0: claxon (H): dos tonos de bocina de coche (415 + 495 Hz) con sus armónicos hasta ~2,8 kHz; bucle exacto de 0,2 s
+    // (83 y 99 ciclos), sin ruido. Suena mientras el conductor lo mantiene (toque corto = bocinazo corto) y lo oyen todos.
+    public static AudioClip HornClip;
+    private AudioSource hornSrc;
+    public bool HornOn { get; private set; }
+    public float HornLevel { get; private set; }
+    public int HornEvents { get; private set; }
+    private float hornMin, hornMax;
+    public void SetHorn(bool on)
+    {
+        if (on && !HornOn) { HornEvents++; hornMin = 0.16f; hornMax = 8f; }
+        HornOn = on;
+    }
+    public static float[] HornData()
+    {
+        const int SR = 22050; int n = Mathf.RoundToInt(SR * 0.2f); float[] d = new float[n];
+        float[] f0 = { 415f, 495f };
+        for (int i = 0; i < n; i++)
+        {
+            float t = i / (float)SR, s = 0f;
+            foreach (float f in f0)
+                for (int h = 1; h * f < 2800f; h++) s += Mathf.Sin(2f * Mathf.PI * f * h * t + h * 0.7f) * (h == 1 ? 1f : 0.62f / h) * (h % 2 == 0 ? 0.55f : 1f);
+            d[i] = s;
+        }
+        DesertSynth.Normalize(d, 0.8f);
+        return d;
+    }
+    private static AudioClip CreateHorn() { return DesertSynth.Clip("CarHorn", HornData()); }
+    private void UpdateHorn(float dt)
+    {
+        if (hornSrc == null) return;
+        hornMin -= dt; hornMax -= dt;
+        bool sound = (HornOn || hornMin > 0f) && hornMax > 0f && !hidden;
+        HornLevel = Mathf.MoveTowards(HornLevel, sound ? 1f : 0f, dt * (sound ? 40f : 14f));
+        hornSrc.volume = AudioMix.A(0.6f * HornLevel); hornSrc.pitch = 1f;
+        if (HornLevel > 0.001f && !hornSrc.isPlaying) hornSrc.Play(); else if (HornLevel <= 0.001f && hornSrc.isPlaying) hornSrc.Stop();
     }
     private AudioSource Src(string n, AudioClip c, float y)
     {
@@ -504,6 +562,7 @@ public class DesertCar : MonoBehaviour
     private void UpdateAudio(float dt, float vf)
     {
         if (engLo == null) return;
+        UpdateHorn(dt);
         // marchas: 5 relaciones (cambio automático); rpm entre 800 (ralentí) y ~3800
         float v = Mathf.Abs(vf);
         float[] top = { 4.2f, 8.0f, 12.5f, 17.0f, 22f };
@@ -594,7 +653,7 @@ public class DesertCar : MonoBehaviour
     public bool HostLeave(int id)
     {
         int s = SeatOf(id); if (s < 0) return false;
-        seat[s] = -1; if (s == 0) { throttle = 0f; steerIn = 0f; handbrake = true; }
+        seat[s] = -1; if (s == 0) { throttle = 0f; steerIn = 0f; handbrake = true; HornOn = false; }
         return true;
     }
     public void HostDrive(int id, float th, float st, bool hb)

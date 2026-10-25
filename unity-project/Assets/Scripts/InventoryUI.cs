@@ -36,7 +36,80 @@ public class InventoryUI : MonoBehaviour
     private UIManager manager;
     private RectTransform panel;
     private CanvasGroup group;
-    private GameObject itemsPage, notesPage;
+    private GameObject itemsPage, notesPage, vitals;
+    private RectTransform hpFill; private Text hpText;
+    public string HealthText { get { return hpText != null ? hpText.text : ""; } }
+    private RectTransform notesView, notesContent, notesThumb, objectiveBox;
+    private ScrollRect notesScroll;
+    const float NotesViewMaxH = 528f;   // de y = 250 (bajo las pestañas) a y = -278 (19 px sobre la caja del objetivo)
+    public bool VitalsShown { get { return vitals != null && vitals.activeInHierarchy; } }
+    public bool NotesScrollable { get { return notesScroll != null && notesScroll.vertical; } }
+    public float NotesScrollPos { get { return notesScroll != null ? notesScroll.verticalNormalizedPosition : 1f; } }
+    public void DebugScrollNotes(float pos01) { if (notesScroll != null) { notesScroll.verticalNormalizedPosition = Mathf.Clamp01(pos01); Canvas.ForceUpdateCanvases(); UpdateNotesThumb(); } }
+
+    // v7.9.0: para pruebas: la lista de notas cabe en su ventana, no la pisan las barras ni el objetivo, y se puede llegar a todas
+    public string NotesLayoutProblems()
+    {
+        if (notesView == null) return "sin ventana de notas";
+        Canvas.ForceUpdateCanvases();
+        System.Text.StringBuilder sb = new System.Text.StringBuilder();
+        Rect v = WorldRect(notesView), pan = WorldRect(panel);
+        if (!pan.Contains(v.min) || !pan.Contains(v.max)) sb.Append("ventana fuera del maletín; ");
+        if (objectiveBox != null && WorldRect(objectiveBox).Overlaps(v)) sb.Append("ventana pisa el objetivo; ");
+        if (VitalsShown)
+            foreach (RectTransform t in vitals.GetComponentsInChildren<RectTransform>()) if (t != vitals.transform && WorldRect(t).Overlaps(v)) { sb.Append("barras encima de la lista (" + t.name + "); "); break; }
+        foreach (Graphic g in GetComponentsInChildren<Graphic>(false))
+        {
+            if (g.transform.IsChildOf(notesPage.transform) || g.transform.IsChildOf(panel) == false) continue;
+            if (g.name == "Panel" || g.name == "PanelBorder" || g.color.a < 0.05f || g.GetComponentInParent<NoteRow>() != null) continue;
+            if (g.rectTransform == objectiveBox || g.transform.IsChildOf(objectiveBox)) continue;
+            Rect gr = WorldRect(g.rectTransform);
+            if (gr.width * gr.height < 4f || gr.Overlaps(pan) == false) continue;
+            if (gr.Overlaps(v) && !(gr.Contains(v.min) && gr.Contains(v.max))) { sb.Append("«" + g.name + "» encima de la lista; "); break; }
+        }
+        float span = notesContent.rect.height - notesView.rect.height;
+        if (span > 0.5f && !NotesScrollable) sb.Append("lista cortada sin desplazamiento; ");
+        float keep = notesScroll.verticalNormalizedPosition;
+        // todas las filas se alcanzan arriba o abajo
+        int seen = 0;
+        for (int pass = 0; pass < 2; pass++)
+        {
+            notesScroll.verticalNormalizedPosition = pass == 0 ? 1f : 0f; Canvas.ForceUpdateCanvases();
+            for (int i = 0; i < noteRows.Count; i++) { Rect rr = WorldRect((RectTransform)noteRows[i].transform); Vector2 m = Vector2.one * (rr.height * 0.05f); if (v.Contains(rr.min + m) && v.Contains(rr.max - m)) seen |= 1 << i; }
+        }
+        notesScroll.verticalNormalizedPosition = keep; Canvas.ForceUpdateCanvases();
+        int miss = 0; for (int i = 0; i < noteRows.Count; i++) if ((seen & (1 << i)) == 0) miss++;
+        if (miss > 0) sb.Append(miss + " notas inalcanzables; ");
+        return sb.ToString();
+    }
+    private static Rect WorldRect(RectTransform t)
+    {
+        Vector3[] c = new Vector3[4]; t.GetWorldCorners(c);
+        float x0 = Mathf.Min(c[0].x, c[2].x), x1 = Mathf.Max(c[0].x, c[2].x), y0 = Mathf.Min(c[0].y, c[2].y), y1 = Mathf.Max(c[0].y, c[2].y);
+        return new Rect(x0, y0, x1 - x0, y1 - y0);
+    }
+    private void UpdateNotesThumb()
+    {
+        if (notesThumb == null || notesScroll == null) return;
+        RectTransform track = (RectTransform)notesThumb.parent;
+        float free = track.rect.height - notesThumb.rect.height;
+        notesThumb.anchoredPosition = new Vector2(0f, -free * (1f - notesScroll.verticalNormalizedPosition));
+    }
+    // la nota elegida siempre queda a la vista
+    private void ScrollToNote(int id)
+    {
+        if (!NotesScrollable) return;
+        foreach (NoteRow nr in noteRows)
+        {
+            if (nr.noteId != id) continue;
+            RectTransform rt = (RectTransform)nr.transform;
+            float yTop = notesContent.rect.height * 0.5f - rt.anchoredPosition.y - rt.rect.height * 0.5f;   // desde arriba del contenido
+            float span = notesContent.rect.height - notesView.rect.height;
+            float cur = (1f - notesScroll.verticalNormalizedPosition) * span;
+            if (yTop < cur) cur = yTop; else if (yTop + rt.rect.height > cur + notesView.rect.height) cur = yTop + rt.rect.height - notesView.rect.height;
+            notesScroll.verticalNormalizedPosition = 1f - Mathf.Clamp01(cur / Mathf.Max(1f, span));
+        }
+    }
     private readonly List<SlotView> slotViews = new List<SlotView>();
     private readonly List<NoteRow> noteRows = new List<NoteRow>();
     private Text titleText, levelText, objectiveText, hintText, tabItemsLabel, tabNotesLabel;
@@ -128,6 +201,7 @@ public class InventoryUI : MonoBehaviour
         BuildVitals(P);
 
         Image objBox = UiStyle.Rect(P, "ObjectiveBox", -2f, -330f, 1480f, 66f, new Color(0f, 0f, 0f, 0.38f));
+        objectiveBox = objBox.rectTransform;
         objectiveText = UiStyle.SetFont(UiStyle.Label(objBox.transform, "", 20, TextAnchor.MiddleLeft, 0f, 0f, 1452f, 60f, Paint), UiStyle.Mono());
         UiStyle.Rect(P, "FootGroove", 0f, -372f, 1500f, 2f, new Color(0f, 0f, 0f, 0.55f));
         UiStyle.Rect(P, "FootGrooveHi", 0f, -374f, 1500f, 1f, new Color(1f, 1f, 0.9f, 0.08f));
@@ -285,15 +359,39 @@ public class InventoryUI : MonoBehaviour
         int perCol = (total + 1) / 2;
         float rowW = 304f, rowH = 34f, gap = 6f;
         float left = -690f, top = 250f;
-        Image tray = UiStyle.Rect(notesPage.transform, "ListFrame", left + rowW + gap * 0.5f, top - (perCol * (rowH + gap)) * 0.5f + gap * 0.5f, rowW * 2f + gap + 28f, perCol * (rowH + gap) + 22f, new Color(0.02f, 0.02f, 0.02f, 0.9f));
-        Sprite(UiStyle.Rect(tray.transform, "Foam", 0f, 0f, rowW * 2f + gap + 22f, perCol * (rowH + gap) + 16f, new Color(0.9f, 0.9f, 0.9f, 1f)), "foam_panel");
+        // v7.9.0: la lista va en su propia ventana con desplazamiento (rueda del ratón), entre las pestañas y el objetivo;
+        // con 27 notas (14 filas) ya no cabía y las barras de estado se pintaban encima (ahora solo salen en Objetos).
+        float contentH = perCol * (rowH + gap) - gap;
+        float viewH = Mathf.Min(contentH, NotesViewMaxH);
+        float cx = left + rowW + gap * 0.5f, viewW = rowW * 2f + gap;
+        Image tray = UiStyle.Rect(notesPage.transform, "ListFrame", cx + 6f, top - viewH * 0.5f, viewW + 40f, viewH + 22f, new Color(0.02f, 0.02f, 0.02f, 0.9f));
+        Sprite(UiStyle.Rect(tray.transform, "Foam", 0f, 0f, viewW + 34f, viewH + 16f, new Color(0.9f, 0.9f, 0.9f, 1f)), "foam_panel");
+        Image view = UiStyle.Rect(notesPage.transform, "NotesView", cx, top - viewH * 0.5f, viewW, viewH, new Color(0f, 0f, 0f, 0f));
+        view.raycastTarget = true;
+        view.gameObject.AddComponent<RectMask2D>();
+        notesView = view.rectTransform;
+        GameObject cgo = new GameObject("NotesContent", typeof(RectTransform));
+        cgo.transform.SetParent(view.transform, false);
+        notesContent = (RectTransform)cgo.transform;
+        notesContent.anchorMin = notesContent.anchorMax = new Vector2(0.5f, 1f); notesContent.pivot = new Vector2(0.5f, 1f);
+        notesContent.sizeDelta = new Vector2(viewW, contentH); notesContent.anchoredPosition = Vector2.zero;
+        notesScroll = view.gameObject.AddComponent<ScrollRect>();
+        notesScroll.content = notesContent; notesScroll.viewport = notesView;
+        notesScroll.horizontal = false; notesScroll.vertical = contentH > viewH + 0.5f;
+        notesScroll.movementType = ScrollRect.MovementType.Clamped; notesScroll.inertia = false;
+        notesScroll.scrollSensitivity = (rowH + gap) * 1.5f;
+        // barra de desplazamiento (solo indicador) a la derecha de la lista
+        Image track = UiStyle.Rect(notesPage.transform, "NotesTrack", cx + viewW * 0.5f + 15f, top - viewH * 0.5f, 8f, viewH, new Color(0f, 0f, 0f, 0.55f));
+        notesThumb = UiStyle.Rect(track.transform, "Thumb", 0f, 0f, 6f, viewH * Mathf.Clamp01(viewH / contentH), Paint).rectTransform;
+        notesThumb.anchorMin = notesThumb.anchorMax = new Vector2(0.5f, 1f); notesThumb.pivot = new Vector2(0.5f, 1f);
+        track.gameObject.SetActive(notesScroll.vertical);
         for (int i = 0; i < total; i++)
         {
             int col = i / perCol, row = i % perCol;
             int level = i / LoreNotes.PerLevel, k = i % LoreNotes.PerLevel;
-            float x = left + rowW * 0.5f + col * (rowW + gap);
-            float y = top - rowH * 0.5f - row * (rowH + gap);
-            Image b = UiStyle.Rect(notesPage.transform, "Note" + i, x, y, rowW, rowH, new Color(0f, 0f, 0f, 0.5f));
+            float x = -viewW * 0.5f + rowW * 0.5f + col * (rowW + gap);
+            float y = contentH * 0.5f - rowH * 0.5f - row * (rowH + gap);
+            Image b = UiStyle.Rect(notesContent, "Note" + i, x, y, rowW, rowH, new Color(0f, 0f, 0f, 0.5f));
             b.raycastTarget = true;
             Image inner = UiStyle.Rect(b.transform, "Bg", 0f, 0f, rowW - 4f, rowH - 4f, TabOn);
             Text t = UiStyle.SetFont(UiStyle.Label(inner.transform, "", 18, TextAnchor.MiddleLeft, 6f, 0f, rowW - 22f, rowH - 4f, Ink), UiStyle.Typewriter());
@@ -340,11 +438,15 @@ public class InventoryUI : MonoBehaviour
 
     private void BuildVitals(Transform P)
     {
-        string[] names = { "Linterna", "Resistencia", "Cordura" };
-        Color[] cols = { new Color(0.95f, 0.82f, 0.35f), new Color(0.55f, 0.82f, 0.48f), new Color(0.55f, 0.70f, 0.98f) };
-        for (int i = 0; i < 3; i++)
+        GameObject vg = new GameObject("Vitals", typeof(RectTransform));   // v7.9.0: grupo propio (solo en la pestaña Objetos)
+        vg.transform.SetParent(P, false);
+        RectTransform vr = (RectTransform)vg.transform; vr.anchorMin = vr.anchorMax = new Vector2(0.5f, 0.5f); vr.sizeDelta = Vector2.zero; vr.anchoredPosition = Vector2.zero;
+        vitals = vg; P = vg.transform;
+        string[] names = { "Vida", "Linterna", "Resistencia", "Cordura" };   // v7.9.0: vida (roja) arriba
+        Color[] cols = { new Color(0.88f, 0.24f, 0.20f), new Color(0.95f, 0.82f, 0.35f), new Color(0.55f, 0.82f, 0.48f), new Color(0.55f, 0.70f, 0.98f) };
+        for (int i = 0; i < 4; i++)
         {
-            float y = -172f - i * 44f;
+            float y = -157f - i * 37f;
             Shadowed(UiStyle.SetFont(UiStyle.Label(P, names[i].ToUpperInvariant(), 20, TextAnchor.MiddleLeft, -690f + 110f, y, 220f, 34f, PaintDim), UiStyle.SansBold()));
             Image back = UiStyle.Rect(P, "Meter" + i, -690f + 380f, y, 340f, 24f, new Color(0f, 0f, 0f, 0.85f));
             Image bi = UiStyle.Rect(back.transform, "Bg", 0f, 0f, 336f, 20f, new Color(0.06f, 0.06f, 0.05f, 1f));
@@ -352,7 +454,7 @@ public class InventoryUI : MonoBehaviour
             RectTransform fr = fill.rectTransform;
             fr.anchorMin = Vector2.zero; fr.anchorMax = Vector2.one; fr.offsetMin = new Vector2(3f, 3f); fr.offsetMax = new Vector2(-3f, -3f);
             Text tx = Shadowed(UiStyle.Label(P, "", 20, TextAnchor.MiddleRight, -690f + 610f, y, 90f, 34f, Paint, FontStyle.Bold));
-            if (i == 0) { batFill = fr; batText = tx; } else if (i == 1) { staFill = fr; staText = tx; } else { sanFill = fr; sanText = tx; }
+            if (i == 0) { hpFill = fr; hpText = tx; } else if (i == 1) { batFill = fr; batText = tx; } else if (i == 2) { staFill = fr; staText = tx; } else { sanFill = fr; sanText = tx; }
         }
     }
 
@@ -450,6 +552,7 @@ public class InventoryUI : MonoBehaviour
         if (Input.GetKeyDown(KeyCode.Tab)) { SetTab(!notesTab); manager.PlayClick(); }
         Apply(false);
         UpdateTooltip();
+        if (notesTab) UpdateNotesThumb();
     }
 
     // ------------------------------------------------------------------
@@ -460,6 +563,7 @@ public class InventoryUI : MonoBehaviour
         notesTab = notes;
         itemsPage.SetActive(!notes);
         notesPage.SetActive(notes);
+        if (vitals != null) vitals.SetActive(!notes);   // v7.9.0: las barras no tapan la lista de notas
         tabItemsBg.color = !notes ? TabOn : TabOff;
         tabNotesBg.color = notes ? TabOn : TabOff;
         tabItemsLabel.color = !notes ? Ink : PaintDim;
@@ -471,6 +575,7 @@ public class InventoryUI : MonoBehaviour
         noteTitle.gameObject.SetActive(notes); noteBody.gameObject.SetActive(notes);
         tooltip.SetActive(false);
         if (notes && selectedNote < 0) selectedNote = FirstFoundNote();
+        if (notes) { if (notesScroll != null) notesScroll.verticalNormalizedPosition = 1f; ScrollToNote(selectedNote); }
         Apply(true);
     }
 
@@ -496,6 +601,7 @@ public class InventoryUI : MonoBehaviour
         Inventory inv = Inventory.Instance;
         if (inv == null || !inv.HasNote(id)) return;
         selectedNote = id;
+        ScrollToNote(id);
         manager.PlayClick();
         Apply(true);
     }
@@ -534,6 +640,8 @@ public class InventoryUI : MonoBehaviour
         float st = inv.fpc != null ? inv.fpc.Stamina01 : 0f;
         float sa = inv.sanity != null ? inv.sanity.Sanity01 : 0f;
         batFill.anchorMax = new Vector2(Mathf.Clamp01(b), 1f); batText.text = Mathf.RoundToInt(b * 100f) + " %";
+        float hp01 = Health.Instance != null ? Health.Instance.Health01 : 1f;
+        hpFill.anchorMax = new Vector2(hp01, 1f); hpText.text = Mathf.RoundToInt(hp01 * 100f) + " %";
         staFill.anchorMax = new Vector2(Mathf.Clamp01(st), 1f); staText.text = Mathf.RoundToInt(st * 100f) + " %";
         sanFill.anchorMax = new Vector2(Mathf.Clamp01(sa), 1f); sanText.text = Mathf.RoundToInt(sa * 100f) + " %";
 

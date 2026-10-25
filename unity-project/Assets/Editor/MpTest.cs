@@ -361,6 +361,17 @@ public static class MpPlayRunner
         r.Check(ui.Multiplayer.HudReviveText == "", "el aviso de reanimar desaparece al levantarse");
         Mark("host_revived");
         yield return Wait(() => Marked("client_revived_seen"), 30, "el cliente confirma la reanimación");
+        {   // v7.9.0: el cliente se queda sin VIDA → el anfitrión lo derriba (reanimable), y al reanimarlo vuelve con vida
+            yield return WaitMark("client_hp_zero", 40);
+            yield return Wait(() => remote.downed, 10, "derribado por quedarse sin vida");
+            r.Check(remote.downed && ns.HazardDowns > 0, "[Vida MP] el cliente sin vida queda derribado (no muere: se le puede reanimar)");
+            Vector3 ap2 = remote.avatar.transform.position;
+            GameManager.Instance.player.Teleport(new Vector3(ap2.x + 0.9f, ap2.y + 0.05f, ap2.z), 0f);
+            NetSession.DebugHoldRevive = true;
+            yield return Wait(() => !remote.downed, 20, "reanimación tras quedarse sin vida");
+            NetSession.DebugHoldRevive = false;
+            r.Check(!remote.downed, "[Vida MP] se reanima al compañero que se quedó sin vida");
+        }
 
         // ---- todos derribados: screamer para todos y reinicio del nivel ----
         int epochA = ns.Epoch;
@@ -663,6 +674,12 @@ public static class MpPlayRunner
                     r.Check(spd > 4f && moved > 6f, "[Coche MP] el anfitrión conduce con el cliente dentro (" + (spd * 3.6f).ToString("F0") + " km/h, " + moved.ToString("F0") + " m)");
                     Vector3 cl = dw.levelRoot.InverseTransformPoint(car.transform.position);
                     File.WriteAllText(MpTest.Dir + "/host_car.txt", cl.x.ToString("R", Inv) + " " + cl.y.ToString("R", Inv) + " " + cl.z.ToString("R", Inv));
+                    {   // v7.9.0: claxon que oyen todos
+                        DesertCars.DbgHorn = true; yield return 0.6f; DesertCars.DbgHorn = false; yield return 0.4f;
+                        r.Check(car.HornEvents >= 1 && !car.HornOn, "[Coche MP] el anfitrión toca el claxon (" + car.HornEvents + " toques)");
+                        RemotePlayer pas = null; foreach (RemotePlayer rp in UnityEngine.Object.FindObjectsOfType<RemotePlayer>()) if (rc != null && rp.playerId == rc.id) pas = rp;
+                        r.Check(pas != null && !pas.LampShown && !pas.OnWheel, "[Coche MP] el copiloto remoto lleva la linterna guardada y no toca el volante");
+                    }
                     Mark("host_car_drove");
                     yield return WaitMark("client_car_out", 60);
                     yield return Wait(() => rc == null || car.SeatOf(rc.id) < 0, 10, "plaza del cliente libre");
@@ -944,6 +961,18 @@ public static class MpPlayRunner
         yield return 0.8f;
         r.Check(gm.playerCamera.localPosition.y > 1.2f, "reanimado: la cámara vuelve a la altura de los ojos (" + gm.playerCamera.localPosition.y.ToString("0.00") + ")");
         Mark("client_revived_seen");
+        {   // v7.9.0: sin vida → derribado (lo decide el anfitrión) → reanimado con algo de vida
+            Health hp = Health.Instance;
+            r.Check(hp != null && GameManager.Instance.healthFill != null, "[Vida MP] el cliente tiene barra de VIDA");
+            yield return 4.5f;   // pasa la gracia de 4 s tras la reanimación
+            if (hp != null) { hp.value = 1f; hp.Damage(5f, "prueba"); }
+            yield return Wait(() => ns.LocalDowned, 10, "derribado al quedarse sin vida");
+            r.Check(ns.LocalDowned && ns.HealthZeroSent > 0 && GameManager.Instance.State == GameManager.GameState.Playing, "[Vida MP] a 0 de vida el cliente queda derribado (aviso al anfitrión, " + ns.HealthZeroSent + ")");
+            Mark("client_hp_zero");
+            yield return Wait(() => !ns.LocalDowned, 40, "reanimado tras quedarse sin vida");
+            yield return 0.3f;
+            r.Check(!ns.LocalDowned && hp != null && hp.value >= Health.ReviveHealth - 0.5f, "[Vida MP] reanimado vuelve con " + (hp != null ? hp.value.ToString("F0") : "-") + " de vida");
+        }
 
         // ---- salida ----
         yield return WaitMark("host_revived", 60);
@@ -1255,6 +1284,14 @@ public static class MpPlayRunner
                     float dd = carOff();
                     int ms = car.SeatOf(ns.LocalId);
                     float seatD = ms >= 0 ? Vector3.Distance(pc.transform.position, car.transform.TransformPoint(car.SeatLocal(ms))) : 99f;
+                    {   // v7.9.0: el conductor remoto con las dos manos en el volante, linterna guardada; el claxon llega al cliente
+                        RemotePlayer drv = null; foreach (RemotePlayer rp in UnityEngine.Object.FindObjectsOfType<RemotePlayer>()) if (rp.playerId == car.DriverId) drv = rp;
+                        yield return Wait(() => drv != null && drv.OnWheel, 5, "conductor remoto con las manos en el volante");
+                        r.Check(drv != null && drv.OnWheel && drv.WheelErr < 0.08f && !drv.LampShown, "[Coche MP] el cliente ve al anfitrión con las dos manos en el volante (error " + (drv != null ? drv.WheelErr.ToString("F3") : "-") + " m) y sin linterna");
+                        r.Check(car.HornEvents >= 1 && !car.HornOn, "[Coche MP] el cliente oye el claxon del anfitrión (" + car.HornEvents + " toques, 3D)");
+                        Flashlight cfl = pc.GetComponentInChildren<Flashlight>();
+                        r.Check(cfl != null && !cfl.IsOn, "[Coche MP] de copiloto la linterna del cliente va guardada");
+                    }
                     r.Check(dd < 1.0f && seatD < 0.35f && dc.NetReads > 10, "[Coche MP] el cliente ve el coche donde lo deja el anfitrión (" + dd.ToString("F2") + " m) y viaja en su asiento (" + seatD.ToString("F2") + " m, " + dc.NetReads + " bloques)");
                     DesertCars.DebugInteract = true;
                     yield return Wait(() => !pc.IsMounted && car.SeatOf(ns.LocalId) < 0, 10, "cliente baja");

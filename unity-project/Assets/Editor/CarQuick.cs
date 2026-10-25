@@ -101,6 +101,11 @@ public static class CarQuick
             }
             yield return cp.Current;
         }
+        {   // v7.9.0: huellas, lluvia, vida y viento en la misma prueba rápida
+            if (tap != null) tap.rec = false;
+            IEnumerator d79 = Flat(V790Checks.Desert790(r, "[rápida] ", GameManager.Instance));
+            while (d79.MoveNext()) yield return d79.Current;
+        }
         if (tap != null)
         {
             tap.rec = false; List<float> d; lock (tap.buf) d = new List<float>(tap.buf);

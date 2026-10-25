@@ -8,7 +8,7 @@ public enum NetRole { None, Host, Client }
 public static class NetMsg
 {
     // cliente -> anfitrión
-    public const byte Hello = 1, State = 2, PickupReq = 3, Chat = 4, Glow = 5, DropItem = 6, Ready = 7, Ping = 8, Bye = 9, WhistleReq = 10, UnlockReq = 11, OceanReq = 12, DbgMonsters = 20;
+    public const byte Hello = 1, State = 2, PickupReq = 3, Chat = 4, Glow = 5, DropItem = 6, Ready = 7, Ping = 8, Bye = 9, WhistleReq = 10, UnlockReq = 11, OceanReq = 12, HealthZero = 13, DbgMonsters = 20;
     // anfitrión -> cliente
     public const byte Welcome = 101, Reject = 102, Lobby = 103, StartLevel = 104, Snapshot = 105, PickupTaken = 106, ItemSpawned = 107,
         Downed = 108, Revived = 109, AllDown = 110, LevelComplete = 111, ChatFrom = 112, GlowFrom = 113, PlayerLeft = 114, HostLeft = 115, Resync = 117, Descend = 118, WhistleFrom = 119, ExitUnlocked = 120, OceanEvent = 121;
@@ -413,6 +413,14 @@ public class NetSession : MonoBehaviour
                     byte[] m = new NetWriter(NetMsg.GlowFrom).Int(p.id).Vec3(pos).Vec3(vel).ToArray();
                     foreach (NetPlayer q in Players) if (q.conn != null && q != p) q.conn.Send(m);
                     SpawnGlow(pos, vel);
+                    break;
+                }
+                case NetMsg.HealthZero:
+                {
+                    // v7.9.0: un cliente se ha quedado sin vida: el anfitrión lo derriba (reanimable) como con el mar
+                    if (p == null) break;
+                    int ep = r.Int(); if (ep != Epoch) break;
+                    HostHazardCaught(p.id, OceanNet.KillHealth);
                     break;
                 }
                 case NetMsg.WhistleReq:
@@ -961,6 +969,14 @@ public class NetSession : MonoBehaviour
     // v7.3.0 Talasofobia
     // ------------------------------------------------------------------
     public int OceanReqsReceived, OceanEventsReceived, OceanSnapshots, HazardDowns;
+    // v7.9.0: vida a 0 → derribado (el anfitrión decide; en el anfitrión, directo)
+    public int HealthZeroSent { get; private set; }
+    public void ReportHealthZero()
+    {
+        HealthZeroSent++;
+        if (Role == NetRole.Host) { HostHazardCaught(LocalId, OceanNet.KillHealth); return; }
+        if (serverConn != null) serverConn.Send(new NetWriter(NetMsg.HealthZero).Int(Epoch).ToArray());
+    }
     public void SendOceanReq(int op, int a, float x, float y, Vector3 p, Vector3 d)
     {
         if (serverConn == null) return;
@@ -979,7 +995,7 @@ public class NetSession : MonoBehaviour
         if (Role != NetRole.Host) return false;
         NetPlayer p = PlayerById(playerId);
         if (p == null || p.downed) return false;
-        if (code != OceanNet.KillDrown && NoCatchForTests) return false;
+        if (code != OceanNet.KillDrown && code != OceanNet.KillHealth && NoCatchForTests) return false;
         if (Time.unscaledTime < p.graceUntil) return false;
         p.downed = true; p.revive = 0f; HazardDowns++;
         int idx = -10 - code;

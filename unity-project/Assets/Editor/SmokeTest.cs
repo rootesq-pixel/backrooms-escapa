@@ -2724,6 +2724,12 @@ public static class SmokePlayRunner
             iui.SelectNote(noteId);
             yield return 0.1f;
             r.Check(iui.SelectedNoteId == noteId && iui.NoteBodyText.Contains("pasillo este") , "inventario: nota legible en español ('" + iui.NoteBodyText.Substring(0, Mathf.Min(40, iui.NoteBodyText.Length)) + "...')");
+            {   // v7.9.0: pestaña Notas: barras ocultas, lista en su ventana con desplazamiento, sin pisar el objetivo; VIDA en Objetos
+                string lp = iui.NotesLayoutProblems();
+                r.Check(lp.Length == 0 && !iui.VitalsShown && iui.NotesScrollPos > 0.95f, "inventario (v7.9.0): Notas: las " + LoreNotes.Total + " notas caben o se desplazan (rueda) en su ventana, sin barras encima ni pisar el objetivo (" + (lp.Length == 0 ? "ok" : lp) + ", desplazable " + iui.NotesScrollable + ")");
+                iui.SetTab(false);
+                r.Check(iui.VitalsShown && iui.HealthText.EndsWith("%"), "inventario (v7.9.0): en Objetos se ven las barras, con VIDA (" + iui.HealthText + ")");
+            }
             iui.SetTab(false);
             ui.PressEscape();
             r.Check(ui.Current == UIManager.Screen.None && Time.timeScale == 1f, "Esc cierra el inventario");
@@ -3286,6 +3292,8 @@ public static class SmokePlayRunner
                 while (cp.MoveNext()) yield return cp.Current;
                 IEnumerator dh = V790Checks.DesertHeart(r, tag);   // v7.9.0
                 while (dh.MoveNext()) yield return dh.Current;
+                IEnumerator d79 = V790Checks.Desert790(r, tag, gm);   // v7.9.0: huellas, lluvia, vida, empuje del viento
+                while (d79.MoveNext()) yield return d79.Current;
                 IEnumerator dp = V770Checks.DesertPlay(r, tag, gm);
                 while (dp.MoveNext()) yield return dp.Current;
                 gm = GameManager.Instance;

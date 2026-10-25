@@ -15,6 +15,7 @@ public class HotbarHud : MonoBehaviour
     private readonly ItemType[] lastType = new ItemType[Slots];
     private readonly int[] lastCount = new int[Slots];
     private RectTransform batFill, staFill, sanFill;
+    private RectTransform hpFill;
     private Image sanFillImg, staFillImg;
 
     public Canvas HudCanvas { get { return canvas; } }
@@ -44,18 +45,18 @@ public class HotbarHud : MonoBehaviour
 
         // Medidores
         float baseY = BaseY;      // respecto al centro de un lienzo de 1080 de alto; luego se reancla abajo
-        float mx = -165f;
-        string[] names = { "BAT", "RES", "COR" };
-        for (int i = 0; i < 3; i++)
+        float mx = -247.5f;
+        string[] names = { "VIDA", "BAT", "RES", "COR" };   // v7.9.0: vida (roja)
+        for (int j = 0; j < 4; j++)
         {
-            float x = mx + i * 165f;
-            Image back = UiStyle.Rect(root, "Meter" + names[i], x, baseY + 118f, 150f, 12f, new Color(0f, 0f, 0f, 0.55f));
-            Image fill = UiStyle.Rect(back.transform, "Fill", 0f, 0f, 146f, 8f, i == 0 ? new Color(0.95f, 0.85f, 0.35f) : i == 1 ? new Color(0.55f, 0.85f, 0.5f) : new Color(0.55f, 0.7f, 1f));
+            float x = mx + j * 165f; int i = j - 1;
+            Image back = UiStyle.Rect(root, "Meter" + names[j], x, baseY + 118f, 150f, 12f, new Color(0f, 0f, 0f, 0.55f));
+            Image fill = UiStyle.Rect(back.transform, "Fill", 0f, 0f, 146f, 8f, i < 0 ? new Color(0.88f, 0.22f, 0.18f) : i == 0 ? new Color(0.95f, 0.85f, 0.35f) : i == 1 ? new Color(0.55f, 0.85f, 0.5f) : new Color(0.55f, 0.7f, 1f));
             RectTransform fr = fill.rectTransform;
             fr.anchorMin = new Vector2(0f, 0f); fr.anchorMax = new Vector2(1f, 1f);
             fr.offsetMin = new Vector2(2f, 2f); fr.offsetMax = new Vector2(-2f, -2f);
-            if (i == 0) batFill = fr; else if (i == 1) { staFill = fr; staFillImg = fill; } else { sanFill = fr; sanFillImg = fill; }
-            UiStyle.Label(root, names[i], 17, TextAnchor.MiddleCenter, x, baseY + 136f, 150f, 20f, UiStyle.Dim);
+            if (i < 0) hpFill = fr; else if (i == 0) batFill = fr; else if (i == 1) { staFill = fr; staFillImg = fill; } else { sanFill = fr; sanFillImg = fill; }
+            UiStyle.Label(root, names[j], 17, TextAnchor.MiddleCenter, x, baseY + 136f, 150f, 20f, UiStyle.Dim);
         }
 
         // Casillas 1-5
@@ -115,6 +116,7 @@ public class HotbarHud : MonoBehaviour
 
         if (gm.flashlight != null) SetFill(batFill, gm.flashlight.Battery01);
         if (inv.fpc != null) SetFill(staFill, inv.fpc.Stamina01);
+        if (hpFill != null) SetFill(hpFill, Health.Instance != null ? Health.Instance.Health01 : 1f);
         if (staFillImg != null) staFillImg.color = Adrenaline.Tint(new Color(0.55f, 0.85f, 0.5f));   // v7.0.4: RES teñida con adrenalina
         if (inv.sanity != null)
         {

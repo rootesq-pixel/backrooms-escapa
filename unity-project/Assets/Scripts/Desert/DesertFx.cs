@@ -27,7 +27,7 @@ public class DesertFx : MonoBehaviour
     private Transform root;
     private DesertWorld dw;
     private ParticleSystem rain, dust, grains, snow;
-    private AudioSource sandSrc, rainSrc, birdSrc;
+    private AudioSource sandSrc, birdSrc;
     private AudioClip[] birdCalls;
     private readonly List<Object> owned = new List<Object>();
     private float eye0, walk0, sprint0;
@@ -165,7 +165,9 @@ public class DesertFx : MonoBehaviour
     private void BuildAudio()
     {
         int sd = gen != null ? gen.UsedSeed : 1;
-        sandSrc = Src(SandTrickle(sd), 0f); rainSrc = Src(RainPatter(sd + 1), 0f);
+        sandSrc = Src(SandTrickle(sd), 0f);
+        // v7.9.0: lluvia por capas (lecho, gotas, tejado, chapa del coche, truenos lejanos)
+        DesertRain.Create(transform, sd + 1, () => cam == null ? 0 : DesertCars.LocalInCar ? 3 : (dw != null && dw.UnderRoof(cam.transform.position)) ? 1 : InCave(cam.transform.position) ? 2 : 0);
         birdCalls = new[] { BirdCall(sd + 2, 0), BirdCall(sd + 3, 1), BirdCall(sd + 4, 2) };
         foreach (AudioClip c in birdCalls) owned.Add(c);
         // v7.8.0: viento fluido (síntesis periódica sin costura, sin siseo); apagado dentro de casas y cuevas
@@ -201,21 +203,6 @@ public class DesertFx : MonoBehaviour
         AudioClip c = AudioClip.Create("DesertSand", n, 1, SR, false); c.SetData(d, 0); return c;
     }
     // gotas sobre la arena: golpes graves y amortiguados, muchos y desordenados
-    private static AudioClip RainPatter(int seed)
-    {
-        const int SR = 22050; int n = SR * 6; float[] d = new float[n];
-        System.Random r = new System.Random(seed);
-        for (int k = 0; k < 2600; k++)
-        {
-            int at = r.Next(n); float f = 900f + (float)r.NextDouble() * 1800f, a = 0.2f + (float)r.NextDouble() * 0.8f, dec = 140f + (float)r.NextDouble() * 160f;
-            for (int j = 0; j < 500 && at + j < n; j++) { float t = j / (float)SR; d[at + j] += Mathf.Sin(2f * Mathf.PI * f * t) * Mathf.Exp(-t * dec) * a; }
-        }
-        float lp = 0f; for (int i = 0; i < n; i++) { lp += 0.35f * (d[i] - lp); d[i] = lp; }
-        // costura del bucle
-        for (int i = 0; i < 400; i++) { float u = i / 400f; d[i] = d[i] * u + d[n - 400 + i] * (1f - u); }
-        Normalize(d, 0.6f);
-        AudioClip c = AudioClip.Create("DesertRain", n, 1, SR, false); c.SetData(d, 0); return c;
-    }
     // canto corto de pájaro (silbidos con glissando), tres variantes
     private static AudioClip BirdCall(int seed, int kind)
     {
@@ -343,6 +330,9 @@ public class DesertFx : MonoBehaviour
 
     // ------------------------------------------------------------------ cada fotograma
     private float painPulse, painT, overlayA, lastToastSeg = -1, almondT;
+    public const float MaxPush = 1.45f;   // m/s: andar a 3,5 y correr a 6,5 → contra el viento cuesta, pero nunca te atrapa ni te lanza
+    public float Push { get; private set; }
+    public Vector3 PushDir { get; private set; }
     private Color overlayC;
     private void Update()
     {
@@ -372,7 +362,17 @@ public class DesertFx : MonoBehaviour
         // sonido: arena con la tormenta (y un poco siempre de día), lluvia; de noche, casi silencio
         float sandV = sky.Storm * 0.5f + (1f - sky.Night) * 0.035f;
         sandSrc.volume = Mathf.MoveTowards(sandSrc.volume, AudioMix.A(sandV * (roof ? 0.45f : 1f)), dt * 0.3f);
-        rainSrc.volume = Mathf.MoveTowards(rainSrc.volume, AudioMix.A(sky.Rain * (roof ? 0.25f : 0.45f)), dt * 0.3f);
+        // v7.9.0: la tormenta de arena empuja (no frena): hacia donde sopla el viento (igual para todos), solo a la intemperie
+        if (fpc != null)
+        {
+            bool shelter = roof || inCave || fpc.IsMounted || Busy || (NetSession.Instance != null && NetSession.Instance.LocalDowned);
+            float g = DesertWind.GustAt(sky.Clock, 0);
+            Push = shelter ? 0f : Mathf.Min(MaxPush, sky.Storm * (0.55f + 0.85f * g));
+            Vector3 wd = new Vector3(sky.WindDir.x, 0f, sky.WindDir.y).normalized;
+            if (root != null) wd = root.TransformDirection(wd);
+            PushDir = wd;
+            fpc.ExternalPush = Vector3.MoveTowards(fpc.ExternalPush, wd * Push, dt * 1.5f);
+        }
         Vector3 camLocal = root != null ? root.InverseTransformPoint(cp) : cp;
         UpdateBirds(sky, camLocal);
         // avisos del clima al cambiar (con la temperatura)

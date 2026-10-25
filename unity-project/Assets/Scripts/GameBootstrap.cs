@@ -598,6 +598,7 @@ public class GameBootstrap : MonoBehaviour
         // Cordura + inventario (objetos y notas recogidos; se conservan entre niveles)
         Whistle wh = player.AddComponent<Whistle>(); wh.fpc = fpc;   // v7.0.2: G silbar
         Adrenaline adr = player.AddComponent<Adrenaline>(); adr.fpc = fpc;   // v7.0.4: adrenalina en las persecuciones
+        Health health = player.AddComponent<Health>(); health.fpc = fpc;   // v7.9.0: vida
         Sanity sanity = player.AddComponent<Sanity>();
         sanity.flashlight = flashlight;
         sanity.fpc = fpc;
@@ -879,6 +880,7 @@ public class GameBootstrap : MonoBehaviour
         // Barras de resistencia y batería abajo a la izquierda
         gm.staminaFill = CreateBar(canvasGo.transform, "Stamina", new Vector2(24f, 24f), new Color(0.9f, 0.85f, 0.3f), "RESISTENCIA");
         gm.batteryFill = CreateBar(canvasGo.transform, "Battery", new Vector2(24f, 64f), new Color(0.4f, 0.8f, 1f), "BATERÍA");
+        gm.healthFill = CreateBar(canvasGo.transform, "Health", new Vector2(24f, 104f), new Color(0.86f, 0.18f, 0.16f), "VIDA");   // v7.9.0
 
         // Fundido a negro (transiciones entre niveles) — por encima de todo
         Image fade = CreateImage(canvasGo.transform, "Fade", new Color(0f, 0f, 0f, 1f));

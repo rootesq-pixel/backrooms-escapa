@@ -240,7 +240,8 @@ public class DesertWind : MonoBehaviour
         float muffT = inside ? 1f : inCar ? 0.6f : 0f;
         Muffle = Mathf.MoveTowards(Muffle, muffT, dt * 1.5f);
         float g = Gust;
-        float bv = (0.045f + 0.15f * g) * (1f - 0.45f * night) * (1f + 0.7f * storm);
+        float rain = sky != null ? sky.Rain : 0f;   // v7.9.0: con lluvia el viento sopla algo más (se mezcla con la lluvia)
+        float bv = (0.045f + 0.15f * g) * (1f - 0.45f * night) * (1f + 0.7f * storm + 0.45f * rain);
         float sv = storm * (0.32f + 0.38f * g);
         float mv = Mathf.Lerp(1f, 0.32f, Muffle);
         BaseVolume = bv * mv; StormVolume = sv * mv;

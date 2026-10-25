@@ -11,7 +11,7 @@ public static class OceanNet
     // eventos (anfitrión → todos)
     public const int EvHelmet = 1, EvFlare = 2, EvSeat = 3, EvKilled = 4, EvLighthouse = 5;
     // causas de muerte por el mar
-    public const int KillDrown = 1, KillFish = 2, KillAngler = 3;
+    public const int KillDrown = 1, KillFish = 2, KillAngler = 3, KillHealth = 9;   // v7.9.0: sin vida (lluvia, caídas)
 
     public static bool Authority { get { return !NetSession.Active || NetSession.IsHost; } }
     public static int LocalId { get { return NetSession.Active ? NetSession.Instance.LocalId : 0; } }
@@ -24,6 +24,7 @@ public static class OceanNet
             case KillDrown: return "TE HAS AHOGADO";
             case KillFish: return "ALGO PÁLIDO TE HA ARRASTRADO AL FONDO";
             case KillAngler: return "LA LUZ ERA UN CEBO";
+            case KillHealth: return Health.DeathText;
             default: return "EL MAR TE HA ENGULLIDO";
         }
     }

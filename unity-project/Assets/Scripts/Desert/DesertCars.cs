@@ -14,8 +14,8 @@ public class DesertCars : MonoBehaviour
     private DesertWorld dw;
     private FirstPersonController fpc;
 
-    public const int OpEnter = 21, OpLeave = 22, OpDrive = 23, OpLights = 24;
-    public const int EvSeat = 21, EvSink = 22, EvRespawn = 23, EvFlip = 24;
+    public const int OpEnter = 21, OpLeave = 22, OpDrive = 23, OpLights = 24, OpHorn = 25;
+    public const int EvSeat = 21, EvSink = 22, EvRespawn = 23, EvFlip = 24, EvHorn = 25;
     public const float EnterRange = 2.3f;
     public static bool Authority { get { return OceanNet.Authority; } }
     public static int LocalId { get { return OceanNet.LocalId; } }
@@ -33,7 +33,7 @@ public class DesertCars : MonoBehaviour
     public static DesertCars Build(DesertWorld dw, System.Action<Object> track)
     {
         GameObject go = new GameObject("DesertCars"); go.transform.SetParent(dw.transform, false);
-        DesertCars m = go.AddComponent<DesertCars>(); m.dw = dw; Active = m;
+        DesertCars m = go.AddComponent<DesertCars>(); m.dw = dw; Active = m; go.AddComponent<DesertCarCam>();   // v7.9.0
         if (EngineLo == null) EngineLo = DesertSynth.Clip("CarEngineLo", DesertSynth.Engine(7301, 1000f, false));
         if (EngineHi == null) EngineHi = DesertSynth.Clip("CarEngineHi", DesertSynth.Engine(7302, 2800f, true));
         if (TyreClip == null) TyreClip = DesertSynth.Clip("CarTyresSand", DesertSynth.Tyres(7303));
@@ -241,6 +241,9 @@ public class DesertCars : MonoBehaviour
         return null;
     }
     public DesertCar Drivable { get { return cars.Count > 0 ? cars[0] : null; } }
+    // v7.9.0: coche que conduce un jugador (local: LocalId) para poner las manos en el volante
+    public static DesertCar DrivenBy(int id) { if (Active == null) return null; foreach (DesertCar c in Active.cars) if (c.seat[0] == id && !c.hidden) return c; return null; }
+    public static DesertCar LocalDriverCar { get { return Active != null && Active.fpc != null && Active.fpc.IsMounted ? DrivenBy(LocalId) : null; } }
 
     // ------------------------------------------------------------------ red
     public static void Request(int op, int a, float x, float y, Vector3 p)
@@ -273,6 +276,9 @@ public class DesertCars : MonoBehaviour
             case OpLights:
                 if (c.DriverId == id) c.lights = x > 0.5f;
                 break;
+            case OpHorn:   // v7.9.0: claxon
+                if (c.DriverId == id || x < 0.5f) Event(EvHorn, a, x > 0.5f ? 1 : 0, Vector3.zero);
+                break;
         }
     }
     public void ApplyEvent(int ev, int a, int b, Vector3 p, Vector3 d)
@@ -297,7 +303,8 @@ public class DesertCars : MonoBehaviour
                 break;
             }
             case EvSink: if (a < cars.Count) { if (cars[a].SeatOf(LocalId) >= 0 || Near(cars[a], 40f)) Toast0("¡El todoterreno se hunde en arenas movedizas!"); } break;
-            case EvRespawn: if (a < cars.Count) { if (!Authority) cars[a].Respawn(); Toast0("El desierto ha devuelto el todoterreno a la aldea"); } break;
+            case EvRespawn: if (a < cars.Count) { if (!Authority) cars[a].Respawn(); Toast0("El desierto ha devuelto el todoterreno junto al ascensor"); } break;
+            case EvHorn: if (a < cars.Count) cars[a].SetHorn(b == 1); break;
             case EvFlip: if (a < cars.Count && (cars[a].SeatOf(LocalId) >= 0 || Near(cars[a], 30f))) Toast0("El todoterreno vuelve a ponerse sobre las ruedas"); break;
         }
     }
@@ -362,6 +369,11 @@ public class DesertCars : MonoBehaviour
     // ------------------------------------------------------------------ jugador local
     private float sendT, cleanT; private float lastTh, lastSt; private bool lastHb;
     private int lastSeatIdx = -1; private DesertCar lastCar;
+    private bool hornSent, flashWasOn;
+    public static bool DbgHorn, DbgCamCycle;
+    // v7.9.0: cámara del coche (C): 0 desde el asiento, 1 por detrás (persecución), 2 sobre el capó. Solo local.
+    public static int CamView;
+    public static readonly string[] CamNames = { "Cámara: desde el asiento", "Cámara: por detrás", "Cámara: sobre el capó" };
     private void Update()
     {
         if (fpc == null) fpc = GameManager.Instance != null && GameManager.Instance.player != null ? GameManager.Instance.player : FindObjectOfType<FirstPersonController>();
@@ -381,10 +393,13 @@ public class DesertCars : MonoBehaviour
                 bool hb = !blocked && Input.GetKey(KeyCode.Space);
                 if (DebugDrive) { th = DbgThrottle; st = DbgSteer; hb = DbgHandbrake; }
                 if ((!blocked && Input.GetKeyDown(KeyCode.L)) || (DbgLights != mine.lights && DebugDrive)) Request(OpLights, mine.index, mine.lights ? 0f : 1f, 0f, Vector3.zero);
+                bool horn = (!blocked && Input.GetKey(KeyCode.H)) || DbgHorn;
+                if (horn != hornSent) { hornSent = horn; Request(OpHorn, mine.index, horn ? 1f : 0f, 0f, Vector3.zero); }
                 LocalDrive(mine, th, st, hb);
-                Prompt = "W/S acelerar · A/D girar · Espacio freno de mano · L luces · E bajar";
+                Prompt = "W/S acelerar · A/D girar · Espacio freno · L luces · H claxon · C cámara · E bajar";
             }
-            else Prompt = "E: bajar del todoterreno";
+            else Prompt = "C cámara · E bajar del todoterreno";
+            if ((!blocked && Input.GetKeyDown(KeyCode.C)) || DbgCamCycle) { DbgCamCycle = false; CamView = (CamView + 1) % 3; if (GameManager.Instance != null) GameManager.Instance.ShowToast(CamNames[CamView]); }
             if (eDown && !revive) Request(OpLeave, mine.index, 0f, 0f, Vector3.zero);
         }
         else if (!fpc.IsMounted && !downed && !(DesertFx.Active != null && DesertFx.Active.Busy))
@@ -442,8 +457,11 @@ public class DesertCars : MonoBehaviour
             if (fpc.mount != c.transform && !fpc.IsMounted)
             {
                 fpc.Mount(c.transform, c.SeatLocal(s)); fpc.mountYaw = true;
+                Flashlight fl = fpc.GetComponentInChildren<Flashlight>();   // v7.9.0: la linterna se guarda en el coche (se recupera al bajar)
+                flashWasOn = fl != null && fl.IsOn; if (fl != null && fl.IsOn) fl.Toggle();
                 fpc.transform.rotation = Quaternion.Euler(0f, c.transform.eulerAngles.y, 0f);
-                if (GameManager.Instance != null) GameManager.Instance.ShowToast(s == 0 ? "Al volante: W/S · A/D · Espacio freno de mano · L luces · E bajar" : "En el todoterreno · E bajar");
+                if (GameManager.Instance != null) GameManager.Instance.ShowToast(s == 0 ? "Al volante: W/S · A/D · Espacio freno · L luces · H claxon · C cámara · E bajar" : "En el todoterreno · C cámara · E bajar");
+                CamView = 0;
                 Mounts++;
             }
             else if (fpc.mount == c.transform && s != lastSeatIdx) fpc.mountLocal = c.SeatLocal(s);
@@ -452,6 +470,9 @@ public class DesertCars : MonoBehaviour
         else if (lastCar != null)
         {
             if (fpc.mount == lastCar.transform) { fpc.Dismount(lastCar.DismountSpot(Mathf.Max(0, lastSeatIdx))); fpc.mountYaw = false; Dismounts++; }
+            if (hornSent) { hornSent = false; Request(OpHorn, lastCar.index, 0f, 0f, Vector3.zero); }
+            if (flashWasOn) { Flashlight fl = fpc.GetComponentInChildren<Flashlight>(); if (fl != null && !fl.IsOn) fl.Toggle(); flashWasOn = false; }
+            CamView = 0;
             lastCar = null; lastSeatIdx = -1;
         }
     }

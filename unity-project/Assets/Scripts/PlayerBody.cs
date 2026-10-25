@@ -40,6 +40,12 @@ public class PlayerBody : MonoBehaviour
 
     private Transform model;
     private Transform head, neck, torso, upper, lower, hand, footL, footR, mid2, mid3;
+    private Transform upperL, lowerL, handL;
+    public bool PropShown { get { return prop != null && prop.activeSelf; } }
+    public bool OnWheel { get; private set; }               // v7.9.0: manos en el volante del todoterreno
+    public float WheelErrL { get; private set; }
+    public float WheelLean { get; private set; }
+    public float WheelErrR { get; private set; }
     private float upperLen, lowerLen;
     private Vector3 lowerBaseScale = Vector3.one;
     private readonly List<Renderer> renderers = new List<Renderer>();
@@ -119,6 +125,7 @@ public class PlayerBody : MonoBehaviour
         }
         head = Find(model, "Head"); neck = Find(model, "Neck"); torso = Find(model, "Torso");
         upper = Find(model, "UpperArm.R"); lower = Find(model, "LowerArm.R"); hand = Find(model, "Middle1.R");
+        upperL = Find(model, "UpperArm.L"); lowerL = Find(model, "LowerArm.L"); handL = Find(model, "Middle1.L");   // v7.9.0: volante
         if (hand == null) hand = Find(model, "Index1.R");
         footL = Find(model, "Foot.L"); footR = Find(model, "Foot.R");
         mid2 = Find(model, "Middle2.R"); mid3 = Find(model, "Middle3.R");
@@ -466,6 +473,34 @@ public class PlayerBody : MonoBehaviour
         UpdateWet();
         SolveArm();
         UpdateProp();
+        SolveWheel();
+    }
+
+    // v7.9.0: al volante, las dos manos agarran el aro (a las 10 y a las 2) y siguen su giro; sentado, la linterna va guardada
+    private void SolveWheel()
+    {
+        DesertCar car = DesertCars.LocalDriverCar;
+        bool seated = fpc != null && fpc.IsMounted && DesertCars.Active != null;
+        if (prop != null && prop.activeSelf == seated) prop.SetActive(!seated);
+        OnWheel = false;
+        if (car == null || !car.Grips(out Vector3 gl, out Vector3 gr)) return;
+        if (lower != null) lower.localScale = lowerBaseScale;   // al volante el antebrazo con su largo real (llega al aro)
+        // el conductor se inclina hacia el volante lo justo para llegar (como mucho 25 cm)
+        if (upper != null && lower != null && hand != null && upperL != null && lowerL != null && handL != null)
+        {
+            float reachR = (Vector3.Distance(upper.position, lower.position) + Vector3.Distance(lower.position, hand.position)) * 0.97f;
+            float reachL = (Vector3.Distance(upperL.position, lowerL.position) + Vector3.Distance(lowerL.position, handL.position)) * 0.97f;
+            float need = Mathf.Max(Vector3.Distance(upper.position, gr) - reachR, Vector3.Distance(upperL.position, gl) - reachL);
+            if (need > 0f)
+            {
+                Vector3 mid = (gl + gr) * 0.5f, sh = (upper.position + upperL.position) * 0.5f;
+                transform.position += (mid - sh).normalized * Mathf.Min(need + 0.01f, 0.25f);
+            }
+            WheelLean = Mathf.Max(0f, need);
+        }
+        WheelErrR = ArmIk.Solve(upper, lower, hand, gr, transform.right * 0.6f + Vector3.down);
+        WheelErrL = ArmIk.Solve(upperL, lowerL, handL, gl, -transform.right * 0.6f + Vector3.down);
+        OnWheel = true;
     }
 
     private void ResetLightOrigin()

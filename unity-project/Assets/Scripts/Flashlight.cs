@@ -148,7 +148,8 @@ public class Flashlight : MonoBehaviour
     {
         float dt = Time.deltaTime;
 
-        if (Input.GetKeyDown(toggleKey) && (UIManager.Instance == null || !UIManager.InputBlocked)) Toggle();
+        bool inCar = FirstPersonController.LocalInstance != null && FirstPersonController.LocalInstance.IsMounted && DesertCars.Active != null;   // v7.9.0: guardada en el coche
+        if (Input.GetKeyDown(toggleKey) && !inCar && (UIManager.Instance == null || !UIManager.InputBlocked)) Toggle();
 
         if (IsOn)
         {

@@ -155,6 +155,8 @@ public class FirstPersonController : MonoBehaviour
     // Se dispara en cada pisada (parámetro: intensidad 0.4..1.4) y al aterrizar (intensidad según la caída)
     public event System.Action<float> Footstep;
     public event System.Action<float> Landed;
+    public float LastImpactSpeed { get; private set; }
+    public Vector3 ExternalPush;   // v7.9.0: empuje horizontal (m/s) del viento de la tormenta de arena; lo fija DesertFx cada fotograma
 
     private CharacterController controller;
     private float climbCooldown;
@@ -468,7 +470,7 @@ public class FirstPersonController : MonoBehaviour
         BallWadeFactor = BallDepth > 0.05f ? Mathf.Lerp(1f, 0.5f, Mathf.Clamp01(BallDepth / 0.7f)) : 1f;
 
         // --- Agacharse (Ctrl mantener, C alternar). Nadando, Ctrl = bucear ---
-        if (Input.GetKeyDown(KeyCode.C)) crouchToggled = !crouchToggled;
+        if (Input.GetKeyDown(KeyCode.C) && !IsMounted) crouchToggled = !crouchToggled;   // v7.9.0: en el coche, C cambia la cámara
         bool crouchInput = debugCrouch || Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl) || crouchToggled;
         bool wantsCrouch = crouchInput || reviveKneel;
         CrouchHeld = crouchInput;
@@ -596,6 +598,7 @@ public class FirstPersonController : MonoBehaviour
         }
 
         Vector3 move = moveVel;
+        if (!IsSwimming) { move.x += ExternalPush.x; move.z += ExternalPush.z; }
         move.y = verticalVelocity;
         controller.Move(move * dt);
 
@@ -607,6 +610,7 @@ public class FirstPersonController : MonoBehaviour
         bool nowGrounded = controller.isGrounded;
         if (nowGrounded && !wasGrounded && airTime > 0.18f)
         {
+            LastImpactSpeed = -lastFallSpeed;   // v7.9.0: daño por caídas (Health)
             float impact = Mathf.Clamp01((-lastFallSpeed - 2f) / 10f);
             landDipVel = -impact * 1.2f;
             landDip = -impact * 0.12f;

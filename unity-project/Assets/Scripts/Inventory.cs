@@ -77,6 +77,7 @@ public class Inventory : MonoBehaviour
         UIManager ui = UIManager.Instance;
         if (ui != null && ui.Current != UIManager.Screen.None && ui.Current != UIManager.Screen.Inventory) return;
         if (MultiplayerUI.ChatTyping) return;
+        if (FirstPersonController.LocalInstance != null && FirstPersonController.LocalInstance.IsMounted && DesertCars.Active != null) return;   // v7.9.0: en el coche no se usan objetos
 
         // Barra rápida: teclas 1-5 (también con el teclado numérico)
         for (int i = 0; i < HotbarSize; i++)
@@ -339,6 +340,7 @@ public class Inventory : MonoBehaviour
         if ((int)ItemType.FlareGun < carryCounts.Length) carryCounts[(int)ItemType.FlareGun] = 0;   // v7.3.0: la pistola de bengalas tampoco pasa
         carryNotes = new List<int>(notes);
         if (sanity != null) sanity.Commit();
+        if (Health.Instance != null) Health.Instance.Commit();
     }
 
     public void RevertToLevelStart()
@@ -347,6 +349,7 @@ public class Inventory : MonoBehaviour
         carryNotes = new List<int>(startNotes);
         wrongKeys.Clear();   // v7.0.4
         if (sanity != null) sanity.Revert();
+        if (Health.Instance != null) Health.Instance.Revert();
     }
 
     public static void ResetAll()
@@ -355,5 +358,6 @@ public class Inventory : MonoBehaviour
         carryNotes = new List<int>();
         Collected = 0;
         Sanity.ResetAll();
+        Health.ResetAll();
     }
 }

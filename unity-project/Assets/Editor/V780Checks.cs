@@ -119,10 +119,11 @@ public static class V780Checks
         }
         // se puede trepar: el techo y el capó tienen colisión arriba
         {
-            Vector3 roof = car.transform.TransformPoint(new Vector3(0f, 3.5f, -0.6f)), hood = car.transform.TransformPoint(new Vector3(0f, 3.5f, 1.7f)), bump = car.transform.TransformPoint(new Vector3(0f, 3.5f, 2.47f));
-            bool a = CarHit(car, roof, 3f, out RaycastHit hr), b = CarHit(car, hood, 3f, out RaycastHit hh), c = CarHit(car, bump, 3.5f, out RaycastHit hb);
+            Vector3 roof = car.transform.TransformPoint(new Vector3(0f, 3.5f, -0.6f)), hood = car.transform.TransformPoint(new Vector3(0f, 3.5f, 1.7f)), bump = car.transform.TransformPoint(new Vector3(0f, 1.0f, 2.42f));   // v7.9.0: rayo corto justo sobre el parachoques (aparcado con algo de cabeceo, el largo caía delante)
+            bool a = CarHit(car, roof, 3f, out RaycastHit hr), b = CarHit(car, hood, 3f, out RaycastHit hh), c = CarHit(car, bump, 1.5f, out RaycastHit hb);
+            // v7.9.0: alturas en coordenadas del coche (aparcado con algo de cabeceo, las alturas del mundo engañaban)
+            float sRoof = a ? car.transform.InverseTransformPoint(hr.point).y : 0f, sHood = b ? car.transform.InverseTransformPoint(hh.point).y : 0f, sBump = c ? car.transform.InverseTransformPoint(hb.point).y : 0f;
             float gy = car.transform.position.y;
-            float sRoof = a ? hr.point.y - gy : 0f, sHood = b ? hh.point.y - gy : 0f, sBump = c ? hb.point.y - gy : 0f;
             r.Check(a && b && c && sBump < p.jumpHeight + 0.05f && sHood - sBump < p.jumpHeight && sRoof - sHood < p.jumpHeight, T + "se trepa por delante: parachoques " + sBump.ToString("F2") + " m → capó " + sHood.ToString("F2") + " → techo " + sRoof.ToString("F2") + " (salto " + p.jumpHeight + " m)");
             // de verdad: el jugador puesto encima del techo se queda de pie en él
             p.Teleport(car.transform.TransformPoint(new Vector3(0f, 2.3f, -0.6f)), 0f);
@@ -134,6 +135,8 @@ public static class V780Checks
         p.Teleport(car.transform.TransformPoint(car.DoorLocal(0)) + Vector3.up * 0.1f, 0f);
         yield return 0.5f;
         r.Check(dc.Prompt != null && dc.Prompt.Contains("conducir"), T + "junto a la puerta: «" + dc.Prompt + "»");
+        Flashlight fl790 = p.GetComponentInChildren<Flashlight>();   // v7.9.0: la linterna encendida se guarda al subir
+        if (fl790 != null && !fl790.IsOn) fl790.Toggle();
         DesertCars.DebugInteract = true; yield return null; yield return null;
         r.Check(car.SeatOf(DesertCars.LocalId) == 0 && p.IsMounted && p.mount == car.transform, T + "E: al volante");
         float eyeLocal = car.transform.InverseTransformPoint(gm.playerCamera.position).y;
@@ -184,6 +187,7 @@ public static class V780Checks
         float sp0 = car.Speed;
         { IEnumerator wf = WaitFor(() => car.Speed < 0.4f, 10f); while (wf.MoveNext()) yield return wf.Current; }
         r.Check(car.Speed < 0.4f, T + "freno de mano: de " + (sp0 * 3.6f).ToString("F0") + " km/h a parado");
+        yield return V790Checks.CarExtras(r, T, car, p, gm);
         // luces
         DesertSky.ForceHour = 23f; DesertCars.DbgLights = true;
         yield return 0.4f;
@@ -204,6 +208,12 @@ public static class V780Checks
         Vector3 off = car.transform.InverseTransformPoint(p.transform.position);
         r.Check(!p.IsMounted && car.Occupants == 0 && (Mathf.Abs(off.x) > 1.0f || Mathf.Abs(off.z) > 2.6f) && Mathf.Abs(off.z) < 4f, T + "E: bajar junto a la puerta (" + off.x.ToString("F1") + ", " + off.z.ToString("F1") + ")");
         r.Check(Mathf.Abs(Mathf.DeltaAngle(p.transform.eulerAngles.x, 0f)) < 1f, T + "el jugador queda derecho al bajar");
+        {   // v7.9.0: al bajar se recupera la linterna como estaba
+            PlayerBody pb = Object.FindObjectOfType<PlayerBody>();
+            yield return 0.2f;
+            r.Check(fl790 != null && fl790.IsOn && (pb == null || !pb.Loaded || !pb.Visible || pb.PropShown), T + "al bajar vuelve la linterna a la mano, encendida como estaba (" + (fl790 != null && fl790.IsOn) + ")");
+            if (fl790 != null && fl790.IsOn) fl790.Toggle();
+        }
         // huellas al andar
         int fa = dc.tracks.FootAdded;
         p.debugInput = true; p.debugMove = new Vector2(0f, 1f);

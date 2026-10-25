@@ -48,6 +48,7 @@ public class GameManager : MonoBehaviour
     public RectTransform staminaFill;
     private UnityEngine.UI.Image staminaImg;
     public RectTransform batteryFill;
+    public RectTransform healthFill;   // v7.9.0
 
     public GameState State { get; private set; }
     public float Elapsed { get { return elapsed; } }
@@ -410,6 +411,7 @@ public class GameManager : MonoBehaviour
             if (staminaImg == null) staminaImg = staminaFill.GetComponent<UnityEngine.UI.Image>();
             if (staminaImg != null) staminaImg.color = Adrenaline.Tint(new Color(0.9f, 0.85f, 0.3f));
         }
+        if (healthFill != null && Health.Instance != null) healthFill.anchorMax = new Vector2(Health.Instance.Health01, 1f);
         if (flashlight != null && batteryFill != null)
         {
             batteryFill.anchorMax = new Vector2(Mathf.Clamp01(flashlight.Battery01), 1f);
