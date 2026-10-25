@@ -144,7 +144,7 @@ public static class DesertItemModels
         new Vector2(0.0136f, 0.249f), new Vector2(0.0108f, 0.249f) };
     static readonly Vector2[] LiquidProf = {
         new Vector2(0f, 0.014f), new Vector2(0.012f, 0.0115f), new Vector2(0.023f, 0.0075f), new Vector2(0.0300f, 0.0068f), new Vector2(0.0312f, 0.013f),
-        new Vector2(0.0312f, 0.148f), new Vector2(0.0306f, 0.156f), new Vector2(0.0f, 0.156f) };
+        new Vector2(0.0312f, 0.150f), new Vector2(0.0300f, 0.164f), new Vector2(0.0262f, 0.176f), new Vector2(0.0f, 0.176f) };
     static readonly Vector2[] LabelProf = { new Vector2(0.03345f, 0.048f), new Vector2(0.03345f, 0.118f) };
     static readonly Vector2[] CapProf = {
         new Vector2(0f, 0.2525f), new Vector2(0.0150f, 0.2525f), new Vector2(0.0158f, 0.2505f), new Vector2(0.0160f, 0.2440f), new Vector2(0.0156f, 0.2405f), new Vector2(0.0142f, 0.2400f) };
@@ -157,8 +157,8 @@ public static class DesertItemModels
     {
         bool neon = t == ItemType.NeonWater, cashew = t == ItemType.CashewWater;
         string k = t.ToString();
-        Color glassTint = neon ? new Color(0.78f, 0.92f, 0.95f, 0.22f) : cashew ? new Color(0.86f, 0.90f, 0.84f, 0.26f) : new Color(0.84f, 0.92f, 0.90f, 0.24f);
-        Color liq = neon ? new Color(0.30f, 0.95f, 0.85f, 0.70f) : cashew ? new Color(0.78f, 0.62f, 0.40f, 0.80f) : new Color(0.93f, 0.90f, 0.82f, 0.62f);
+        Color glassTint = neon ? new Color(0.70f, 0.88f, 0.92f, 0.34f) : cashew ? new Color(0.62f, 0.74f, 0.52f, 0.36f) : new Color(0.80f, 0.90f, 0.88f, 0.32f);
+        Color liq = neon ? new Color(0.30f, 0.95f, 0.85f, 0.85f) : cashew ? new Color(0.72f, 0.54f, 0.30f, 0.92f) : new Color(0.95f, 0.92f, 0.84f, 0.85f);
         Color emit = neon ? new Color(0.20f, 0.95f, 0.80f) * 0.9f : Color.clear;
         Part(r, "Liquid", Lathe("dl_liquid", LiquidProf, 28), Liquid("dl_liq_" + k, liq, emit), false);
         Part(r, "Glass", Lathe("dl_bottle", BottleOut, 32), Glass("dl_glass_" + k, glassTint), true);
@@ -167,7 +167,7 @@ public static class DesertItemModels
                     : Label("dl_lab_" + k, new Color(0.90f, 0.87f, 0.78f), new Color(0.60f, 0.42f, 0.24f), new Color(0.62f, 0.36f, 0.18f), 0);
         Part(r, "Label", Lathe("dl_label", LabelProf, 32), lab, false);
         if (cashew) Part(r, "Cork", Lathe("dl_cork", Rev(CorkProf), 20), Solid("dl_cork", new Color(0.62f, 0.47f, 0.30f), 0.12f, 0f), true);
-        else Part(r, "Cap", Lathe("dl_cap", Rev(CapProf), 24), Solid("dl_cap_" + k, neon ? new Color(0.55f, 0.20f, 0.50f) : new Color(0.58f, 0.56f, 0.52f), 0.55f, 0.85f), true);
+        else Part(r, "Cap", Lathe("dl_cap", Rev(CapProf), 24), Solid("dl_cap_" + k, neon ? new Color(0.55f, 0.20f, 0.50f) : new Color(0.70f, 0.68f, 0.63f), 0.5f, 0.5f), true);
     }
 
     // lata de raciones: 10,2 cm de diámetro, 11,8 cm de alto, con nervios, rebordes y una abolladura
@@ -207,7 +207,7 @@ public static class DesertItemModels
             for (int i = 0; i < vv.Length; i++) { float d = Vector3.Distance(vv[i], c); if (d < 0.03f) { float k = (1f - d / 0.03f); vv[i] -= new Vector3(vv[i].x, 0f, vv[i].z).normalized * 0.006f * k * k; } }
             dented.vertices = vv; dented.RecalculateNormals(); dented.RecalculateTangents(); dented.RecalculateBounds(); meshes["dl_tin_dent"] = dented;
         }
-        Part(r, "Tin", dented, Solid("dl_tin", Color.white, 0.55f, 0.85f, TinTex()), true);
+        Part(r, "Tin", dented, Solid("dl_tin", Color.white, 0.42f, 0.45f, TinTex()), true);   // sin sonda de reflejos: con metal 0,85 se veía negra
         Part(r, "Label", Lathe("dl_tinlabel", TinLabelProf, 36, false, 0f, 1f), Label("dl_lab_rations", new Color(0.80f, 0.70f, 0.46f), new Color(0.50f, 0.12f, 0.10f), new Color(0.32f, 0.10f, 0.08f), 3), false);
     }
 

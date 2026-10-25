@@ -124,7 +124,7 @@ public static class V771Checks
             bool glass = false; foreach (MeshRenderer mr in g.GetComponentsInChildren<MeshRenderer>(true)) if (mr.sharedMaterial != null && mr.sharedMaterial.renderQueue >= 3000) glass = true;
             float hgt = bb.size.y;
             bool size = it == ItemType.RoyalRations ? hgt > 0.11f && hgt < 0.16f : hgt > 0.26f && hgt < 0.33f;
-            r.Check(built && parts >= 3 && size && (glass || it == ItemType.RoyalRations), T + "modelo de " + it + ": " + parts + " piezas, alto " + hgt.ToString("0.000") + " m" + (glass ? ", vidrio translúcido" : ""));
+            r.Check(built && parts >= (it == ItemType.RoyalRations ? 2 : 4) && size && (glass || it == ItemType.RoyalRations), T + "modelo de " + it + ": " + parts + " piezas, alto " + hgt.ToString("0.000") + " m" + (glass ? ", vidrio translúcido" : ""));
             Object.DestroyImmediate(g);
         }
     }

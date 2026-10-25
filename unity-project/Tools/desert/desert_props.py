@@ -103,12 +103,22 @@ def make_backing(ob, thick):
         isl.append(comp)
     big = max(len(c) for c in isl); kill = [v for c in isl if len(c) < 0.05 * big for v in c]
     bmesh.ops.delete(bm, geom=kill, context='VERTS'); bm.to_mesh(bk.data); bm.free()
-    dp = bk.modifiers.new("dp", 'DISPLACE'); dp.strength = -0.05; dp.mid_level = 0.0; apply_mod(bk, dp)   # 5 cm hacia dentro
+    dp = bk.modifiers.new("dp", 'DISPLACE'); dp.strength = -0.12; dp.mid_level = 0.0; apply_mod(bk, dp)   # 12 cm hacia dentro
     bk.data.materials.clear(); bk.data.materials.append(ob.data.materials[0])
     bk.data.uv_layers.new(name=ob.data.uv_layers[0].name)
     dt = bk.modifiers.new("dt", 'DATA_TRANSFER'); dt.object = ob; dt.use_loop_data = True; dt.data_types_loops = {'UV'}; dt.loop_mapping = 'POLYINTERP_NEAREST'
     apply_mod(bk, dt)
     return bk
+
+def push_behind(bk, ob):
+    # nunca por delante de la cáscara: el vértice del respaldo que quede delante (o a menos de 6 cm) de la superficie escaneada se lleva 6 cm detrás
+    from mathutils.bvhtree import BVHTree
+    tree = BVHTree.FromObject(ob, bpy.context.evaluated_depsgraph_get()); moved = 0
+    for v in bk.data.vertices:
+        loc, nrm, idx, dist = tree.find_nearest(v.co)
+        if loc is None or dist > 0.6: continue
+        if (v.co - loc).dot(nrm) > -0.06: v.co = loc - nrm * 0.06; moved += 1
+    return moved
 
 def remove_parts(ob, mode, amount, rnd):
     bpy.context.view_layer.objects.active = ob; bpy.ops.object.select_all(action='DESELECT'); ob.select_set(True)
@@ -176,6 +186,7 @@ for src, name, lods, breakage in ITEMS:
             bt = max(450, t // 3); nb = tris(bc)
             if bt < nb:
                 d = bc.modifiers.new("dec", 'DECIMATE'); d.ratio = bt / nb; apply_mod(bc, d)
+            print("BACKING", cp.name, "tris", tris(bc), "pushed", push_behind(bc, ob), "of", len(bc.data.vertices), flush=True)
             bpy.ops.object.select_all(action='DESELECT'); bc.select_set(True); cp.select_set(True); bpy.context.view_layer.objects.active = cp; bpy.ops.object.join()
         out.append(cp)
     if backing is not None: bpy.data.objects.remove(backing)
