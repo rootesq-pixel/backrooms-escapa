@@ -1699,6 +1699,7 @@ public class BackroomsGenerator : MonoBehaviour
             bool strict = guard < 1500;
             if (distFromStart[c.x, c.y] < (strict ? minStart : 2)) continue;
             if (Mathf.Abs(c.x - exitCell.x) + Mathf.Abs(c.y - exitCell.y) < (strict ? 3 : 2)) continue;
+            if (guard < 2800 && (c - startCell).sqrMagnitude < 4) continue;   // v7.8.0: tampoco al otro lado de una pared del ascensor (cerca en línea recta)
             int minSep = guard < 800 ? Mathf.Max(3, Mathf.Min(w, h) / 4) : (guard < 2000 ? 2 : 1);
             bool ok = true;
             for (int i = 0; i < picked.Count; i++)

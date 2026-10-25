@@ -263,7 +263,7 @@ public class DesertCar : MonoBehaviour
         Gradient gr = new Gradient(); gr.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) }, new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.08f), new GradientAlphaKey(0.7f, 0.5f), new GradientAlphaKey(0f, 1f) });
         col.color = gr;
         var sz = ps.sizeOverLifetime; sz.enabled = true; sz.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 0.6f, 1f, 1.8f));
-        var vel = ps.velocityOverLifetime; vel.enabled = true; vel.space = ParticleSystemSimulationSpace.World; vel.y = new ParticleSystem.MinMaxCurve(0.15f, 0.6f);
+        var vel = ps.velocityOverLifetime; vel.enabled = true; vel.space = ParticleSystemSimulationSpace.World; vel.x = new ParticleSystem.MinMaxCurve(0f, 0f); vel.y = new ParticleSystem.MinMaxCurve(0.15f, 0.6f); vel.z = new ParticleSystem.MinMaxCurve(0f, 0f);   // las 3 curvas en el mismo modo (si no, Unity da error al emitir)
         ParticleSystemRenderer pr = g.GetComponent<ParticleSystemRenderer>(); pr.sharedMaterial = m; pr.renderMode = ParticleSystemRenderMode.Billboard;
         pr.shadowCastingMode = ShadowCastingMode.Off; pr.receiveShadows = false; pr.sortingFudge = -2f;
         ps.Play(); dustPs = ps;

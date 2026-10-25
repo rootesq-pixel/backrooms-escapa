@@ -1839,7 +1839,7 @@ public static class SmokeTest
         float y0 = pw.transform.position.y, ymax = y0; int j0 = pw.JumpCount;
         bool wasEnabled = pw.enabled; pw.enabled = true;
         pw.debugInput = true; pw.debugMove = Vector2.zero; pw.debugJump = true;
-        yield return 0.1f;
+        t = 0f; while (t < 0.1f) { yield return null; t += Time.deltaTime; ymax = Mathf.Max(ymax, pw.transform.position.y); }
         pw.debugJump = false;
         t = 0f; bool landed = false;
         while (t < 1.6f) { ymax = Mathf.Max(ymax, pw.transform.position.y); yield return null; t += Time.deltaTime; if (t > 0.3f && pw.IsGrounded) { landed = true; break; } }

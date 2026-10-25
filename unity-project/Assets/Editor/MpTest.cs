@@ -1211,8 +1211,9 @@ public static class MpPlayRunner
                     yield return 1.5f;
                     string[] hcar = File.ReadAllText(MpTest.Dir + "/host_car.txt").Trim().Split(' ');
                     Vector3 hl = new Vector3(float.Parse(hcar[0], Inv), float.Parse(hcar[1], Inv), float.Parse(hcar[2], Inv));
-                    Vector3 cl = dw.levelRoot.InverseTransformPoint(car.transform.position);
-                    float dd = new Vector3(DesertHeight.Wrap(hl.x - cl.x), hl.y - cl.y, DesertHeight.Wrap(hl.z - cl.z)).magnitude;
+                    System.Func<float> carOff = () => { Vector3 q = dw.levelRoot.InverseTransformPoint(car.transform.position); return new Vector3(DesertHeight.Wrap(hl.x - q.x), hl.y - q.y, DesertHeight.Wrap(hl.z - q.z)).magnitude; };
+                    yield return Wait(() => carOff() < 1.0f, 8, "el coche del cliente llega a donde lo dejó el anfitrión");   // por relé las instantáneas pueden llegar con retraso
+                    float dd = carOff();
                     int ms = car.SeatOf(ns.LocalId);
                     float seatD = ms >= 0 ? Vector3.Distance(pc.transform.position, car.transform.TransformPoint(car.SeatLocal(ms))) : 99f;
                     r.Check(dd < 1.0f && seatD < 0.35f && dc.NetReads > 10, "[Coche MP] el cliente ve el coche donde lo deja el anfitrión (" + dd.ToString("F2") + " m) y viaja en su asiento (" + seatD.ToString("F2") + " m, " + dc.NetReads + " bloques)");
