@@ -149,6 +149,12 @@ public static class V702Checks
             bool under = gm.player.IsUnderwater;
             r.Check(under || (fl != null && fl.IsOn && san.DrainRate > 0f && san.DrainRate <= Sanity.RecoverRate + 0.01f), tag + "[Cordura] lejos y con luz se recupera despacio (" + san.DrainRate.ToString("F2") + "/s)");
             r.Check(VhsEffect.Active == null || VhsEffect.Active.sanityGlitch >= 0f, tag + "[Cordura] enganchada a la interferencia VHS");
+            if (fl != null && !gm.player.IsUnderwater)
+            {   // v7.7.1: fuera del desierto la linterna apagada sí sigue drenando
+                fl.SetOn(false); yield return null; yield return null;
+                r.Check(!Sanity.NoDrainLevel && san.DrainRate < 0f, tag + "[Cordura] con la linterna apagada drena (" + san.DrainRate.ToString("F2") + "/s; solo el desierto no drena)");
+                fl.SetOn(true); yield return null;
+            }
             if (lv == 1)
             {
                 float keep = san.value; san.value = 10f; yield return 0.4f;

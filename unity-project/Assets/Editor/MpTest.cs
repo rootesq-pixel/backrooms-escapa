@@ -607,6 +607,13 @@ public static class MpPlayRunner
             File.WriteAllText(MpTest.Dir + "/host_dclock.txt", sky.Clock.ToString("R", Inv) + " " + DateTime.UtcNow.Ticks + " " + (int)sky.Current + " " + sky.Hour.ToString("R", Inv));
             Mark("host_dclock");
             yield return WaitMark("client_dclock", 60);
+            {   // v7.7.1: la cordura del anfitrión tampoco baja en el desierto
+                Sanity sn = Sanity.Instance; Flashlight fl8 = hp.GetComponentInChildren<Flashlight>(); if (fl8 != null) fl8.SetOn(false);
+                if (sn != null) sn.value = 70f;
+                yield return 3.0f;
+                r.Check(sn != null && sn.value >= 70f - 0.001f && sn.DrainRate >= 0f, "[Desierto MP] la cordura del anfitrión no baja con la linterna apagada (" + (sn != null ? sn.value.ToString("F1") : "-") + ")");
+                if (sn != null) sn.value = 100f;
+            }
             // un objeto de la arena: lo coge el anfitrión
             ItemPickup sp = null; foreach (ItemPickup ip in UnityEngine.Object.FindObjectsOfType<ItemPickup>()) if (ip.netId >= DesertItems.NetBase && ip.netId < DesertItems.NetBase + 1000 && (sp == null || ip.netId < sp.netId)) sp = ip;
             int pid = sp != null ? sp.netId : -1;
@@ -1145,6 +1152,13 @@ public static class MpPlayRunner
             float expect = hClock + (float)((DateTime.UtcNow.Ticks - t0) / 1e7);
             float diff = Mathf.Abs(sky.Clock - expect);
             r.Check(diff < 1.5f && (int)sky.Current == int.Parse(hc[2]) && ns.DesertSnapshots > 10, "[Desierto MP] mismo reloj del desierto que el anfitrión: hora y clima iguales (diferencia " + diff.ToString("F2") + " s, clima " + sky.Current + ", " + ns.DesertSnapshots + " bloques recibidos)");
+            {   // v7.7.1: en el desierto la cordura no baja tampoco en multijugador (linterna apagada)
+                Sanity sn = Sanity.Instance; Flashlight fl8 = pc.GetComponentInChildren<Flashlight>(); if (fl8 != null) fl8.SetOn(false);
+                if (sn != null) sn.value = 70f;
+                yield return 3.0f;
+                r.Check(sn != null && sn.value >= 70f - 0.001f && sn.DrainRate >= 0f, "[Desierto MP] la cordura del cliente no baja con la linterna apagada (" + (sn != null ? sn.value.ToString("F1") : "-") + ")");
+                if (sn != null) sn.value = 100f;
+            }
             Mark("client_dclock");
             yield return WaitMark("host_dpick_done", 60);
             int pid = int.Parse(File.ReadAllText(MpTest.Dir + "/host_dpick.txt").Trim());

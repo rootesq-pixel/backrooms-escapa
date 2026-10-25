@@ -1129,6 +1129,7 @@ public static class SmokeTest
         TestV750Updater(r);
         TestV760Industrial(r, credits, ui);
         V770Checks.Edit(r, credits, ui);   // v7.7.0: Nivel 114, El Desierto Cálido
+        V771Checks.Edit(r);                // v7.7.1: rocas cerradas, objetos modelados, cordura
     }
 
     // v7.6.0: Nivel 4 (Complejo industrial): texturas PBR nuevas, escala de UV, tuberías modeladas y créditos

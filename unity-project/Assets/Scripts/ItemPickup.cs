@@ -161,6 +161,7 @@ public class ItemPickup : MonoBehaviour
     // v7.0.2: modelo realista (Resources/Items) si está; si no, el de primitivas de siempre. Devuelve true si es el realista.
     public static bool BuildVisual(ItemType t, Transform root)
     {
+        if (UseModels && DesertItemModels.Build(t, root)) return true;   // v7.7.1: botellas y lata modeladas en el desierto
         if (UseModels && ItemModels.Build(ItemModels.IdFor(t, t == ItemType.None), root) != null) return true;
         BuildPrimitiveVisual(t, root);
         return false;

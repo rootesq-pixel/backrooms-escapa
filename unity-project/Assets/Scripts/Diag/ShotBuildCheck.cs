@@ -306,7 +306,26 @@ public class ShotBuildCheck : MonoBehaviour
                 {
                     string nm = "d_" + (18 + kd * 4 + di) + "_roca" + kd + "_" + dists[di].ToString("F0") + "m";
                     float a = oc.yaw * Mathf.Deg2Rad + 0.6f; Vector2 e = oc.c + new Vector2(Mathf.Sin(a), Mathf.Cos(a)) * dists[di];
+                    // la cámara dentro del cuadro del nivel (fuera no hay dunas: se veía la arena «gris» desde debajo); por detrás (ángulo + pi) también vale
+                    for (int k = 0; k < 8 && (e.x < 4f || e.y < 4f || e.x > pl.L - 4f || e.y > pl.L - 4f); k++) { a += Mathf.PI / 4f; e = oc.c + new Vector2(Mathf.Sin(a), Mathf.Cos(a)) * dists[di]; }
                     if (want(nm)) yield return View(pw, mc, nm, P(e.x, e.y, 1.7f), P(oc.c.x, oc.c.y, 2.5f), 58f, P(e.x, e.y, 0.05f));
+                }
+            }
+        }
+        // v7.7.1: los mismos acantilados POR DETRÁS (de donde salían los jirones: cáscara escaneada abierta), a 15 y 30 m
+        {
+            Set(16.5f, 0); int sh = 30;
+            foreach (int kd in new[] { 0, 1 })
+            {
+                DesertPlan.Outcrop oc = default(DesertPlan.Outcrop); bool got = false;
+                foreach (DesertPlan.Outcrop o in pl.outcrops) if (!o.cave && o.kind == kd) { oc = o; got = true; break; }
+                if (!got) continue;
+                foreach (float dd in new[] { 15f, 30f })
+                {
+                    string nm = "d_" + (sh++) + "_roca" + kd + "_atras_" + dd.ToString("F0") + "m";
+                    float a = oc.yaw * Mathf.Deg2Rad + 0.6f + Mathf.PI; Vector2 e = oc.c + new Vector2(Mathf.Sin(a), Mathf.Cos(a)) * dd;
+                    for (int k = 0; k < 8 && (e.x < 4f || e.y < 4f || e.x > pl.L - 4f || e.y > pl.L - 4f); k++) { a += Mathf.PI / 4f; e = oc.c + new Vector2(Mathf.Sin(a), Mathf.Cos(a)) * dd; }
+                    if (want(nm)) yield return View(pw, mc, nm, P(e.x, e.y, 1.7f), P(oc.c.x, oc.c.y, 3f), 62f, P(e.x, e.y, 0.05f));
                 }
             }
         }
@@ -316,12 +335,24 @@ public class ShotBuildCheck : MonoBehaviour
             var seenT = new System.Collections.Generic.HashSet<ItemType>(); int shot = 0;
             foreach (ItemPickup ip in Object.FindObjectsOfType<ItemPickup>())
             {
-                if (ip.netId < DesertItems.NetBase || ip.netId >= DesertItems.NetBase + 1000 || seenT.Contains(ip.type)) continue;
+                if (ip.transform.parent == null || ip.transform.parent.name != "DesertPickups" || seenT.Contains(ip.type)) continue;   // en solitario no llevan id de red
                 seenT.Add(ip.type);
                 Vector3 c = ip.transform.position, lc = root.InverseTransformPoint(c);
                 Vector3 eW = root.TransformPoint(lc + new Vector3(0.75f, 0f, 0.55f)); eW.y = c.y + 0.55f;
                 string nm = "d_" + (26 + shot) + "_objeto_" + ip.type;
                 if (want(nm) || want("d_26")) yield return View(pw, mc, nm, eW, c, 40f, root.TransformPoint(lc + new Vector3(1.6f, 0f, 1.2f)));
+                // «antes»: el mismo objeto con el aspecto de la v7.7.0, y se deja como estaba
+                if (want(nm) || want("d_26"))
+                {
+                    System.Action<bool> rebuild = on =>
+                    {
+                        for (int ci = ip.transform.childCount - 1; ci >= 0; ci--) { Transform ch = ip.transform.GetChild(ci); if (ch.name == "Visual" || ch.name.StartsWith("Model_")) Object.DestroyImmediate(ch.gameObject); }
+                        DesertItemModels.Enabled = on; ItemPickup.BuildVisual(ip.type, ip.transform); DesertItemModels.Enabled = true;
+                    };
+                    rebuild(false);
+                    yield return View(pw, mc, "d_" + (36 + shot) + "_objeto_" + ip.type + "_antes", eW, c, 40f, root.TransformPoint(lc + new Vector3(1.6f, 0f, 1.2f)));
+                    rebuild(true);
+                }
                 if (++shot >= 4) break;
             }
         }

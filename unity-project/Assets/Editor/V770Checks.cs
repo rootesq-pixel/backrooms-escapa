@@ -46,7 +46,7 @@ public static class V770Checks
             T + "clima determinista por semilla, el primer tramo despejado, salen los 7 climas (despejado " + n[0] + ", nieve " + n[5] + ", hermoso " + n[6] + ")");
         r.Check(Mathf.Approximately(DesertSky.SegLength * 4f, DesertSky.DayLength), T + "el clima cambia cada «6 h» (4 tramos por día de " + DesertSky.DayLength + " s)");
         r.Check(credits.Contains("Sonicelmaspro2") && credits.Contains("Omaigad12") && credits.Contains("Poly Haven") && ui.Contains("Sonicelmaspro2") && ui.Contains("Omaigad12"), T + "créditos: Sonicelmaspro2, Omaigad12 y Poly Haven (CREDITS.md y pantalla de créditos)");
-        r.Check(GameVersion.Current == "7.7.0" && NetSession.Protocol == "BackroomsEscape-MP-10", T + "versión " + GameVersion.Current + ", protocolo " + NetSession.Protocol);
+        r.Check(GameVersion.Current.StartsWith("7.7.") && NetSession.Protocol == "BackroomsEscape-MP-10", T + "versión " + GameVersion.Current + ", protocolo " + NetSession.Protocol);
         foreach (string s in new[] { "Desert/Shaders/DesertSky", "Desert/Shaders/DesertSand" })
         {
             Shader sh = Resources.Load<Shader>(s);
@@ -88,6 +88,14 @@ public static class V770Checks
         r.Check(sky.Night < 0.05f && sky.SunElev > 30f, T + "mediodía: sol alto (" + sky.SunElev.ToString("F0") + "°)");
         DesertSky.ForceHour = 23.5f; yield return 0.3f;
         r.Check(sky.Night > 0.8f && fx.BirdsVisible == 0 && RenderSettings.ambientSkyColor.grayscale < 0.08f, T + "noche cerrada: oscuro (ambiente " + RenderSettings.ambientSkyColor.grayscale.ToString("F3") + "), sin pájaros");
+        {   // v7.7.1: la cordura no baja nunca en el desierto (de noche y con la linterna apagada)
+            Sanity sn = Sanity.Instance; Flashlight fl0 = gm.player.GetComponentInChildren<Flashlight>();
+            if (fl0 != null) fl0.SetOn(false);
+            float v0 = 70f; if (sn != null) sn.value = v0;
+            Time.captureDeltaTime = 0.1f; for (int q = 0; q < 50; q++) yield return null; Time.captureDeltaTime = 0f;   // 5 s de juego a paso fijo
+            r.Check(sn != null && Sanity.NoDrainLevel && sn.value >= v0 - 0.001f && sn.DrainRate >= 0f, T + "cordura: de noche y con la linterna apagada no baja (" + (sn != null ? v0.ToString("F0") + " -> " + sn.value.ToString("F1") + ", tasa " + sn.DrainRate.ToString("F2") : "sin Sanity") + ")");
+            if (sn != null) sn.value = 100f;
+        }
         DesertSky.ForceHour = 12f; yield return null;
 
         // ---- objetos nuevos

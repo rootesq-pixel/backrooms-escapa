@@ -32,6 +32,7 @@ public class Sanity : MonoBehaviour
     public void Commit() { Carry = value; }
     public void Revert() { Carry = startOfLevel; }
     public static void ResetAll() { Carry = 100f; }
+    public static bool NoDrainLevel { get { return DesertWorld.Active != null; } }
 
     // v7.0.2: miedo por cercanía. Empieza a ~15 m, es máximo a ≤5 m y se dobla si lo estás mirando (con línea de visión).
     //   El mímico disfrazado inquieta poco; revelado, como un monstruo. La aparición de El Vigía en el horizonte resta un poco.
@@ -97,6 +98,8 @@ public class Sanity : MonoBehaviour
         bool lightOn = flashlight != null && flashlight.IsOn;
         if (!lightOn) rate -= 0.9f;
         if (fpc != null && fpc.IsUnderwater) rate -= 0.6f;
+        // v7.7.1: en el Nivel 114 (desierto, sin entidades) la cordura nunca baja: ni la oscuridad, ni la linterna apagada, ni el clima
+        if (NoDrainLevel) { rate = 0f; MonsterDrain = 0f; sinceThreat = RecoverDelay; }
         if (rate < 0f) sinceThreat = 0f; else sinceThreat += dt;
         if (rate == 0f && sinceThreat >= RecoverDelay) rate = RecoverRate;   // luz encendida y sin peligro: se recupera despacio
         DrainRate = rate;
