@@ -35,8 +35,8 @@ public class DesertTracks : MonoBehaviour
         Shader sh = Shader.Find("Backrooms/SandDecal");
         if (sh == null) sh = Resources.Load<Shader>("Desert/Shaders/SandDecal");
         Texture2D ft = FootTex(), tt = TreadTex(); t.owned.Add(ft); t.owned.Add(tt);
-        t.foot = t.MakePool("Footprints", FootMax, sh, ft, new Color(0.64f, 0.50f, 0.36f));   // arena pisada: más oscura (hundida, en sombra)
-        t.tyre = t.MakePool("TyreTracks", TyreMax, sh, tt, new Color(0.64f, 0.50f, 0.36f));
+        t.foot = t.MakePool("Footprints", FootMax, sh, ft, new Color(0.70f, 0.55f, 0.40f));   // arena pisada: más oscura (hundida, en sombra)
+        t.tyre = t.MakePool("TyreTracks", TyreMax, sh, tt, new Color(0.70f, 0.55f, 0.40f));
         Active = t; return t;
     }
     private void OnDestroy() { if (Active == this) Active = null; foreach (Object o in owned) ProceduralAssets.SafeDestroy(o); }
@@ -205,7 +205,7 @@ public class DesertTracks : MonoBehaviour
                 float inside = Mathf.Clamp01((1f - Mathf.Max(d, endD)) * 6f);
                 float rim = Mathf.Clamp01(1f - Mathf.Abs(Mathf.Max(d, endD) - 1.05f) * 7f) * 0.6f;
                 float lug = (Mathf.Repeat(v * 11f, 1f) < 0.45f) ? 0.82f : 1f;
-                float shade = Mathf.Lerp(1.08f, 0.66f * lug + arch * 0.2f, inside);
+                float shade = Mathf.Lerp(1.08f + rim * 0.55f, 0.52f * lug + arch * 0.2f, inside);   // borde de arena levantada (claro) y hueco en sombra
                 float a = Mathf.Clamp01(inside * 0.9f + rim * 0.5f);
                 t.SetPixel(x, y, new Color(shade, shade * 0.98f, shade * 0.95f, a));
             }
@@ -224,8 +224,8 @@ public class DesertTracks : MonoBehaviour
                 float vv = Mathf.Repeat(v + Mathf.Abs(u) * 0.35f, 1f);
                 float lug = vv < 0.5f ? 0.62f : 0.82f;
                 float rim = Mathf.Clamp01(1f - Mathf.Abs(Mathf.Abs(u) - 0.97f) * 12f);
-                float shade = Mathf.Lerp(1.08f, lug, edge);
-                float a = Mathf.Clamp01(edge * 0.85f + rim * 0.4f);
+                float shade = Mathf.Lerp(1.08f + rim * 0.5f, lug * 0.85f, edge);   // surco en sombra con los bordes de arena empujada más claros
+                float a = Mathf.Clamp01(edge * 0.9f + rim * 0.6f);
                 t.SetPixel(x, y, new Color(shade, shade * 0.98f, shade * 0.95f, a));
             }
         t.Apply(true); return t;
