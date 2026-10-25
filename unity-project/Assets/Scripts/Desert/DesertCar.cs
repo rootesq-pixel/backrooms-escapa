@@ -403,24 +403,26 @@ public class DesertCar : MonoBehaviour
 
     private float engineT;
     // v7.8.0 (realismo): sonda de reflejos propia (cielo, dunas, sol) para los cristales y la pintura; en el desierto no hay otra.
-    // Barata: 64 px, una cara por fotograma, se repinta cada 2,5 s y solo si la cámara está a menos de 70 m.
+    // Barata: 64 px, se repinta cada 2,5 s y solo si la cámara está a menos de 70 m (y en cuanto llega cerca).
     public ReflectionProbe probe;
-    private float probeT = -10f;
+    private float probeT = -10f; private bool probeNear;
     public int ProbeRenders { get; private set; }
     private void BuildProbe()
     {
         GameObject g = new GameObject("CarReflections"); g.transform.SetParent(transform, false); g.transform.localPosition = new Vector3(0f, 3.0f, 0f);
         probe = g.AddComponent<ReflectionProbe>();
         probe.mode = ReflectionProbeMode.Realtime; probe.refreshMode = ReflectionProbeRefreshMode.ViaScripting;
-        probe.timeSlicingMode = ReflectionProbeTimeSlicingMode.IndividualFaces; probe.resolution = 64; probe.hdr = true;
+        probe.timeSlicingMode = ReflectionProbeTimeSlicingMode.NoTimeSlicing;   // las 6 caras de golpe (64 px): nunca queda a medias en negro probe.resolution = 64; probe.hdr = true;
         probe.size = new Vector3(14f, 10f, 14f); probe.boxProjection = false; probe.importance = 2; probe.shadowDistance = 0f;
         probe.farClipPlane = 400f; probe.nearClipPlane = 0.5f; probe.clearFlags = ReflectionProbeClearFlags.Skybox;
     }
     private void UpdateProbe()
     {
-        if (probe == null || Time.time - probeT < 2.5f) return;
+        if (probe == null) return;
         Camera cam = Camera.main; if (cam == null) return;
-        if ((cam.transform.position - transform.position).sqrMagnitude > 70f * 70f) return;
+        bool near = (cam.transform.position - transform.position).sqrMagnitude < 70f * 70f;
+        bool arrived = near && !probeNear; probeNear = near;
+        if (!near || (!arrived && Time.time - probeT < 2.5f)) return;
         probeT = Time.time; probe.RenderProbe(); ProbeRenders++;
     }
 
@@ -624,6 +626,15 @@ public class DesertCar : MonoBehaviour
         return best;
     }
 
+    // pruebas: coloca el coche parado en un punto local del desierto (sobre la arena) con un rumbo dado
+    public void DebugPlace(Vector3 local, float yaw)
+    {
+        steerAngle = 0f; throttle = 0f; steerIn = 0f; flipT = 0f;
+        Vector3 p = local; p.y = DesertHeight.H(Mathf.Repeat(p.x, DesertHeight.L), Mathf.Repeat(p.z, DesertHeight.L)) + 0.05f;
+        transform.position = lroot.TransformPoint(p); transform.rotation = lroot.rotation * Quaternion.Euler(0f, yaw, 0f);
+        if (rb != null) { rb.position = transform.position; rb.rotation = transform.rotation; if (!rb.isKinematic) { rb.velocity = Vector3.zero; rb.angularVelocity = Vector3.zero; } }
+        for (int i = 0; i < 4; i++) trackOn[i] = false;
+    }
     public void Respawn()
     {
         hidden = false; sinking = false; sinkDepth = 0f; hiddenT = 0f; steerAngle = 0f; throttle = 0f; steerIn = 0f; handbrake = true; flipT = 0f;

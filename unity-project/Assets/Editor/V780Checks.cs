@@ -134,11 +134,32 @@ public static class V780Checks
         for (float t = 0f; t < 14f; t += Time.deltaTime) { vmaxSeen = Mathf.Max(vmaxSeen, car.ForwardSpeed); if (t8 < 0f && car.ForwardSpeed > 13.9f) t8 = Time.time - tStart; yield return null; }
         float moved = Vector3.Distance(c0, car.transform.position);
         r.Check(vmaxSeen > 15f && vmaxSeen < DesertCar.Vmax + 1.2f && moved > 60f, T + "acelera por las dunas: " + (vmaxSeen * 3.6f).ToString("F0") + " km/h máx (tope 75), 0-50 en " + (t8 >= 0 ? t8.ToString("F1") + " s" : "—") + ", " + moved.ToString("F0") + " m");
+        { IEnumerator wf = WaitFor(() => car.Grounded, 2f); while (wf.MoveNext()) yield return wf.Current; }   // tras una cresta puede ir en el aire un instante
         float roll = Vector3.Angle(car.transform.up, Vector3.up);
         r.Check(roll < 35f && car.Grounded, T + "estable en las dunas (inclinación " + roll.ToString("F0") + "°), ruedas en el suelo");
         r.Check(car.EngineVolume > 0.3f && dc.tracks.TyreAdded > f0 + 10 && car.DustEmitted > d0 + 10, T + "motor sonando (" + car.EngineVolume.ToString("F2") + "), rodadas (" + (dc.tracks.TyreAdded - f0) + ") y polvo de las ruedas (" + (car.DustEmitted - d0) + ")");
         r.Check(car.DustAlive >= 25, T + "nube de polvo visible detrás del coche (" + car.DustAlive + " partículas vivas)");
-        // girar
+        // girar (en un sitio despejado: según la semilla, tras 70 m el coche puede haber topado con una casa o una roca)
+        {
+            Vector3 cl = w.levelRoot.InverseTransformPoint(car.transform.position); Vector3 best = cl; bool found = false;
+            for (int k = 0; k < 40 && !found; k++)
+            {
+                float ang = k * 2.4f, dist = k == 0 ? 0f : 12f + k * 4f;
+                Vector3 q = cl + new Vector3(Mathf.Cos(ang), 0f, Mathf.Sin(ang)) * dist;
+                q.y = DesertHeight.H(Mathf.Repeat(q.x, w.L), Mathf.Repeat(q.z, w.L));
+                bool clear = true;
+                foreach (Collider c in Physics.OverlapSphere(w.levelRoot.TransformPoint(q + Vector3.up * 1.5f), 11f, ~0, QueryTriggerInteraction.Ignore))
+                    if (!(c.name.StartsWith("Dune_") || c.transform.IsChildOf(car.transform) || c is CharacterController)) { clear = false; break; }
+                float slope = Mathf.Abs(DesertHeight.H(Mathf.Repeat(q.x + 6f, w.L), Mathf.Repeat(q.z, w.L)) - DesertHeight.H(Mathf.Repeat(q.x - 6f, w.L), Mathf.Repeat(q.z, w.L))) + Mathf.Abs(DesertHeight.H(Mathf.Repeat(q.x, w.L), Mathf.Repeat(q.z + 6f, w.L)) - DesertHeight.H(Mathf.Repeat(q.x, w.L), Mathf.Repeat(q.z - 6f, w.L)));
+                if (clear && slope < 2.5f && w.plan.QuickAt(new Vector2(Mathf.Repeat(q.x, w.L), Mathf.Repeat(q.z, w.L)), 6f) < 0) { best = q; found = true; }
+            }
+            if (car.Speed < 3f || (best - cl).sqrMagnitude > 0.01f)
+            {
+                r.Info(T + "giro: velocidad " + (car.Speed * 3.6f).ToString("F0") + " km/h; sitio despejado a " + Vector3.Distance(best, cl).ToString("F0") + " m");
+                car.DebugPlace(best, car.transform.eulerAngles.y - w.levelRoot.eulerAngles.y);
+                DesertCars.DbgThrottle = 0.8f; DesertCars.DbgSteer = 0f; yield return 2.0f;
+            }
+        }
         DesertCars.DbgThrottle = 0.6f; DesertCars.DbgSteer = 1f;
         float y1 = car.transform.eulerAngles.y;
         yield return 3.0f;
@@ -173,9 +194,20 @@ public static class V780Checks
         // huellas al andar
         int fa = dc.tracks.FootAdded;
         p.debugInput = true; p.debugMove = new Vector2(0f, 1f);
-        p.transform.rotation = Quaternion.Euler(0f, car.transform.eulerAngles.y + 90f * Mathf.Sign(off.x), 0f);
-        yield return 3.0f;
+        Vector3 w0 = p.transform.position;
+        {   // alejarse del coche; si algo corta el paso (cuesta, casa, roca), probar otra dirección
+            float[] dirs = { 90f * Mathf.Sign(off.x), 180f, 90f * Mathf.Sign(off.x) + 45f, 0f, 90f * Mathf.Sign(off.x) - 45f };
+            for (int di = 0; di < dirs.Length && dc.tracks.FootAdded <= fa + 3; di++)
+            {
+                p.transform.rotation = Quaternion.Euler(0f, car.transform.eulerAngles.y + dirs[di], 0f);
+                yield return 1.6f;
+            }
+        }
         p.debugMove = Vector2.zero; p.debugInput = false;
+        {
+            string under = "—"; if (Physics.Raycast(p.transform.position + Vector3.up * 0.5f, Vector3.down, out RaycastHit uh, 3f, ~0, QueryTriggerInteraction.Ignore)) under = uh.collider.name;
+            r.Info(T + "huellas: andados " + Vector3.Distance(w0, p.transform.position).ToString("F1") + " m, suelo " + under + ", en el suelo " + p.IsGrounded);
+        }
         r.Check(dc.tracks.FootAdded > fa + 3, T + "huellas al andar por la arena (" + (dc.tracks.FootAdded - fa) + ")");
         float a0 = dc.tracks.MeanAlphaFoot();
         dc.tracks.AgeAll(DesertTracks.Life * 0.6f); float a1 = dc.tracks.MeanAlphaFoot();

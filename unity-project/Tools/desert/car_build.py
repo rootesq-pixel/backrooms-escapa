@@ -25,8 +25,8 @@ def mat(name, col, rough=0.6, metal=0.0, emit=None, alpha=1.0):
     m["base"] = col
     return m
 M = {
- "Paint": mat("Paint", (0.085, 0.105, 0.068), 0.55, 0.1),
- "Black": mat("Black", (0.018, 0.018, 0.018), 0.75),
+ "Paint": mat("Paint", (0.17, 0.19, 0.125), 0.55, 0.1),   # oliva descolorido por el sol
+ "Black": mat("Black", (0.032, 0.031, 0.029), 0.75),
  "Metal": mat("Metal", (0.30, 0.30, 0.29), 0.45, 0.9),
  "Chrome": mat("Chrome", (0.62, 0.62, 0.60), 0.15, 1.0),
  "Glass": mat("Glass", (0.25, 0.3, 0.3), 0.05, 0.0, None, 0.3),
@@ -34,7 +34,7 @@ M = {
  "Lamp": mat("Lamp", (0.9, 0.9, 0.85), 0.1, 0.0, (1, 0.95, 0.8)),
  "Tail": mat("Tail", (0.6, 0.05, 0.03), 0.2, 0.0, (0.8, 0.05, 0.02)),
  "Amber": mat("Amber", (0.75, 0.30, 0.02), 0.2),
- "Rubber": mat("Rubber", (0.022, 0.021, 0.020), 0.92),
+ "Rubber": mat("Rubber", (0.030, 0.029, 0.027), 0.92),
  "Rim": mat("Rim", (0.40, 0.40, 0.38), 0.45, 0.6),
  "Orange": mat("Orange", (0.62, 0.16, 0.012), 0.5),
  "Canvas": mat("Canvas", (0.22, 0.17, 0.10), 0.95),
@@ -376,7 +376,7 @@ def weather(m, dust_amt, rust_amt, chip_amt):
     dc = N.new("ShaderNodeMixRGB"); dc.inputs["Color1"].default_value = (0.42, 0.31, 0.19, 1); dc.inputs["Color2"].default_value = (0.55, 0.43, 0.28, 1); L.new(noise(14.0, 4.0), dc.inputs["Fac"])
     c3 = N.new("ShaderNodeMixRGB"); L.new(dmask, c3.inputs["Fac"]); L.new(c2.outputs[0], c3.inputs["Color1"]); L.new(dc.outputs[0], c3.inputs["Color2"])
     L.new(c3.outputs[0], bsdf.inputs["Base Color"])
-WEAR = {"Paint": (0.75, 0.55, 0.25), "Black": (0.85, 0.25, 0.0), "Metal": (0.6, 0.7, 0.0), "Chrome": (0.35, 0.3, 0.0), "Rubber": (0.9, 0.0, 0.0),
+WEAR = {"Paint": (0.9, 0.55, 0.25), "Black": (0.85, 0.25, 0.0), "Metal": (0.6, 0.7, 0.0), "Chrome": (0.35, 0.3, 0.0), "Rubber": (0.9, 0.0, 0.0),
         "Rim": (0.8, 0.6, 0.3), "Cloth": (0.35, 0.0, 0.0), "Amber": (0.3, 0.0, 0.0), "Plate": (0.45, 0.2, 0.2), "Orange": (0.55, 0.0, 0.3),
         "Canvas": (0.5, 0.0, 0.0), "Jerry": (0.6, 0.4, 0.5)}
 for k, (dd, rr, ch) in WEAR.items(): weather(M[k], dd, rr, ch)
