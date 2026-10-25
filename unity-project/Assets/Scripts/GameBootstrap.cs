@@ -354,7 +354,7 @@ public class GameBootstrap : MonoBehaviour
 
         // 2) NavMesh (antes de crear jugador y monstruos para que no entren en el horneado)
         bool navBuilt = false;
-        if (spawnMonster && buildNavMesh && !netClient && cfg.layout != LayoutKind.Ocean)   // v7.3.0: en el mar no hay monstruos de NavMesh
+        if (spawnMonster && buildNavMesh && !netClient && cfg.HasMonsterAI)   // v7.3.0: en el mar no hay monstruos de NavMesh (v7.7.0: ni en el desierto)
         {
             BallpitSetPiece.BeginNavBuild();
             navBuilt = MonsterAI.TryBuildRuntimeNavMesh(generator.Root.gameObject);
@@ -376,7 +376,7 @@ public class GameBootstrap : MonoBehaviour
         LoadDiag.Step("monstruos");
         // 4) Monstruos
         List<MonsterAI> monsters = new List<MonsterAI>();
-        if (spawnMonster && cfg.layout != LayoutKind.Ocean)   // v7.3.0: Talasofobia usa sus propias criaturas (OceanCreatures)
+        if (spawnMonster && cfg.HasMonsterAI)   // v7.3.0: Talasofobia usa sus propias criaturas (OceanCreatures); v7.7.0: en el Desierto Cálido no entra nada
         {
             int mcount = Mathf.Max(1, cfg.monsterCount) + (ns != null ? ns.extraMonsters : 0);
             for (int i = 0; i < generator.MonsterSpawns.Count && i < mcount; i++)
@@ -423,6 +423,15 @@ public class GameBootstrap : MonoBehaviour
             FieldWatcherApparition.Create(worldRoot.transform, generator);
         }
 
+        // 5c) v7.7.0 Desierto Cálido: cielo con día y noche, clima (partículas, sonido) y riesgos (arenas movedizas, el Vacío, resbalones)
+        if (cfg.layout == LayoutKind.Desert && DesertWorld.Active != null)
+        {
+            LoadDiag.Step("desierto: cielo y clima");
+            DesertSky.Create(worldRoot.transform, generator.UsedSeed, cfg, worldAssets);
+            DesertFx.Create(worldRoot.transform, generator, fpc, cam, flashlight);
+            DesertItems.Spawn(worldRoot.transform, generator, ns != null);
+        }
+
         LoadDiag.Step("HUD y GameManager");
         // 6) UI + GameManager
         GameObject gmGo = new GameObject("GameManager");
@@ -431,7 +440,7 @@ public class GameBootstrap : MonoBehaviour
         gm.player = fpc;
         gm.flashlight = flashlight;
         gm.exit = generator.ExitTransform;
-        if (cfg.layout != LayoutKind.Ocean) ExitLock.Create(gm.gameObject, generator.UsedSeed, cfg.index, generator.ExitTransform, gm.exitRadius);   // v7.0.4: salida cerrada con llave (en el mar: salir a la superficie en la gruta)
+        if (cfg.layout != LayoutKind.Ocean && cfg.layout != LayoutKind.Desert) ExitLock.Create(gm.gameObject, generator.UsedSeed, cfg.index, generator.ExitTransform, gm.exitRadius);   // v7.0.4: salida cerrada con llave (en el mar: salir a la superficie en la gruta)
         gm.monsters = monsters.ToArray();
         gm.monster = monsters.Count > 0 ? monsters[0] : null;
         gm.playerCamera = cam.transform;
@@ -513,7 +522,7 @@ public class GameBootstrap : MonoBehaviour
         RenderSettings.fogColor = cfg.fog;
         RenderSettings.fogDensity = cfg.fogDensity;
         Shader.SetGlobalFloat("_GradeAmt", cfg.grade);
-        PostStack.LevelActive = cfg.index == 2 || cfg.layout == LayoutKind.Field || cfg.layout == LayoutKind.Ocean;   // v6.9: post-procesado tipo POOLS (Poolrooms; v7.0 también el campo)
+        PostStack.LevelActive = cfg.index == 2 || cfg.layout == LayoutKind.Field || cfg.layout == LayoutKind.Ocean || cfg.layout == LayoutKind.Desert;   // v6.9: post-procesado tipo POOLS (Poolrooms; v7.0 también el campo)
         PostStack.Exposure = cfg.postExposure; PostStack.BloomInt = cfg.postBloom; PostStack.Threshold = cfg.postThreshold;   // v7.2.0: por nivel
         Shader.SetGlobalFloat("_GradeWarm", 1f);
         Shader.SetGlobalFloat("_GradeContrast", 1.4f);
@@ -558,6 +567,7 @@ public class GameBootstrap : MonoBehaviour
         cam.backgroundColor = cfg.fog;
         cam.allowHDR = true;
         if (cfg.layout == LayoutKind.Field) FieldAtmosphere.SetupCamera(cam);
+        if (cfg.layout == LayoutKind.Desert) { cam.clearFlags = CameraClearFlags.Skybox; cam.farClipPlane = DesertWorld.FarClip; }   // v7.7.0
         if (cfg.layout == LayoutKind.Ocean) cam.farClipPlane = 330f;   // v7.3.0: el faro se intuye a ~230 m entre la niebla
         camGo.AddComponent<AudioListener>();
         camGo.AddComponent<VhsEffect>();

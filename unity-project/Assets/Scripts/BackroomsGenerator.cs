@@ -45,6 +45,8 @@ public class BackroomsGenerator : MonoBehaviour
     private readonly Dictionary<int, float> sconceAlong = new Dictionary<int, float>();   // v7.5.0: apliques por cara de celda (las puertas del hotel los esquivan)
     public GaragePlan Garage { get; private set; }     // v7.0.4: plantas del aparcamiento (null en otros niveles)   // v7.0: casas/postes/puertas del Campo infinito (null en otros niveles)
     public bool IsField { get { return config != null && config.layout == LayoutKind.Field; } }
+    public bool IsDesert { get { return config != null && config.layout == LayoutKind.Desert; } }   // v7.7.0
+    public DesertPlan DesertPlan { get; private set; }
     public Vector3 PlayerStart { get; private set; }
     public float PlayerStartYaw { get; private set; }
     public Vector3 MonsterSpawn { get; private set; }
@@ -161,7 +163,7 @@ public class BackroomsGenerator : MonoBehaviour
         roomCount = config.roomCount;
         roomSizeRange = config.roomSize;
 
-        FieldHeight.Reset(); FieldPlan = null; Garage = null; GaragePlan.Active = null; StartDoorRepairs = 0;
+        FieldHeight.Reset(); FieldWrap.OtherRoot = null; DesertPlan = null; FieldPlan = null; Garage = null; GaragePlan.Active = null; StartDoorRepairs = 0;
         UsedSeed = useRandomSeed ? System.Environment.TickCount : seed;
         System.Random rng = new System.Random(UsedSeed);
 
@@ -469,6 +471,20 @@ public class BackroomsGenerator : MonoBehaviour
             startCell = new Vector2Int(w / 2, h / 2);
         }
 
+        // v7.7.0 Desierto Cálido: sin muros; la rejilla (4x4 de 128 m) solo sitúa la cabina del ascensor. Plan (aldeas, salida,
+        // arenas movedizas...) y altura de las dunas antes que nada: todo lo demás pregunta la altura del suelo
+        if (config.layout == LayoutKind.Desert)
+        {
+            for (int i = 0; i <= w; i++) for (int j = 0; j < h; j++) wallsV[i, j] = false;
+            for (int i = 0; i < w; i++) for (int j = 0; j <= h; j++) wallsH[i, j] = false;
+            startCell = new Vector2Int(w / 2, h / 2);
+            float L = w * cellSize;
+            Vector2 st = new Vector2((startCell.x + 0.5f) * cellSize, (startCell.y + 0.5f) * cellSize);
+            DesertHeight.Init(UsedSeed, L);
+            DesertPlan = DesertPlan.Make(UsedSeed, L, st);
+            FieldHeight.InitCustom(L, DesertHeight.H);
+        }
+
         // v7.0 Campo infinito: sin muros (ni siquiera el borde: el campo se repite), salida desde el centro
         if (config.layout == LayoutKind.Field)
         {
@@ -770,6 +786,7 @@ public class BackroomsGenerator : MonoBehaviour
 
         if (cfg.layout == LayoutKind.Field) { BuildFieldGeometry(rng); return; }
         if (cfg.layout == LayoutKind.Ocean) { BuildOceanGeometry(rng); return; }
+        if (cfg.layout == LayoutKind.Desert) { BuildDesertGeometry(rng); return; }
 
         float cs = cellSize;
         float totalW = w * cs;
@@ -1724,6 +1741,23 @@ public class BackroomsGenerator : MonoBehaviour
         KeySpots = new List<Vector3>();
         ExitTransform = ow.ExitTransform;
         ExitPosition = ow.ExitTransform.position;
+    }
+
+    // v7.7.0 Desierto Cálido: todo el nivel lo construye DesertWorld (dunas, aldeas, pozos, rocas, plantas, cuevas, salida de piedra)
+    private void BuildDesertGeometry(System.Random rng)
+    {
+        LevelConfig cfg = config;
+        TextureLibrary.ReleaseAllExcept(new HashSet<string>());
+        WallSegmentCount = 0; PillarCount = 0;
+        DesertWorld dw = DesertWorld.Build(this, cfg, levelRoot, DesertPlan, o => Track(o));
+        PlayerStart = levelRoot.TransformPoint(dw.StartLocal + new Vector3(0f, 0.1f, 0f)); PlayerStartYaw = dw.StartYaw;
+        MonsterSpawns = new List<Vector3>();
+        MonsterSpawn = PlayerStart;
+        BatterySpots = new List<Vector3>(dw.BatterySpots);
+        ExtraSpots = new List<Vector3>(dw.ExtraSpots);
+        KeySpots = new List<Vector3>();
+        ExitTransform = dw.ExitTransform;
+        ExitPosition = dw.ExitTransform.position;
     }
 
     // v7.0 Campo infinito: terreno, casas y accesorios (FieldWorld); sin muros, techo ni luces de techo

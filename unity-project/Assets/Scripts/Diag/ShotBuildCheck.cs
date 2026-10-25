@@ -57,6 +57,7 @@ public class ShotBuildCheck : MonoBehaviour
         mc.cullingMask &= ~(1 << 8);
         if (PoolRoomSetPiece.Root != null) yield return Pool(gm, pw, mc);
         else if (FieldWorld.Active != null) yield return Field(gm, pw, mc);
+        else if (DesertWorld.Active != null) yield return Desert(gm, pw, mc);
         else if (OceanWorld.Active != null && System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-swimseq") >= 0) yield return SwimSeq(gm, pw, mc);
         else if (OceanWorld.Active != null) yield return Ocean(gm, pw, mc);
         else if (GameBootstrap.Instance.CurrentLevel == 0) yield return Level0(gm, pw, mc);
@@ -212,6 +213,87 @@ public class ShotBuildCheck : MonoBehaviour
             break;
         }
         FieldGrass.Synchronous = false;
+    }
+
+    // v7.7.0 Nivel 114 «El Desierto Cálido»: vistas a distintas horas y con cada clima (hora y clima forzados, sin VHS)
+    IEnumerator Desert(GameManager gm, FirstPersonController pw, Camera mc)
+    {
+        VhsEffect vx = mc.GetComponent<VhsEffect>(); if (vx != null) vx.intensityOverride = 0f;
+        DesertWorld dw = DesertWorld.Active; DesertPlan pl = dw.plan; Transform root = dw.levelRoot;
+        System.Func<float, float, float, Vector3> P = (x, z, up) => root.TransformPoint(new Vector3(x, DesertHeight.H(Mathf.Repeat(x, pl.L), Mathf.Repeat(z, pl.L)) + up, z));
+        Info("desierto: trozos " + dw.chunkCount + ", casas " + dw.houseCount + ", aldeas " + pl.villages.Count + ", pozos " + dw.wellCount + ", rocas " + dw.rockCount + ", cuevas " + dw.caveCount + ", vetas " + dw.veinCount + ", plantas " + dw.plantCount + ", modelos " + dw.propCount + ", copias " + dw.GhostCount + ", arenas movedizas " + pl.quick.Count);
+        string only = null; string[] args = System.Environment.GetCommandLineArgs();
+        for (int i = 0; i < args.Length - 1; i++) if (args[i] == "-desertshots") only = args[i + 1];
+        System.Func<string, bool> want = n => only == null || only.Contains(n.Substring(0, 4));
+        Vector3 s = dw.StartLocal; float yaw = dw.StartYaw * Mathf.Deg2Rad; Vector3 f = new Vector3(Mathf.Sin(yaw), 0f, Mathf.Cos(yaw));
+        System.Func<float, int, IEnumerator> Set = (h, w) => { DesertSky.ForceHour = h; DesertSky.ForceWeather = w; if (DesertSky.Active != null) DesertSky.Active.Tick(0f); return null; };
+        // 1) saliendo del ascensor, por la mañana
+        Set(10f, 0);
+        if (want("d_01")) yield return View(pw, mc, "d_01_manana_ascensor", P(s.x + f.x * 6f, s.z + f.z * 6f, 1.65f), P(s.x + f.x * 60f, s.z + f.z * 60f, 1.0f), 62f, P(s.x + f.x * 6f, s.z + f.z * 6f, 0.05f));
+        // 2) dunas desde una cresta (el punto más alto cerca del ascensor), mediodía
+        Vector2 best = new Vector2(s.x, s.z); float bh = -1e9f;
+        for (int k = 0; k < 400; k++) { float a = k * 2.399f, r = 20f + (k % 20) * 4f; Vector2 q = new Vector2(s.x + Mathf.Cos(a) * r, s.z + Mathf.Sin(a) * r); float hq = DesertHeight.H(Mathf.Repeat(q.x, pl.L), Mathf.Repeat(q.y, pl.L)); if (hq > bh && pl.QuickAt(new Vector2(Mathf.Repeat(q.x, pl.L), Mathf.Repeat(q.y, pl.L)), 3f) < 0) { bh = hq; best = q; } }
+        Set(13.2f, 0);
+        if (want("d_02")) yield return View(pw, mc, "d_02_dunas_mediodia", P(best.x, best.y, 1.7f), P(best.x + 70f, best.y + 40f, -4f), 62f, P(best.x, best.y, 0.05f));
+        // 3) una aldea a la tarde dorada (desde fuera, a ~30 m)
+        DesertPlan.Village v = pl.villages[pl.exitVillage];
+        Vector2 vc = v.c, eye = vc + new Vector2(Mathf.Cos(0.7f), Mathf.Sin(0.7f)) * (v.r + 14f);
+        Set(17.1f, 0);
+        if (want("d_03")) yield return View(pw, mc, "d_03_aldea_tarde", P(eye.x, eye.y, 2.2f), P(vc.x, vc.y, 1.5f), 60f, P(eye.x, eye.y, 0.05f));
+        // 4) la puerta de piedra (salida)
+        Vector3 ex = dw.ExitLocal, door = root.InverseTransformPoint(dw.ExitTransform.position);
+        Vector3 back = ex + (ex - door).normalized * 2.6f; back.y = 0f;
+        Set(16.0f, 0);
+        if (want("d_04")) yield return View(pw, mc, "d_04_puerta_piedra", P(back.x + 0.6f, back.z, 1.62f), root.TransformPoint(door + Vector3.up * 0.1f), 58f, P(back.x + 0.6f, back.z, 0.05f));
+        // 5) dentro de una casa en ruinas (con techo hundido), mirando hacia la puerta
+        DesertPlan.House hh = pl.houses[0]; foreach (DesertPlan.House h in pl.houses) if (h.ruin == 1 && !h.exit) { hh = h; break; }
+        Quaternion hr = Quaternion.Euler(0f, hh.yaw, 0f); Vector2 hs = DesertPlan.TemplateSize[hh.tpl];
+        Vector3 hc = new Vector3(hh.pos.x, 0f, hh.pos.y), inEye = hc + hr * new Vector3(0.4f, 0f, -hs.y * 0.5f + 0.9f), inLook = hc + hr * new Vector3(0f, 0f, hs.y * 0.5f + 2f);
+        Set(11.5f, 0);
+        if (want("d_05")) yield return View(pw, mc, "d_05_casa_dentro", P(inEye.x, inEye.z, 1.6f), P(inLook.x, inLook.z, 1.2f), 66f, P(inEye.x, inEye.z, 0.05f));
+        // 6) casa por fuera (de cerca)
+        Vector3 oEye = hc + hr * new Vector3(2.5f, 0f, hs.y * 0.5f + 5.5f);
+        Set(9.0f, 0);
+        if (want("d_06")) yield return View(pw, mc, "d_06_casa_fuera", P(oEye.x, oEye.z, 1.65f), P(hc.x, hc.z, 1.4f), 60f, P(oEye.x, oEye.z, 0.05f));
+        // 7) el pozo
+        foreach (DesertPlan.Village vv in pl.villages) if (vv.hasWell)
+        {
+            Vector2 w = vv.well, we = w + new Vector2(3.2f, 2.2f);
+            Set(9.5f, 0);
+            if (want("d_07")) yield return View(pw, mc, "d_07_pozo", P(we.x, we.y, 1.6f), P(w.x, w.y, 0.6f), 58f, P(we.x, we.y, 0.05f));
+            break;
+        }
+        // 8) atardecer sobre las dunas, 9) noche (estrellas y luna), 10) noche con linterna
+        Set(18.15f, 0);
+        if (want("d_08")) yield return View(pw, mc, "d_08_atardecer", P(best.x, best.y, 1.7f), P(best.x - 80f, best.y + 10f, 2f), 62f, P(best.x, best.y, 0.05f));
+        Set(1.5f, 0);
+        if (want("d_09")) yield return View(pw, mc, "d_09_noche_cielo", P(best.x, best.y, 1.7f), P(best.x + 50f, best.y - 20f, 22f), 66f, P(best.x, best.y, 0.05f));
+        Flashlight fl = pw.GetComponentInChildren<Flashlight>();
+        if (fl != null) fl.SetOn(true);
+        if (want("d_10")) yield return View(pw, mc, "d_10_noche_linterna", P(oEye.x, oEye.z, 1.65f), P(hc.x, hc.z, 1.2f), 62f, P(oEye.x, oEye.z, 0.05f));
+        if (fl != null) fl.SetOn(false);
+        // 11) cueva con vetas
+        foreach (DesertPlan.Outcrop o in pl.outcrops) if (o.cave)
+        {
+            Quaternion cr = Quaternion.Euler(0f, o.yaw, 0f);
+            Vector3 cc = new Vector3(o.c.x, 0f, o.c.y), outE = cc + cr * new Vector3(0f, 0f, 13f), inE = cc + cr * new Vector3(0f, 0f, 2.5f);
+            Set(15f, 0);
+            if (want("d_11")) yield return View(pw, mc, "d_11_cueva_fuera", P(outE.x, outE.z, 1.7f), P(cc.x, cc.z, 1.5f), 60f, P(outE.x, outE.z, 0.05f));
+            if (fl != null) fl.SetOn(true);
+            if (want("d_12")) yield return View(pw, mc, "d_12_cueva_vetas", P(inE.x, inE.z, 1.5f), P(cc.x - 2f, cc.z - 3f, 1.6f), 70f, P(inE.x, inE.z, 0.05f));
+            if (fl != null) fl.SetOn(false);
+            break;
+        }
+        // 13-17) clima: nublado, lluvia, tormenta de arena, nieve, Clima Hermoso (de noche, auroras)
+        Vector3 wEye = P(eye.x, eye.y, 1.7f), wLook = P(vc.x, vc.y, 2f);
+        string[] wn = { "", "d_13_nublado", "d_14_lluvia_almendras", "", "d_15_tormenta_arena", "d_16_nieve", "d_17_clima_hermoso" };
+        for (int w = 1; w <= 6; w++)
+        {
+            if (wn[w] == "") continue;
+            Set(w == 6 ? 23f : 12f, w);
+            if (want(wn[w])) yield return View(pw, mc, wn[w], wEye, wLook, 62f, P(eye.x, eye.y, 0.05f));
+        }
+        DesertSky.ForceHour = -1f; DesertSky.ForceWeather = -1;
     }
 
     // v7.4.0 («-housedoor»): una casa abierta de cada plantilla: la puerta desde fuera (a la altura de los ojos), el jugador de pie

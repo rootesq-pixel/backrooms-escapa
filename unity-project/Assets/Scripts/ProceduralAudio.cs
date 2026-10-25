@@ -136,6 +136,7 @@ public static class ProceduralAudio
             case StepKind.Concrete: alpha = 0.35f; decay = 28f; break;
             case StepKind.Water: alpha = 0.18f; decay = 10f; break;
             case StepKind.Grass: alpha = 0.25f; decay = 24f; gain = 0.8f; break;   // suelo de madera de las casas (fuera suenan pasos de hierba reales)
+            case StepKind.Sand: alpha = 0.10f; decay = 11f; gain = 0.75f; break;   // v7.7.0: arena: compresión blanda y granulada, sin chasquido ni siseo
             default: alpha = 0.4f; decay = 32f; break;
         }
         float lp = 0f, lp2 = 0f;
@@ -147,8 +148,14 @@ public static class ProceduralAudio
             lp += alpha * (w - lp);
             lp2 += 0.02f * (w - lp2);
             float s = kind == StepKind.Water ? (lp - lp2 * 3f) : lp * 2f;
-            float env = Mathf.Min(1f, t * 400f) * Mathf.Exp(-t * decay);
+            float env = Mathf.Min(1f, t * (kind == StepKind.Sand ? 90f : 400f)) * Mathf.Exp(-t * decay);
             float v = s * env * gain;
+            if (kind == StepKind.Sand)
+            {   // granos: impulsos dispersos filtrados (crujido apagado) sobre un golpe sordo grave
+                float g = Noise.Hash01(i / 23, 7, 311) < 0.16f ? (Noise.Hash01(i, 3, 77) * 2f - 1f) : 0f;
+                lp2 += 0.25f * (g - lp2);
+                v = (lp * 1.6f + lp2 * 0.9f) * env * gain + Mathf.Sin(2f * Mathf.PI * 70f * t) * Mathf.Exp(-t * 26f) * 0.35f * Mathf.Min(1f, t * 200f);
+            }
             if (kind == StepKind.Water)
             {
                 float f = 350f + 900f * Mathf.Min(1f, t * 12f);

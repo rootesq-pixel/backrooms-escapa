@@ -1,9 +1,9 @@
 using UnityEngine;
 
-public enum LayoutKind { Maze, OpenPillars, Field, Ocean }   // v7.3.0: Ocean = Talasofobia (mar abierto, OceanWorld)
+public enum LayoutKind { Maze, OpenPillars, Field, Ocean, Desert }   // v7.3.0: Ocean = Talasofobia (mar abierto, OceanWorld); v7.7.0: Desert = Nivel 114 (DesertWorld)
 public enum FixtureKind { Panel, Tube, Sconce, Emergency }
 public enum AmbientEvent { None, Drip, Clank }   // v7.3.0d: sin crujido de madera (el usuario lo quitó)
-public enum StepKind { Carpet, Concrete, Water, Metal, Grass }
+public enum StepKind { Carpet, Concrete, Water, Metal, Grass, Sand }
 
 // Parámetros de un nivel: tema visual, tamaño, luces, monstruo, batería y audio.
 // Los niveles se definen en código (LevelConfig.Get) para no necesitar assets.
@@ -12,6 +12,8 @@ public class LevelConfig
     public int index;
     public string name;
     public string subtitle;
+    public int wikiNumber = -1;            // v7.7.0: nº del nivel en la wiki de los Backrooms si no coincide con el índice (Nivel 114)
+    public string DisplayNumber { get { return wikiNumber >= 0 ? wikiNumber.ToString() : index.ToString(); } }
 
     // --- Geometría ---
     public LayoutKind layout = LayoutKind.Maze;
@@ -112,7 +114,7 @@ public class LevelConfig
     public Color doorColor = new Color(0.55f, 0.52f, 0.38f);
     public Color doorFrameColor = new Color(0.30f, 0.24f, 0.14f);
 
-    public const int Count = 8;   // v7.3.0: nivel 7 (Talasofobia)
+    public const int Count = 9;   // v7.3.0: nivel 7 (Talasofobia); v7.7.0: nivel 8 = Nivel 114 (El Desierto Cálido)
     private static LevelConfig[] cache;
 
     public static LevelConfig Get(int index)
@@ -126,7 +128,8 @@ public class LevelConfig
     }
 
     public const string OceanCreaturesId = "OceanCreatures";
-    public bool HasMonsterAI { get { return layout != LayoutKind.Ocean; } }   // v7.3.0
+    public const string NoMonsterId = "None";   // v7.7.0: el Desierto Cálido es de clase 0: ninguna entidad puede entrar
+    public bool HasMonsterAI { get { return layout != LayoutKind.Ocean && layout != LayoutKind.Desert; } }   // v7.3.0
     public static int MonsterAILevels { get { int n = 0; for (int i = 0; i < Count; i++) if (Get(i).HasMonsterAI) n++; return n; } }
 
     private static LevelConfig Create(int i)
@@ -141,10 +144,11 @@ public class LevelConfig
             case 4: c = Level4(); break;
             case 5: c = Level5(); break;
             case 6: c = Level6(); break;
-            default: c = Level7(); break;
+            case 7: c = Level7(); break;
+            default: c = Level8(); break;
         }
         // un monstruo distinto por nivel; en Talasofobia no hay monstruo de NavMesh: sus criaturas (Los Pálidos y El Farolero) son procedurales
-        c.monsterModel = c.layout == LayoutKind.Ocean ? OceanCreaturesId : MonsterProfile.ForLevel(i).id;
+        c.monsterModel = c.layout == LayoutKind.Ocean ? OceanCreaturesId : c.layout == LayoutKind.Desert ? NoMonsterId : MonsterProfile.ForLevel(i).id;
         return c;
     }
 
@@ -427,6 +431,39 @@ public class LevelConfig
         c.eventInterval = new Vector2(9f, 20f);
         c.step = StepKind.Water;
         c.doorColor = new Color(0.50f, 0.52f, 0.50f); c.doorFrameColor = new Color(0.30f, 0.28f, 0.24f);
+        return c;
+    }
+
+    // Nivel 8 (v7.7.0): Nivel 114 de la wiki de los Backrooms, «El Desierto Cálido» (nivel de Sonicelmaspro2, ampliado por Omaigad12):
+    // un desierto cálido que parece infinito, casi sin plantas, con ciclo de día y noche y cambios de clima; aldeas abandonadas
+    // con pozos, arenas movedizas que te llevan a otra zona y, en alguna aldea, una puerta de piedra que es la salida.
+    // Clase 0: no hay entidades (ningún monstruo puede entrar). Lo construye DesertWorld (mundo periódico con vuelta, como el campo).
+    private static LevelConfig Level8()
+    {
+        LevelConfig c = new LevelConfig();
+        c.index = 8; c.wikiNumber = 114;
+        c.name = "El Desierto Cálido";
+        c.subtitle = "Arena templada hasta el horizonte, aldeas en ruinas y pozos de agua. Aquí no entra nada: solo el día, la noche y el clima.";
+        c.layout = LayoutKind.Desert;
+        c.gridW = 4; c.gridH = 4; c.cellSize = 128f; c.wallHeight = 3f;   // la rejilla solo sitúa la cabina del ascensor (el desierto mide 512 × 512 m y se repite)
+        c.loopChance = 1f; c.roomCount = 0;
+        c.wallStyle = SurfaceStyle.ConcreteWall; c.floorStyle = SurfaceStyle.ConcreteFloor; c.ceilingStyle = SurfaceStyle.ConcreteCeiling;
+        c.ambient = new Color(0.55f, 0.50f, 0.44f);
+        c.fog = new Color(0.80f, 0.72f, 0.60f);
+        c.fogDensity = 0.0042f;
+        c.grade = 0.2f;
+        c.reflectionIntensity = 0.6f;
+        c.fixture = FixtureKind.Panel; c.lightSpacing = 99; c.deadChance = 0f; c.flickerChance = 0f;
+        c.lightColor = new Color(1f, 0.95f, 0.85f); c.emissionColor = Color.white;
+        c.lightIntensity = 1f; c.lightRange = 0f; c.maxRealtimeLights = 6; c.buzzChance = 0f;
+        c.postExposure = 0.92f; c.postBloom = 0.07f; c.postThreshold = 1.15f;
+        c.flashlightDrain = 0.4f; c.flashlightRecharge = 0.12f; c.batteries = 6; c.batteryAmount = 40f; c.flashlightIntensity = 2.6f;
+        c.monsterCount = 0; c.killDistance = 1.3f;
+        c.droneHz = 30f; c.droneNoise = 0.02f; c.droneVolume = 0f; c.ambientEvent = AmbientEvent.None;   // sin zumbido: solo viento suave y pasos
+        c.eventInterval = new Vector2(20f, 40f);
+        c.step = StepKind.Sand;
+        c.extraSpots = 16;
+        c.doorColor = new Color(0.55f, 0.50f, 0.44f); c.doorFrameColor = new Color(0.40f, 0.36f, 0.30f);
         return c;
     }
 }

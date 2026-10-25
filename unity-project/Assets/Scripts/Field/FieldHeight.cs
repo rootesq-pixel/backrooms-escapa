@@ -23,7 +23,12 @@ public static class FieldHeight
         raw0 = 0f; raw0 = Raw(start.x, start.y);
     }
 
-    public static void Reset() { Active = false; }
+    public static void Reset() { Active = false; Custom = null; }
+
+    // v7.7.0: otro mundo periódico (el Desierto Cálido) reutiliza la vuelta, las copias del borde y la altura del suelo
+    // de todo el juego (FloorHeightLocal, FieldWrap, WrapView) con su propia función de altura.
+    public static System.Func<float, float, float> Custom;
+    public static void InitCustom(float period, System.Func<float, float, float> h) { L = period; Custom = h; Active = true; }
 
     private static float Raw(float x, float z)
     {
@@ -46,6 +51,7 @@ public static class FieldHeight
     public static float H(float x, float z)
     {
         if (!Active) return 0f;
+        if (Custom != null) return Custom(x, z);
         float d = WrappedDist(start.x, start.y, x, z);
         float f = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(7f, 28f, d));   // llano alrededor del ascensor
         return (Raw(x, z) - raw0) * f;

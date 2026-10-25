@@ -5,8 +5,11 @@ using UnityEngine;
 // (convención de imagen mínima): un compañero o un monstruo a 2 m al otro lado del borde está a 2 m, no a 262 m.
 public static class FieldWrap
 {
-    public static bool On { get { return FieldHeight.Active && FieldWorld.Active != null && FieldWorld.Active.levelRoot != null; } }
-    private static Transform Root { get { return FieldWorld.Active.levelRoot; } }
+    public static bool On { get { return FieldHeight.Active && RootT != null; } }
+    // v7.7.0: raíz del mundo periódico activo (Campo infinito o Desierto Cálido)
+    public static Transform OtherRoot;
+    private static Transform RootT { get { if (FieldWorld.Active != null && FieldWorld.Active.levelRoot != null) return FieldWorld.Active.levelRoot; return OtherRoot; } }
+    private static Transform Root { get { return RootT; } }
     public static float L { get { return FieldHeight.L; } }
 
     // imagen de p más cercana a 'reference' (coordenadas de mundo). Fuera del campo: p tal cual.

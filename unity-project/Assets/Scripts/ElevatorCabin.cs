@@ -162,7 +162,7 @@ public class ElevatorCabin : MonoBehaviour
         transform.SetPositionAndRotation(pos, rot);
 
         BuildModel();
-        bool openShell = config.layout == LayoutKind.Field || config.layout == LayoutKind.Ocean;   // v7.3.0: en el mar la cabina asoma detrás de la casa inundada
+        bool openShell = config.layout == LayoutKind.Field || config.layout == LayoutKind.Ocean || config.layout == LayoutKind.Desert;   // v7.3.0: en el mar la cabina asoma detrás de la casa inundada
         if (openShell) BuildFieldShell(frontExtent);
         else if (IsRealistic) BuildLanding(config);
         BuildColliders(openShell ? 0f : config.cellSize, frontExtent);
