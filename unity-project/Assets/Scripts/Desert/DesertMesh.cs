@@ -20,7 +20,16 @@ public class DesertMesh
         nr.Normalize();
         int i0 = Vert(a, nr, ta), i1 = Vert(b, nr, tb), i2 = Vert(c, nr, tc), i3 = Vert(d, nr, td);
         List<int> t = tri[sub];
-        t.Add(i0); t.Add(i1); t.Add(i2); t.Add(i0); t.Add(i2); t.Add(i3);
+        AddTri(t, i0, i1, i2, nr); AddTri(t, i0, i2, i3, nr);
+    }
+
+    // v7.7.0 a: sin triángulos degenerados (área 0: bordes rotos que tocan una abertura) y, si el cuadrilátero se retuerce,
+    // cada mitad mira al mismo lado que la normal del cuadrilátero
+    private void AddTri(List<int> t, int i0, int i1, int i2, Vector3 nr)
+    {
+        Vector3 g = Vector3.Cross(v[i1] - v[i0], v[i2] - v[i0]);
+        if (g.sqrMagnitude < 1e-12f) return;
+        if (Vector3.Dot(g, nr) >= 0f) { t.Add(i0); t.Add(i1); t.Add(i2); } else { t.Add(i0); t.Add(i2); t.Add(i1); }
     }
 
     // igual que Quad pero orientado: la cara mira hacia 'outward' (se invierte el orden si hace falta)

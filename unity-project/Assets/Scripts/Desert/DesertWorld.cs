@@ -262,13 +262,21 @@ public class DesertWorld : MonoBehaviour
             for (int j = 0; j < res; j++) edge.Add(j * vn + res);
             for (int i = res; i > 0; i--) edge.Add(res * vn + i);
             for (int j = res; j > 0; j--) edge.Add(j * vn);
+            // v7.7.0 a: una sola cara hacia fuera (se ve desde los trozos vecinos) con la normal algo inclinada hacia fuera
+            Vector3 ctr = Vector3.zero; foreach (int e in edge) ctr += v[e]; ctr /= edge.Count;
             int b0 = v.Count;
-            foreach (int e in edge) { v.Add(v[e] + Vector3.down * 1.5f); nr.Add(nr[e]); uv.Add(uv[e]); }
+            foreach (int e in edge) { v.Add(v[e] + Vector3.down * 1.5f); uv.Add(uv[e]); }
+            for (int k = 0; k < edge.Count; k++)
+            {
+                int e = edge[k]; Vector3 o = v[e] - ctr; o.y = 0f; o.Normalize();
+                nr.Add((nr[e] + o * 0.6f).normalized);
+            }
             for (int k = 0; k < edge.Count; k++)
             {
                 int a = edge[k], b = edge[(k + 1) % edge.Count], c = b0 + k, d = b0 + (k + 1) % edge.Count;
-                tri.Add(a); tri.Add(b); tri.Add(c); tri.Add(b); tri.Add(d); tri.Add(c);
-                tri.Add(a); tri.Add(c); tri.Add(b); tri.Add(b); tri.Add(c); tri.Add(d);   // las dos caras
+                Vector3 o = (v[a] + v[b]) * 0.5f - ctr; o.y = 0f;
+                if (Vector3.Dot(Vector3.Cross(v[b] - v[a], v[c] - v[a]), o) >= 0f) { tri.Add(a); tri.Add(b); tri.Add(c); tri.Add(b); tri.Add(d); tri.Add(c); }
+                else { tri.Add(a); tri.Add(c); tri.Add(b); tri.Add(b); tri.Add(c); tri.Add(d); }
             }
         }
         Mesh m = new Mesh();

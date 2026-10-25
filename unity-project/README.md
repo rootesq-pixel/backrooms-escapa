@@ -1,6 +1,6 @@
 # Backrooms Escape (esqueleto de proyecto Unity)
 
-Juego de terror en primera persona para PC: **escapa de las Backrooms** a través de **8 niveles** encadenados.
+Juego de terror en primera persona para PC: **escapa de las Backrooms** a través de **9 niveles** encadenados.
 Cada nivel es un laberinto (o aparcamiento abierto) procedural con su propia estética, luces, dificultad y
 entidades que patrullan y te persiguen. La salida es una puerta discreta que **solo se descubre explorando**
 (sin cartel, sin flecha, sin indicador de distancia).
@@ -152,7 +152,7 @@ invertir eje Y, balanceo de cabeza (head-bob) on/off, suavizado del ratón (apag
   (sin estiramientos), mipmaps, trilineal y anisotrópico x8.
 - **Atmósfera:** niebla exponencial de color por nivel, ambiente bajo, oscurecimiento de esquinas horneado en las texturas y en
   el mapa de oclusión, viñeta (overlay de UI), reflejos del cielo desactivados.
-- **8 niveles** con progresión, tarjeta de título, pilas recogibles, audio ambiente y pasos por superficie.
+- **9 niveles** con progresión, tarjeta de título, pilas recogibles, audio ambiente y pasos por superficie.
 - `R` reinicia el nivel actual; perder reinicia el nivel; ganar el último muestra la victoria y `R` vuelve al Nivel 0.
 - Editor: `Backrooms > ...` (menú) y pruebas por línea de comandos (ver abajo).
 
@@ -476,3 +476,8 @@ y se volcó cada clip a WAV (`AudioDump`) para analizarlo con numpy/scipy (RMS, 
   la generación por CPU anterior. Son cosméticas: no tocan la semilla ni el hash del mundo (multijugador intacto).
 - Vistas previas antes/después (`TextureV66Preview.Export`): `docs/assets/img/texturas-blender-antes-despues.jpg`
   (`TextureV66Preview.Export`).
+
+## v7.7.0 — Nivel 114 «El Desierto Cálido»
+- Nuevo **nivel 8 = Nivel 114 de la wiki** (de Sonicelmaspro2, ampliado por Omaigad12): desierto cálido sin fin (10-17 °C), seguro (sin entidades), con día y noche, clima cada «6 horas» (despejado, nublado, lluvia de agua de almendras, lluvia de «dolor líquido», tormenta de arena, nieve muy rara y el rarísimo «Clima Hermoso» con auroras y arena de colores), pájaros de sangre amarilla solo de día, aldeas en ruinas (casas de adobe y piedra, muebles rotos, pozos, una torre), cuevas con vetas de hierro, oro, plomo y diamante, arenas movedizas que te llevan a otra zona y, muy rara vez, el Vacío.
+- La salida es una **puerta de piedra** en lugar de una puerta de madera en una casa de un pueblo. Objetos: agua de almendras, Raciones Reales (caducadas), agua de anacardo y la rarísima agua de neón.
+- Código: `Assets/Scripts/Desert/` (DesertPlan, DesertHeight, DesertWorld, DesertMesh, DesertSky, DesertFx, DesertItems), shaders `Resources/Desert/Shaders`. Pruebas: `V770Checks`, `SeedReachCheck` (nivel 8). Multijugador: protocolo MP-10 (reloj del desierto del anfitrión).

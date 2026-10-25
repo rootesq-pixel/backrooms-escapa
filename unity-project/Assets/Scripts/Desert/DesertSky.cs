@@ -59,7 +59,7 @@ public class DesertSky : MonoBehaviour
         s.sun.type = LightType.Directional; s.sun.shadows = LightShadows.Soft; s.sun.shadowStrength = 0.9f;
         s.sun.shadowBias = 0.06f; s.sun.shadowNormalBias = 0.5f;
         RenderSettings.sun = s.sun;
-        RenderSettings.ambientMode = AmbientMode.Trilight;
+        RenderSettings.ambientMode = AmbientMode.Custom;   // v7.7.0 b: sonda propia (ver Tick)
         RenderSettings.fog = true; RenderSettings.fogMode = FogMode.Exponential;
         RenderSettings.defaultReflectionMode = DefaultReflectionMode.Skybox;
         RenderSettings.reflectionIntensity = 0.6f;
@@ -212,6 +212,13 @@ public class DesertSky : MonoBehaviour
         Color eq0 = Color.Lerp(nightAmb * 0.9f, Color.Lerp(hor * 0.75f, bounce, 0.45f), day);
         Color gr0 = Color.Lerp(nightAmb * 0.6f, new Color(0.55f, 0.42f, 0.30f) * (0.18f + 0.30f * sunI), day);
         RenderSettings.ambientSkyColor = sky0; RenderSettings.ambientEquatorColor = eq0; RenderSettings.ambientGroundColor = gr0;
+        // v7.7.0 b: el «Trilight» no llegaba a los shaders al cambiarlo en juego (las sombras salían negras): la sonda de
+        // ambiente se construye aquí cada vez (cielo arriba, rebote de la arena en el horizonte, suelo abajo)
+        UnityEngine.Rendering.SphericalHarmonicsL2 shA = new UnityEngine.Rendering.SphericalHarmonicsL2();
+        shA.AddAmbientLight(eq0);
+        shA.AddDirectionalLight(Vector3.up, sky0 - eq0, 0.9f);
+        shA.AddDirectionalLight(Vector3.down, gr0 - eq0, 0.9f);
+        RenderSettings.ambientProbe = shA;
 
         // tiempo para el cielo (estrellas que titilan, nubes con el viento)
         if (sky != null)

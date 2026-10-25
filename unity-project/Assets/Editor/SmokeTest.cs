@@ -1424,9 +1424,11 @@ public static class SmokeTest
 
         r.Check(gen.HasLevel, tag + "nivel generado");
         r.Check(gen.ExitTransform != null, tag + "existe la puerta de salida");
-        r.Check(gen.MonsterSpawns != null && gen.MonsterSpawns.Count == Mathf.Max(1, cfg.monsterCount), tag + "apariciones de monstruo = " + cfg.monsterCount);
+        if (cfg.layout == LayoutKind.Desert) r.Check(cfg.monsterCount == 0 && !cfg.HasMonsterAI, tag + "desierto: sin entidades (nivel seguro)");   // v7.7.0
+        else r.Check(gen.MonsterSpawns != null && gen.MonsterSpawns.Count == Mathf.Max(1, cfg.monsterCount), tag + "apariciones de monstruo = " + cfg.monsterCount);
         r.Check(gen.BatterySpots != null && gen.BatterySpots.Count == cfg.batteries, tag + "pilas colocadas = " + cfg.batteries + " (hay " + (gen.BatterySpots != null ? gen.BatterySpots.Count : 0) + ")");
         if (cfg.layout == LayoutKind.Ocean) r.Check(gen.Root.GetComponentInChildren<OceanLighthouse>(true) != null && gen.Root.GetComponentInChildren<OceanCage>(true) != null, tag + "mar: faro a lo lejos y jaula en el muelle");   // v7.3.0
+        else if (cfg.layout == LayoutKind.Desert) { DesertWorld dw0 = gen.Root.GetComponentInChildren<DesertWorld>(true); r.Check(dw0 != null && dw0.houseCount > 10 && dw0.ExitTransform != null, tag + "desierto: aldeas con casas y puerta de piedra (sin lámparas: luz del sol y de la luna)"); }
         else if (cfg.layout != LayoutKind.Field) r.Check(gen.FixtureCount > 0, tag + "hay accesorios de luz");
         else r.Check(gen.Root.GetComponentInChildren<FieldExitBeacon>(true) != null, tag + "campo: la salida tiene su farol/radio (pistas sutiles)");
         if (cfg.layout == LayoutKind.OpenPillars) r.Check(gen.PillarCount > 0, tag + "hay pilares");
@@ -1446,6 +1448,7 @@ public static class SmokeTest
         // El LED y la luz de la puerta empiezan apagados (solo se activan a < 8 m)
         ExitDoorCue cue = gen.Root.GetComponentInChildren<ExitDoorCue>(true);
         if (cfg.layout == LayoutKind.Ocean) r.Check(cue == null || (!cue.ledRenderer.enabled && !cue.glow.enabled), tag + "mar: la salida es la poza de la gruta (sin pista de puerta encendida)");
+        else if (cfg.layout == LayoutKind.Desert) r.Check(cue == null || (!cue.ledRenderer.enabled && !cue.glow.enabled), tag + "desierto: la salida es una puerta de piedra sin luz (hay que buscarla)");
         else r.Check(cue != null && cue.visibleDistance <= 8.01f && !cue.ledRenderer.enabled && !cue.glow.enabled, tag + "pista de la puerta limitada a ~8 m y apagada de inicio");
 
         // Materiales / shaders / texturas
@@ -1613,7 +1616,7 @@ public static class SmokeTest
             }
             prev = path[i];
         }
-        r.Check(pathFree, tag + "el camino BFS no choca con paredes/pilares (SphereCast r=0.34)");
+        if (cfg.layout != LayoutKind.Desert) r.Check(pathFree, tag + "el camino BFS no choca con paredes/pilares (SphereCast r=0.34)");   // v7.7.0: el desierto tiene su propia prueba (SeedReachCheck, a pie por la arena)
         if (path.Count > 0)
         {
             Vector3 last = path[path.Count - 1];
@@ -1625,6 +1628,8 @@ public static class SmokeTest
         if (cfg.layout == LayoutKind.Field) toCell = gen.ExitTransform.forward;   // campo: la puerta está suelta, se llega por delante
         Vector3 standPos = doorFloor + toCell.normalized * 0.8f;
         if (cfg.layout == LayoutKind.Field) standPos.y = gen.FloorHeightLocal(standPos.x, standPos.z) + 0.05f;
+        DesertWorld dwS = cfg.layout == LayoutKind.Desert ? gen.Root.GetComponentInChildren<DesertWorld>(true) : null;
+        if (dwS != null) { standPos = dwS.levelRoot.TransformPoint(dwS.ExitLocal); doorFloor = gen.ExitPosition; doorFloor.y = standPos.y; }   // v7.7.0: delante de la puerta de piedra
         bool standFree = !Physics.CheckSphere(standPos + Vector3.up * 0.9f, 0.34f);
         r.Check(standFree && Vector3.Distance(standPos, doorFloor) < 1.6f, tag + "se puede estar a <1.6 m de la puerta sin atravesar nada");
 
