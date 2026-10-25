@@ -88,10 +88,10 @@ Shader "Backrooms/DesertSky"
                         float2 p = d.xz * (hk / d.y) * 0.5 + float2(t * 0.004, t * 0.002);
                         float w = vn(p * 0.55) * 0.65 + vn(p * 1.3 + 7.0) * 0.35;
                         float rib = smoothstep(0.12, 0.0, abs(w - 0.5));                // cinta estrecha que serpentea
-                        float ray = 0.6 + 0.4 * vn(float2(p.x * 9.0 + p.y * 3.0, t * 0.15));
+                        float ray = 0.25 + 0.75 * pow(vn(float2(atan2(d.x, d.z) * 140.0, t * 0.15 + k * 0.3)), 2.0);   // rayos verticales finos
                         float fk = k / 7.0;
                         float3 col = lerp(float3(0.15, 1.0, 0.45), float3(0.55, 0.25, 1.0), smoothstep(0.35, 1.0, fk));
-                        acc += col * rib * ray * pow(1.0 - fk, 1.2) * 0.45;
+                        acc += col * rib * ray * pow(1.0 - fk, 0.8) * 0.32;
                     }
                     c += acc * smoothstep(0.02, 0.2, d.y) * _SkyParams.w;
                 }

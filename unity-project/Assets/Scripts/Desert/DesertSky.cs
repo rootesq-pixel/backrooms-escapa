@@ -200,24 +200,25 @@ public class DesertSky : MonoBehaviour
             else
             {
                 sun.transform.rotation = Quaternion.LookRotation(-md);
-                sun.color = new Color(0.60f, 0.70f, 1f); sun.intensity = 0.11f * moonBright * moonVis;   // luz de luna: se ven las dunas, pero hace falta linterna
+                sun.color = new Color(0.60f, 0.70f, 1f); sun.intensity = 0.16f * moonBright * moonVis;   // luz de luna: se ven las dunas, pero hace falta linterna
                 sun.shadowStrength = 0.6f;
             }
             sun.shadows = sun.intensity > 0.01f ? LightShadows.Soft : LightShadows.None;
         }
         // luz ambiente (cielo, horizonte, rebote de la arena)
-        Color nightAmb = new Color(0.016f, 0.020f, 0.034f) * (0.6f + 0.4f * moonBright);
-        Color sky0 = Color.Lerp(nightAmb, zen * 0.85f + hor * 0.15f, day);
+        Color nightAmb = new Color(0.030f, 0.036f, 0.058f) * (0.5f + 0.5f * moonBright * moonVis);
+        float dayA = Mathf.Clamp01(Mathf.InverseLerp(-9f, 5f, e));   // el ambiente llega antes que el sol (crepúsculo)
+        Color sky0 = Color.Lerp(nightAmb, (zen * 0.45f + hor * 0.55f) * 0.8f, dayA);   // v7.7.0 c: menos saturado (la arena a la sombra salía cian)
         Color bounce = new Color(0.62f, 0.46f, 0.31f) * (0.35f + 0.25f * sunI) * (1f - ov * 0.5f);   // rebote cálido de la arena en las caras a la sombra
-        Color eq0 = Color.Lerp(nightAmb * 0.9f, Color.Lerp(hor * 0.75f, bounce, 0.45f), day);
-        Color gr0 = Color.Lerp(nightAmb * 0.6f, new Color(0.55f, 0.42f, 0.30f) * (0.18f + 0.30f * sunI), day);
+        Color eq0 = Color.Lerp(nightAmb * 0.9f, Color.Lerp(hor * 0.75f, bounce, 0.45f), dayA);
+        Color gr0 = Color.Lerp(nightAmb * 0.6f, new Color(0.55f, 0.42f, 0.30f) * (0.18f + 0.30f * sunI), dayA);
         RenderSettings.ambientSkyColor = sky0; RenderSettings.ambientEquatorColor = eq0; RenderSettings.ambientGroundColor = gr0;
         // v7.7.0 b: el «Trilight» no llegaba a los shaders al cambiarlo en juego (las sombras salían negras): la sonda de
         // ambiente se construye aquí cada vez (cielo arriba, rebote de la arena en el horizonte, suelo abajo)
         UnityEngine.Rendering.SphericalHarmonicsL2 shA = new UnityEngine.Rendering.SphericalHarmonicsL2();
         shA.AddAmbientLight(eq0);
-        shA.AddDirectionalLight(Vector3.up, sky0 - eq0, 0.9f);
-        shA.AddDirectionalLight(Vector3.down, gr0 - eq0, 0.9f);
+        shA.AddDirectionalLight(Vector3.up, sky0 - eq0, 0.6f);
+        shA.AddDirectionalLight(Vector3.down, gr0 - eq0, 0.6f);
         RenderSettings.ambientProbe = shA;
 
         // tiempo para el cielo (estrellas que titilan, nubes con el viento)
