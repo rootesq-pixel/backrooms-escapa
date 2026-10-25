@@ -1,0 +1,1 @@
+- 2026-10-25 18:35:46 CET v7.7.1: cliffs re-exported (backing = back shell only), commit 5c63fda; PC shots r5 + box ttest v771d running. Before/after so far: /workspace/v770/compare/r0_*, r4_* (items d_26-29 after, d_36-39 before)

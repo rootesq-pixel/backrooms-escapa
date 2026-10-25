@@ -64,6 +64,8 @@ public class DesertWorld : MonoBehaviour
         dw.BuildPlants();
         LoadDiag.Step("desierto: puntos");
         dw.PickSpots(cfg);
+        LoadDiag.Step("desierto: todoterrenos");
+        DesertCars.Build(dw, dw.track);   // v7.8.0
         Vector2 s = plan.start;
         dw.StartLocal = new Vector3(s.x, DesertHeight.H(s.x, s.y), s.y);
         // mirando hacia la aldea más cercana (se ve a lo lejos entre las dunas)
@@ -951,7 +953,7 @@ public class DesertWorld : MonoBehaviour
     private void LateUpdate()
     {
         if (fpc == null) fpc = FindObjectOfType<FirstPersonController>();
-        if (fpc != null && levelRoot != null)
+        if (fpc != null && levelRoot != null && !fpc.IsMounted)   // v7.8.0: en el todoterreno, la vuelta la da el coche
         {
             Vector3 lp = levelRoot.InverseTransformPoint(fpc.transform.position);
             Vector3 shift = Vector3.zero;

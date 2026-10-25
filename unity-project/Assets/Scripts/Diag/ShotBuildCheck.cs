@@ -227,6 +227,8 @@ public class ShotBuildCheck : MonoBehaviour
         System.Func<string, bool> want = n => only == null || only.Contains(n.Substring(0, 4));
         Vector3 s = dw.StartLocal; float yaw = dw.StartYaw * Mathf.Deg2Rad; Vector3 f = new Vector3(Mathf.Sin(yaw), 0f, Mathf.Cos(yaw));
         System.Func<float, int, IEnumerator> Set = (h, w) => { DesertSky.ForceHour = h; DesertSky.ForceWeather = w; if (DesertSky.Active != null) DesertSky.Active.Tick(0f); return null; };
+        // v7.8.0: primero el todoterreno (para tener sus capturas cuanto antes)
+        if (DesertCars.Active != null && DesertCars.Active.Drivable != null) { yield return CarShots(dw, root, pw, mc, want); }
         // 1) saliendo del ascensor, por la mañana
         Set(10f, 0);
         if (want("d_01")) yield return View(pw, mc, "d_01_manana_ascensor", P(s.x + f.x * 6f, s.z + f.z * 6f, 1.65f), P(s.x + f.x * 60f, s.z + f.z * 60f, 1.0f), 62f, P(s.x + f.x * 6f, s.z + f.z * 6f, 0.05f));
@@ -357,6 +359,84 @@ public class ShotBuildCheck : MonoBehaviour
             }
         }
         DesertSky.ForceHour = -1f; DesertSky.ForceWeather = -1;
+    }
+
+    // v7.8.0: el todoterreno de cerca (tres cuartos, lado, detrás, cabina, volante), la chatarra medio enterrada, de noche con
+    // los faros, conduciendo con polvo, y rodadas + huellas en la arena. «antes» = la misma vista sin coche / sin marcas (v7.7.1).
+    IEnumerator CarShots(DesertWorld dw, Transform root, FirstPersonController pw, Camera mc, System.Func<string, bool> want)
+    {
+        DesertCars dc = DesertCars.Active; DesertCar car = dc.Drivable; DesertPlan pl = dw.plan;
+        System.Func<DesertCar, float, float, float, Vector3> CP = (c, x, up, z) =>
+        {
+            Vector3 l = root.InverseTransformPoint(c.transform.TransformPoint(new Vector3(x, 0f, z)));
+            return root.TransformPoint(new Vector3(l.x, DesertHeight.H(Mathf.Repeat(l.x, pl.L), Mathf.Repeat(l.z, pl.L)) + up, l.z));
+        };
+        System.Action<float, int> Set = (h, w) => { DesertSky.ForceHour = h; DesertSky.ForceWeather = w; if (DesertSky.Active != null) DesertSky.Active.Tick(0f); };
+        System.Action<bool> showCar = on =>
+        {
+            car.gameObject.SetActive(on);
+            foreach (Transform t in dw.transform) if (t.name == "SandDrift") t.gameObject.SetActive(on);
+        };
+        Vector3 ctr = car.transform.TransformPoint(new Vector3(0f, 1.0f, 0.2f));
+        Info("todoterreno en " + root.InverseTransformPoint(car.transform.position).ToString("F1") + ", chatarra en " + root.InverseTransformPoint(dc.wreck.transform.position).ToString("F1") + ", largo " + car.ModelLength.ToString("F2") + " m");
+        Set(10.5f, 0);
+        if (want("d_50") || want("d_60"))
+        {
+            showCar(false);
+            yield return View(pw, mc, "d_60_coche_tres_cuartos_antes", CP(car, 4.6f, 1.6f, 5.6f), ctr, 55f, CP(car, 7.5f, 0.05f, 7.5f));
+            showCar(true);
+            yield return View(pw, mc, "d_50_coche_tres_cuartos", CP(car, 4.6f, 1.6f, 5.6f), ctr, 55f, CP(car, 7.5f, 0.05f, 7.5f));
+            if (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-perf") >= 0) yield return Perf(pw, mc, "todoterreno", CP(car, 4.6f, 1.6f, 5.6f), ctr, 55f, CP(car, 7.5f, 0.05f, 7.5f));
+        }
+        if (want("d_51")) yield return View(pw, mc, "d_51_coche_lateral", CP(car, -7.8f * car.driverSide * -1f, 1.45f, 0.4f), ctr, 52f, CP(car, -9f * car.driverSide * -1f, 0.05f, 2f));
+        if (want("d_52")) yield return View(pw, mc, "d_52_coche_trasera", CP(car, 3.6f, 1.9f, -6.8f), ctr, 55f, CP(car, 5f, 0.05f, -8.5f));
+        if (want("d_53"))
+        {
+            Vector3 eye = car.transform.TransformPoint(car.SeatLocal(0) + new Vector3(0f, 1.6f, 0f));
+            yield return View(pw, mc, "d_53_coche_cabina_conductor", eye, car.transform.TransformPoint(car.SeatLocal(0) + new Vector3(0f, 1.25f, 10f)), 68f, CP(car, -4f, 0.05f, -4f));
+            Vector3 eye2 = car.transform.TransformPoint(car.SeatLocal(1) + new Vector3(0f, 1.6f, -0.1f));
+            yield return View(pw, mc, "d_54_coche_volante_desde_copiloto", eye2, car.transform.TransformPoint(car.SeatLocal(0) + new Vector3(0f, 1.15f, 0.65f)), 62f, CP(car, -4f, 0.05f, -4f));
+        }
+        if (want("d_55"))
+        {
+            DesertCar wr = dc.wreck; Vector3 wc = wr.transform.TransformPoint(new Vector3(0f, 0.9f, 0f));
+            yield return View(pw, mc, "d_55_chatarra_medio_enterrada", CP(wr, 5.2f, 1.7f, 4.6f), wc, 55f, CP(wr, 7.5f, 0.05f, 7f));
+        }
+        if (want("d_56"))
+        {
+            Set(22.5f, 0); car.lights = true;
+            yield return View(pw, mc, "d_56_coche_noche_faros", CP(car, -2.6f, 2.4f, -6.5f), car.transform.TransformPoint(new Vector3(0f, 0.3f, 16f)), 62f, CP(car, -4f, 0.05f, -8f));
+            car.lights = false; Set(10.5f, 0);
+        }
+        if (want("d_57") || want("d_58") || want("d_68"))
+        {
+            // conducir de verdad (conductor de prueba), y la cámara sigue al coche
+            Set(16.5f, 0);
+            Vector3 c0 = root.InverseTransformPoint(car.transform.position); Vector3 f0 = root.InverseTransformDirection(car.transform.forward);
+            car.seat[0] = 9999; car.HostDrive(9999, 0.75f, 0.12f, false);
+            float t0 = Time.realtimeSinceStartup; while (Time.realtimeSinceStartup - t0 < 4.5f) { car.HostDrive(9999, 0.75f, 0.12f, false); yield return null; }
+            for (int k = 0; k < 12; k++) { car.HostDrive(9999, 0.75f, 0.12f, false); mc.transform.position = car.transform.TransformPoint(new Vector3(-3.2f, 2.3f, -8.5f)); mc.transform.rotation = Quaternion.LookRotation(car.transform.TransformPoint(new Vector3(0f, 0.9f, 3f)) - mc.transform.position); mc.fieldOfView = 58f; yield return null; }
+            Texture2D tex = Grab(mc, "d_57_coche_conduciendo_polvo");
+            Check(Mean(tex) > 0.03f, "captura d_57_coche_conduciendo_polvo no negra (media " + Mean(tex).ToString("F3") + ")"); Destroy(tex);
+            Info("conduciendo: " + (car.Speed * 3.6f).ToString("F0") + " km/h, polvo " + car.DustEmitted + ", rodadas " + dc.tracks.TyreAdded);
+            car.HostDrive(9999, 0f, 0f, true);
+            t0 = Time.realtimeSinceStartup; while (Time.realtimeSinceStartup - t0 < 3f && car.Speed > 0.3f) { car.HostDrive(9999, 0f, 0f, true); yield return null; }
+            car.seat[0] = -1;
+            // huellas: alguien que ha andado junto a las rodadas
+            Vector3 side = Vector3.Cross(Vector3.up, f0).normalized;
+            for (int k = 0; k < 16; k++) dc.tracks.AddFoot(c0 + side * 1.3f + f0 * (1.5f + k * 0.72f), f0 + side * 0.05f * Mathf.Sin(k), k % 2 == 0);
+            Vector3 eL = c0 - side * 2.2f + f0 * 0.5f, tL = c0 + f0 * 9f;
+            Vector3 eW = root.TransformPoint(new Vector3(eL.x, DesertHeight.H(Mathf.Repeat(eL.x, pl.L), Mathf.Repeat(eL.z, pl.L)) + 1.6f, eL.z));
+            Vector3 tW = root.TransformPoint(new Vector3(tL.x, DesertHeight.H(Mathf.Repeat(tL.x, pl.L), Mathf.Repeat(tL.z, pl.L)), tL.z));
+            Vector3 sW = root.TransformPoint(new Vector3(eL.x - side.x * 2f, DesertHeight.H(Mathf.Repeat(eL.x - side.x * 2f, pl.L), Mathf.Repeat(eL.z - side.z * 2f, pl.L)) + 0.05f, eL.z - side.z * 2f));
+            Set(17.2f, 0);
+            yield return View(pw, mc, "d_58_rodadas_y_huellas", eW, tW, 55f, sW);
+            foreach (Renderer rr in dc.tracks.GetComponentsInChildren<Renderer>()) rr.enabled = false;
+            yield return View(pw, mc, "d_68_rodadas_y_huellas_antes", eW, tW, 55f, sW);
+            foreach (Renderer rr in dc.tracks.GetComponentsInChildren<Renderer>()) rr.enabled = true;
+            Info("huellas " + dc.tracks.FootAdded + ", rodadas " + dc.tracks.TyreAdded);
+            DesertCars.HostRespawn(car, false);
+        }
     }
 
     // v7.4.0 («-housedoor»): una casa abierta de cada plantilla: la puerta desde fuera (a la altura de los ojos), el jugador de pie

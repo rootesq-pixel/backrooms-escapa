@@ -96,7 +96,7 @@ public static class V771Checks
     public static void Edit(SmokeTest.Report r)
     {
         string T = "[v7.7.1] ";
-        r.Check(GameVersion.Current == "7.7.1", T + "versión " + GameVersion.Current);
+        r.Check(GameVersion.Current == "7.7.1" || GameVersion.Current.StartsWith("7.8."), T + "versión " + GameVersion.Current + " (7.7.1 o posterior)");
         // 1) rocas grandes cerradas por detrás (todas las instancias salen de estas mallas, también las copias del borde)
         foreach (string n in Rocks)
         {

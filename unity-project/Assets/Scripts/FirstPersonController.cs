@@ -112,6 +112,9 @@ public class FirstPersonController : MonoBehaviour
     [System.NonSerialized] public float swimStaminaDrain;
     [System.NonSerialized] public float freeSwimSpeed = 2.4f;
     public const float FreeSwimLift = 2.2f;   // v7.4.0: Espacio / Ctrl con el casco (m/s)
+    // v7.8.0: montado en un vehículo que gira (todoterreno): la vista gira con él
+    [System.NonSerialized] public bool mountYaw;
+    private float mountYawPrev;
     public bool IsMounted { get { return mount != null; } }
     public Vector3 WishDir { get; private set; }
     public bool JumpHeld { get; private set; }
@@ -119,7 +122,7 @@ public class FirstPersonController : MonoBehaviour
     public bool SwimExhausted { get { return IsSwimming && exhausted; } }
     public void Mount(Transform t, Vector3 local)
     {
-        mount = t; mountLocal = local; mountWalk = false;
+        mount = t; mountLocal = local; mountWalk = false; mountYaw = false; mountYawPrev = t.eulerAngles.y;
         controller.enabled = false; ladderT = -1f;
         moveVel = Vector3.zero; verticalVelocity = 0f; IsSwimming = false; IsDiving = false;
         transform.position = t.TransformPoint(local);
@@ -438,6 +441,8 @@ public class FirstPersonController : MonoBehaviour
                 if (ld.sqrMagnitude > 1e-4f) mountLocal += ld.normalized * walkV * dt;
                 mountLocal.x = Mathf.Clamp(mountLocal.x, mountMin.x, mountMax.x); mountLocal.z = Mathf.Clamp(mountLocal.z, mountMin.y, mountMax.y);
             }
+            if (mountYaw) { float my = mount.eulerAngles.y; transform.Rotate(0f, Mathf.DeltaAngle(mountYawPrev, my), 0f); mountYawPrev = my; }
+            else mountYawPrev = mount.eulerAngles.y;
             transform.position = mount.TransformPoint(mountLocal);
             moveVel = Vector3.zero; verticalVelocity = 0f; FlatSpeed = walkV; IsMoving = walkV > 0.1f; IsSwimming = false; IsDiving = false;
             IsSprinting = false; CurrentNoiseRadius = 0f; WishDir = wdir.sqrMagnitude > 0.01f ? wdir.normalized : Vector3.zero;

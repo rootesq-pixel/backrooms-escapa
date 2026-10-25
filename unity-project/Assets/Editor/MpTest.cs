@@ -622,6 +622,39 @@ public static class MpPlayRunner
             r.Check(pid >= 0 && !NetSession.PickupExists(pid), "[Desierto MP] el anfitrión recoge un objeto de la arena (id " + pid + ")");
             File.WriteAllText(MpTest.Dir + "/host_dpick.txt", pid.ToString());
             Mark("host_dpick_done");
+            {   // v7.8.0: todoterreno en multijugador: el anfitrión conduce, el cliente va de copiloto (plazas, pose y bajar sincronizados)
+                DesertCars dc = DesertCars.Active; DesertCar car = dc != null ? dc.Drivable : null;
+                r.Check(car != null && dc.wreck != null, "[Coche MP] hay todoterreno y chatarra en el desierto (anfitrión)");
+                if (car != null)
+                {
+                    hp.Teleport(car.transform.TransformPoint(car.DoorLocal(0)) + Vector3.up * 0.1f, 0f); yield return 0.6f;
+                    DesertCars.DebugInteract = true;
+                    yield return Wait(() => car.SeatOf(ns.LocalId) == 0 && hp.IsMounted, 10, "anfitrión al volante");
+                    r.Check(car.SeatOf(ns.LocalId) == 0 && hp.IsMounted, "[Coche MP] el anfitrión se sube al volante");
+                    Mark("host_car_in");
+                    yield return Wait(() => rc != null && car.SeatOf(rc.id) > 0, 40, "cliente de copiloto (anfitrión)");
+                    r.Check(rc != null && car.SeatOf(rc.id) > 0 && ns.CarReqsReceived > 0, "[Coche MP] el cliente pide subir y el anfitrión le da la plaza " + (rc != null ? car.SeatOf(rc.id) : -1) + " (" + ns.CarReqsReceived + " peticiones)");
+                    Vector3 c0 = car.transform.position;
+                    DesertCars.DebugDrive = true; DesertCars.DbgThrottle = 1f; DesertCars.DbgSteer = 0.25f; DesertCars.DbgHandbrake = false;
+                    yield return 3.5f;
+                    float spd = car.Speed, moved = Vector3.Distance(c0, car.transform.position);
+                    DesertCars.DbgThrottle = 0f; DesertCars.DbgSteer = 0f; DesertCars.DbgHandbrake = true;
+                    yield return Wait(() => car.Speed < 0.3f, 12, "todoterreno parado");
+                    yield return 1.0f;
+                    r.Check(spd > 4f && moved > 6f, "[Coche MP] el anfitrión conduce con el cliente dentro (" + (spd * 3.6f).ToString("F0") + " km/h, " + moved.ToString("F0") + " m)");
+                    Vector3 cl = dw.levelRoot.InverseTransformPoint(car.transform.position);
+                    File.WriteAllText(MpTest.Dir + "/host_car.txt", cl.x.ToString("R", Inv) + " " + cl.y.ToString("R", Inv) + " " + cl.z.ToString("R", Inv));
+                    Mark("host_car_drove");
+                    yield return WaitMark("client_car_out", 60);
+                    yield return Wait(() => rc == null || car.SeatOf(rc.id) < 0, 10, "plaza del cliente libre");
+                    r.Check(rc != null && car.SeatOf(rc.id) < 0, "[Coche MP] el cliente se baja y su plaza queda libre en el anfitrión");
+                    DesertCars.DebugInteract = true;
+                    yield return Wait(() => !hp.IsMounted, 6, "anfitrión baja");
+                    r.Check(!hp.IsMounted && car.Occupants == 0, "[Coche MP] el anfitrión baja; el coche queda vacío");
+                    DesertCars.DebugDrive = false;
+                }
+                Mark("host_car_done");
+            }
             // arenas movedizas del cliente: el anfitrión lo ve reaparecer lejos
             yield return WaitMark("client_dquick_start", 60);
             Vector3 q0 = rc != null && rc.avatar != null ? rc.avatar.LatestPos : Vector3.zero;
@@ -1164,6 +1197,35 @@ public static class MpPlayRunner
             int pid = int.Parse(File.ReadAllText(MpTest.Dir + "/host_dpick.txt").Trim());
             yield return Wait(() => !NetSession.PickupExists(pid), 10, "objeto del desierto retirado (cliente)");
             r.Check(pid >= 0 && !NetSession.PickupExists(pid), "[Desierto MP] el objeto que coge el anfitrión desaparece también en el cliente");
+            {   // v7.8.0: todoterreno: el cliente sube de copiloto, viaja y baja
+                yield return WaitMark("host_car_in", 60);
+                DesertCars dc = DesertCars.Active; DesertCar car = dc != null ? dc.Drivable : null;
+                if (car != null)
+                {
+                    yield return 1.0f;
+                    pc.Teleport(car.transform.TransformPoint(car.DoorLocal(1)) + Vector3.up * 0.1f, 0f); yield return 0.6f;
+                    DesertCars.DebugInteract = true;
+                    yield return Wait(() => car.SeatOf(ns.LocalId) > 0 && pc.IsMounted, 12, "cliente de copiloto");
+                    r.Check(car.SeatOf(ns.LocalId) > 0 && pc.IsMounted && car.DriverId >= 0 && car.DriverId != ns.LocalId, "[Coche MP] el cliente sube (plaza " + car.SeatOf(ns.LocalId) + ") y ve al anfitrión al volante");
+                    yield return WaitMark("host_car_drove", 60);
+                    yield return 1.5f;
+                    string[] hcar = File.ReadAllText(MpTest.Dir + "/host_car.txt").Trim().Split(' ');
+                    Vector3 hl = new Vector3(float.Parse(hcar[0], Inv), float.Parse(hcar[1], Inv), float.Parse(hcar[2], Inv));
+                    Vector3 cl = dw.levelRoot.InverseTransformPoint(car.transform.position);
+                    float dd = new Vector3(DesertHeight.Wrap(hl.x - cl.x), hl.y - cl.y, DesertHeight.Wrap(hl.z - cl.z)).magnitude;
+                    int ms = car.SeatOf(ns.LocalId);
+                    float seatD = ms >= 0 ? Vector3.Distance(pc.transform.position, car.transform.TransformPoint(car.SeatLocal(ms))) : 99f;
+                    r.Check(dd < 1.0f && seatD < 0.35f && dc.NetReads > 10, "[Coche MP] el cliente ve el coche donde lo deja el anfitrión (" + dd.ToString("F2") + " m) y viaja en su asiento (" + seatD.ToString("F2") + " m, " + dc.NetReads + " bloques)");
+                    DesertCars.DebugInteract = true;
+                    yield return Wait(() => !pc.IsMounted && car.SeatOf(ns.LocalId) < 0, 10, "cliente baja");
+                    yield return 0.3f;
+                    Vector3 off = car.transform.InverseTransformPoint(pc.transform.position);
+                    r.Check(!pc.IsMounted && car.SeatOf(ns.LocalId) < 0 && (Mathf.Abs(off.x) > 1.0f || Mathf.Abs(off.z) > 2.6f), "[Coche MP] el cliente baja junto al coche, fuera de la carrocería (" + off.x.ToString("F1") + ", " + off.z.ToString("F1") + ")");
+                    Mark("client_car_out");
+                    yield return WaitMark("host_car_done", 60);
+                }
+                else { r.Check(false, "[Coche MP] el cliente no tiene todoterreno"); Mark("client_car_out"); }
+            }
             // arenas movedizas
             DesertFx.HazardsOn = true; DesertFx.VoidOn = false;
             Vector2 q = dw.plan.quick[0].c;

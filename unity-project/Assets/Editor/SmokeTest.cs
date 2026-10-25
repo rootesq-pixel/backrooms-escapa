@@ -1130,6 +1130,7 @@ public static class SmokeTest
         TestV760Industrial(r, credits, ui);
         V770Checks.Edit(r, credits, ui);   // v7.7.0: Nivel 114, El Desierto Cálido
         V771Checks.Edit(r);                // v7.7.1: rocas cerradas, objetos modelados, cordura
+        V780Checks.Edit(r);                // v7.8.0: todoterreno, viento, huellas
     }
 
     // v7.6.0: Nivel 4 (Complejo industrial): texturas PBR nuevas, escala de UV, tuberías modeladas y créditos
@@ -3279,6 +3280,8 @@ public static class SmokePlayRunner
             if (cfg.layout == LayoutKind.Desert)
             {   // v7.7.0: el desierto tampoco tiene monstruo, llaves ni puerta normal: su recorrido termina en la puerta de piedra
                 Census(r, "[Audio nivel " + lv + " desierto]", true, false);
+                IEnumerator cp = V780Checks.CarPlay(r, tag, gm);   // v7.8.0: todoterreno (antes del recorrido, que acaba en la puerta)
+                while (cp.MoveNext()) yield return cp.Current;
                 IEnumerator dp = V770Checks.DesertPlay(r, tag, gm);
                 while (dp.MoveNext()) yield return dp.Current;
                 gm = GameManager.Instance;
