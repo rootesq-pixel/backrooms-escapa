@@ -76,7 +76,7 @@ def warp(f, amt, seed, NX, NY, cells=8):
     return map_coordinates(f,[yy+wy*amt,xx+wx*amt],order=1,mode='wrap')
 def chipfield(seed, NX, NY, cells=9, cy=None):
     # ruido fractal (ganancia alta = borde dentado) deformado: forma de desconchón de pintura real
-    a=noise(cells,seed,NX,NY,6,0.62,cy=cy); a=warp(a,18,seed+7,NX,NY,cells*2)
+    a=noise(cells,seed,NX,NY,6,0.62,cy=cy); a=warp(a,18*NX/2048,seed+7,NX,NY,cells*2)
     b=noise(cells*5,seed+3,NX,NY,3,0.6,cy=None if cy is None else cy*5)
     return 0.72*a+0.28*b
 def oldrust(r):
@@ -200,7 +200,7 @@ if ONLY in ('','wall'):
 
 # =========================== SUELO: chapa lagrimada 2,4 m ===========================
 if ONLY in ('','floor'):
-    N=2048; S=2.4; px=S/N
+    N=4096; S=4.8; px=S/N   # v7.6.0b: 4,8 m (misma densidad que 2,4 m a 2048): el óxido, el aceite y el polvo no se repiten cada 2,4 m
     U,V=grid(N,N); X=U*S; Y=V*S
     P=0.040   # paso de los resaltes (chapa lagrimada de 5 mm)
     cx=np.floor(X/P); cy=np.floor(Y/P); lx=X-(cx+0.5)*P; ly=Y-(cy+0.5)*P
@@ -210,44 +210,45 @@ if ONLY in ('','floor'):
     HL,HW=0.0140,0.0045
     qx=np.maximum(np.abs(ax)-HL+HW,0); d=np.sqrt(qx*qx+ay*ay)/HW
     lug=np.sqrt(np.clip(1-d*d,0,1))**0.7
-    PWx=1.2
-    dxe=np.minimum(X%PWx,PWx-(X%PWx)); dye=np.minimum(Y%S,S-(Y%S)); de=np.minimum(dxe,dye)
+    PWx,PH=1.2,2.4
+    ry=np.floor(Y/PH); Xs=(X+0.6*(ry%2))%S   # filas de chapas al tresbolillo
+    dxe=np.minimum(Xs%PWx,PWx-(Xs%PWx)); dye=np.minimum(Y%PH,PH-(Y%PH)); de=np.minimum(dxe,dye)
     seam=np.exp(-(de/0.0022)**2)
     lug=lug*ss(0.014,0.022,de)
     bolt=np.zeros((N,N),np.float32); bslot=np.zeros((N,N),np.float32)
     for side in (-0.032,0.032):
-        dx=pdist(X,side,PWx); dy=pdist(Y,0.15,0.3); r=np.sqrt(dx*dx+dy*dy)
+        dx=pdist(Xs,side,PWx); dy=pdist(Y,0.15,0.3); r=np.sqrt(dx*dx+dy*dy)
         bolt=np.maximum(bolt,ss(0.011,0.009,r)); bslot=np.maximum(bslot,(np.abs(dx)<0.0012)*(r<0.008))
-        dy2=pdist(Y,side,S); dx2=pdist(X,0.15,0.3); r2_=np.sqrt(dx2*dx2+dy2*dy2)
+        dy2=pdist(Y,side,PH); dx2=pdist(Xs,0.15,0.3); r2_=np.sqrt(dx2*dx2+dy2*dy2)
         bolt=np.maximum(bolt,ss(0.011,0.009,r2_)); bslot=np.maximum(bslot,(np.abs(dy2)<0.0012)*(r2_<0.008))
     lug=lug*(1-ss(0.0,1.0,blurw(bolt,4)))
     # relieve (1 = 1 mm): resalte 1,5 mm, junta 1 mm, tornillo avellanado
     height=1.5*lug - 1.0*seam - 0.6*bolt - 0.8*bslot + 0.3*bolt*(1-bslot)
-    height+=1.2*(noise(4,4500,N,N,3)-0.5)   # chapa no del todo plana
-    big=noise(3,4501,N,N,5); mid=noise(12,4502,N,N,4); fine=noise(60,4507,N,N,3)
+    height+=1.2*(noise(8,4500,N,N,3)-0.5)   # chapa no del todo plana
+    big=noise(6,4501,N,N,5); mid=noise(24,4502,N,N,4); fine=noise(120,4507,N,N,3)
     base=col([0.31,0.305,0.295])*(0.80+0.28*big[...,None])*(0.92+0.16*fine[...,None])
     # por chapa un tono un poco distinto
-    pid=(np.floor(X/PWx)%2).astype(np.int32); base=base*np.where(pid==0,1.0,0.93)[...,None]
-    wear=ss(0.25,0.75,noise(5,4503,N,N,4))
+    pid=((np.floor(Xs/PWx)+ry)%2).astype(np.int32); base=base*np.where(pid==0,1.0,0.93)[...,None]
+    wear=ss(0.25,0.75,noise(10,4503,N,N,4))
     top=ss(0.35,0.9,lug)
     alb=mix(base, col([0.56,0.55,0.53])*(0.9+0.2*fine[...,None]), top*wear*0.85)
     recess=(1-ss(0.0,0.3,lug))
     gr=ss(0.25,0.75,mid)
     alb=mix(alb, col([0.11,0.095,0.08]), recess*gr*0.45)
-    ru=oldrust(resample(rust,1.2,1.2,N,N,0.55,0.1))
-    rt=chipfield(4504,N,N,6)+0.30*np.exp(-de/0.05)
+    ru=oldrust(resample(rust,2.4,2.4,N,N,0.55,0.1))
+    rt=chipfield(4504,N,N,12)+0.16*np.exp(-de/0.04)*ss(0.45,0.7,noise(16,4509,N,N,3))
     rmask=ss(0.74,0.80,rt)*(1-0.7*top*wear)
     rbleed=ss(0.62,0.76,rt)*recess*(1-rmask)
     alb=mix(alb,ru,rmask)
     alb=mix(alb,ru*0.9,rbleed*0.6)
-    oil=ss(0.80,0.86,chipfield(4505,N,N,3)); dust=ss(0.70,0.80,chipfield(4506,N,N,5))*(0.4+0.6*recess)
+    oil=ss(0.80,0.86,chipfield(4505,N,N,6)); dust=ss(0.70,0.80,chipfield(4506,N,N,10))*(0.4+0.6*recess)
     alb=alb*(1-0.50*oil)[...,None]
     alb=mix(alb,col([0.34,0.31,0.27]),dust*0.30)
     alb=mix(alb,col([0.12,0.11,0.10]),seam*0.85)
     alb=mix(alb,col([0.46,0.45,0.44]),bolt*(1-bslot)*0.5)
     # pisadas/arrastres: rayas finas pulidas
     im=Image.new('L',(N,N),0); dr=ImageDraw.Draw(im); r2=np.random.default_rng(4508)
-    for k in range(90):
+    for k in range(360):
         x0=r2.uniform(0,S); y0=r2.uniform(0,S); L_=r2.uniform(0.05,0.45); an=r2.uniform(0,np.pi)
         for ox in (0,S,-S):
             for oy in (0,S,-S):

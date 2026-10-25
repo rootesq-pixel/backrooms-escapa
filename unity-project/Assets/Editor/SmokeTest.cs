@@ -1137,17 +1137,18 @@ public static class SmokeTest
         LevelConfig c = LevelConfig.Get(4);
         r.Check(c.name == "Complejo industrial" && c.wallStyle == SurfaceStyle.IndustrialWall && c.floorStyle == SurfaceStyle.IndustrialFloor && c.ceilingStyle == SurfaceStyle.IndustrialCeiling && c.pipes && c.industrialPipes,
             T + "nivel 4 = " + c.name + " con estilos " + c.wallStyle + "/" + c.floorStyle + "/" + c.ceilingStyle + " y tuberías modeladas");
-        r.Check(Mathf.Approximately(c.wallTileU, 3.6f) && c.wallTileV == 0f && Mathf.Approximately(c.wallHeight, 3.4f) && Mathf.Approximately(c.floorTileU, 2.4f) && Mathf.Approximately(c.floorTileV, 2.4f) && Mathf.Approximately(c.ceilTileU, 2.4f),
-            T + "UV a escala real: pared 3,6 m x altura completa (" + c.wallHeight + " m), suelo y techo 2,4 m (chapas de 1,2 m, resaltes de 4 cm, greca de 20 cm)");
+        r.Check(Mathf.Approximately(c.wallTileU, 3.6f) && c.wallTileV == 0f && Mathf.Approximately(c.wallHeight, 3.4f) && Mathf.Approximately(c.floorTileU, 4.8f) && Mathf.Approximately(c.floorTileV, 4.8f) && Mathf.Approximately(c.ceilTileU, 2.4f),
+            T + "UV a escala real: pared 3,6 m x altura completa (" + c.wallHeight + " m), suelo 4,8 m (chapas de 1,2 x 2,4 m al tresbolillo, resaltes de 4 cm), techo 2,4 m (greca de 20 cm)");
         r.Check(c.fixture == FixtureKind.Emergency && c.pulse && c.ambient.r < 0.1f && c.fogDensity >= 0.04f && c.lightColor.g < 0.2f, T + "misma oscuridad roja: emergencia que pulsa, ambiente " + c.ambient.r.ToString("F3") + ", niebla " + c.fogDensity);
         int ok = 0; string bad = "";
         foreach (string n in new[] { "IndustrialWall", "IndustrialFloor", "IndustrialCeiling", "IndustrialPipe" })
         {
             Texture2D a = Resources.Load<Texture2D>("Textures/" + n + "_a"), nn = Resources.Load<Texture2D>("Textures/" + n + "_n"), m = Resources.Load<Texture2D>("Textures/" + n + "_m");
-            bool good = a != null && nn != null && m != null && a.width == 2048 && (a.height == 2048 || (n == "IndustrialPipe" && a.height == 1024)) && nn.width == a.width && m.width == a.width && a.mipmapCount > 8;
+            int want = n == "IndustrialFloor" ? 4096 : 2048;
+            bool good = a != null && nn != null && m != null && a.width == want && (a.height == want || (n == "IndustrialPipe" && a.height == 1024)) && nn.width == a.width && m.width == a.width && a.mipmapCount > 8;
             if (good) ok++; else bad += " " + n;
         }
-        r.Check(ok == 4, T + "texturas PBR horneadas (albedo/normal/máscara 2048, con mipmaps): " + ok + "/4" + bad);
+        r.Check(ok == 4, T + "texturas PBR horneadas (albedo/normal/máscara 2048, suelo 4096, con mipmaps): " + ok + "/4" + bad);
         SurfaceSet ws = ProceduralTextures.TryLoadBaked(SurfaceStyle.IndustrialWall, 3.4f);
         r.Check(ws != null && ws.baked && ProceduralTextures.TryLoadBaked(SurfaceStyle.IndustrialWall, 3.0f) == null, T + "la pared horneada solo se usa a 3,4 m de altura (lleva el zócalo y la franja a escala)");
         r.Check(ProceduralTextures.TryLoadBaked(SurfaceStyle.MetalWall, 3.4f) != null && ProceduralTextures.TryLoadBaked(SurfaceStyle.MetalFloor, 3.4f) != null, T + "las texturas antiguas siguen (Talasofobia usa MetalWall; «-oldl4» para las capturas «antes»)");

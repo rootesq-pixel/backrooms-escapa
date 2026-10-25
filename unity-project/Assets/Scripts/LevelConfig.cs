@@ -332,7 +332,7 @@ public class LevelConfig
             // grecada con viga) y tuberías modeladas (salen del muro con codos, bridas, abrazaderas y soportes; pintura gastada).
             // Mismo plano, mismas luces y la misma oscuridad roja.
             c.wallStyle = SurfaceStyle.IndustrialWall; c.floorStyle = SurfaceStyle.IndustrialFloor; c.ceilingStyle = SurfaceStyle.IndustrialCeiling;
-            c.wallTileU = 3.6f; c.wallTileV = 0f; c.floorTileU = c.floorTileV = 2.4f; c.ceilTileU = c.ceilTileV = 2.4f;
+            c.wallTileU = 3.6f; c.wallTileV = 0f; c.floorTileU = c.floorTileV = 4.8f; c.ceilTileU = c.ceilTileV = 2.4f;   // suelo 4,8 m a 4096 px: sin repetición visible
             c.industrialPipes = true;
         }
         return c;

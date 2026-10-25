@@ -823,8 +823,9 @@ public class ShotBuildCheck : MonoBehaviour
             Vector3 stand = face + outw * 1.7f - along * 0.9f; stand.y = floorY + 0.02f;
             Vector3 p = stand + Vector3.up * 1.62f;
             yield return View(pw, mc, "l4_03_tuberia", p, face + outw * 0.2f + along * 0.5f + Vector3.up * (ps.y - 0.05f), 58f, stand);
+            Vector3 s3 = face + outw * 1.15f + along * 0.5f; s3.y = floorY + 0.02f;   // de frente a la pared (la linterna apunta a donde mira)
+            yield return View(pw, mc, "l4_04_pared", s3 + Vector3.up * 1.55f, face + along * 0.75f + Vector3.up * 1.25f, 60f, s3);
             Vector3 s2 = face + outw * 1.25f + along * 0.3f; s2.y = floorY + 0.02f;
-            yield return View(pw, mc, "l4_04_pared", s2 + Vector3.up * 1.45f, face + along * 0.9f + Vector3.up * 0.9f, 60f, s2);
             yield return View(pw, mc, "l4_05_suelo", s2 + Vector3.up * 1.62f, face + outw * 0.6f + along * 1.6f + Vector3.up * 0.05f, 62f, s2);
         }
         // lámpara de emergencia viva más cercana al primer pasillo, de cerca y desde abajo
