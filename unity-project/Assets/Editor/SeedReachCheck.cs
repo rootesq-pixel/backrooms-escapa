@@ -11,6 +11,7 @@ public static class SeedReachCheck
     public const string Report = "/workspace/logs/smoke-seedreach.txt";
     public static readonly int[] Level5Seeds = { 7110, 1, 42, 1234, 98765, 20261024 };
     public static readonly int[] Level3Seeds = { 1, 7, 42, 100, 1234, 5555, 98765, 31337, 271828, 8675309, 20261024, 777 };   // v7.5.0
+    public static readonly int[] Level8Seeds = { 7110, 1, 42, 1234, 98765, 20261024, 31337, 777 };   // v7.7.0
     public static readonly int[] Level6Seeds = { 64257619, 100, 200, 300, 400, 1, 7, 42, 1234, 5555, 98765, 31337, 271828, 314159, 8675309, 20261024, 123456789, 99, 2024, 777 };
     static IEnumerator it; static double wait; static int pass, fail;
     static SeedReachCheck() { if (SessionState.GetString("seedreach", "") != "1") return; EditorApplication.update += Tick; }
@@ -219,6 +220,69 @@ public static class SeedReachCheck
                 Check(HotelDecor.Doors >= 60 && longest >= 12 && HotelDecor.Leaves.Count == gen.Hotel.doorways.Count, T + "puertas numeradas " + HotelDecor.Doors + " (que se abren " + HotelDecor.Leaves.Count + "), muebles " + HotelDecor.ItemCount + ", pasillos " + gen.Hotel.corridors.Count + " (el más largo " + (longest * cs).ToString("F0") + " m)");
             }
         }
+        if (only == "" || only == "8")
+        {   // v7.7.0: Nivel 114 (desierto): desde el ascensor se llega a pie a la puerta de piedra del pueblo de la salida y se cruza
+            DesertFx.HazardsOn = false;
+            foreach (int s8 in Level8Seeds)
+            {
+                gb.useRandomSeed = false; gb.seed = s8 - 8 * 101;
+                int lc8 = gb.LoadCount; gb.LoadLevel(8);
+                double t8 = EditorApplication.timeSinceStartup;
+                while (!(gb.LoadCount > lc8 && gb.IsLoaded && GameManager.Instance != null && DesertWorld.Active != null) && EditorApplication.timeSinceStartup - t8 < 120) yield return 0.1f;
+                yield return 1.0f;
+                if (ElevatorCabin.Current != null) ElevatorCabin.Current.Skip();
+                double tw = EditorApplication.timeSinceStartup; while (ElevatorCabin.PlayerLocked && EditorApplication.timeSinceStartup - tw < 20) yield return 0.25f;
+                GameManager gm8 = GameManager.Instance; FirstPersonController pw = gm8.player; DesertWorld dw = DesertWorld.Active;
+                string T8 = "[nivel 8 semilla " + gm8.generator.UsedSeed + "] ";
+                Check(gm8.generator.UsedSeed == s8 && dw.ExitTransform != null && dw.plan.exitVillage >= 0, T8 + "pueblo de la salida " + dw.plan.exitVillage + " con puerta de piedra");
+                // rejilla de 2 m sobre el tramo periódico: pendiente transitable y sin chocar (cápsula del jugador)
+                const float G = 2f; int N = Mathf.RoundToInt(dw.L / G);
+                int mask = ~(1 << pw.gameObject.layer);
+                Transform R = dw.levelRoot;
+                System.Func<int, int, bool> free = (ix, iz) =>
+                {
+                    float x = (ix + 0.5f) * G, z = (iz + 0.5f) * G, y = DesertHeight.H(x, z);
+                    Vector3 a0 = R.TransformPoint(new Vector3(x, y + 0.75f, z)), a1 = R.TransformPoint(new Vector3(x, y + 1.6f, z));
+                    return !Physics.CheckCapsule(a0, a1, 0.32f, mask, QueryTriggerInteraction.Ignore);
+                };
+                Vector3 st = dw.StartLocal, ex = dw.ExitLocal;
+                int sx = ((Mathf.FloorToInt(st.x / G) % N) + N) % N, sz = ((Mathf.FloorToInt(st.z / G) % N) + N) % N;
+                int ex0 = ((Mathf.FloorToInt(ex.x / G) % N) + N) % N, ez0 = ((Mathf.FloorToInt(ex.z / G) % N) + N) % N;
+                var seen = new int[N * N]; for (int i = 0; i < seen.Length; i++) seen[i] = -1;
+                var qx = new Queue<int>(); seen[sx * N + sz] = 0; qx.Enqueue(sx * N + sz); bool found = false; int steps = 0, blocked = 0;
+                int[] DX = { 1, -1, 0, 0 }, DZ = { 0, 0, 1, -1 };
+                while (qx.Count > 0)
+                {
+                    int c = qx.Dequeue(); int cx = c / N, cz = c % N;
+                    if (Mathf.Abs(cx - ex0) <= 1 && Mathf.Abs(cz - ez0) <= 1) { found = true; steps = seen[c]; break; }
+                    float hc = DesertHeight.H((cx + 0.5f) * G, (cz + 0.5f) * G);
+                    for (int d = 0; d < 4; d++)
+                    {
+                        int nx = (cx + DX[d] + N) % N, nz = (cz + DZ[d] + N) % N, ni = nx * N + nz;
+                        if (seen[ni] != -1) continue;
+                        float hn = DesertHeight.H((nx + 0.5f) * G, (nz + 0.5f) * G);
+                        if (Mathf.Abs(hn - hc) > G * 0.8f) continue;   // < ~38° (límite del CharacterController 45°)
+                        if (!free(nx, nz)) { seen[ni] = -2; blocked++; continue; }
+                        seen[ni] = seen[c] + 1; qx.Enqueue(ni);
+                    }
+                }
+                Check(found, T8 + "camino a pie inicio -> puerta de piedra por la arena (" + (found ? (steps * G).ToString("F0") + " m de rejilla" : "SIN CAMINO") + ", " + blocked + " celdas con obstáculo)");
+                // cruzar la puerta: desde 5 m delante, andando hacia la losa, se completa el nivel
+                Vector3 door = dw.ExitTransform.position, ew = R.TransformPoint(ex);
+                Vector3 dir = ew - door; dir.y = 0f; dir.Normalize();
+                Vector3 from = ew + dir * 4f; Vector3 fl = R.InverseTransformPoint(from); from = R.TransformPoint(new Vector3(fl.x, DesertHeight.H(fl.x, fl.z) + 0.15f, fl.z));
+                pw.Teleport(from, Mathf.Atan2(-dir.x, -dir.z) * Mathf.Rad2Deg);
+                yield return 0.4f;
+                pw.debugInput = true; pw.debugMove = new Vector2(0f, 1f);
+                double tg = EditorApplication.timeSinceStartup;
+                while (gm8.State == GameManager.GameState.Playing && EditorApplication.timeSinceStartup - tg < 12) yield return 0.1f;
+                pw.debugInput = false; pw.debugMove = Vector2.zero;
+                Check(gm8.State == GameManager.GameState.Won || gm8.State == GameManager.GameState.LevelComplete, T8 + "andando de pie hacia la puerta de piedra se sale del nivel (" + gm8.State + ")");
+                yield return 1.5f;
+            }
+            DesertFx.HazardsOn = true;
+        }
+        if (only == "8") yield break;
         if (only == "5" || only == "3") yield break;
         const int lv = 6;
         Check(!BackroomsGenerator.HallEastDoor && !BackroomsGenerator.HallDoorV(new RectInt(10, 10, 5, 4), 15, 11) && BackroomsGenerator.HallDoorV(new RectInt(10, 10, 5, 4), 10, 11),

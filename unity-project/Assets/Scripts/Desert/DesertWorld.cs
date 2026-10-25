@@ -115,7 +115,7 @@ public class DesertWorld : MonoBehaviour
         blocksM = Pbr("blocks", new Color(1.05f, 0.92f, 0.76f), 2.4f, 0.7f);
         rubbleM = Pbr("rubble", new Color(0.92f, 0.80f, 0.64f), 3.0f, 0.6f);
         wornM = Pbr("worn", new Color(0.95f, 0.86f, 0.74f), 2.0f, 0.6f);
-        caveM = Pbr("rock", new Color(0.56f, 0.44f, 0.36f), 3.0f, 0.8f);
+        caveM = Pbr("rock", new Color(0.74f, 0.60f, 0.48f), 3.0f, 0.6f);
         goldM = Ore(new Color(1f, 0.76f, 0.33f), 1f, 0.78f, Color.black);
         ironM = Ore(new Color(0.46f, 0.26f, 0.16f), 0.45f, 0.35f, Color.black);
         leadM = Ore(new Color(0.44f, 0.46f, 0.50f), 0.9f, 0.5f, Color.black);
@@ -809,8 +809,8 @@ public class DesertWorld : MonoBehaviour
         {
             float a = (k == 0 ? 0f : 70f + k * 55f) * Mathf.Deg2Rad + ((float)r.NextDouble() - 0.5f) * 0.3f;
             float d = k == 0 ? R * 0.15f : R * 0.85f;
-            Vector3 p = new Vector3(Mathf.Sin(a) * d, baseY + (k == 0 ? Hc * 0.85f : -0.6f), Mathf.Cos(a) * d);
-            Model(k == 0 ? "DCliff0" : "DRock" + r.Next(3), g, p, Quaternion.Euler(0f, (float)r.NextDouble() * 360f, 0f), k == 0 ? 0.9f : 1.6f + (float)r.NextDouble(), tint, true, false, k != 0);
+            Vector3 p = new Vector3(Mathf.Sin(a) * d, baseY + (k == 0 ? Hc * 0.3f : -0.6f), Mathf.Cos(a) * d);   // v7.7.0 a: el risco de arriba hundido en la cúpula (antes asomaba como una aguja)
+            Model(k == 0 ? "DCliff0" : "DRock" + r.Next(3), g, p, Quaternion.Euler(0f, (float)r.NextDouble() * 360f, 0f), k == 0 ? 0.75f : 1.6f + (float)r.NextDouble(), tint, true, false, k != 0);
         }
         // vetas: grupos de cristales/pepitas a lo largo de grietas en las paredes de dentro
         Material[] ores = { ironM, goldM, leadM, diamondM };

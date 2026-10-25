@@ -267,6 +267,33 @@ public static class ItemIcons
                 c.Stroke((x, y) => Box(x, y, 50, 55, 26f, 8.5f, 3f, 0f), 1.3f, ink);
                 break;
             }
+            case "RoyalRations":   // v7.7.0: lata con etiqueta y sello rojo
+            {
+                c.Fill((x, y) => Box(x, y, 51, 45, 26f, 22f, 4f, 0f), new Color(0, 0, 0, 0.3f));
+                c.Fill((x, y) => Box(x, y, 48, 48, 26f, 22f, 4f, 0f), Hex(108, 112, 78));
+                c.Fill((x, y) => Box(x, y, 48, 48, 26f, 13f, 0f, 0f), Hex(200, 180, 120));
+                c.Fill((x, y) => Circle(x, y, 48, 48, 7f), Hex(150, 34, 28));
+                c.Fill((x, y) => Box(x, y, 48, 69, 24f, 3f, 1f, 0f), Hex(170, 170, 160));
+                c.Fill((x, y) => Box(x, y, 30, 48, 2f, 18f, 1f, 0f), new Color(1, 1, 1, 0.25f));
+                c.Stroke((x, y) => Box(x, y, 48, 48, 26f, 22f, 4f, 0f), 1.3f, ink);
+                break;
+            }
+            case "CashewWater":
+            case "NeonWater":
+            {
+                bool neon = key == "NeonWater";
+                if (neon) c.Glow(48, 48, 42f, Hex(80, 255, 220), 0.55f);
+                c.Fill((x, y) => Box(x, y, 51, 51, 20f, 33f, 8f, 0f), new Color(0, 0, 0, 0.3f));
+                c.Fill((x, y) => Box(x, y, 48, 44, 19f, 31f, 9f, 0f), Hex(205, 224, 226, 235));
+                c.Fill((x, y) => Box(x, y, 48, 75, 7f, 8f, 2f, 0f), Hex(205, 224, 226, 235));
+                c.Fill((x, y) => Box(x, y, 48, 34, 16.5f, 20f, 7f, 0f), neon ? Hex(90, 255, 220) : Hex(190, 142, 84));
+                c.Fill((x, y) => Box(x, y, 48, 46, 19f, 9f, 0f, 0f), neon ? Hex(40, 30, 54) : Hex(82, 122, 66));
+                c.Fill((x, y) => Circle(x, y, 48, 46, 4.5f), neon ? Hex(240, 60, 200) : Hex(230, 214, 170));
+                c.Fill((x, y) => Box(x, y, 48, 85, 9f, 5f, 2f, 0f), neon ? Hex(230, 50, 180) : Hex(56, 76, 46));
+                c.Fill((x, y) => Box(x, y, 38, 41, 2f, 24f, 1f, 0f), new Color(1, 1, 1, 0.35f));
+                c.Stroke((x, y) => Box(x, y, 48, 44, 19f, 31f, 9f, 0f), 1.3f, ink);
+                break;
+            }
             case "Lock":
             {
                 c.Fill((x, y) => Box(x, y, 48, 38, 18f, 14f, 3f, 0f), Hex(60, 56, 40, 200));

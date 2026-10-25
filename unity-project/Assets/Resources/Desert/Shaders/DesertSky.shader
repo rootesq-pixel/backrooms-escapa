@@ -47,13 +47,18 @@ Shader "Backrooms/DesertSky"
                     float3 q = d * 420.0; float3 cell = floor(q);
                     float hs = hash13(cell);
                     float3 fp = frac(q) - 0.5;
-                    float st = step(0.9955, hs) * smoothstep(0.42, 0.0, length(fp)) * (0.4 + 4.0 * pow(hash13(cell + 7.1), 6.0));
+                    float st = step(0.9955, hs) * smoothstep(0.45, 0.0, length(fp)) * (1.1 + 7.0 * pow(hash13(cell + 7.1), 6.0));
+                    // segunda capa: muchas estrellas débiles (cielo del desierto sin contaminación)
+                    float3 q2 = d * 900.0; float3 c2 = floor(q2); float h2 = hash13(c2 + 11.7);
+                    st += step(0.985, h2) * smoothstep(0.5, 0.0, length(frac(q2) - 0.5)) * 0.35;
                     st *= 0.7 + 0.3 * sin(t * (2.0 + hs * 5.0) + hs * 40.0);   // titileo
                     float3 scol = lerp(float3(0.75, 0.85, 1.1), float3(1.1, 0.95, 0.8), hash13(cell + 3.3));
                     // Vía Láctea: banda tenue inclinada con nubes de polvo
                     float3 gal = normalize(float3(0.35, 0.25, 0.9));
                     float band = exp(-pow(dot(d, gal) * 5.5, 2.0));
-                    float mw = band * (0.5 + 0.5 * fbm(float2(atan2(d.x, d.z) * 5.0, d.y * 9.0))) * 0.06;
+                    float2 gp = float2(atan2(d.x, d.z) * 5.0, d.y * 9.0);
+                    float dustL = smoothstep(0.35, 0.75, fbm(gp * 2.3 + 3.0));              // nubes oscuras de polvo
+                    float mw = band * (0.45 + 0.55 * fbm(gp)) * (1.0 - 0.7 * dustL * band) * 0.22 + exp(-pow(dot(d, gal) * 2.2, 2.0)) * 0.025;
                     c += (st * scol + mw * float3(0.75, 0.78, 0.9)) * stars;
                     // luna con fase (terminador según la fase) y halo
                     float mc = dot(d, md);
@@ -73,15 +78,22 @@ Shader "Backrooms/DesertSky"
                 float sunDisk = smoothstep(0.99965, 0.99985, cs);
                 float limb = 0.6 + 0.4 * saturate((cs - 0.99965) / 0.0002);
                 c += _SkySunCol.rgb * sunDisk * limb * 22.0 * saturate(sd.y * 20 + 0.6);
-                // --- auroras (rarísimas): cortinas verdes y violetas hacia el norte
-                if (_SkyParams.w > 0.001)
+                // --- auroras (rarísimas, «Clima Hermoso»): cortinas en capas (8 planos a distinta altura) con rayos finos
+                if (_SkyParams.w > 0.001 && d.y > 0.02)
                 {
-                    float az = atan2(d.x, d.z);
-                    float curt = fbm(float2(az * 6.0 + t * 0.05, t * 0.03)) ;
-                    float rays = pow(vn(float2(az * 60.0 + curt * 20.0, t * 0.2)), 3.0);
-                    float hb = smoothstep(0.05, 0.25, d.y) * smoothstep(0.75, 0.3, d.y) * saturate(-d.z * 1.5 + 0.5);
-                    float3 acol = lerp(float3(0.1, 1.0, 0.45), float3(0.6, 0.25, 1.0), smoothstep(0.25, 0.6, d.y + curt * 0.2));
-                    c += acol * hb * (0.25 + rays) * curt * _SkyParams.w * 0.9;
+                    float3 acc = 0;
+                    [unroll] for (int k = 0; k < 8; k++)
+                    {
+                        float hk = 1.0 + k * 0.22;
+                        float2 p = d.xz * (hk / d.y) * 0.5 + float2(t * 0.004, t * 0.002);
+                        float w = vn(p * 0.55) * 0.65 + vn(p * 1.3 + 7.0) * 0.35;
+                        float rib = smoothstep(0.07, 0.0, abs(w - 0.5));                // cinta estrecha que serpentea
+                        float ray = 0.6 + 0.4 * vn(float2(p.x * 9.0 + p.y * 3.0, t * 0.15));
+                        float fk = k / 7.0;
+                        float3 col = lerp(float3(0.15, 1.0, 0.45), float3(0.55, 0.25, 1.0), smoothstep(0.35, 1.0, fk));
+                        acc += col * rib * ray * pow(1.0 - fk, 1.2) * 0.16;
+                    }
+                    c += acc * smoothstep(0.02, 0.2, d.y) * _SkyParams.w;
                 }
                 // --- nubes (plano a ~2 km): cobertura y luz según el clima y la hora
                 if (d.y > 0.0)

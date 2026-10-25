@@ -225,6 +225,36 @@ public class Inventory : MonoBehaviour
             case ItemType.Glowstick:
                 if (ThrowGlowstick(true)) { Remove(i, 1); msg = "Barra luminosa lanzada"; ok = true; }
                 break;
+            case ItemType.RoyalRations:   // v7.7.0
+            case ItemType.CashewWater:
+            case ItemType.NeonWater:
+            {
+                ItemType t = slots[i].type;
+                if (t != ItemType.NeonWater && sanity != null && sanity.Sanity01 > 0.98f && (fpc == null || fpc.Stamina01 > 0.98f)) { msg = "Ahora mismo no lo necesitas"; break; }
+                if (t == ItemType.RoyalRations)
+                {
+                    if (fpc != null) fpc.RestoreStamina(0.4f);
+                    bool bad = UnityEngine.Random.value < 0.3f;
+                    if (sanity != null) sanity.Add(bad ? 2f : 10f);
+                    msg = bad ? "Raciones Reales: caducadas y saben fatal, pero quitan el hambre" : "Raciones Reales: caducadas, pero recuperas algo de resistencia";
+                }
+                else if (t == ItemType.CashewWater)
+                {
+                    if (fpc != null) fpc.RestoreStamina(0.7f);
+                    if (sanity != null) sanity.Add(20f);
+                    msg = "Agua de anacardo: recuperas resistencia y algo de cordura";
+                }
+                else
+                {
+                    if (fpc != null) fpc.RestoreStamina(1f);
+                    if (sanity != null) sanity.Add(55f);
+                    if (flashlight != null) flashlight.Recharge(batteryAmount * 0.6f);
+                    msg = "Agua de neón: te recorre un calor brillante (resistencia, cordura y linterna)";
+                }
+                Remove(i, 1);
+                ok = true;
+                break;
+            }
             case ItemType.FlareGun:   // v7.3.0
                 if (OceanFlare.TryFire(cam != null ? cam.transform : transform, out msg)) { Remove(i, 1); ok = true; }
                 break;

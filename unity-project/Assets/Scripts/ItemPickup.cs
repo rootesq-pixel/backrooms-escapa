@@ -213,6 +213,36 @@ public class ItemPickup : MonoBehaviour
                 ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "Trigger", r, new Vector3(0f, 0.012f, -0.005f), new Vector3(0.01f, 0.03f, 0.02f), d, false);
                 break;
             }
+            case ItemType.RoyalRations:   // v7.7.0: lata de raciones abollada con sello real descolorido
+            {
+                Material tin = M("rr_tin", new Color(0.42f, 0.44f, 0.30f), 0.55f);
+                Material lab = M("rr_label", new Color(0.78f, 0.70f, 0.46f), 0.15f, new Color(0.10f, 0.08f, 0.03f));
+                Material seal = M("rr_seal", new Color(0.55f, 0.12f, 0.10f), 0.3f);
+                GameObject c0 = ProceduralAssets.CreatePrimitive(PrimitiveType.Cylinder, "Tin", r, new Vector3(0f, 0.045f, 0f), new Vector3(0.10f, 0.045f, 0.10f), tin, false);
+                ProceduralAssets.CreatePrimitive(PrimitiveType.Cylinder, "Label", r, new Vector3(0f, 0.045f, 0f), new Vector3(0.102f, 0.028f, 0.102f), lab, false);
+                ProceduralAssets.CreatePrimitive(PrimitiveType.Cylinder, "Seal", r, new Vector3(0f, 0.045f, 0.05f), new Vector3(0.03f, 0.002f, 0.03f), seal, false).transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+                ProceduralAssets.CreatePrimitive(PrimitiveType.Cylinder, "Lid", r, new Vector3(0f, 0.091f, 0f), new Vector3(0.096f, 0.003f, 0.096f), M("rr_lid", new Color(0.62f, 0.62f, 0.58f), 0.7f), false);
+                c0.transform.localRotation = Quaternion.Euler(0f, 0f, 4f);
+                break;
+            }
+            case ItemType.CashewWater:   // v7.7.0: botella como la de almendras, líquido tostado y etiqueta verde
+            case ItemType.NeonWater:     // v7.7.0: botella con líquido que brilla (se ve de noche en la arena)
+            {
+                bool neon = t == ItemType.NeonWater;
+                Material glass = M(neon ? "nw_glass" : "cw_glass", new Color(0.72f, 0.84f, 0.86f), 0.85f, new Color(0.10f, 0.14f, 0.15f));
+                Material liquid = neon ? M("nw_liquid", new Color(0.2f, 1f, 0.85f), 0.9f, new Color(0.25f, 1.6f, 1.3f)) : M("cw_liquid", new Color(0.74f, 0.56f, 0.32f), 0.6f);
+                ProceduralAssets.CreatePrimitive(PrimitiveType.Cylinder, "Liquid", r, new Vector3(0f, 0.085f, 0f), new Vector3(0.078f, 0.08f, 0.078f), liquid, false);
+                ProceduralAssets.CreatePrimitive(PrimitiveType.Cylinder, "Bottle", r, new Vector3(0f, 0.11f, 0f), new Vector3(0.085f, 0.11f, 0.085f), glass, false);
+                ProceduralAssets.CreatePrimitive(PrimitiveType.Cylinder, "Neck", r, new Vector3(0f, 0.245f, 0f), new Vector3(0.04f, 0.03f, 0.04f), glass, false);
+                ProceduralAssets.CreatePrimitive(PrimitiveType.Cylinder, "Cap", r, new Vector3(0f, 0.285f, 0f), new Vector3(0.046f, 0.012f, 0.046f), M(neon ? "nw_cap" : "cw_cap", neon ? new Color(0.9f, 0.2f, 0.7f) : new Color(0.22f, 0.3f, 0.18f), 0.5f), false);
+                ProceduralAssets.CreatePrimitive(PrimitiveType.Cylinder, "Label", r, new Vector3(0f, 0.15f, 0f), new Vector3(0.089f, 0.035f, 0.089f), neon ? M("nw_label", new Color(0.12f, 0.1f, 0.16f), 0.3f, new Color(0.6f, 0.1f, 0.5f)) : M("cw_label", new Color(0.32f, 0.48f, 0.26f), 0.2f, new Color(0.04f, 0.07f, 0.03f)), false);
+                if (neon)
+                {
+                    GameObject lg = new GameObject("NeonGlow"); lg.transform.SetParent(r, false); lg.transform.localPosition = new Vector3(0f, 0.12f, 0f);
+                    Light l = lg.AddComponent<Light>(); l.type = LightType.Point; l.color = new Color(0.3f, 1f, 0.85f); l.range = 2.2f; l.intensity = 0.7f; l.shadows = LightShadows.None;
+                }
+                break;
+            }
             default:     // nota de papel
             {
                 GameObject p = ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "Paper", r, new Vector3(0f, 0.004f, 0f), new Vector3(0.17f, 0.004f, 0.22f), M("note_paper", new Color(0.86f, 0.8f, 0.6f), 0.1f, new Color(0.32f, 0.28f, 0.14f)), false);

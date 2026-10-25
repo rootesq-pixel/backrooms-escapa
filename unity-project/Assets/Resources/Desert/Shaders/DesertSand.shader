@@ -58,7 +58,7 @@ Shader "Backrooms/DesertSand"
             float gl = dot(lerp(g, g2, 0.4), float3(0.3, 0.59, 0.11));
             float3 base = lerp(_SandCol2.rgb, _SandCol.rgb, saturate(m2 * 2.2 - 0.6));
             base = lerp(base, _CrestCol.rgb, saturate((wn.y - 0.9) * 3.0) * saturate(m1 * 1.8 - 0.5) * 0.6);
-            float3 alb = base * (0.72 + 0.62 * gl) * (0.9 + 0.2 * m1);
+            float3 alb = base * (0.72 + 0.62 * gl) * (0.9 + 0.2 * m1) * 0.78;   // v7.7.0 a: albedo real de la arena (~0,4)
             // --- normal: grano (se aplana a lo lejos) + ondulaciones de viento
             float3 n = UnpackNormal(tex2D(_GrainN, uvG));
             n.xy *= 0.55 * saturate(1.0 - dist / 30.0);
@@ -77,7 +77,7 @@ Shader "Backrooms/DesertSand"
             n.xy -= grad * amp;
             // oclusión en los valles de las ondas (sombra fina)
             float valley = 0.5 + 0.5 * sin(ph1 + 0.65 * sin(ph1));
-            alb *= lerp(1.0, 0.9 + 0.1 * valley, amp / max(_RippleAmp, 1e-3));
+            alb *= lerp(1.0, 0.8 + 0.2 * valley, amp / max(_RippleAmp, 1e-3));
             float smooth = 0.12 + 0.05 * gl;
             // --- arenas movedizas: más oscuras, lisas y húmedas, con ondas lentas concéntricas
             float qk = 0;

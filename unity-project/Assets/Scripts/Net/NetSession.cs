@@ -42,7 +42,7 @@ public class NetStart
 // Los clientes generan el mismo mundo a partir de la semilla que envía el anfitrión. Transporte: TCP propio (NetTransport).
 public class NetSession : MonoBehaviour
 {
-    public const string Protocol = "BackroomsEscape-MP-9";   // v7.5.0: sin mensajes nuevos, pero el Nivel 3 (hotel) es otro mapa y la v7.4.0 no debe entrar; antes MP-8: v7.3.0: nivel 7 (Talasofobia): OceanReq / OceanEvent y bloque «mar» en el snapshot; antes MP-7: v7.2.0: reanimar manteniendo E (bit FlagRevive en el estado); v7.1.0: nivel 6 (Parque de bolas); v7.0.4: llaves de la salida (UnlockReq / ExitUnlocked)
+    public const string Protocol = "BackroomsEscape-MP-10";   // v7.7.0: nivel 8 (Nivel 114, El Desierto Cálido): bloque «desierto» (reloj del nivel: hora y clima) en el snapshot y objetos de la arena (5000+); antes MP-9: v7.5.0: sin mensajes nuevos, pero el Nivel 3 (hotel) es otro mapa y la v7.4.0 no debe entrar; antes MP-8: v7.3.0: nivel 7 (Talasofobia): OceanReq / OceanEvent y bloque «mar» en el snapshot; antes MP-7: v7.2.0: reanimar manteniendo E (bit FlagRevive en el estado); v7.1.0: nivel 6 (Parque de bolas); v7.0.4: llaves de la salida (UnlockReq / ExitUnlocked)
     // antes: "BackroomsEscape-MP-4"   // v7.0.2: silbido (G) y un imitador extra por nivel (más monstruos en la red)
     public const int MaxPlayers = 4;
     public const int DefaultPort = 7777;
@@ -650,6 +650,7 @@ public class NetSession : MonoBehaviour
             w.Byte(i).Vec3(m.transform.position).Float(m.transform.eulerAngles.y).Byte(m.NetStateByte).Float(m.VisSpeed);
         }
         if (OceanWorld.Active != null) OceanWorld.Active.WriteNet(w);   // v7.3.0: barca, jaula, faro, cascos, peces y Farolero
+        else if (DesertSky.Active != null) w.Float(DesertSky.Active.Clock);   // v7.7.0: reloj del desierto (hora y clima iguales para todos)
         Broadcast(w.ToArray());
     }
 
@@ -938,7 +939,13 @@ public class NetSession : MonoBehaviour
         {
             try { OceanWorld.Active.ReadNet(r); OceanSnapshots++; } catch (Exception e) { Debug.LogWarning("[NetSession] bloque del mar no válido: " + e.Message); }
         }
+        else if (valid && DesertSky.Active != null)
+        {
+            try { DesertSky.Active.NetClock(r.Float()); DesertSnapshots++; }
+            catch (Exception e) { Debug.LogWarning("[NetSession] bloque del desierto no válido: " + e.Message); }
+        }
     }
+    public int DesertSnapshots;
 
     // ------------------------------------------------------------------
     // v7.3.0 Talasofobia

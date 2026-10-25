@@ -859,18 +859,18 @@ public static class SmokeTest
     private static void TestV4Assets(Report r)
     {
         // Niveles
-        r.Check(LevelConfig.Count == 8 && LevelConfig.Get(5).name == "Campo infinito" && LevelConfig.Get(5).layout == LayoutKind.Field && LevelConfig.Get(6).name == "Parque de bolas" && LevelConfig.Get(6).halls > 0 && LevelConfig.Get(7).name == "Talasofobia" && LevelConfig.Get(7).layout == LayoutKind.Ocean, "hay 8 niveles; el 5 es el Campo infinito, el 6 el Parque de bolas y el 7 Talasofobia (" + LevelConfig.Count + ")");
+        r.Check(LevelConfig.Count == 9 && LevelConfig.Get(5).name == "Campo infinito" && LevelConfig.Get(5).layout == LayoutKind.Field && LevelConfig.Get(6).name == "Parque de bolas" && LevelConfig.Get(6).halls > 0 && LevelConfig.Get(7).name == "Talasofobia" && LevelConfig.Get(7).layout == LayoutKind.Ocean && LevelConfig.Get(8).layout == LayoutKind.Desert && LevelConfig.Get(8).DisplayNumber == "114", "hay 9 niveles; el 5 es el Campo infinito, el 6 el Parque de bolas, el 7 Talasofobia y el 8 el Nivel 114 (desierto) (" + LevelConfig.Count + ")");
         r.Check(LevelConfig.Get(2).water && LevelConfig.Get(2).name == "Poolrooms", "nivel 2 = Poolrooms (antes «Salas inundadas»: agua realista)");
         bool onlyOneWater = true; for (int i = 0; i < LevelConfig.Count; i++) if (i != 2 && LevelConfig.Get(i).water && LevelConfig.Get(i).layout != LayoutKind.Ocean) onlyOneWater = false;   // v7.3.0: el mar abierto es aparte
         r.Check(onlyOneWater && LevelConfig.Get(3).name == "Hotel abandonado" && LevelConfig.Get(4).name == "Complejo industrial", "sin otro nivel de agua; nivel 3 = hotel, nivel 4 = industrial");
         r.Check(MonsterProfile.ForLevel(2).id == "DrownedZombie", "el Ahogado es el monstruo del nivel de agua (Poolrooms)");
         r.Check(Resources.Load<GameObject>("Poolrooms/PoolHall") == null && MonsterProfile.ById("AlienBug") == null, "el modelo PoolHall y El Reptador ya no existen");
-        r.Check(LoreNotes.Total == 24 && !LoreNotes.Valid(80) && LoreNotes.Valid(72) && LoreNotes.Valid(62) && LoreNotes.Valid(52), "24 notas de ambiente (3 por nivel, 8 niveles)");
+        r.Check(LoreNotes.Total == 27 && !LoreNotes.Valid(90) && LoreNotes.Valid(82) && LoreNotes.Valid(72) && LoreNotes.Valid(62) && LoreNotes.Valid(52), "27 notas de ambiente (3 por nivel, 9 niveles)");
         var seenMonsters = new HashSet<string>();
         for (int i = 0; i < LevelConfig.Count; i++)
         {
             LevelConfig c = LevelConfig.Get(i);
-            if (!c.HasMonsterAI) { r.Check(c.monsterModel == LevelConfig.OceanCreaturesId && c.monsterCount == 0, "nivel " + i + " (" + c.name + "): sin monstruo de NavMesh (criaturas propias del mar)"); continue; }
+            if (!c.HasMonsterAI) { r.Check((c.layout == LayoutKind.Desert ? c.monsterModel == LevelConfig.NoMonsterId : c.monsterModel == LevelConfig.OceanCreaturesId) && c.monsterCount == 0, "nivel " + i + " (" + c.name + "): sin monstruo de NavMesh (" + (c.layout == LayoutKind.Desert ? "desierto sin entidades" : "criaturas propias del mar") + ")"); continue; }
             r.Check(MonsterProfile.ById(c.monsterModel) != null, "nivel " + i + " (" + c.name + "): perfil de monstruo '" + c.monsterModel + "'");
             seenMonsters.Add(c.monsterModel);
         }
@@ -1128,6 +1128,7 @@ public static class SmokeTest
         TestV750Hotel(r, credits, ui);
         TestV750Updater(r);
         TestV760Industrial(r, credits, ui);
+        V770Checks.Edit(r, credits, ui);   // v7.7.0: Nivel 114, El Desierto Cálido
     }
 
     // v7.6.0: Nivel 4 (Complejo industrial): texturas PBR nuevas, escala de UV, tuberías modeladas y créditos
@@ -3188,7 +3189,7 @@ public static class SmokePlayRunner
             r.Check(gm != null && gm.State == GameManager.GameState.Playing, tag + "estado Playing");
             r.Check(gm.generator != null && gm.exit != null, tag + "generador y puerta presentes");
             bool titleSeen = false;   // la tarjeta aparece al abrirse las puertas; se comprueba antes de salir andando
-            foreach (Text tt in UnityEngine.Object.FindObjectsOfType<Text>(true)) if (tt.name == "LevelTitle" && tt.text.StartsWith("NIVEL " + lv) && tt.color.a > 0.05f) titleSeen = true;
+            foreach (Text tt in UnityEngine.Object.FindObjectsOfType<Text>(true)) if (tt.name == "LevelTitle" && tt.text.StartsWith("NIVEL " + cfg.DisplayNumber) && tt.color.a > 0.05f) titleSeen = true;
             {
                 ElevatorCabin cb = ElevatorCabin.Current;
                 string eg = tag + "[ascensor] ";
@@ -3269,6 +3270,14 @@ public static class SmokePlayRunner
                 gm = GameManager.Instance;
                 goto OceanExit;
             }
+            if (cfg.layout == LayoutKind.Desert)
+            {   // v7.7.0: el desierto tampoco tiene monstruo, llaves ni puerta normal: su recorrido termina en la puerta de piedra
+                Census(r, "[Audio nivel " + lv + " desierto]", true, false);
+                IEnumerator dp = V770Checks.DesertPlay(r, tag, gm);
+                while (dp.MoveNext()) yield return dp.Current;
+                gm = GameManager.Instance;
+                goto OceanExit;
+            }
             r.Check(gm.monsters != null && gm.monsters.Length == Mathf.Max(1, cfg.monsterCount) + (lv >= 1 ? 1 : 0), tag + "monstruos = " + cfg.monsterCount + (lv >= 1 ? " + 1 mímico" : ""));
             foreach (MonsterAI m in gm.monsters)
             {
@@ -3297,7 +3306,7 @@ public static class SmokePlayRunner
             r.Check(UnityEngine.Object.FindObjectsOfType<TextMesh>(true).Length == 0, tag + "sin TextMesh en la escena");
             Text title = null;
             foreach (Text t in UnityEngine.Object.FindObjectsOfType<Text>(true)) if (t.name == "LevelTitle") title = t;
-            r.Check(title != null && title.text.StartsWith("NIVEL " + lv) && (titleSeen || title.color.a > 0.05f), tag + "tarjeta de título visible: '" + (title != null ? title.text : "") + "'");
+            r.Check(title != null && title.text.StartsWith("NIVEL " + cfg.DisplayNumber) && (titleSeen || title.color.a > 0.05f), tag + "tarjeta de título visible: '" + (title != null ? title.text : "") + "'");
 
             // Luces: solo las N más cercanas
             LightCuller culler = gm.generator.Culler;

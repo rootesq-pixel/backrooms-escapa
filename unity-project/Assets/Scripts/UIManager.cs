@@ -530,13 +530,15 @@ public class UIManager : MonoBehaviour
         Label(root.transform, "Elige dónde despertar. Cada nivel es una salida distinta.", 26, TextAnchor.MiddleLeft, -230f, 400f, 1300f, 40f, Dim);
         UiStyle.Rect(root.transform, "TitleRule", 0f, 372f, 1760f, 2f, UiStyle.Border);
         // v7.3.0b: rejilla y vista previa sin solaparse (antes la vista previa tapaba la tarjeta 3)
-        const float cw = 290f, chh = 163f, ch = 240f;
-        float[] cx = { -775f, -469f, -163f, 143f }, cy = { 180f, -90f };
+        // v7.7.0: 9 niveles -> rejilla de 5 x 2 (antes 4 x 2) para no tapar «Volver»
+        const int cols = 5;
+        const float cw = 236f, chh = 133f, ch = 212f;
+        float[] cx = { -790f, -534f, -278f, -22f, 234f }, cy = { 160f, -100f };
         lvCards.Clear();
         for (int i = 0; i < LevelConfig.Count; i++)
         {
             int lv = i; LevelConfig c = LevelConfig.Get(i);
-            float x = i < 8 ? cx[i % 4] : cx[i % 4], y = cy[Mathf.Min(i / 4, 1)] - (i >= 8 ? 276f * (i / 4 - 1) : 0f);
+            float x = cx[i % cols], y = cy[Mathf.Min(i / cols, 1)];
             Image border = UiStyle.Rect(root.transform, "LevelBtn_" + i, x, y, cw + 6f, ch + 6f, UiStyle.Border);
             border.raycastTarget = true;
             Image fill = UiStyle.Rect(border.transform, "Fill", 0f, 0f, cw, ch, new Color(0.055f, 0.05f, 0.03f, 1f));
@@ -544,10 +546,10 @@ public class UIManager : MonoBehaviour
             th.raycastTarget = false; RectTransform tr = th.rectTransform; tr.anchorMin = tr.anchorMax = new Vector2(0.5f, 1f); tr.pivot = new Vector2(0.5f, 1f);
             tr.sizeDelta = new Vector2(cw, chh); tr.anchoredPosition = Vector2.zero;
             Texture2D tx = LevelThumbs.Get(i); FitThumb(th, tx, cw / chh); if (tx == null) th.color = new Color(0.12f, 0.11f, 0.07f, 1f);
-            Text num = Label(fill.transform, "NIVEL " + i, 19, TextAnchor.MiddleLeft, 0f, -ch * 0.5f + 56f, cw - 28f, 28f, Dim);
+            Text num = Label(fill.transform, "NIVEL " + c.DisplayNumber, 18, TextAnchor.MiddleLeft, 0f, -ch * 0.5f + 56f, cw - 28f, 28f, Dim);
             num.font = UiStyle.SansBold();
-            Text nm = Label(fill.transform, c.name, 27, TextAnchor.MiddleLeft, 0f, -ch * 0.5f + 26f, cw - 28f, 36f, UiStyle.Text);
-            nm.font = UiStyle.SansBold(); nm.horizontalOverflow = HorizontalWrapMode.Overflow;
+            Text nm = Label(fill.transform, c.name, 22, TextAnchor.MiddleLeft, 0f, -ch * 0.5f + 26f, cw - 24f, 36f, UiStyle.Text);
+            nm.font = UiStyle.SansBold(); nm.horizontalOverflow = HorizontalWrapMode.Wrap; nm.resizeTextForBestFit = true; nm.resizeTextMinSize = 15; nm.resizeTextMaxSize = 22;
             Button b = border.gameObject.AddComponent<Button>();
             b.transition = Selectable.Transition.None; b.targetGraphic = border;
             b.onClick.AddListener(() => { Click(); StartGame(lv); });
@@ -571,16 +573,16 @@ public class UIManager : MonoBehaviour
         for (int i = 0; i < lvCards.Count; i++)
         {
             Navigation n = new Navigation { mode = Navigation.Mode.Explicit };
-            int col = i % 4, row = i / 4, rows = (lvCards.Count + 3) / 4;
+            int col = i % cols, row = i / cols, rows = (lvCards.Count + cols - 1) / cols;
             n.selectOnLeft = col > 0 ? lvCards[i - 1] : null;
-            n.selectOnRight = col < 3 && i + 1 < lvCards.Count ? lvCards[i + 1] : lvPlay;
-            n.selectOnUp = row > 0 ? lvCards[i - 4] : null;
-            n.selectOnDown = row + 1 < rows && i + 4 < lvCards.Count ? lvCards[i + 4] : back;
+            n.selectOnRight = col < cols - 1 && i + 1 < lvCards.Count ? lvCards[i + 1] : lvPlay;
+            n.selectOnUp = row > 0 ? lvCards[i - cols] : null;
+            n.selectOnDown = row + 1 < rows && i + cols < lvCards.Count ? lvCards[i + cols] : back;
             lvCards[i].navigation = n;
         }
-        Navigation np = new Navigation { mode = Navigation.Mode.Explicit, selectOnLeft = lvCards.Count > 3 ? lvCards[3] : null, selectOnDown = null };
+        Navigation np = new Navigation { mode = Navigation.Mode.Explicit, selectOnLeft = lvCards.Count >= cols ? lvCards[cols - 1] : null, selectOnDown = null };
         lvPlay.navigation = np;
-        Navigation nb = new Navigation { mode = Navigation.Mode.Explicit, selectOnUp = lvCards.Count > 4 ? lvCards[4] : (lvCards.Count > 0 ? lvCards[0] : null), selectOnRight = lvPlay };
+        Navigation nb = new Navigation { mode = Navigation.Mode.Explicit, selectOnUp = lvCards.Count > cols ? lvCards[cols] : (lvCards.Count > 0 ? lvCards[0] : null), selectOnRight = lvPlay };
         back.navigation = nb;
         FocusLevel(0);
         return root;
@@ -591,7 +593,7 @@ public class UIManager : MonoBehaviour
         if (lv < 0 || lv >= LevelConfig.Count || lvPreview == null) return;
         lvFocus = lv; LevelConfig c = LevelConfig.Get(lv);
         Texture2D t = LevelThumbs.Get(lv); FitThumb(lvPreview, t, 520f / 293f); lvPreview.color = t != null ? Color.white : new Color(0.12f, 0.11f, 0.07f, 1f);
-        lvPrevNum.text = "NIVEL " + lv + "  ·  " + (lv + 1) + " DE " + LevelConfig.Count;   // 8 niveles (0-7)
+        lvPrevNum.text = "NIVEL " + c.DisplayNumber + "  ·  " + (lv + 1) + " DE " + LevelConfig.Count;   // v7.7.0: nº de la wiki (Nivel 114)
         lvPrevName.text = c.name;
         lvPrevDesc.text = c.subtitle;
     }
@@ -760,6 +762,7 @@ public class UIManager : MonoBehaviour
         sb.AppendLine("Ascensor de entrada: modelo propio (Blender 4.2), CC0. Texturas PBR del ascensor y del Nivel 1: ambientCG (Metal009, Metal038, Wood051, Rubber001, Concrete042A, Concrete031, Concrete012) — CC0 1.0");
         sb.AppendLine("Hotel (Nivel 3): texturas PBR propias sobre bases de ambientCG (Wood066, Carpet012, Fabric045, Plaster001, Fabric062, PaintedPlaster017, Marble006) — CC0 1.0; damasco, moqueta, cuadros, linóleo y muebles del hotel: trabajo propio (CC0). Números de latón: fuente DejaVu Serif (licencia libre Bitstream Vera).");
         sb.AppendLine("Complejo industrial (Nivel 4): texturas PBR propias sobre bases de ambientCG (Rust009, Metal041B, MetalPlates013) — CC0 1.0; chapas remachadas, chapa lagrimada, forjado grecado y tuberías: trabajo propio (CC0).");
+        sb.AppendLine("Nivel 114 «El Desierto Cálido»: nivel creado por Sonicelmaspro2 y ampliado por Omaigad12 en la Backrooms Wiki (es.backrooms.fandom.com), CC BY-SA. Rocas, acantilados, plantas, muebles, cubos, tinajas y barriles: Poly Haven (namaqualand_*, sand_rocks_small_01, wild_rooibos_bush, shrub_sorrel_01, dry_branches_medium_01, dry_quiver_leaf, painted_wooden_*, wooden_*, old_bed_frame, jug_01, ceramic_pot, stone_fire_pit) — CC0; texturas: Poly Haven (sand_03, dense_sand, aerial_sand, rough_plaster_broken, clay_plaster, old_stone_wall, stacked_stone_wall, weathered_planks, brown_mud_dry, rock_face, sandstone_cracks, large_sandstone_blocks, mud_cracked_dry_03, dry_ground_rocks, worn_cracked_plaster) — CC0; casas, pozo, puerta de piedra, cielo, clima y sonidos: trabajo propio (CC0).");
         sb.AppendLine("   Reserva: «Elevator car interior» + «Elevator door pair» (Backrooms and Liminal Spaces Kit) — 3D Assets — CC0 1.0   https://3dassets.dev");
         sb.AppendLine();
         sb.AppendLine("Los modelos se han convertido a FBX con Blender y retexturizado donde se indica. Detalles en CREDITS.md.");

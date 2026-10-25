@@ -84,7 +84,7 @@ public class GameManager : MonoBehaviour
     {
         if (config == null) config = LevelConfig.Get(levelIndex);
         if (messageText != null) messageText.text = string.Empty;
-        if (titleText != null) titleText.text = "NIVEL " + levelIndex + " — " + config.name.ToUpper();
+        if (titleText != null) titleText.text = "NIVEL " + config.DisplayNumber + " — " + config.name.ToUpper();
         if (subtitleText != null) subtitleText.text = config.subtitle;
         if (fadeImage != null) fadeImage.color = new Color(0f, 0f, 0f, 1f);
         introTimer = 0f;

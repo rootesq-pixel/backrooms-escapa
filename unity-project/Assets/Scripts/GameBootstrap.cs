@@ -192,7 +192,7 @@ public class GameBootstrap : MonoBehaviour
         loading = true;
         IsLoaded = false;
         LevelConfig cfg = LevelConfig.Get(index);
-        string head = "NIVEL " + index + "\n" + cfg.name + "\n\n";
+        string head = "NIVEL " + cfg.DisplayNumber + "\n" + cfg.name + "\n\n";
         LoadDiag.Begin("nivel " + index + " (" + cfg.name + ")");
         ShowLoading(head + "Generando... 0 %");
         yield return null; // deja que se dibuje la pantalla de carga

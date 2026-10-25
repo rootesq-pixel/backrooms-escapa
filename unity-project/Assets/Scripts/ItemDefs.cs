@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public enum ItemType { None = 0, Flashlight = 1, Battery = 2, AlmondWater = 3, Glowstick = 4, VhsTape = 5, Key0 = 6, Key1 = 7, Key2 = 8, Key3 = 9, Key4 = 10, FlareGun = 11 }
+public enum ItemType { None = 0, Flashlight = 1, Battery = 2, AlmondWater = 3, Glowstick = 4, VhsTape = 5, Key0 = 6, Key1 = 7, Key2 = 8, Key3 = 9, Key4 = 10, FlareGun = 11, RoyalRations = 12, CashewWater = 13, NeonWater = 14 }
 
 // Datos de los objetos del inventario (textos en español)
 public static class ItemDefs
@@ -45,6 +45,13 @@ public static class ItemDefs
         // v7.3.0 Talasofobia: pistola de bengalas (cada unidad es un cartucho). No pasa al nivel siguiente.
         new Def { type = ItemType.FlareGun, name = "Pistola de bengalas", weight = 0.6f, condition = "Naranja, descolorida", useLabel = "Disparar al cielo", maxStack = 3, usable = true, droppable = true, preferredSlot = 3,
             description = "Pistola de señales de plástico naranja con tres cartuchos. Dispara una bengala roja que sube muy alto y se ve a través de la niebla: tus compañeros sabrán dónde estás." },
+        // v7.7.0 Nivel 114 «El Desierto Cálido»: lo que aparece tirado en la arena
+        new Def { type = ItemType.RoyalRations, name = "Raciones Reales", weight = 0.4f, condition = "Caducadas", useLabel = "Comer", maxStack = 5, usable = true, droppable = true, preferredSlot = 2,
+            description = "Una lata de raciones con un sello real descolorido. Caducaron hace años, pero quitan el hambre: recuperas algo de resistencia y de cordura (a veces saben fatal)." },
+        new Def { type = ItemType.CashewWater, name = "Agua de anacardo", weight = 0.5f, condition = "Tibia", useLabel = "Beber", maxStack = 5, usable = true, droppable = true, preferredSlot = 2,
+            description = "Prima del agua de almendras, más espesa y con sabor a fruto seco tostado. Recupera bastante resistencia y un poco de cordura." },
+        new Def { type = ItemType.NeonWater, name = "Agua de neón", weight = 0.5f, condition = "Brilla en la oscuridad", useLabel = "Beber", maxStack = 3, usable = true, droppable = true, preferredSlot = 2,
+            description = "Rarísima: un líquido que brilla con luz propia. Fíjate en el suelo del desierto, a veces asoma entre la arena. Recupera toda la resistencia, mucha cordura y recarga algo la linterna." },
     };
     public static bool IsKey(ItemType t) { return t >= ItemType.Key0 && t <= ItemType.Key4; }
     public static readonly ItemType[] Keys = { ItemType.Key0, ItemType.Key1, ItemType.Key2, ItemType.Key3, ItemType.Key4 };
@@ -108,6 +115,11 @@ public static class LoreNotes
             "Libreta hinchada de agua|El agua entró por debajo de la puerta sin hacer ruido y ya no se fue. Desde la ventana de arriba se ve una luz muy lejos, entre la niebla. Se enciende cuando te acercas, como si te esperara.",
             "Etiqueta de un bidón|NO NADAR ENTRE LAS CASAS. Lo blanco que asoma no es espuma. Si da vueltas a tu alrededor, ya te ha elegido: agárrate a una escalera o sube a la barca. Ahí no llegan.",
             "Cuaderno de bitácora|Bajé con el casco hasta el fondo de la fosa. Abajo hay una luz pequeña, verdosa, que se mueve sola. NO es una luz. Apaga la lámpara si la ves. La gruta está a la izquierda de la puerta de la jaula, un poco a la izquierda, y sube." },
+        // Nivel 8 — Nivel 114, El Desierto Cálido (v7.7.0)
+        new[] {
+            "Diario cubierto de arena|Llevo tres días andando y la arena sigue tibia, de día y de noche. No hay nadie: ni bichos, ni monstruos, nada. Solo pájaros de día. Al que cacé le salió sangre amarilla. De noche no queda ni uno.",
+            "Papel clavado en un pozo|Si la arena te traga, no luches: no te mueres, apareces en otro sitio del desierto. De noche lleva linterna y no corras cuesta abajo, que resbala. Lo blanco que cae a veces del cielo es nieve, aunque no haga frío.",
+            "Hoja arrancada de un mapa|En uno de estos pueblos una casa no tiene puerta de madera: la tiene de PIEDRA. Esa es la salida. Busca el pueblo con la torre alta y mira bien todas las fachadas." },
     };
 
     public static int Total { get { return data.Length * PerLevel; } }

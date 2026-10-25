@@ -37,6 +37,9 @@ public static class ItemModels
             case ItemType.Key3: return "Key3";
             case ItemType.Key4: return "Key4";
             case ItemType.FlareGun: return "FlareGun";   // v7.3.0: sin modelo horneado (figura de primitivas)
+            case ItemType.RoyalRations: return "RoyalRations";   // v7.7.0 (primitivas)
+            case ItemType.CashewWater: return "CashewWater";
+            case ItemType.NeonWater: return "NeonWater";
             default: return "Note";
         }
     }

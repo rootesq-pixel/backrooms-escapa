@@ -173,7 +173,7 @@ public class ElevatorCabin : MonoBehaviour
         ExitPoint = transform.TransformPoint(new Vector3(0f, 0.14f, frontExtent + 0.9f));
         generator.OverridePlayerStart(InteriorCenter);
 
-        DisplayNumber = "--"; DisplayLabel = "NIVEL " + LevelIndex;
+        DisplayNumber = "--"; DisplayLabel = "NIVEL " + LevelConfig.Get(LevelIndex).DisplayNumber;
         CurrentPhase = Phase.Waiting;
         ApplyDoors(0f);
         Current = this;
@@ -694,7 +694,7 @@ public class ElevatorCabin : MonoBehaviour
     {
         T = TDoors1; Open01 = 1f; ApplyDoors(1f);
         CurrentPhase = Phase.Open;
-        DisplayNumber = FloorEnd.ToString(); DisplayLabel = "NIVEL " + LevelIndex;
+        DisplayNumber = FloorEnd.ToString(); DisplayLabel = "NIVEL " + LevelConfig.Get(LevelIndex).DisplayNumber;
         Release();
     }
 
@@ -804,7 +804,7 @@ public class ElevatorCabin : MonoBehaviour
                 int f = Mathf.RoundToInt(Mathf.Lerp(FloorStart, FloorEnd, Dist01(T)));
                 DisplayNumber = f.ToString(); DisplayLabel = T < TStart ? "ESPERE" : "BAJANDO";
             }
-            else { DisplayNumber = FloorEnd.ToString(); DisplayLabel = "NIVEL " + LevelIndex; }
+            else { DisplayNumber = FloorEnd.ToString(); DisplayLabel = "NIVEL " + LevelConfig.Get(LevelIndex).DisplayNumber; }
         }
         else { DisplayNumber = "--"; DisplayLabel = "ESPERE"; }
         UpdateDisplay();

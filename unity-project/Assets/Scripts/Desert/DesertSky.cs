@@ -9,6 +9,7 @@ using UnityEngine.Rendering;
 public class DesertSky : MonoBehaviour
 {
     public static DesertSky Active;
+    private float savedSat = 0.86f, savedCon = 1.08f; private Color savedLift = new Color(0.010f, 0.016f, 0.020f);
     public enum Weather { Clear = 0, Overcast = 1, AlmondRain = 2, PainRain = 3, Sandstorm = 4, Snow = 5, Beautiful = 6 }
     public static readonly string[] WeatherName = { "Cielo despejado", "Nublado", "Lluvia de agua de almendras", "Lluvia de dolor líquido", "Tormenta de arena", "Nieve", "Clima Hermoso" };
 
@@ -62,6 +63,8 @@ public class DesertSky : MonoBehaviour
         RenderSettings.fog = true; RenderSettings.fogMode = FogMode.Exponential;
         RenderSettings.defaultReflectionMode = DefaultReflectionMode.Skybox;
         RenderSettings.reflectionIntensity = 0.6f;
+        s.savedSat = PostStack.Saturation; s.savedCon = PostStack.Contrast; s.savedLift = PostStack.Lift;
+        PostStack.Lift = new Color(0.0025f, 0.0024f, 0.0026f);   // v7.7.0 a: sin el negro verdoso de las Poolrooms (la noche y las sombras salían color petróleo)
         s.savedShadowDist = QualitySettings.shadowDistance; s.savedCascades = QualitySettings.shadowCascades; s.savedRes = QualitySettings.shadowResolution;
         QualitySettings.shadowDistance = GameSettings.Quality == 0 ? 70f : 130f;
         QualitySettings.shadowCascades = GameSettings.Quality == 0 ? 2 : 4;
@@ -78,6 +81,7 @@ public class DesertSky : MonoBehaviour
     {
         if (Active == this) Active = null;
         QualitySettings.shadowDistance = savedShadowDist; QualitySettings.shadowCascades = savedCascades; QualitySettings.shadowResolution = savedRes;
+        PostStack.Saturation = savedSat; PostStack.Contrast = savedCon; PostStack.Lift = savedLift;
         Shader.SetGlobalVector("_DesertWeather", Vector4.zero);
     }
 
@@ -196,16 +200,17 @@ public class DesertSky : MonoBehaviour
             else
             {
                 sun.transform.rotation = Quaternion.LookRotation(-md);
-                sun.color = new Color(0.62f, 0.72f, 1f); sun.intensity = 0.045f * moonBright * moonVis;
+                sun.color = new Color(0.60f, 0.70f, 1f); sun.intensity = 0.11f * moonBright * moonVis;   // luz de luna: se ven las dunas, pero hace falta linterna
                 sun.shadowStrength = 0.6f;
             }
             sun.shadows = sun.intensity > 0.01f ? LightShadows.Soft : LightShadows.None;
         }
         // luz ambiente (cielo, horizonte, rebote de la arena)
-        Color nightAmb = new Color(0.010f, 0.012f, 0.020f) * (0.6f + 0.4f * moonBright);
+        Color nightAmb = new Color(0.016f, 0.020f, 0.034f) * (0.6f + 0.4f * moonBright);
         Color sky0 = Color.Lerp(nightAmb, zen * 0.85f + hor * 0.15f, day);
-        Color eq0 = Color.Lerp(nightAmb * 0.9f, hor * 0.75f, day);
-        Color gr0 = Color.Lerp(nightAmb * 0.6f, new Color(0.55f, 0.42f, 0.30f) * (0.25f + 0.45f * sunI), day);
+        Color bounce = new Color(0.62f, 0.46f, 0.31f) * (0.35f + 0.25f * sunI) * (1f - ov * 0.5f);   // rebote cálido de la arena en las caras a la sombra
+        Color eq0 = Color.Lerp(nightAmb * 0.9f, Color.Lerp(hor * 0.75f, bounce, 0.45f), day);
+        Color gr0 = Color.Lerp(nightAmb * 0.6f, new Color(0.55f, 0.42f, 0.30f) * (0.18f + 0.30f * sunI), day);
         RenderSettings.ambientSkyColor = sky0; RenderSettings.ambientEquatorColor = eq0; RenderSettings.ambientGroundColor = gr0;
 
         // tiempo para el cielo (estrellas que titilan, nubes con el viento)
@@ -222,6 +227,9 @@ public class DesertSky : MonoBehaviour
             sky.SetVector("_SkyParams2", new Vector4(Time.time + Clock * 0.5f, Dark, Storm, moonVis * moonBright));
             sky.SetFloat("_Exposure", 1f);
         }
+        // exposición «del ojo»: de día más baja (arena clara sin quemarse), de noche sube (se intuyen las dunas a la luz de la luna)
+        PostStack.Exposure = Mathf.Lerp(0.74f, 1.25f, Night) * Mathf.Lerp(1f, 1.1f, ov * (1f - Night));
+        PostStack.Saturation = 1.0f; PostStack.Contrast = 1.1f;
         // la arena (destellos al sol, mojado, nieve, colores del Clima Hermoso)
         Shader.SetGlobalVector("_DesertWeather", new Vector4(SnowCover, Wet, Beauty, day * (1f - ov)));
         TempC = Mathf.Lerp(Params(Previous).temp, Params(Current).temp, t) - Night * 2.5f + day * 0.8f;
@@ -236,10 +244,10 @@ public class DesertSky : MonoBehaviour
     {
         // claves: -16 noche, -6 crepúsculo, 0 puesta, 8 tarde dorada, 30 mañana, 60 mediodía
         float[] k = { -16f, -6f, 0f, 8f, 30f, 60f };
-        Color[] Z = { new Color(0.004f, 0.006f, 0.016f), new Color(0.03f, 0.045f, 0.11f), new Color(0.13f, 0.19f, 0.36f), new Color(0.22f, 0.36f, 0.62f), new Color(0.20f, 0.40f, 0.76f), new Color(0.17f, 0.38f, 0.78f) };
-        Color[] H = { new Color(0.012f, 0.016f, 0.03f), new Color(0.22f, 0.15f, 0.19f), new Color(0.95f, 0.50f, 0.27f), new Color(0.98f, 0.76f, 0.52f), new Color(0.80f, 0.84f, 0.88f), new Color(0.74f, 0.82f, 0.90f) };
+        Color[] Z = { new Color(0.0025f, 0.0045f, 0.013f), new Color(0.03f, 0.045f, 0.11f), new Color(0.13f, 0.19f, 0.36f), new Color(0.22f, 0.36f, 0.62f), new Color(0.20f, 0.40f, 0.76f), new Color(0.17f, 0.38f, 0.78f) };
+        Color[] H = { new Color(0.020f, 0.026f, 0.046f), new Color(0.22f, 0.15f, 0.19f), new Color(0.95f, 0.50f, 0.27f), new Color(0.98f, 0.76f, 0.52f), new Color(0.80f, 0.84f, 0.88f), new Color(0.74f, 0.82f, 0.90f) };
         Color[] S = { new Color(1f, 0.4f, 0.2f), new Color(1f, 0.4f, 0.2f), new Color(1f, 0.46f, 0.22f), new Color(1f, 0.72f, 0.45f), new Color(1f, 0.92f, 0.80f), new Color(1f, 0.96f, 0.90f) };
-        float[] I = { 0f, 0f, 0.25f, 0.85f, 1.25f, 1.4f };
+        float[] I = { 0f, 0f, 0.25f, 0.80f, 1.08f, 1.15f };   // v7.7.0 a: antes 1,4 a mediodía (la arena se quemaba con el ACES)
         int i = 0; while (i < k.Length - 2 && e > k[i + 1]) i++;
         float t = Mathf.Clamp01((e - k[i]) / (k[i + 1] - k[i]));
         t = t * t * (3f - 2f * t);

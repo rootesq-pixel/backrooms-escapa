@@ -373,11 +373,11 @@ public static class V730Checks
             }
             r.Info(T + "túnel: " + (Time.frameCount - fc0) + " fotogramas en " + tt.ToString("F1") + " s (media " + (1000f * tt / Mathf.Max(1, Time.frameCount - fc0)).ToString("F2") + " ms, mínimo " + (1000f * minDt).ToString("F2") + " ms)");
             p.debugInput = false; p.debugJump = false; p.debugMove = Vector2.zero;
-            r.Check(k >= route.Count - 1 || gm.State == GameManager.GameState.Won, T + "se nada por el túnel hasta la poza de la gruta (punto " + k + "/" + route.Count + ", " + tt.ToString("F0") + " s" + (stuck > 4f ? ", atascado en " + p.transform.position.ToString("F1") : "") + ")");
+            r.Check(k >= route.Count - 1 || (gm.State == GameManager.GameState.Won || gm.State == GameManager.GameState.LevelComplete), T + "se nada por el túnel hasta la poza de la gruta (punto " + k + "/" + route.Count + ", " + tt.ToString("F0") + " s" + (stuck > 4f ? ", atascado en " + p.transform.position.ToString("F1") : "") + ")");
             p.debugInput = true; p.debugJump = true; p.debugMove = Vector2.zero;   // Espacio: subir a respirar
             { IEnumerator wfx = WaitFor(() => gm.State != GameManager.GameState.Playing, 5f); while (wfx.MoveNext()) yield return wfx.Current; }
             p.debugJump = false; p.debugInput = false;
-            r.Check(gm.State == GameManager.GameState.Won, T + "salir a la superficie en la poza de la gruta completa el nivel (" + gm.State + "; pies " + p.transform.position.ToString("F2") + ", AtExit " + OceanWorld.AtExit(p.transform.position) + ", ExitTest " + (GameManager.ExitTest != null) + ", exit " + (gm.exit != null) + ", nadando " + p.IsSwimming + ")");
+            r.Check((gm.State == GameManager.GameState.Won || gm.State == GameManager.GameState.LevelComplete), T + "salir a la superficie en la poza de la gruta completa el nivel (" + gm.State + "; pies " + p.transform.position.ToString("F2") + ", AtExit " + OceanWorld.AtExit(p.transform.position) + ", ExitTest " + (GameManager.ExitTest != null) + ", exit " + (gm.exit != null) + ", nadando " + p.IsSwimming + ")");
         }
     }
 }
