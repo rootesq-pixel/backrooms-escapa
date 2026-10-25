@@ -66,6 +66,20 @@ public static class V790Checks
         AudioClip hb = Adrenaline.CreateHeartbeat();
         r.Check(hb.length > 0.3f && hb.length < 0.5f, T + "[Latido] un latido suelto (" + hb.length.ToString("F2") + " s) que se dispara a su ritmo");
         Object.DestroyImmediate(hb);
+        // noche del desierto
+        {
+            string badN = ""; float wN = 0f;
+            for (int k = 0; k < DesertNight.Names.Length; k++)
+            {
+                float[] d = DesertNight.Synth(k); float hr = HighRatio(d, DesertSynth.SR, 3000f), pk = 0f; foreach (float v in d) pk = Mathf.Max(pk, Mathf.Abs(v));
+                wN = Mathf.Max(wN, hr); if (hr > 0.01f || pk < 0.5f || Mathf.Abs(d[d.Length - 1]) > 0.01f) badN += " " + DesertNight.Names[k];
+                string lo = DesertNight.Names[k].ToLower(); if (lo.Contains("cruj") || lo.Contains("hiss") || lo.Contains("sopl")) badN += " (nombre)" + lo;
+            }
+            r.Check(badN == "", T + "[Noche 114] 4 sonidos lejanos (zumbido, llamada, metal, murmullos): graves, sin siseo ni crujidos (máx. " + (wN * 100f).ToString("F2") + " % por encima de 3 kHz)" + badN);
+            int on = 0; bool same = true; for (int s = 0; s < 2000; s++) { var a = DesertNight.EventAt(777, s); var b = DesertNight.EventAt(777, s); if (a.on) on++; if (a.on != b.on || a.kind != b.kind || a.azimuth != b.azimuth) same = false; }
+            float mean = 2000f * DesertNight.Slot / Mathf.Max(1, on);
+            r.Check(same && mean > 18f && mean < 45f, T + "[Noche 114] de vez en cuando (uno cada " + mean.ToString("F0") + " s de media de noche), calendario por semilla y reloj: igual para todos");
+        }
         r.Check(Adrenaline.HeartMinBpm < 75f && Adrenaline.HeartMaxBpm >= 140f, T + "[Latido] ritmo " + Adrenaline.HeartMinBpm + "–" + Adrenaline.HeartMaxBpm + " ppm");
     }
 
@@ -79,7 +93,9 @@ public static class V790Checks
         FlickeringLight lit = null; foreach (FlickeringLight f in fls) if (f.targetLight != null && f.targetLight.type == LightType.Point) { lit = f; break; }
         BackroomsGenerator gen = gm.generator;
         r.Check(lit != null && gen != null && gen.PanelEmissiveMat != null, tag + "[Rojo] luces (" + fls.Length + ") y paneles del techo localizados");
-        r.Check(le.Clock < Level0Events.FirstMin && !le.RedOn, tag + "[Rojo] al empezar el nivel la luz es la normal (reloj " + le.Clock.ToString("F0") + " s)");
+        { bool calm = true; for (float t = 0f; t < Level0Events.FirstMin; t += 0.5f) if (le.RedAt(t) > 0f) calm = false;
+          r.Check(calm, tag + "[Rojo] al empezar el nivel la luz es la normal (primer apagón a los " + le.Schedule[0].start.ToString("F0") + " s)"); }
+        le.DebugSetClock(1f); yield return 0.3f;
         Color amb0 = RenderSettings.ambientLight, col0 = lit != null ? lit.targetLight.color : Color.white;
         Color pan0 = gen != null && gen.PanelEmissiveMat != null ? gen.PanelEmissiveMat.GetColor("_EmissionColor") : Color.white;
         // latido en calma: no suena
@@ -149,5 +165,33 @@ public static class V790Checks
         Adrenaline adr = Adrenaline.Local;
         yield return 1.0f;
         r.Check(adr != null && adr.HeartVolume == 0f && Adrenaline.ThreatFor(adr.transform) == 0f && Level0Events.Active == null, tag + "[Latido] en el Nivel 114 no hay latido ni sucesos del nivel 0");
+        // v7.9.0: sonidos de la noche
+        DesertNight dn = DesertNight.Active; DesertSky sky = DesertSky.Active;
+        r.Check(dn != null && sky != null, tag + "[Noche 114] sonidos de la noche activos");
+        if (dn == null || sky == null || adr == null) yield break;
+        string heard = ""; bool okS = true;
+        for (int k = 0; k < DesertNight.Names.Length; k++)
+        {
+            DesertNight.Ev e = DesertNight.EventAt(dn.Seed, k); e.kind = k; int p0 = dn.Played;
+            dn.Fire(e, -1);
+            float d = Vector3.Distance(dn.Source.transform.position, adr.transform.position);
+            if (dn.Played != p0 + 1 || dn.Last != DesertNight.Names[k] || d < 40f || d > 125f || dn.Source.spatialBlend < 0.99f || dn.Filter.cutoffFrequency > 1501f) okS = false;
+            heard += " " + dn.Last.Substring(3) + " a " + d.ToString("F0") + " m";
+            yield return 0.3f;
+        }
+        r.Check(okS, tag + "[Noche 114] suenan en 3D, lejos (40–125 m) y apagados:" + heard);
+        // de día no suena nada; de noche, el siguiente suceso del calendario suena a su hora
+        float fh = DesertSky.ForceHour;
+        DesertSky.ForceHour = 0.5f; yield return 2.0f;
+        int slot = Mathf.FloorToInt(sky.Clock / DesertNight.Slot) + 1, found = -1;
+        for (int s = slot; s < slot + 6; s++) if (DesertNight.EventAt(dn.Seed, s).on) { found = s; break; }
+        if (found >= 0)
+        {
+            float at = found * DesertNight.Slot + DesertNight.EventAt(dn.Seed, found).offset; int p1 = dn.Played; float t0 = Time.time;
+            while (sky.Clock < at + 0.5f && Time.time - t0 < 70f) yield return null;
+            r.Check(sky.Night >= DesertNight.NightMin && dn.Played == p1 + 1 && dn.LastSlot == found, tag + "[Noche 114] de noche el suceso del calendario suena a su hora (ranura " + found + ", " + dn.Last + ", noche " + sky.Night.ToString("F2") + ")");
+        }
+        else r.Info(tag + "[Noche 114] sin suceso en las próximas ranuras (comprobado solo el calendario)");
+        DesertSky.ForceHour = fh;
     }
 }

@@ -173,3 +173,9 @@ El roce de la hierba, el viento, el zumbido de radio de la salida, el terreno, l
 - **Sonidos del motor y de los neumáticos**: sintetizados por código (`DesertSynth`, armónicos del motor de 4 cilindros por marcha, crujido grave de la arena bajo las ruedas). Sin grabaciones externas.
 - **Viento del desierto**: sintetizado por código (ruido periódico de banda limitada por debajo de ~1,1 kHz, sin siseo, con ráfagas y un aullido grave; capa extra en las tormentas). Bucle sin costura por construcción. CC0.
 - **Huellas y rodadas**: texturas de pisada y de dibujo del neumático generadas por código; shader `Backrooms/SandDecal` propio.
+
+## Nivel 0, latido y noche del Nivel 114 (v7.9.0)
+- **Ruidos lejanos del Nivel 0** (portazo, pasos, golpes en la pared, golpe metálico): sintetizados por código (`Level0Events`), graves y amortiguados, sin crujidos ni siseo. CC0, sin grabaciones externas.
+- **Apagones rojos del Nivel 0** y el chasquido del relé: hechos por código.
+- **Latido**: sintetizado por código (`Adrenaline`), un latido suelto que se dispara a su ritmo.
+- **Sonidos de la noche del Nivel 114** (zumbido grave, llamada lejana, metal con eco, murmullos): sintetizados por código (`DesertNight`), solo tonos graves, sin siseo ni crujidos. CC0.

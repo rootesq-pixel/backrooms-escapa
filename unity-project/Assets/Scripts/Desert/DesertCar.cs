@@ -253,7 +253,7 @@ public class DesertCar : MonoBehaviour
         Material m = new Material(sh) { mainTexture = puff }; track(m);
         GameObject g = new GameObject("WheelDust"); g.transform.SetParent(transform, false);
         ParticleSystem ps = g.AddComponent<ParticleSystem>(); ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
-        var main = ps.main; main.loop = true; main.playOnAwake = false; main.maxParticles = 700; main.simulationSpace = ParticleSystemSimulationSpace.World;
+        var main = ps.main; main.loop = true; main.playOnAwake = false; main.maxParticles = 700; main.simulationSpace = ParticleSystemSimulationSpace.World; main.cullingMode = ParticleSystemCullingMode.AlwaysSimulate;
         main.startLifetime = new ParticleSystem.MinMaxCurve(1.6f, 3.2f); main.startSpeed = new ParticleSystem.MinMaxCurve(0.3f, 1.2f);
         main.startSize = new ParticleSystem.MinMaxCurve(1.3f, 2.8f); main.startRotation = new ParticleSystem.MinMaxCurve(0f, 6.28f);
         main.startColor = new Color(0.80f, 0.64f, 0.46f, 0.6f); main.gravityModifier = -0.01f;

@@ -10,7 +10,9 @@ public class DesertTracks : MonoBehaviour
 {
     public static DesertTracks Active;
     public const int FootMax = 800, TyreMax = 1600;
-    public static float Life = 210f;           // s hasta desaparecer del todo (3,5 min)
+    // v7.9.0 (usuario): el viento borra las pisadas en unos segundos; las rodadas, más hondas, aguantan algo más
+    public static float FootLife = 10f, TyreLife = 45f;   // s hasta desaparecer del todo
+    public static float Life { get { return TyreLife; } }
     public const float Stride = 0.72f;
 
     private class Pool
@@ -59,10 +61,11 @@ public class DesertTracks : MonoBehaviour
         mr.shadowCastingMode = ShadowCastingMode.Off; mr.receiveShadows = true; mr.lightProbeUsage = LightProbeUsage.Off; mr.reflectionProbeUsage = ReflectionProbeUsage.Off;
         return p;
     }
-    private int Alive(Pool p) { if (p == null) return 0; int n = 0; float now = Time.time; for (int i = 0; i < p.max; i++) if (now - p.born[i] + ageBoost < Life && p.born[i] > -1e5f) n++; return n; }
+    private int Alive(Pool p) { if (p == null) return 0; int n = 0; float now = Time.time, life = p == foot ? FootLife : TyreLife; for (int i = 0; i < p.max; i++) if (now - p.born[i] + ageBoost < life && p.born[i] > -1e5f) n++; return n; }
 
-    // fundido: 0 recién hecha → 1 desaparecida (empieza a notarse a los 40 s)
-    public static float Fade01(float age) { return Mathf.Clamp01(Mathf.Pow(Mathf.Clamp01(age / Life), 1.4f)); }
+    // fundido: 0 recién hecha → 1 desaparecida: nítida el primer tercio y luego se la lleva el viento
+    public static float Fade01(float age, float life) { float x = Mathf.Clamp01(age / life); return x <= 0.3f ? 0f : Mathf.SmoothStep(0f, 1f, (x - 0.3f) / 0.7f); }
+    public static float Fade01(float age) { return Fade01(age, TyreLife); }
 
     private void Quad(Pool p, Vector3 c, Vector3 fwd, Vector3 n, float halfW, float halfL, float v0, float v1, byte a)
     {
@@ -163,17 +166,17 @@ public class DesertTracks : MonoBehaviour
         if (tyre.geoDirty) Upload(tyre);
         // fundido (cada medio segundo)
         fadeT -= dt;
-        if (fadeT <= 0f) { fadeT = 0.5f; Fade(foot); Fade(tyre); }
+        if (fadeT <= 0f) { fadeT = 0.2f; Fade(foot); Fade(tyre); }
     }
     private void Upload(Pool p) { p.mesh.vertices = p.v; p.mesh.normals = p.n; p.mesh.uv = p.uv; p.mesh.colors32 = p.col; p.geoDirty = false; p.colDirty = false; }
     private void Fade(Pool p)
     {
-        float now = Time.time; bool any = false;
+        float now = Time.time, life = p == foot ? FootLife : TyreLife; bool any = false;
         for (int i = 0; i < p.max; i++)
         {
             if (p.born[i] < -1e5f) continue;
             float age = now - p.born[i] - 0f + ageBoost;
-            byte a = (byte)Mathf.RoundToInt(p.a0[i] * (1f - Fade01(age)));
+            byte a = (byte)Mathf.RoundToInt(p.a0[i] * (1f - Fade01(age, life)));
             int b = i * 4; if (p.col[b].a == a) continue;
             for (int k = 0; k < 4; k++) p.col[b + k].a = a;
             any = true;

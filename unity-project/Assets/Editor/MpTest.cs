@@ -621,7 +621,7 @@ public static class MpPlayRunner
             FirstPersonController hp = GameManager.Instance.player;
             Mark("host_level8");
             yield return 2.0f;
-            File.WriteAllText(MpTest.Dir + "/host_dclock.txt", sky.Clock.ToString("R", Inv) + " " + DateTime.UtcNow.Ticks + " " + (int)sky.Current + " " + sky.Hour.ToString("R", Inv));
+            File.WriteAllText(MpTest.Dir + "/host_dclock.txt", sky.Clock.ToString("R", Inv) + " " + DateTime.UtcNow.Ticks + " " + (int)sky.Current + " " + sky.Hour.ToString("R", Inv) + " " + (DesertNight.Active != null ? DesertNight.Active.Seed : -1));
             Mark("host_dclock");
             yield return WaitMark("client_dclock", 60);
             {   // v7.7.1: la cordura del anfitrión tampoco baja en el desierto
@@ -656,7 +656,9 @@ public static class MpPlayRunner
                     yield return 3.5f;
                     float spd = car.Speed, moved = Vector3.Distance(c0, car.transform.position);
                     DesertCars.DbgThrottle = 0f; DesertCars.DbgSteer = 0f; DesertCars.DbgHandbrake = true;
-                    yield return Wait(() => car.Speed < 0.3f, 12, "todoterreno parado");
+                    float still = 0f, waited = 0f;   // parado de verdad: 0,6 s seguidos por debajo de 0,3 m/s
+                    while (still < 0.6f && waited < 25f) { yield return null; waited += Time.deltaTime; still = car.Speed < 0.3f ? still + Time.deltaTime : 0f; }
+                    r.Check(still >= 0.6f, "[Coche MP] el todoterreno se para con el freno de mano (" + waited.ToString("F1") + " s)");
                     yield return 1.0f;
                     r.Check(spd > 4f && moved > 6f, "[Coche MP] el anfitrión conduce con el cliente dentro (" + (spd * 3.6f).ToString("F0") + " km/h, " + moved.ToString("F0") + " m)");
                     Vector3 cl = dw.levelRoot.InverseTransformPoint(car.transform.position);
@@ -1216,6 +1218,12 @@ public static class MpPlayRunner
             float expect = hClock + (float)((DateTime.UtcNow.Ticks - t0) / 1e7);
             float diff = Mathf.Abs(sky.Clock - expect);
             r.Check(diff < 1.5f && (int)sky.Current == int.Parse(hc[2]) && ns.DesertSnapshots > 10, "[Desierto MP] mismo reloj del desierto que el anfitrión: hora y clima iguales (diferencia " + diff.ToString("F2") + " s, clima " + sky.Current + ", " + ns.DesertSnapshots + " bloques recibidos)");
+            {   // v7.9.0: sonidos de la noche: misma semilla → mismos sucesos (el reloj ya es el del anfitrión)
+                DesertNight dn = DesertNight.Active; int hs = hc.Length > 4 ? int.Parse(hc[4]) : -2;
+                int slot = Mathf.FloorToInt(sky.Clock / DesertNight.Slot); bool same = dn != null && dn.Seed == hs;
+                for (int k = 0; k < 40 && same; k++) { DesertNight.Ev a = DesertNight.EventAt(dn.Seed, slot + k), b = DesertNight.EventAt(hs, slot + k); same = a.on == b.on && a.kind == b.kind && a.offset == b.offset && a.azimuth == b.azimuth; }
+                r.Check(same, "[Desierto MP] sonidos de la noche: los mismos sucesos, a la vez y desde la misma dirección que el anfitrión (semilla " + hs + ")");
+            }
             {   // v7.7.1: en el desierto la cordura no baja tampoco en multijugador (linterna apagada)
                 Sanity sn = Sanity.Instance; Flashlight fl8 = pc.GetComponentInChildren<Flashlight>(); if (fl8 != null) fl8.SetOn(false);
                 if (sn != null) sn.value = 70f;

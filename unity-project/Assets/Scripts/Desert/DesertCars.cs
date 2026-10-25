@@ -64,6 +64,46 @@ public class DesertCars : MonoBehaviour
         order.Sort((x, y) => p.Dist(p.villages[x].c, p.start).CompareTo(p.Dist(p.villages[y].c, p.start)));
         car = Find(dw, r, p.villages[order[0]], true, out carYaw);
         wreck = Find(dw, r, p.villages[order.Count > 1 ? order[1] : order[0]], false, out wreckYaw);
+        // v7.9.0 (usuario): el que se conduce espera a la vista, a 15-30 m de donde aparecéis (llano, fuera de arenas movedizas
+        // y obstáculos); misma semilla = mismo sitio para todos, y es también su casa al reaparecer
+        if (NearStart(dw, new System.Random((dw.gen != null ? dw.gen.UsedSeed : 1) * 811 + 5), p.villages.Count > 0 ? p.villages[order[0]].c : p.start + Vector2.up, out Vector3 ns, out float nsy)) { car = ns; carYaw = nsy; }
+    }
+    public const float StartMin = 15f, StartMax = 30f;
+    private static bool NearStart(DesertWorld dw, System.Random r, Vector2 lookAt, out Vector3 pos, out float yaw)
+    {
+        DesertPlan p = dw.plan; float L = dw.L;
+        Vector2 fwd = new Vector2(DesertHeight.Wrap(lookAt.x - p.start.x), DesertHeight.Wrap(lookAt.y - p.start.y));
+        if (fwd.sqrMagnitude < 1e-4f) fwd = Vector2.up; fwd.Normalize();
+        float baseA = Mathf.Atan2(fwd.y, fwd.x);
+        for (int k = 0; k < 400; k++)
+        {
+            float spread = Mathf.Min(Mathf.PI, 0.5f + k * 0.01f);   // primero delante (se ve al salir), luego alrededor
+            float a = baseA + (k == 0 ? 0.45f : ((float)r.NextDouble() * 2f - 1f) * spread);
+            float rad = StartMin + 3f + (float)r.NextDouble() * (StartMax - StartMin - 6f);
+            Vector2 q = new Vector2(Mathf.Repeat(p.start.x + Mathf.Cos(a) * rad, L), Mathf.Repeat(p.start.y + Mathf.Sin(a) * rad, L));
+            if (p.QuickAt(q, 14f) >= 0) continue;
+            bool clear = true;
+            foreach (DesertPlan.House h in p.houses) if (p.Dist(q, h.pos) < 14f) { clear = false; break; }
+            if (clear) foreach (DesertPlan.Outcrop o in p.outcrops) if (p.Dist(q, o.c) < 10f + 8f * o.scale) { clear = false; break; }
+            if (clear) foreach (DesertPlan.Plant pl in p.plants) if (p.Dist(q, pl.p) < 3.5f) { clear = false; break; }
+            if (clear) foreach (Vector2 si in p.sandItems) if (p.Dist(q, si) < 3f) { clear = false; break; }
+            if (clear) foreach (DesertPlan.Village v in p.villages) if (p.Dist(q, v.c) < v.r + 6f) { clear = false; break; }
+            if (!clear) continue;
+            // de lado respecto a quien sale del ascensor
+            float y0 = Mathf.Atan2(-Mathf.Sin(a), Mathf.Cos(a)) * Mathf.Rad2Deg + ((float)r.NextDouble() - 0.5f) * 30f;
+            bool flat = true;
+            for (int s = -1; s <= 1 && flat; s++)
+                for (int t = -1; t <= 1 && flat; t++)
+                {
+                    Vector2 o = Rot(new Vector2(s * 1.4f, t * 3.0f), y0);
+                    float x = Mathf.Repeat(q.x + o.x, L), z = Mathf.Repeat(q.y + o.y, L);
+                    if (DesertHeight.Normal(x, z).y < (k < 250 ? 0.985f : 0.96f)) flat = false;
+                }
+            if (!flat) continue;
+            yaw = y0; pos = new Vector3(q.x, DesertHeight.H(q.x, q.y) + 0.04f, q.y);
+            return true;
+        }
+        pos = Vector3.zero; yaw = 0f; return false;
     }
     private static Vector3 Find(DesertWorld dw, System.Random r, DesertPlan.Village v, bool towardStart, out float yaw)
     {

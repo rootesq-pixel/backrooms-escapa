@@ -170,6 +170,7 @@ public class DesertFx : MonoBehaviour
         foreach (AudioClip c in birdCalls) owned.Add(c);
         // v7.8.0: viento fluido (síntesis periódica sin costura, sin siseo); apagado dentro de casas y cuevas
         DesertWind.Create(transform, sd, () => cam != null && ((dw != null && dw.UnderRoof(cam.transform.position)) || InCave(cam.transform.position)));
+        if (cam != null) DesertNight.Create(transform, sd, cam.transform);   // v7.9.0: sonidos lejanos de noche
         birdSrc = gameObject.AddComponent<AudioSource>(); birdSrc.spatialBlend = 0.85f; birdSrc.playOnAwake = false; birdSrc.minDistance = 8f; birdSrc.maxDistance = 120f; birdSrc.rolloffMode = AudioRolloffMode.Linear;
     }
     private AudioSource Src(AudioClip c, float v)
