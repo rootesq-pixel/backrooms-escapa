@@ -1497,6 +1497,7 @@ public static class SmokeTest
                 {
                     Vector3 gn = Vector3.Cross(vv[tr[i + 1]] - vv[tr[i]], vv[tr[i + 2]] - vv[tr[i]]);
                     totalTris++;
+                    if (gn.sqrMagnitude < 1e-14f) continue;   // v7.8.0: triángulo degenerado (área 0, p. ej. huecos libres de un pool de calcos): no tiene cara
                     // v7.3.0b3: invertido = las TRES normales de vértice al lado contrario (en telas arrugadas, un pliegue puede
                     // discrepar en una esquina sin que el triángulo esté al revés)
                     if (Vector3.Dot(gn, nn[tr[i]]) <= 0f && Vector3.Dot(gn, nn[tr[i + 1]]) <= 0f && Vector3.Dot(gn, nn[tr[i + 2]]) <= 0f) badTris++;

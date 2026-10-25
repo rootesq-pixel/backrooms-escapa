@@ -44,12 +44,13 @@ public class DesertCars : MonoBehaviour
         m.cars.Add(car);
         DesertCar wr = DesertCar.Create(dw, dw.transform, 1, b, yb, true, mats, track);
         // la chatarra: medio enterrada e inclinada (se puede subir al techo y al capó)
-        wr.transform.localPosition += Vector3.down * 0.85f;
+        wr.transform.localPosition += Vector3.down * 0.6f;
         wr.transform.localRotation *= Quaternion.Euler(5f, 0f, -10f);
         m.wreck = wr;
         // dunas pequeñas contra las ruedas del que se conduce y la chatarra hundida en una duna
-        m.Drift(a, ya, 0.48f, 0.15f, track);
-        m.Drift(b, yb, 0.95f, 0.55f, track);
+        // el que se conduce: la arena amontonada solo contra el costado del copiloto (barlovento), así al salir no deja un cráter
+        m.Drift(a, ya, 0.62f, 0f, track, -car.driverSide);
+        m.Drift(b, yb, 0.72f, 0.30f, track, 0f);
         m.tracks = DesertTracks.Create(dw);
         return m;
     }
@@ -131,7 +132,7 @@ public class DesertCars : MonoBehaviour
     }
 
     // duna pequeña alrededor del contorno del coche (sin colisión: solo se ve); h = altura del borde, fill = relleno del centro
-    private void Drift(Vector3 c, float yaw, float h, float fill, System.Action<Object> track)
+    private void Drift(Vector3 c, float yaw, float h, float fill, System.Action<Object> track, float side)
     {
         const int RINGS = 22, SEG = 56; float L = dw.L;
         List<Vector3> v = new List<Vector3>(); List<int> tri = new List<int>();
@@ -144,6 +145,7 @@ public class DesertCars : MonoBehaviour
                 Vector2 o = Rot(new Vector2(Mathf.Cos(a) * 1.05f, Mathf.Sin(a) * 2.45f) * rr, yaw);
                 float noise = Mathf.PerlinNoise(c.x * 0.1f + Mathf.Cos(a) * 1.3f, c.z * 0.1f + Mathf.Sin(a) * 1.3f);
                 float ring = h * Mathf.Exp(-Mathf.Pow((rr - 1.05f) / 0.38f, 2f)) * (0.6f + 0.8f * noise);
+                if (side != 0f) ring *= Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.15f, 0.75f, side * Mathf.Cos(a))) * (0.75f + 0.25f * Mathf.Abs(Mathf.Cos(a)));
                 float centre = rr < 1f ? fill * (1f - rr * rr) : 0f;
                 float bump = Mathf.Max(ring, centre) * Mathf.Clamp01((2.1f - rr) / 0.6f);
                 float x = c.x + o.x, z = c.z + o.y;

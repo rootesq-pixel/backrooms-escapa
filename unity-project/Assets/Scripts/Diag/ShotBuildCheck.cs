@@ -416,6 +416,8 @@ public class ShotBuildCheck : MonoBehaviour
             car.seat[0] = 9999; car.HostDrive(9999, 0.75f, 0.12f, false);
             float t0 = Time.realtimeSinceStartup; while (Time.realtimeSinceStartup - t0 < 4.5f) { car.HostDrive(9999, 0.75f, 0.12f, false); yield return null; }
             for (int k = 0; k < 12; k++) { car.HostDrive(9999, 0.75f, 0.12f, false); mc.transform.position = car.transform.TransformPoint(new Vector3(-3.2f, 2.3f, -8.5f)); mc.transform.rotation = Quaternion.LookRotation(car.transform.TransformPoint(new Vector3(0f, 0.9f, 3f)) - mc.transform.position); mc.fieldOfView = 58f; yield return null; }
+            // la cámara del jugador se recoloca en LateUpdate: fijarla justo antes de renderizar
+            mc.transform.position = car.transform.TransformPoint(new Vector3(-2.8f, 2.0f, -7.5f)); mc.transform.rotation = Quaternion.LookRotation(car.transform.TransformPoint(new Vector3(0f, 0.9f, 2f)) - mc.transform.position); mc.fieldOfView = 58f;
             Texture2D tex = Grab(mc, "d_57_coche_conduciendo_polvo");
             Check(Mean(tex) > 0.03f, "captura d_57_coche_conduciendo_polvo no negra (media " + Mean(tex).ToString("F3") + ")"); Destroy(tex);
             Info("conduciendo: " + (car.Speed * 3.6f).ToString("F0") + " km/h, polvo " + car.DustEmitted + ", rodadas " + dc.tracks.TyreAdded);

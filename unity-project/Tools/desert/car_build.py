@@ -57,8 +57,11 @@ box(B, "Paint", (0, -0.55, 0.42), (1.70, 3.30, 0.10), 0.02)          # suelo de 
 for sx in (-1, 1):
     box(B, "Paint", (sx * 0.86, -0.55, 0.86), (0.06, 3.30, 0.80), 0.02)   # laterales hasta la cintura
     box(B, "Paint", (sx * 0.96, WB_F, 0.86), (0.22, 1.10, 0.10), 0.03)    # aleta delantera (plana, típica)
-    box(B, "Black", (sx * 0.95, WB_F, 0.62), (0.20, 1.05, 0.30), 0.04)    # paso de rueda negro
-    box(B, "Black", (sx * 0.95, WB_R, 0.62), (0.20, 1.05, 0.30), 0.04)
+    for wy in (WB_F, WB_R):   # paso de rueda negro: aleta en arco alrededor de la parte de arriba del neumático (no tapa la rueda)
+        n = 12
+        for i in range(n):
+            a = math.radians(8 + (164 * (i + 0.5) / n)); rr = 0.53
+            box(B, "Black", (sx * 0.97, wy + math.cos(a) * rr, WR + math.sin(a) * rr), (0.24, 2 * rr * math.sin(math.radians(164 / n / 2)) + 0.012, 0.075), 0.008, (a + math.pi / 2, 0, 0))
     box(B, "Black", (sx * 0.90, 0.0, 0.40), (0.10, 1.60, 0.06), 0.01)     # estribo
 box(B, "Paint", (0, -2.18, 0.86), (1.70, 0.06, 0.80), 0.02)          # puerta trasera (parte baja)
 box(B, "Paint", (0, 1.13, 0.98), (1.70, 0.06, 0.62), 0.02)           # mamparo entre motor y cabina
