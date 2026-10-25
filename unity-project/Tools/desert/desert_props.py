@@ -111,19 +111,35 @@ def make_backing(ob, thick):
     return bk
 
 def push_behind(bk, ob):
-    # el respaldo nunca asoma por delante del escaneo: se quitan sus caras que queden delante (o a menos de 4 cm) de la cáscara;
-    # desde delante las tapa el escaneo y desde atrás se ve la otra cara del respaldo. Sin mover vértices (no se pliegan triángulos).
+    # el respaldo solo tapa la parte de atrás: se quita toda su cara delantera (caras a menos de 35 cm del escaneo que miran hacia
+    # el mismo lado que él); queda una «concha» detrás con su borde. Luego se quitan las islas pequeñas que queden sueltas.
+    # Desde delante se ve solo el escaneo (como antes) y desde atrás o de lado, el respaldo.
     from mathutils.bvhtree import BVHTree
     tree = BVHTree.FromObject(ob, bpy.context.evaluated_depsgraph_get())
-    bm = bmesh.new(); bm.from_mesh(bk.data); front = {}
-    for v in bm.verts:
-        loc, nrm, idx, dist = tree.find_nearest(v.co)
-        front[v.index] = loc is not None and dist < 0.6 and (v.co - loc).dot(nrm) > -0.04
-    kill = [f for f in bm.faces if all(front[v.index] for v in f.verts)]
-    bmesh.ops.delete(bm, geom=kill, context='FACES')
+    bm = bmesh.new(); bm.from_mesh(bk.data); bm.faces.ensure_lookup_table()
+    kill = []
+    for f in bm.faces:
+        c = f.calc_center_median(); loc, nrm, idx, dist = tree.find_nearest(c)
+        if loc is not None and dist < 0.35 and f.normal.dot(nrm) > 0.2: kill.append(f)
+    n0 = len(kill); bmesh.ops.delete(bm, geom=kill, context='FACES')
+    bm.faces.ensure_lookup_table(); seen = set(); isl = []
+    for f0 in bm.faces:
+        if f0.index in seen: continue
+        st = [f0]; seen.add(f0.index); comp = []
+        while st:
+            x = st.pop(); comp.append(x)
+            for e in x.edges:
+                for y in e.link_faces:
+                    if y.index not in seen: seen.add(y.index); st.append(y)
+        isl.append(comp)
+    small = []
+    if isl:
+        big = max(len(c) for c in isl); small = [f for c in isl if len(c) < 0.03 * big for f in c]
+        bmesh.ops.delete(bm, geom=small, context='FACES')
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context='VERTS')
     for f in bm.faces: f.smooth = True
     bm.to_mesh(bk.data); bm.free()
-    return len(kill)
+    return "%d front + %d island faces" % (n0, len(small))
 
 def remove_parts(ob, mode, amount, rnd):
     bpy.context.view_layer.objects.active = ob; bpy.ops.object.select_all(action='DESELECT'); ob.select_set(True)

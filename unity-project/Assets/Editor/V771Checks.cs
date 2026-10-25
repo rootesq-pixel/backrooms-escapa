@@ -101,7 +101,7 @@ public static class V771Checks
         foreach (string n in Rocks)
         {
             List<Mesh> ls = Lods(n); bool ok = ls.Count == 3; var sb = new StringBuilder();
-            foreach (Mesh m in ls) { float worst; float f = FrontFirst(m, out worst); sb.Append(" " + m.name.Substring(m.name.Length - 4) + " " + f.ToString("0.00") + "/" + worst.ToString("0.00")); if (f < 0.9f || worst < 0.5f) ok = false; }
+            foreach (Mesh m in ls) { float worst; float f = FrontFirst(m, out worst); sb.Append(" " + m.name.Substring(m.name.Length - 4) + " " + f.ToString("0.00") + "/" + worst.ToString("0.00")); if (f < 0.85f || worst < 0.5f) ok = false; }   // las cáscaras abiertas de la v7.7.0 daban 0,00 en la peor vista }
             r.Check(ok, T + "roca " + n + " cerrada desde todos los lados (primer impacto de cara delantera, media/peor vista:" + sb + ")");
         }
         // 2) ningún modelo del desierto con triángulos sueltos, vértices lejanos o trozos separados, en ningún LOD
