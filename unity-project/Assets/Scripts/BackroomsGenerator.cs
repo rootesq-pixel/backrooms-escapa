@@ -714,8 +714,52 @@ public class BackroomsGenerator : MonoBehaviour
     private const int SlotPipe = 0;      // en el builder de decoración: 0 = tuberías, 1 = agua
     private const int SlotWater = 1;
 
+    public static Material PipeMaterial;   // v7.6.0 (pruebas)
+    public static readonly List<Vector4> PipeSpots = new List<Vector4>();   // v7.6.0: centro del paramento en la celda (x, y, z local) y lado; para las capturas
+    public static readonly List<int> PipeAxis = new List<int>();            // 0 = muro a lo largo de Z, 1 = a lo largo de X
+    public static int IndustrialPipeCount;
+
+    // v7.6.0: tubería industrial a lo largo de un muro de una celda: sale del muro con un codo, corre paralela a 'd' del paramento,
+    // y vuelve a entrar con otro codo; bridas en los extremos del tramo recto y en la junta central, embellecedores en el muro,
+    // abrazaderas con pletina de soporte. 'face' = punto del paramento al inicio de la celda; 'along' = dirección del muro;
+    // 'outward' = normal del paramento hacia el pasillo; L = largo de la celda. Sin colisión (como antes) y sin usar el generador
+    // aleatorio del nivel (el plano y las semillas no cambian).
+    private void AddIndustrialPipe(MeshBuilder mb, Vector3 face, Vector3 along, Vector3 outward, float L, float r, int hash)
+    {
+        const int seg = 16;
+        float R = r * 1.5f, d = Mathf.Max(0.16f, R + 0.02f);
+        float sA = 0.36f, sB = L - 0.36f;
+        Vector3 up = Vector3.up;
+        System.Func<float, float, Vector3> P = (sAlong, o) => face + along * sAlong + outward * o;
+        var path = new List<Vector3>();
+        path.Add(P(sA, -0.05f)); path.Add(P(sA, d - R));
+        for (int k = 1; k <= 7; k++) { float a = k * Mathf.PI * 0.5f / 7f; path.Add(P(sA + R - R * Mathf.Cos(a), d - R + R * Mathf.Sin(a))); }
+        path.Add(P(sB - R, d));
+        for (int k = 1; k <= 7; k++) { float a = k * Mathf.PI * 0.5f / 7f; path.Add(P(sB - R + R * Mathf.Sin(a), d - R + R * Mathf.Cos(a))); }
+        path.Add(P(sB, -0.05f));
+        float u0 = (hash % 97) * 0.0137f;
+        mb.AddSweep(SlotPipe, path, r, seg, 2f, u0, up);
+        // bridas: junto a cada codo y una junta en el centro
+        float rf = r + 0.035f;
+        foreach (float sf in new[] { sA + R + 0.06f, (sA + sB) * 0.5f, sB - R - 0.06f })
+            mb.AddRing(SlotPipe, P(sf, d), along, up, r, rf, 0.028f, seg, u0 + 1.31f);
+        // embellecedores donde entra en el muro
+        foreach (float sf in new[] { sA, sB })
+            mb.AddRing(SlotPipe, P(sf, 0.006f), outward, up, r, r + 0.05f, 0.012f, seg, u0 + 1.47f);
+        // abrazaderas + pletina en L atornillada al muro
+        foreach (float sf in new[] { sA + (sB - sA) * 0.27f, sA + (sB - sA) * 0.73f })
+        {
+            mb.AddRing(SlotPipe, P(sf, d), along, up, r, r + 0.007f, 0.04f, seg, u0 + 1.71f);
+            Vector3 c0 = P(sf, d * 0.5f) - up * (r + 0.012f);
+            mb.AddOrientedBox(SlotPipe, c0, outward, up, along, new Vector3(d * 0.5f + 0.004f, 0.005f, 0.022f), new Vector2(1.85f, 0.30f), 0.05f);
+            mb.AddOrientedBox(SlotPipe, P(sf, 0.006f) - up * (r * 0.4f), outward, up, along, new Vector3(0.006f, r * 0.6f + 0.02f, 0.03f), new Vector2(1.90f, 0.30f), 0.05f);
+        }
+        IndustrialPipeCount++;
+    }
+
     private void BuildGeometry(System.Random rng)
     {
+        IndustrialPipeCount = 0; PipeMaterial = null; PipeSpots.Clear(); PipeAxis.Clear();
         LevelConfig cfg = config;
         GameObject rootGo = new GameObject("BackroomsLevel");
         rootGo.transform.SetParent(transform, false);
@@ -741,6 +785,7 @@ public class BackroomsGenerator : MonoBehaviour
         keys.Add(TextureLibrary.Key(cfg.wallStyle, wh));
         keys.Add(TextureLibrary.Key(cfg.floorStyle, wh));
         keys.Add(TextureLibrary.Key(cfg.ceilingStyle, wh));
+        if (cfg.pipes && cfg.industrialPipes) keys.Add(TextureLibrary.Key(SurfaceStyle.IndustrialPipe, wh));
         SurfaceSet rippleSet = null;
         if (cfg.water)
         {
@@ -754,6 +799,12 @@ public class BackroomsGenerator : MonoBehaviour
         Material floorMat = Track(ProceduralAssets.CreateSurfaceMaterial(floorSet, cfg.floorTint, 1f, 1f));
         Material ceilMat = Track(ProceduralAssets.CreateSurfaceMaterial(ceilSet, cfg.ceilTint, 1f, 1f));
         Material pipeMat = cfg.pipes ? wallMat : null;
+        if (cfg.pipes && cfg.industrialPipes)
+        {   // v7.6.0: material propio de las tuberías (pintura verde gastada, soldaduras, franja con flecha, óxido abajo)
+            SurfaceSet pipeSet = TextureLibrary.Get(SurfaceStyle.IndustrialPipe, wh);
+            pipeMat = Track(ProceduralAssets.CreateSurfaceMaterial(pipeSet, Color.white, 1f, 1f));
+            PipeMaterial = pipeMat;
+        }
 
         // --- Chunks (cada uno es un renderer, para que las luces por píxel se repartan bien) ---
         int chunkCells = Garage != null ? 3 : Mathf.Max(1, Mathf.RoundToInt(8f / cs));   // v7.0.4: aparcamiento grande: menos renderers
@@ -811,7 +862,10 @@ public class BackroomsGenerator : MonoBehaviour
                     float side = rng.NextDouble() < 0.5 ? -1f : 1f;
                     float x = i * cs + side * (t * 0.5f + 0.16f);
                     float y = wh - 0.3f - (float)rng.NextDouble() * 0.5f;
-                    decorB[cx, cz].AddTube(SlotPipe, new Vector3(x, y, j * cs + 0.1f), new Vector3(x, y, (j + 1) * cs - 0.1f), 0.08f + (float)rng.NextDouble() * 0.05f, 2.4f);
+                    float pr = 0.08f + (float)rng.NextDouble() * 0.05f;   // mismo orden de llamadas al generador que antes
+                    PipeSpots.Add(new Vector4(i * cs + side * t * 0.5f, y, (j + 0.5f) * cs, side)); PipeAxis.Add(0);
+                    if (cfg.industrialPipes) AddIndustrialPipe(decorB[cx, cz], new Vector3(i * cs + side * t * 0.5f, y, j * cs), Vector3.forward, new Vector3(side, 0f, 0f), cs, pr, i * 131 + j * 17);
+                    else decorB[cx, cz].AddTube(SlotPipe, new Vector3(x, y, j * cs + 0.1f), new Vector3(x, y, (j + 1) * cs - 0.1f), pr, 2.4f);
                 }
             }
         }
@@ -832,7 +886,10 @@ public class BackroomsGenerator : MonoBehaviour
                     float side = rng.NextDouble() < 0.5 ? -1f : 1f;
                     float z = j * cs + side * (t * 0.5f + 0.16f);
                     float y = wh - 0.3f - (float)rng.NextDouble() * 0.5f;
-                    decorB[cx, cz].AddTube(SlotPipe, new Vector3(i * cs + 0.1f, y, z), new Vector3((i + 1) * cs - 0.1f, y, z), 0.08f + (float)rng.NextDouble() * 0.05f, 2.4f);
+                    float pr = 0.08f + (float)rng.NextDouble() * 0.05f;
+                    PipeSpots.Add(new Vector4((i + 0.5f) * cs, y, j * cs + side * t * 0.5f, side)); PipeAxis.Add(1);
+                    if (cfg.industrialPipes) AddIndustrialPipe(decorB[cx, cz], new Vector3(i * cs, y, j * cs + side * t * 0.5f), Vector3.right, new Vector3(0f, 0f, side), cs, pr, i * 29 + j * 113);
+                    else decorB[cx, cz].AddTube(SlotPipe, new Vector3(i * cs + 0.1f, y, z), new Vector3((i + 1) * cs - 0.1f, y, z), pr, 2.4f);
                 }
             }
         }

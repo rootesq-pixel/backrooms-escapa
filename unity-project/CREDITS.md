@@ -66,8 +66,13 @@ Texturas PBR de [ambientCG](https://ambientcg.com) (CC0 1.0, dominio público; n
 | Nivel 3, lino de los manteles (`HotelTablecloth`; manchas, polvo y cercos propios) | Fabric062 | https://ambientcg.com/view?id=Fabric062 |
 | Nivel 3, yeso pintado de las columnas (`HotelColumn`; mugre y desconchones propios) | PaintedPlaster017 | https://ambientcg.com/view?id=PaintedPlaster017 |
 | Nivel 3, mármol negro del mostrador de recepción (`HotelMarble`) | Marble006 | https://ambientcg.com/view?id=Marble006 |
+| Nivel 4, óxido de desconchones, churretes, juntas y valles (`IndustrialWall`, `IndustrialFloor`, `IndustrialCeiling`, `IndustrialPipe`) | Rust009 | https://ambientcg.com/view?id=Rust009 |
+| Nivel 4, acero con churretes y acero desnudo (`IndustrialWall`, `IndustrialFloor`, `IndustrialCeiling`, `IndustrialPipe`) | Metal041B | https://ambientcg.com/view?id=Metal041B |
+| Nivel 4, acero oscuro sin pintar del zócalo (`IndustrialWall`) | MetalPlates013 | https://ambientcg.com/view?id=MetalPlates013 |
 
 Nivel 3 (v7.5.0), trabajo propio (CC0): dibujo del damasco (`Tools/v750/damask.py`), rombos de la moqueta, cuadros (paisajes, retratos sin cara, marinas y bodegones dibujados por script), linóleo a cuadros de los pasillos de servicio, y todos los muebles del hotel (camas, armarios, mesillas, lámparas, recepción, mesas, sillas, piano, arañas, ventanales, puertas y ascensores), modelados por código en `HotelDecor.cs`; las mesas con manteles caídos, las sillas de comedor y de banquete, las columnas clásicas y el mostrador de recepción, modelados por script en Blender 4.2 (`Tools/v750/build_hotel_furn.py` → `Assets/Resources/Hotel/HotelFurniture750.fbx`; texturas en `Tools/v750/compose_l3_furn.py`). Números de latón: fuente DejaVu Serif (licencia libre Bitstream Vera).
+
+Nivel 4 (v7.6.0), trabajo propio (CC0): `Tools/v760/compose_l4.py` dibuja las chapas remachadas de 1,2 m con solape, el zócalo sin pintar y la franja amarilla, los desconchones con borde fractal, los churretes de óxido y de agua, la chapa lagrimada con resaltes en relieve y tornillos avellanados, el forjado de chapa grecada con viga, y la pintura de las tuberías (soldaduras, franja con flecha, óxido abajo, polvo arriba). Las tuberías (codos al muro, bridas, embellecedores, abrazaderas y pletinas) se modelan por código en `BackroomsGenerator.AddIndustrialPipe`.
 
 Añadidos propios sobre esas texturas (numpy/Pillow, CC0): líneas amarillas gastadas, rodadas de neumáticos, suciedad, agujeros de encofrado con regueros de óxido, manchas de humedad y eflorescencias, anillos de agua en el techo, manchas de aceite y charcos (calcomanías del suelo del Nivel 1). Además: placa de inspección, rejilla y suciedad de la cabina.
 

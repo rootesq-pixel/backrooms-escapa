@@ -51,6 +51,7 @@ public class LevelConfig
     public Color wallTint = Color.white, floorTint = Color.white, ceilTint = Color.white;
     public float trimGloss = 0.4f;
     public bool pipes = false;
+    public bool industrialPipes = false;   // v7.6.0: tuberías modeladas (codos al muro, bridas, abrazaderas) con material propio
     public bool water = false;
     public float waterLevel = 0.22f;
     public Color waterColor = new Color(0.30f, 0.52f, 0.60f, 0.5f);
@@ -326,8 +327,18 @@ public class LevelConfig
         c.eventInterval = new Vector2(4f, 10f);
         c.step = StepKind.Metal;
         c.doorColor = new Color(0.30f, 0.32f, 0.30f); c.doorFrameColor = new Color(0.18f, 0.14f, 0.08f);
+        if (!OldL4)
+        {   // v7.6.0: texturas PBR nuevas (chapas remachadas de 1,2 m con solape y zócalo, chapa lagrimada en relieve, forjado de chapa
+            // grecada con viga) y tuberías modeladas (salen del muro con codos, bridas, abrazaderas y soportes; pintura gastada).
+            // Mismo plano, mismas luces y la misma oscuridad roja.
+            c.wallStyle = SurfaceStyle.IndustrialWall; c.floorStyle = SurfaceStyle.IndustrialFloor; c.ceilingStyle = SurfaceStyle.IndustrialCeiling;
+            c.wallTileU = 3.6f; c.wallTileV = 0f; c.floorTileU = c.floorTileV = 2.4f; c.ceilTileU = c.ceilTileV = 2.4f;
+            c.industrialPipes = true;
+        }
         return c;
     }
+    // v7.6.0: «-oldl4» en el ejecutable: el complejo industrial de antes (solo para las capturas «antes»)
+    public static bool OldL4 { get { return System.Environment.CommandLine.Contains("-oldl4"); } }
 
     // Nivel 5 (v7.0): Campo infinito — hierba alta bajo un cielo nublado, colinas suaves, casas vacías y algo en el horizonte
     private static LevelConfig Level5()

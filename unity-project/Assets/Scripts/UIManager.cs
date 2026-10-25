@@ -759,6 +759,7 @@ public class UIManager : MonoBehaviour
         sb.AppendLine();
         sb.AppendLine("Ascensor de entrada: modelo propio (Blender 4.2), CC0. Texturas PBR del ascensor y del Nivel 1: ambientCG (Metal009, Metal038, Wood051, Rubber001, Concrete042A, Concrete031, Concrete012) — CC0 1.0");
         sb.AppendLine("Hotel (Nivel 3): texturas PBR propias sobre bases de ambientCG (Wood066, Carpet012, Fabric045, Plaster001, Fabric062, PaintedPlaster017, Marble006) — CC0 1.0; damasco, moqueta, cuadros, linóleo y muebles del hotel: trabajo propio (CC0). Números de latón: fuente DejaVu Serif (licencia libre Bitstream Vera).");
+        sb.AppendLine("Complejo industrial (Nivel 4): texturas PBR propias sobre bases de ambientCG (Rust009, Metal041B, MetalPlates013) — CC0 1.0; chapas remachadas, chapa lagrimada, forjado grecado y tuberías: trabajo propio (CC0).");
         sb.AppendLine("   Reserva: «Elevator car interior» + «Elevator door pair» (Backrooms and Liminal Spaces Kit) — 3D Assets — CC0 1.0   https://3dassets.dev");
         sb.AppendLine();
         sb.AppendLine("Los modelos se han convertido a FBX con Blender y retexturizado donde se indica. Detalles en CREDITS.md.");

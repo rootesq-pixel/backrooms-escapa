@@ -62,6 +62,7 @@ public class ShotBuildCheck : MonoBehaviour
         else if (GameBootstrap.Instance.CurrentLevel == 0) yield return Level0(gm, pw, mc);
         else if (GameBootstrap.Instance.CurrentLevel == 1) yield return Level1(gm, pw, mc);
         else if (GameBootstrap.Instance.CurrentLevel == 3) yield return Level3(gm, pw, mc);
+        else if (GameBootstrap.Instance.CurrentLevel == 4) yield return Level4(gm, pw, mc);
         else if (BallPitField.All.Count > 0) yield return Ballpit(gm, pw, mc);
         else Check(false, "nivel con sala de piscina o campo");
         Finish();
@@ -78,7 +79,7 @@ public class ShotBuildCheck : MonoBehaviour
         if (PoolPlanarReflection.Instance != null) PoolPlanarReflection.Instance.Refresh(mc);
         if (FieldGrass.Active != null) FieldGrass.Active.Submit();
         Texture2D tex = Grab(mc, n);
-        float minMean = n.Contains("a_oscuras") ? 0.008f : n.StartsWith("l3_") ? 0.010f : 0.03f;   // el plano a oscuras es negro a propósito (solo señuelo y fotóforos); v7.5.0: el hotel es oscuro a propósito
+        float minMean = n.Contains("a_oscuras") ? 0.008f : n.StartsWith("l3_") || n.StartsWith("l4_") ? 0.010f : 0.03f;   // el plano a oscuras es negro a propósito (solo señuelo y fotóforos); v7.5.0: el hotel es oscuro a propósito
         Check(Mean(tex) > minMean, "captura " + n + " no negra (media " + Mean(tex).ToString("F3") + ", mínimo " + minMean.ToString("F3") + ")");
         Destroy(tex);
         // tiempo real de fotograma del ejecutable en esta vista (sin vsync), mediana de 120 fotogramas
@@ -772,6 +773,93 @@ public class ShotBuildCheck : MonoBehaviour
             }
             if (vx != null) vx.intensityOverride = 0f;
         }
+    }
+
+    // v7.6.0: complejo industrial (nivel 4) sin VHS y con la linterna encendida: mismas cámaras con «-oldl4» (antes) y sin él (después).
+    // Las luces de emergencia se congelan a un valor medio del pulso para que las dos pasadas se puedan comparar.
+    IEnumerator Level4(GameManager gm, FirstPersonController pw, Camera mc)
+    {
+        VhsEffect vx = mc.GetComponent<VhsEffect>(); if (vx != null) vx.intensityOverride = 0f;
+        Flashlight fl = pw.GetComponentInChildren<Flashlight>(); if (fl != null) fl.SetOn(true);
+        foreach (FlickeringLight f in FindObjectsOfType<FlickeringLight>()) { f.flickerEnabled = false; f.pulse = false; f.ScaleBase(0.75f); }
+        BackroomsGenerator gen = gm.generator; float cs = gen.CellSize; int W = gen.GridWidth, H = gen.GridHeight;
+        Transform R = gen.Root; float floorY = R.position.y;
+        Info("nivel 4: " + W + " x " + H + " celdas, tuberías " + BackroomsGenerator.PipeSpots.Count + " (modeladas " + BackroomsGenerator.IndustrialPipeCount + ")" + (LevelConfig.OldL4 ? " (antes, -oldl4)" : "") + ", estilos " + LevelConfig.Get(4).wallStyle + "/" + LevelConfig.Get(4).floorStyle + "/" + LevelConfig.Get(4).ceilingStyle);
+        Check(LevelConfig.OldL4 || (BackroomsGenerator.IndustrialPipeCount == BackroomsGenerator.PipeSpots.Count && BackroomsGenerator.PipeMaterial != null), "nivel 4: tuberías modeladas con su material");
+        // pasillos con la visual recta más larga (como el hotel antiguo)
+        var cand = new System.Collections.Generic.List<(int L, int x, int z, int d)>();
+        for (int x = 0; x < W; x++) for (int z = 0; z < H; z++) for (int d = 0; d < 4; d++)
+        {
+            if (gen.IsCellOpen(x, z, (d + 2) % 4)) continue;
+            int L = 0, cx = x, cz = z; Vector2Int dv = d == 0 ? Vector2Int.up : d == 1 ? Vector2Int.right : d == 2 ? Vector2Int.down : Vector2Int.left;
+            while (L < 40 && gen.IsCellOpen(cx, cz, d)) { cx += dv.x; cz += dv.y; L++; }
+            if (L >= 3) cand.Add((L, x, z, d));
+        }
+        cand.Sort((a, b) => b.L != a.L ? b.L.CompareTo(a.L) : (a.x * 1000 + a.z * 4 + a.d).CompareTo(b.x * 1000 + b.z * 4 + b.d));
+        var used = new System.Collections.Generic.List<Vector2Int>(); int n = 0;
+        foreach (var c in cand)
+        {
+            bool far = true; foreach (Vector2Int u in used) if (Mathf.Abs(u.x - c.x) + Mathf.Abs(u.y - c.z) < 8) far = false;
+            if (!far) continue; used.Add(new Vector2Int(c.x, c.z));
+            Vector3 dir = c.d == 0 ? Vector3.forward : c.d == 1 ? Vector3.right : c.d == 2 ? Vector3.back : Vector3.left;
+            Vector3 side = new Vector3(dir.z, 0f, -dir.x);
+            Vector3 stand = R.TransformPoint(new Vector3((c.x + 0.5f) * cs, 0.02f, (c.z + 0.5f) * cs)) - dir * (cs * 0.3f) + side * 0.35f;
+            Vector3 p = stand + Vector3.up * 1.62f;
+            yield return View(pw, mc, "l4_0" + (n + 1) + "_pasillo", p, p + dir * 10f + Vector3.down * 0.35f - side * 0.5f, 62f, stand);
+            if (++n == 2) break;
+        }
+        // tubería, pared y suelo de cerca: la tubería más cercana al primer pasillo, mirada en diagonal
+        int bi = -1; float bd = 1e9f; Vector3 ref0 = used.Count > 0 ? R.TransformPoint(new Vector3((used[0].x + 0.5f) * cs, 0f, (used[0].y + 0.5f) * cs)) : R.position;
+        for (int i = 0; i < BackroomsGenerator.PipeSpots.Count; i++)
+        {
+            Vector4 ps = BackroomsGenerator.PipeSpots[i]; Vector3 wp = R.TransformPoint(new Vector3(ps.x, 0f, ps.z));
+            float dd = (wp - ref0).sqrMagnitude; if (dd < bd) { bd = dd; bi = i; }
+        }
+        if (bi >= 0)
+        {
+            Vector4 ps = BackroomsGenerator.PipeSpots[bi]; bool ax = BackroomsGenerator.PipeAxis[bi] == 1;
+            Vector3 face = R.TransformPoint(new Vector3(ps.x, 0f, ps.z));
+            Vector3 outw = ax ? new Vector3(0f, 0f, ps.w) : new Vector3(ps.w, 0f, 0f), along = ax ? Vector3.right : Vector3.forward;
+            Vector3 stand = face + outw * 1.7f - along * 0.9f; stand.y = floorY + 0.02f;
+            Vector3 p = stand + Vector3.up * 1.62f;
+            yield return View(pw, mc, "l4_03_tuberia", p, face + outw * 0.2f + along * 0.5f + Vector3.up * (ps.y - 0.05f), 58f, stand);
+            Vector3 s2 = face + outw * 1.25f + along * 0.3f; s2.y = floorY + 0.02f;
+            yield return View(pw, mc, "l4_04_pared", s2 + Vector3.up * 1.45f, face + along * 0.9f + Vector3.up * 0.9f, 60f, s2);
+            yield return View(pw, mc, "l4_05_suelo", s2 + Vector3.up * 1.62f, face + outw * 0.6f + along * 1.6f + Vector3.up * 0.05f, 62f, s2);
+        }
+        // sala: la celda con más espacio libre en diagonal
+        {
+            int best = -1; Vector3 hp = Vector3.zero, ht = Vector3.zero;
+            for (int x = 0; x < W - 1; x++) for (int z = 0; z < H - 1; z++)
+            {
+                int k = 0; while (x + k < W - 1 && z + k < H - 1 && gen.IsCellOpen(x + k, z + k, 0) && gen.IsCellOpen(x + k, z + k, 1) && gen.IsCellOpen(x + k + 1, z + k, 0) && gen.IsCellOpen(x + k, z + k + 1, 1)) k++;
+                if (k > best) { best = k; hp = R.TransformPoint(new Vector3((x + 0.35f) * cs, 1.62f, (z + 0.35f) * cs)); ht = R.TransformPoint(new Vector3((x + k + 0.5f) * cs, 1.1f, (z + k + 0.5f) * cs)); }
+            }
+            yield return View(pw, mc, "l4_06_sala", hp, ht, 66f, new Vector3(hp.x, floorY + 0.02f, hp.z));
+        }
+        if (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-perf") >= 0 && cand.Count > 0)
+        {   // tiempos de fotograma (VHS por defecto 0,7, 1920x1080, sin vsync), linterna encendida y luces como en el juego
+            foreach (FlickeringLight f in FindObjectsOfType<FlickeringLight>()) { f.flickerEnabled = true; f.pulse = true; f.ScaleBase(1f); }
+            if (vx != null) { vx.enabled = true; vx.intensityOverride = 0.7f; }
+            for (int i = 0; i < Mathf.Min(3, used.Count); i++)
+            {
+                var c = cand.Find(q => q.x == used[i].x && q.z == used[i].y);
+                Vector3 dir = c.d == 0 ? Vector3.forward : c.d == 1 ? Vector3.right : c.d == 2 ? Vector3.back : Vector3.left;
+                Vector3 stand = R.TransformPoint(new Vector3((c.x + 0.5f) * cs, 0.02f, (c.z + 0.5f) * cs)) - dir * (cs * 0.3f);
+                yield return Perf(pw, mc, "industrial_pasillo" + (i + 1), stand + Vector3.up * 1.62f, stand + Vector3.up * 1.4f + dir * 10f, 62f, stand);
+            }
+            if (bi >= 0)
+            {
+                Vector4 ps = BackroomsGenerator.PipeSpots[bi]; bool ax = BackroomsGenerator.PipeAxis[bi] == 1;
+                Vector3 face = R.TransformPoint(new Vector3(ps.x, 0f, ps.z)); Vector3 outw = ax ? new Vector3(0f, 0f, ps.w) : new Vector3(ps.w, 0f, 0f), along = ax ? Vector3.right : Vector3.forward;
+                Vector3 stand = face + outw * 1.7f - along * 0.9f; stand.y = floorY + 0.02f;
+                yield return Perf(pw, mc, "industrial_tuberia", stand + Vector3.up * 1.62f, face + along * 0.5f + Vector3.up * ps.y, 58f, stand);
+            }
+            if (vx != null) vx.intensityOverride = 0f;
+        }
+        if (fl != null) fl.SetOn(false);
+        if (vx != null) vx.intensityOverride = -1f;
+        Check(gm.State == GameManager.GameState.Playing, "nivel 4 sigue en juego durante las capturas (" + gm.State + ")");
     }
 
     // 900 fotogramas: cada uno = bucle del juego + render de la cámara a 1920x1080 + espera a la GPU (lectura de 1 píxel)

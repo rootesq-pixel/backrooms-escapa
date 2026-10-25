@@ -1127,6 +1127,50 @@ public static class SmokeTest
         TestV740Assets(r, credits, ui);
         TestV750Hotel(r, credits, ui);
         TestV750Updater(r);
+        TestV760Industrial(r, credits, ui);
+    }
+
+    // v7.6.0: Nivel 4 (Complejo industrial): texturas PBR nuevas, escala de UV, tuberías modeladas y créditos
+    private static void TestV760Industrial(Report r, string credits, string ui)
+    {
+        string T = "[v7.6.0] ";
+        LevelConfig c = LevelConfig.Get(4);
+        r.Check(c.name == "Complejo industrial" && c.wallStyle == SurfaceStyle.IndustrialWall && c.floorStyle == SurfaceStyle.IndustrialFloor && c.ceilingStyle == SurfaceStyle.IndustrialCeiling && c.pipes && c.industrialPipes,
+            T + "nivel 4 = " + c.name + " con estilos " + c.wallStyle + "/" + c.floorStyle + "/" + c.ceilingStyle + " y tuberías modeladas");
+        r.Check(Mathf.Approximately(c.wallTileU, 3.6f) && c.wallTileV == 0f && Mathf.Approximately(c.wallHeight, 3.4f) && Mathf.Approximately(c.floorTileU, 2.4f) && Mathf.Approximately(c.floorTileV, 2.4f) && Mathf.Approximately(c.ceilTileU, 2.4f),
+            T + "UV a escala real: pared 3,6 m x altura completa (" + c.wallHeight + " m), suelo y techo 2,4 m (chapas de 1,2 m, resaltes de 4 cm, greca de 20 cm)");
+        r.Check(c.fixture == FixtureKind.Emergency && c.pulse && c.ambient.r < 0.1f && c.fogDensity >= 0.04f && c.lightColor.g < 0.2f, T + "misma oscuridad roja: emergencia que pulsa, ambiente " + c.ambient.r.ToString("F3") + ", niebla " + c.fogDensity);
+        int ok = 0; string bad = "";
+        foreach (string n in new[] { "IndustrialWall", "IndustrialFloor", "IndustrialCeiling", "IndustrialPipe" })
+        {
+            Texture2D a = Resources.Load<Texture2D>("Textures/" + n + "_a"), nn = Resources.Load<Texture2D>("Textures/" + n + "_n"), m = Resources.Load<Texture2D>("Textures/" + n + "_m");
+            bool good = a != null && nn != null && m != null && a.width == 2048 && (a.height == 2048 || (n == "IndustrialPipe" && a.height == 1024)) && nn.width == a.width && m.width == a.width && a.mipmapCount > 8;
+            if (good) ok++; else bad += " " + n;
+        }
+        r.Check(ok == 4, T + "texturas PBR horneadas (albedo/normal/máscara 2048, con mipmaps): " + ok + "/4" + bad);
+        SurfaceSet ws = ProceduralTextures.TryLoadBaked(SurfaceStyle.IndustrialWall, 3.4f);
+        r.Check(ws != null && ws.baked && ProceduralTextures.TryLoadBaked(SurfaceStyle.IndustrialWall, 3.0f) == null, T + "la pared horneada solo se usa a 3,4 m de altura (lleva el zócalo y la franja a escala)");
+        r.Check(ProceduralTextures.TryLoadBaked(SurfaceStyle.MetalWall, 3.4f) != null && ProceduralTextures.TryLoadBaked(SurfaceStyle.MetalFloor, 3.4f) != null, T + "las texturas antiguas siguen (Talasofobia usa MetalWall; «-oldl4» para las capturas «antes»)");
+        // tubería: malla cerrada hacia fuera, normales unitarias, UV en rango
+        GameObject go = new GameObject("PipeTest"); BackroomsGenerator g = go.AddComponent<BackroomsGenerator>();
+        MeshBuilder mb = new MeshBuilder(2);
+        var mi = typeof(BackroomsGenerator).GetMethod("AddIndustrialPipe", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        int before = BackroomsGenerator.IndustrialPipeCount;
+        mi.Invoke(g, new object[] { mb, new Vector3(0.1f, 2.8f, 0f), Vector3.forward, Vector3.right, 4f, 0.13f, 7 });
+        Mesh pm = mb.ToMesh("pipe");
+        Vector3[] pv = pm.vertices, pn = pm.normals; int[] pt = pm.GetTriangles(0); Vector2[] puv = pm.uv;
+        int outward = 0, tri = pt.Length / 3; bool unit = true, uvOk = true; float minX = 9f, maxX = -9f, maxY = -9f;
+        for (int i = 0; i < pt.Length; i += 3)
+        {
+            Vector3 fn = Vector3.Cross(pv[pt[i + 1]] - pv[pt[i]], pv[pt[i + 2]] - pv[pt[i]]);
+            if (Vector3.Dot(fn, pn[pt[i]] + pn[pt[i + 1]] + pn[pt[i + 2]]) > 0f) outward++;   // Unity: cara frontal en sentido horario
+        }
+        for (int i = 0; i < pv.Length; i++) { if (Mathf.Abs(pn[i].magnitude - 1f) > 0.01f) unit = false; if (puv[i].y < -0.001f || puv[i].y > 1.001f) uvOk = false; minX = Mathf.Min(minX, pv[i].x); maxX = Mathf.Max(maxX, pv[i].x); maxY = Mathf.Max(maxY, pv[i].y); }
+        r.Check(outward == tri && unit && uvOk, T + "tubería: " + tri + " triángulos, todos de cara hacia fuera " + (outward == tri) + ", normales unitarias " + unit + ", v del perímetro en 0..1 " + uvOk);
+        r.Check(minX < 0.08f && maxX > 0.3f && maxX < 0.5f && maxY < 3.0f && BackroomsGenerator.IndustrialPipeCount == before + 1 && pv.Length < 2500,
+            T + "tubería: entra en el muro (x mín " + minX.ToString("F2") + "), se separa " + maxX.ToString("F2") + " m, por debajo del techo (y máx " + maxY.ToString("F2") + "), " + pv.Length + " vértices");
+        UnityEngine.Object.DestroyImmediate(pm); UnityEngine.Object.DestroyImmediate(go);
+        r.Check(credits.Contains("compose_l4.py") && credits.Contains("Rust009") && credits.Contains("Metal041B") && credits.Contains("MetalPlates013") && ui.Contains("Rust009") && ui.Contains("Nivel 4"), T + "créditos de las texturas del nivel 4 en CREDITS.md y en el juego");
     }
 
     // v7.5.0: auto-actualizador (lógica pura): versiones, JSON de GitHub, lista blanca de descargas, zip seguro y ayudante

@@ -30,7 +30,11 @@ public enum SurfaceStyle
     ParkingCeiling,
     HotelWall,      // v7.5.0 nivel 3: damasco, zócalo de madera, dado y cornisa (CC0 ambientCG + dibujo propio, Tools/v750/compose_l3.py)
     HotelCarpet,
-    HotelCeiling
+    HotelCeiling,
+    IndustrialWall,     // v7.6.0 nivel 4: chapas remachadas, chapa lagrimada, forjado grecado y tuberías (CC0 ambientCG + propio, Tools/v760/compose_l4.py)
+    IndustrialFloor,
+    IndustrialCeiling,
+    IndustrialPipe
 }
 
 // Conjunto de texturas PBR para el shader Standard:
@@ -160,7 +164,7 @@ public static class ProceduralTextures
     public static bool UseBaked = true;
     private static readonly Dictionary<SurfaceStyle, float> BakedWallHeight = new Dictionary<SurfaceStyle, float>
     {
-        { SurfaceStyle.WallpaperYellow, 3.0f }, { SurfaceStyle.WallpaperL0, 3.0f }, { SurfaceStyle.WallpaperHotel, 2.8f }, { SurfaceStyle.ConcreteWall, 3.6f }, { SurfaceStyle.ParkingWall, 3.6f }, { SurfaceStyle.HotelWall, 2.8f },
+        { SurfaceStyle.WallpaperYellow, 3.0f }, { SurfaceStyle.WallpaperL0, 3.0f }, { SurfaceStyle.WallpaperHotel, 2.8f }, { SurfaceStyle.ConcreteWall, 3.6f }, { SurfaceStyle.ParkingWall, 3.6f }, { SurfaceStyle.HotelWall, 2.8f }, { SurfaceStyle.IndustrialWall, 3.4f },
     };
 
     // ¿Hay textura horneada para este estilo a esta altura de pared? (las paredes horneadas llevan el zócalo a escala)
@@ -214,6 +218,10 @@ public static class ProceduralTextures
             case SurfaceStyle.PoolFloor: c = PoolTile(Res(1024), false); normalStrength = 2.8f; break;
             case SurfaceStyle.MetalWall: c = MetalPlate(Res(1024)); normalStrength = 2.6f; break;
             case SurfaceStyle.MetalFloor: c = DiamondPlate(Res(512)); normalStrength = 3.2f; break;
+            case SurfaceStyle.IndustrialWall: c = MetalPlate(Res(1024)); normalStrength = 2.6f; break;       // v7.6.0: reserva si faltan las horneadas
+            case SurfaceStyle.IndustrialFloor: c = DiamondPlate(Res(512)); normalStrength = 3.2f; break;
+            case SurfaceStyle.IndustrialCeiling: c = CeilingTile(Res(512), new Color(0.25f, 0.23f, 0.21f), false); normalStrength = 2.5f; break;
+            case SurfaceStyle.IndustrialPipe: c = MetalPlate(Res(512)); normalStrength = 2f; break;
             case SurfaceStyle.PlayWall: c = WallpaperYellow(Res(1024), wallHeight); normalStrength = 2.2f; break;   // reserva si faltan las horneadas
             case SurfaceStyle.PlayFloor: c = Carpet(Res(512), false); normalStrength = 3f; break;
             case SurfaceStyle.WallpaperL0: c = WallpaperYellow(Res(1024), wallHeight); normalStrength = 2.2f; break;

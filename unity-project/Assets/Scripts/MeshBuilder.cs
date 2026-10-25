@@ -123,6 +123,80 @@ public class MeshBuilder
         }
     }
 
+    // v7.6.0: tubo liso (normales suaves) a lo largo de una polilínea horizontal o casi. UV: u = metros recorridos / uLen,
+    // v = fracción del perímetro (0 arriba, 0,5 abajo). up = referencia de «arriba» del tubo.
+    public void AddSweep(int sub, List<Vector3> path, float radius, int seg, float uLen, float u0, Vector3 up)
+    {
+        if (path.Count < 2) return;
+        int b0 = verts.Count; float acc = 0f;
+        for (int i = 0; i < path.Count; i++)
+        {
+            Vector3 d;
+            if (i == 0) d = path[1] - path[0];
+            else if (i == path.Count - 1) d = path[i] - path[i - 1];
+            else d = (path[i + 1] - path[i]).normalized + (path[i] - path[i - 1]).normalized;
+            d.Normalize();
+            if (i > 0) acc += (path[i] - path[i - 1]).magnitude;
+            Vector3 side = Vector3.Cross(d, up).normalized; Vector3 top = Vector3.Cross(side, d).normalized;
+            for (int k = 0; k <= seg; k++)
+            {
+                float a = k * Mathf.PI * 2f / seg;
+                Vector3 n = top * Mathf.Cos(a) + side * Mathf.Sin(a);
+                Vector3 dv = -top * Mathf.Sin(a) + side * Mathf.Cos(a);
+                verts.Add(path[i] + n * radius); normals.Add(n);
+                float w = Vector3.Dot(Vector3.Cross(n, d), dv) >= 0f ? 1f : -1f;
+                tangents.Add(new Vector4(d.x, d.y, d.z, w));
+                uvs.Add(new Vector2(u0 + acc / uLen, k / (float)seg));
+            }
+        }
+        List<int> t = tris[sub]; int rw = seg + 1;
+        for (int i = 0; i < path.Count - 1; i++)
+            for (int k = 0; k < seg; k++)
+            {
+                int a = b0 + i * rw + k, b = a + rw, c = b + 1, e = a + 1;
+                Vector3 tn = Vector3.Cross(verts[b] - verts[a], verts[c] - verts[a]);
+                if (Vector3.Dot(tn, normals[a] + normals[c]) >= 0f) { t.Add(a); t.Add(b); t.Add(c); t.Add(a); t.Add(c); t.Add(e); }
+                else { t.Add(a); t.Add(c); t.Add(b); t.Add(a); t.Add(e); t.Add(c); }
+            }
+    }
+
+    // v7.6.0: anillo (brida/abrazadera/embellecedor): cilindro exterior + dos coronas, centrado en c a lo largo de dir
+    public void AddRing(int sub, Vector3 c, Vector3 dir, Vector3 up, float rIn, float rOut, float width, int seg, float u0)
+    {
+        dir.Normalize();
+        Vector3 a = c - dir * (width * 0.5f), b = c + dir * (width * 0.5f);
+        AddSweep(sub, new List<Vector3> { a, b }, rOut, seg, 2f, u0, up);
+        Vector3 side = Vector3.Cross(dir, up).normalized, top = Vector3.Cross(side, dir).normalized;
+        for (int f = 0; f < 2; f++)
+        {
+            Vector3 p = f == 0 ? a : b, n = f == 0 ? -dir : dir;
+            for (int k = 0; k < seg; k++)
+            {
+                float a0 = k * Mathf.PI * 2f / seg, a1 = (k + 1) * Mathf.PI * 2f / seg;
+                Vector3 r0 = top * Mathf.Cos(a0) + side * Mathf.Sin(a0), r1 = top * Mathf.Cos(a1) + side * Mathf.Sin(a1);
+                float v0 = k / (float)seg, v1 = (k + 1) / (float)seg;
+                AddQuadUV(sub, p + r0 * rIn, p + r0 * rOut, p + r1 * rOut, p + r1 * rIn, n, top, side,
+                    new Vector2(u0, v0), new Vector2(u0 + 0.02f, v0), new Vector2(u0 + 0.02f, v1), new Vector2(u0, v1));
+            }
+        }
+    }
+
+    // v7.6.0: caja orientada (soportes): centro, ejes unitarios ex/ey/ez y semitamaños; UV fijas en una zona lisa de la textura
+    public void AddOrientedBox(int sub, Vector3 c, Vector3 ex, Vector3 ey, Vector3 ez, Vector3 half, Vector2 uv0, float uvSize)
+    {
+        Vector3[] ax = { ex, ey, ez };
+        for (int f = 0; f < 6; f++)
+        {
+            int a = f / 2; float sg = (f % 2 == 0) ? 1f : -1f;
+            Vector3 n = ax[a] * sg, u = ax[(a + 1) % 3], v = ax[(a + 2) % 3];
+            float hn = half[a], hu = half[(a + 1) % 3], hv = half[(a + 2) % 3];
+            Vector3 o = c + n * hn;
+            float su = uvSize * Mathf.Clamp01(hu * 4f), sv = uvSize * Mathf.Clamp01(hv * 4f);
+            AddQuadUV(sub, o - u * hu - v * hv, o + u * hu - v * hv, o + u * hu + v * hv, o - u * hu + v * hv, n, u, v,
+                uv0, uv0 + new Vector2(su, 0f), uv0 + new Vector2(su, sv), uv0 + new Vector2(0f, sv));
+        }
+    }
+
     // Construye la malla final; cada submalla es un material
     public Mesh ToMesh(string name)
     {
