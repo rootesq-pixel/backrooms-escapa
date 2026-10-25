@@ -99,7 +99,8 @@ public static class V780Checks
         float flatN = DesertHeight.Normal(Mathf.Repeat(home.x, w.L), Mathf.Repeat(home.z, w.L)).y;
         r.Check(fromStart >= DesertCars.StartMin - 0.5f && fromStart <= DesertCars.StartMax + 0.5f && w.plan.QuickAt(new Vector2(Mathf.Repeat(home.x, w.L), Mathf.Repeat(home.z, w.L)), 10f) < 0 && flatN > 0.95f && car.Grounded,
             T + "aparcado a la vista del ascensor (" + fromStart.ToString("F0") + " m de donde aparecéis), en llano, lejos de arenas movedizas, con las ruedas en el suelo");
-        r.Check((car.homeLocal - home).magnitude < 1.5f, T + "su casa (donde reaparece) es ese mismo sitio");
+        float homeD = new Vector2(DesertHeight.Wrap(car.homeLocal.x - home.x), DesertHeight.Wrap(car.homeLocal.z - home.z)).magnitude;
+        r.Check(homeD < 1.5f, T + "su casa (donde reaparece) es ese mismo sitio (a " + homeD.ToString("F2") + " m)");
         Vector3 wl = w.levelRoot.InverseTransformPoint(dc.wreck.transform.position);
         float wh = wl.y - DesertHeight.H(Mathf.Repeat(wl.x, w.L), Mathf.Repeat(wl.z, w.L));
         r.Check(wh < -0.5f && dc.DriftCount >= 2 && dc.wreck.GetComponentsInChildren<BoxCollider>().Length >= 4, T + "chatarra medio enterrada (" + wh.ToString("F2") + " m) con dunas contra el coche, se puede pisar");
@@ -186,6 +187,8 @@ public static class V780Checks
         DesertCars.DbgThrottle = 0f; DesertCars.DbgSteer = 0f; DesertCars.DbgHandbrake = true;
         float sp0 = car.Speed;
         { IEnumerator wf = WaitFor(() => car.Speed < 0.4f, 10f); while (wf.MoveNext()) yield return wf.Current; }
+        if (car.Speed >= 0.4f)
+            r.Info(T + "freno de mano sin parar: " + car.Speed.ToString("F2") + " m/s, adelante " + car.ForwardSpeed.ToString("F2") + ", inclinación " + Vector3.Angle(car.transform.up, Vector3.up).ToString("F0") + "°, morro " + car.transform.forward.y.ToString("F2") + ", en el suelo " + car.Grounded + ", giro " + car.GetComponent<Rigidbody>().angularVelocity.magnitude.ToString("F2"));
         r.Check(car.Speed < 0.4f, T + "freno de mano: de " + (sp0 * 3.6f).ToString("F0") + " km/h a parado");
         yield return V790Checks.CarExtras(r, T, car, p, gm);
         // luces

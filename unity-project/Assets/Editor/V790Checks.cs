@@ -73,11 +73,14 @@ public static class V790Checks
         p.debugInput = true; p.debugMove = new Vector2(0f, 1f); p.debugSprint = false; p.debugCrouch = false;
         yield return 2.5f;
         float sWalk = tr.LastFootScale, dWalk = tr.LastFootDepth; int nWalk = tr.FootAdded - f0;
+        p.SetStaminaForTests(p.maxStamina); Vector3 r0 = local();
         p.debugSprint = true; int f1 = tr.FootAdded; yield return 2.0f;
         float sRun = tr.LastFootScale, dRun = tr.LastFootDepth; int nRun = tr.FootAdded - f1;
+        float runM = new Vector2(DesertHeight.Wrap(local().x - r0.x), DesertHeight.Wrap(local().z - r0.z)).magnitude;
         p.debugSprint = false; p.debugCrouch = true; int f2 = tr.FootAdded; yield return 2.5f;
         float sCr = tr.LastFootScale, dCr = tr.LastFootDepth; int nCr = tr.FootAdded - f2;
         p.debugCrouch = false; p.debugMove = Vector2.zero; yield return 0.5f;
+        r.Info(T + "[Huellas] corriendo 2 s: " + runM.ToString("F1") + " m");
         r.Check(nWalk >= 3 && nRun >= 3 && nCr >= 1 && sRun > sWalk && dRun > dWalk && sCr < sWalk && dCr < dWalk, T + "[Huellas] corriendo más grandes y hondas (" + sRun.ToString("F2") + "×, " + dRun.ToString("F2") + "), agachado más pequeñas (" + sCr.ToString("F2") + "×, " + dCr.ToString("F2") + "); " + nWalk + "/" + nRun + "/" + nCr + " pisadas");
         int alive = tr.PuffSystem != null ? tr.PuffSystem.particleCount : -1;
         r.Check(tr.PuffEmitted > pf0 && alive >= 0 && alive <= DesertTracks.PuffMax, T + "[Huellas] polvo al pisar (" + (tr.PuffEmitted - pf0) + " granos, " + alive + " vivos, tope " + DesertTracks.PuffMax + ")");

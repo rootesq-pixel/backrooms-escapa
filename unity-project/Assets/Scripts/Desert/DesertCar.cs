@@ -405,7 +405,7 @@ public class DesertCar : MonoBehaviour
             float latMax = mu * F * (rearHb && driver ? 0.42f : 1f);
             float lon = drive * 0.25f;
             float bk = (brake * BrakeF * 0.25f) + (rearHb ? BrakeF * 0.5f : 0f);
-            if (bk > 0f) lon -= Mathf.Clamp(wf * 1400f, -bk, bk);
+            if (bk > 0f) lon -= Mathf.Clamp(wf * (rearHb ? 12000f : 1400f), -bk, bk);   // v7.9.0: el freno de mano sujeta de verdad (antes, en cuesta, el coche aparcado bajaba a 0,5 m/s)
             lon -= Mathf.Clamp(wf, -1f, 1f) * (sand ? 0.05f : 0.02f) * F;
             float tot = Mathf.Sqrt(lat * lat + lon * lon), lim = Mathf.Max(latMax, mu * F);
             if (tot > lim && tot > 1e-3f) { float k = lim / tot; lat *= k; lon *= k; slip = Mathf.Max(slip, 1f - k); }

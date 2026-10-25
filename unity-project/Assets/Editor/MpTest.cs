@@ -371,6 +371,7 @@ public static class MpPlayRunner
             yield return Wait(() => !remote.downed, 20, "reanimación tras quedarse sin vida");
             NetSession.DebugHoldRevive = false;
             r.Check(!remote.downed, "[Vida MP] se reanima al compañero que se quedó sin vida");
+            yield return WaitMark("client_hp_checked", 30);   // que el cliente compruebe su vida antes de volver a derribarlo
         }
 
         // ---- todos derribados: screamer para todos y reinicio del nivel ----
@@ -972,6 +973,7 @@ public static class MpPlayRunner
             yield return Wait(() => !ns.LocalDowned, 40, "reanimado tras quedarse sin vida");
             yield return 0.3f;
             r.Check(!ns.LocalDowned && hp != null && hp.value >= Health.ReviveHealth - 0.5f, "[Vida MP] reanimado vuelve con " + (hp != null ? hp.value.ToString("F0") : "-") + " de vida");
+            Mark("client_hp_checked");
         }
 
         // ---- salida ----
