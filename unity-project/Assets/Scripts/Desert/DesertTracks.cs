@@ -35,8 +35,8 @@ public class DesertTracks : MonoBehaviour
         Shader sh = Shader.Find("Backrooms/SandDecal");
         if (sh == null) sh = Resources.Load<Shader>("Desert/Shaders/SandDecal");
         Texture2D ft = FootTex(), tt = TreadTex(); t.owned.Add(ft); t.owned.Add(tt);
-        t.foot = t.MakePool("Footprints", FootMax, sh, ft, new Color(0.80f, 0.64f, 0.47f));
-        t.tyre = t.MakePool("TyreTracks", TyreMax, sh, tt, new Color(0.80f, 0.64f, 0.47f));
+        t.foot = t.MakePool("Footprints", FootMax, sh, ft, new Color(0.64f, 0.50f, 0.36f));   // arena pisada: más oscura (hundida, en sombra)
+        t.tyre = t.MakePool("TyreTracks", TyreMax, sh, tt, new Color(0.64f, 0.50f, 0.36f));
         Active = t; return t;
     }
     private void OnDestroy() { if (Active == this) Active = null; foreach (Object o in owned) ProceduralAssets.SafeDestroy(o); }

@@ -426,7 +426,7 @@ public class ShotBuildCheck : MonoBehaviour
             car.seat[0] = -1;
             // huellas: alguien que ha andado junto a las rodadas
             Vector3 side = Vector3.Cross(Vector3.up, f0).normalized;
-            for (int k = 0; k < 16; k++) dc.tracks.AddFoot(c0 + side * 1.3f + f0 * (1.5f + k * 0.72f), f0 + side * 0.05f * Mathf.Sin(k), k % 2 == 0);
+            for (int k = 0; k < 16; k++) dc.tracks.AddFoot(c0 - side * (1.5f + 0.06f * Mathf.Sin(k * 0.7f)) + f0 * (3f + k * 0.72f), f0 + side * 0.05f * Mathf.Sin(k), k % 2 == 0);   // del lado de la puerta del conductor
             Vector3 eL = c0 - side * 2.2f + f0 * 0.5f, tL = c0 + f0 * 9f;
             Vector3 eW = root.TransformPoint(new Vector3(eL.x, DesertHeight.H(Mathf.Repeat(eL.x, pl.L), Mathf.Repeat(eL.z, pl.L)) + 1.6f, eL.z));
             Vector3 tW = root.TransformPoint(new Vector3(tL.x, DesertHeight.H(Mathf.Repeat(tL.x, pl.L), Mathf.Repeat(tL.z, pl.L)), tL.z));
