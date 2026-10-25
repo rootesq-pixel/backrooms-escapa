@@ -615,6 +615,7 @@ public class GameBootstrap : MonoBehaviour
         steps.Setup(cfg.step);
         AmbienceAudio amb = worldRoot.AddComponent<AmbienceAudio>();
         amb.Setup(cfg, player.transform);
+        if (cfg.index == 0 && cfg.layout == LayoutKind.Maze && !LevelConfig.OldL0) Level0Events.Create(worldRoot.transform, generator, cfg, player.transform, cam);   // v7.9.0: ruidos y apagones rojos
         if (generator.Halls.Count > 0) PlayparkAudio.Create(worldRoot.transform, player.transform);   // v7.1.0: caja de música y risas lejanas
         return player;
     }

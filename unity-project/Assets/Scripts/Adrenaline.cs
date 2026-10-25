@@ -21,6 +21,16 @@ public class Adrenaline : MonoBehaviour
     public void ResetBoostCooldownForTests() { lastBoostAt = -99f; }
     private AudioSource heart;
     private AudioClip heartClip;
+    // v7.9.0: latido por amenaza (todos los niveles con monstruos, no el Nivel 114): en calma no suena; con un monstruo cerca
+    // empieza lento y bajo, y se acelera y sube cuanto más cerca está o si te persigue. Local de cada jugador.
+    public const float HeartMinBpm = 66f, HeartMaxBpm = 150f, HeartRange = 30f;
+    public float Threat01 { get; private set; }       // 0 calma … 1 encima / persiguiéndote
+    public float Bpm { get; private set; }
+    public float HeartVolume { get; private set; }
+    public int Beats { get; private set; }
+    public float ChaseMuffle01 { get; private set; }  // paso-bajo del resto de sonidos durante la persecución (VhsEffect)
+    public static float ForceThreatForTests = -1f;    // >= 0: amenaza fija (pruebas)
+    private float beatPhase;
 
     private void Awake()
     {
@@ -30,7 +40,29 @@ public class Adrenaline : MonoBehaviour
         heartClip = CreateHeartbeat();
         heart = h.AddComponent<AudioSource>();
         heart.playOnAwake = false;
-        heart.clip = heartClip; heart.loop = true; heart.spatialBlend = 0f; heart.volume = 0f;
+        heart.clip = heartClip; heart.loop = false; heart.spatialBlend = 0f; heart.volume = 1f;
+        heart.bypassEffects = true; heart.bypassListenerEffects = true; heart.priority = 8;   // fuera del paso-bajo de la persecución
+    }
+
+    // amenaza: distancia al monstruo más cercano (que no esté disfrazado) y su estado
+    public static float ThreatFor(Transform me)
+    {
+        if (me == null) return 0f;
+        GameManager gm = GameManager.Instance;
+        if (DesertWorld.Active != null || (gm != null && gm.config != null && gm.config.layout == LayoutKind.Desert)) return 0f;   // Nivel 114: sin latido
+        float best = 0f;
+        foreach (MonsterAI m in MonsterAI.Instances)
+        {
+            if (m == null || !m.isActiveAndEnabled || m.Disguised || (!m.netProxy && m.IsStopped)) continue;
+            float d = FieldWrap.Distance(me.position, m.transform.position);
+            if (d > HeartRange) continue;
+            float near = 1f - Mathf.Clamp01((d - 3f) / (HeartRange - 3f));
+            float st = m.CurrentState == MonsterAI.State.Chase || m.CurrentState == MonsterAI.State.Kill ? 1f : m.CurrentState == MonsterAI.State.Search ? 0.75f : 0.5f;
+            float t = near * st;
+            if (st >= 1f) t = Mathf.Max(t, 0.55f + 0.45f * near);   // te persigue: siempre deprisa
+            best = Mathf.Max(best, t);
+        }
+        return best;
     }
 
     private void OnDestroy()
@@ -87,28 +119,42 @@ public class Adrenaline : MonoBehaviour
         Level01 = Mathf.MoveTowards(Level01, goal, dt * (goal > Level01 ? 2.5f : 0.6f));
         fpc.staminaDrainMul = Active ? DrainMul : 1f;
         fpc.sprintMul = Active ? SprintMul : 1f;
-        // latido: discreto, más rápido y algo más fuerte con la intensidad
+        // latido: por amenaza (y la adrenalina lo mantiene alto unos segundos); en calma, silencio
+        float th = ForceThreatForTests >= 0f ? ForceThreatForTests : (playing ? ThreatFor(transform) : 0f);
+        if (ForceChasedForTests == 1 && playing) th = Mathf.Max(th, 0.85f);
+        if (NetSession.Active && NetSession.Instance != null && NetSession.Instance.LocalDowned) th = 0f;
+        th = Mathf.Max(th, Level01 * 0.8f);
+        bool scare = Screamer.Active != null;
+        Threat01 = Mathf.MoveTowards(Threat01, th, dt * (th > Threat01 ? 1.6f : 0.35f));
+        Bpm = Mathf.Lerp(HeartMinBpm, HeartMaxBpm, Threat01);
+        HeartVolume = scare || Threat01 < 0.06f ? 0f : AudioMix.A(Mathf.Lerp(0.10f, 0.55f, Threat01 * Threat01));
+        ChaseMuffle01 = Mathf.MoveTowards(ChaseMuffle01, scare ? 0f : (Chased ? Mathf.Clamp01(0.4f + 0.6f * Threat01) : 0f), dt * (scare ? 6f : 1.2f));
         if (heart != null)
         {
-            float v = AudioMix.A(0.22f) * Level01;
-            heart.volume = v;
-            heart.pitch = Mathf.Lerp(0.9f, 1.25f, Level01);
-            if (v > 0.001f && !heart.isPlaying) heart.Play();
-            else if (v <= 0.001f && heart.isPlaying) heart.Stop();
+            beatPhase += dt * Bpm / 60f;
+            if (beatPhase >= 1f)
+            {
+                beatPhase -= Mathf.Floor(beatPhase);
+                if (HeartVolume > 0.001f)
+                {
+                    heart.pitch = Mathf.Lerp(0.96f, 1.12f, Threat01);   // casi sin cambio de timbre: el ritmo lo da el intervalo
+                    heart.PlayOneShot(heartClip, HeartVolume); Beats++;
+                }
+            }
         }
     }
 
     // RES teñida: amarillo verdoso normal → rojo anaranjado con adrenalina
     public static Color Tint(Color normal) { Adrenaline a = Local; return a == null ? normal : Color.Lerp(normal, new Color(1f, 0.42f, 0.22f), a.Level01); }
 
-    // latido doble (lub-dub) a ~72 ppm, 2 latidos por bucle sin costura
+    // un latido (lub-dub) suelto: se dispara a su ritmo (v7.9.0; antes un bucle de 2 latidos a 72 ppm)
     public static AudioClip CreateHeartbeat()
     {
-        const int SR = 22050; float beat = 60f / 72f; int n = Mathf.RoundToInt(SR * beat * 2f);
+        const int SR = 22050; int n = Mathf.RoundToInt(SR * 0.40f);
         float[] d = new float[n];
-        for (int b = 0; b < 2; b++)
+        for (int b = 0; b < 1; b++)
         {
-            float t0 = b * beat;
+            float t0 = 0f;
             for (int k = 0; k < 2; k++)
             {
                 float tk = t0 + k * 0.17f, amp = k == 0 ? 1f : 0.7f, f = k == 0 ? 52f : 64f;

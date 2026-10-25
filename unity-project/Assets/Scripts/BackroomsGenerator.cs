@@ -53,6 +53,7 @@ public class BackroomsGenerator : MonoBehaviour
     public List<Vector3> MonsterSpawns { get; private set; }
     public List<Vector3> BatterySpots { get; private set; }
     public List<Vector3> ExtraSpots { get; private set; }
+    public Material PanelEmissiveMat { get; private set; }   // v7.9.0
     public List<Vector3> KeySpots { get; private set; }        // v7.0.4: llaves señuelo (ExitLock.KeyCount; una abre la salida)     // sitios para notas, agua de almendras, barras luminosas y cintas
     public Vector3 ExitPosition { get; private set; }
     public Transform ExitTransform { get; private set; }
@@ -1251,6 +1252,7 @@ public class BackroomsGenerator : MonoBehaviour
                 emissive = trofOn; dead = trofOff;
             }
         }
+        PanelEmissiveMat = emissive;   // v7.9.0: el apagón rojo del nivel 0 tiñe los paneles sin luz
 
         AudioClip buzzClip = null;
         if (cfg.buzzChance > 0f)

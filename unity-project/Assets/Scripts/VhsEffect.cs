@@ -128,6 +128,8 @@ public class VhsEffect : MonoBehaviour
         {
             float cut = Mathf.Lerp(22000f, 7500f, CurrentIntensity * 0.6f + glitch * 0.6f);
             cut = Mathf.Lerp(cut, 520f, Mathf.Clamp01(extraMuffle));
+            Adrenaline adr = Adrenaline.Local;   // v7.9.0: persecución: el resto de sonidos se apagan (el latido y el susto van aparte)
+            if (adr != null && adr.ChaseMuffle01 > 0.001f) cut = Mathf.Min(cut, Mathf.Lerp(22000f, 1500f, Mathf.Sqrt(adr.ChaseMuffle01)));
             lowPass.cutoffFrequency = Mathf.Lerp(lowPass.cutoffFrequency, cut, 1f - Mathf.Exp(-5f * dt));
         }
         if (hum != null) hum.volume = AudioMix.Hum(CurrentIntensity) * (EffectEnabled ? 1f : 0f);

@@ -1131,6 +1131,7 @@ public static class SmokeTest
         V770Checks.Edit(r, credits, ui);   // v7.7.0: Nivel 114, El Desierto Cálido
         V771Checks.Edit(r);                // v7.7.1: rocas cerradas, objetos modelados, cordura
         V780Checks.Edit(r);                // v7.8.0: todoterreno, viento, huellas
+        V790Checks.Edit(r);                // v7.9.0: nivel 0 (ruidos, apagones rojos) y latido
     }
 
     // v7.6.0: Nivel 4 (Complejo industrial): texturas PBR nuevas, escala de UV, tuberías modeladas y créditos
@@ -3283,6 +3284,8 @@ public static class SmokePlayRunner
                 Census(r, "[Audio nivel " + lv + " desierto]", true, false);
                 IEnumerator cp = V780Checks.CarPlay(r, tag, gm);   // v7.8.0: todoterreno (antes del recorrido, que acaba en la puerta)
                 while (cp.MoveNext()) yield return cp.Current;
+                IEnumerator dh = V790Checks.DesertHeart(r, tag);   // v7.9.0
+                while (dh.MoveNext()) yield return dh.Current;
                 IEnumerator dp = V770Checks.DesertPlay(r, tag, gm);
                 while (dp.MoveNext()) yield return dp.Current;
                 gm = GameManager.Instance;
@@ -3358,6 +3361,12 @@ public static class SmokePlayRunner
             {   // v7.0.4: llaves señuelo, adrenalina, aparcamiento por plantas y bordes del campo
                 IEnumerator v4 = V704Checks.LevelChecks(r, tag, lv, cfg, gm);
                 while (v4.MoveNext()) yield return v4.Current;
+                gm = GameManager.Instance;
+            }
+            if (lv == 0)
+            {   // v7.9.0: ruidos, apagones rojos y latido
+                IEnumerator v9 = V790Checks.Level0Play(r, tag, gm);
+                while (v9.MoveNext()) yield return v9.Current;
                 gm = GameManager.Instance;
             }
             {   // v7.1.0: Parque de bolas

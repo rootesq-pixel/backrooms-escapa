@@ -49,6 +49,21 @@ public class FlickeringLight : MonoBehaviour
     private float phaseOffset;
     private float appliedFade = -1f;
 
+    // v7.9.0: apagón rojo del nivel 0 (Level0Events): color, emisión e intensidad hacia el rojo
+    private float red; private Color redLight, redEmission; private float redIntensity = 1f; private Color baseColor; private bool baseColorSet;
+    public float Red { get { return red; } }
+    public void SetRed(float r, Color light, Color emission, float intensity)
+    {
+        if (targetLight == null) targetLight = GetComponent<Light>();
+        if (!baseColorSet && targetLight != null) { baseColor = targetLight.color; baseColorSet = true; }
+        red = Mathf.Clamp01(r); redLight = light; redEmission = emission; redIntensity = intensity;
+        if (block == null) block = new MaterialPropertyBlock();
+        if (targetLight != null && baseColorSet) targetLight.color = Color.Lerp(baseColor, redLight, red);
+        appliedFactor = -1f;   // vuelve a aplicar intensidad y emisión
+        if (baseIntensity >= 0f) Apply(lastF);
+    }
+    private float lastF = 1f;
+
     // La inicialización va en Start porque el generador asigna los campos justo después de AddComponent
     private void Start()
     {
@@ -138,6 +153,7 @@ public class FlickeringLight : MonoBehaviour
     // Aplica el factor (0..1) a la luz, al panel emisivo y al zumbido solo si ha cambiado
     private void Apply(float f)
     {
+        lastF = f;
         if (Mathf.Approximately(f, appliedFactor) && Mathf.Approximately(externalFade, appliedFade))
         {
             return;
@@ -149,14 +165,14 @@ public class FlickeringLight : MonoBehaviour
         if (targetLight != null)
         {
             // La luz real solo está activa si LightCuller la deja (externalFade > 0)
-            targetLight.intensity = baseIntensity * f * externalFade;
+            targetLight.intensity = baseIntensity * f * externalFade * Mathf.Lerp(1f, redIntensity, red);
             bool on = externalFade > 0.01f && f > 0.001f;
             if (targetLight.enabled != on) targetLight.enabled = on;
         }
 
         if (emissiveRenderer != null && factorChanged)
         {
-            block.SetColor(EmissionColorId, emissionColor * f);
+            block.SetColor(EmissionColorId, (red > 0f ? Color.Lerp(emissionColor, redEmission * emissionColor.maxColorComponent * 0.85f, red) : emissionColor) * f);
             emissiveRenderer.SetPropertyBlock(block);
         }
 

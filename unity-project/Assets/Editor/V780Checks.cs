@@ -15,7 +15,7 @@ public static class V780Checks
     public static void Edit(SmokeTest.Report r)
     {
         string T = "[v7.8.0] ";
-        r.Check(GameVersion.Current == "7.8.0" && NetSession.Protocol == "BackroomsEscape-MP-11", T + "versión " + GameVersion.Current + ", protocolo " + NetSession.Protocol);
+        r.Check(UpdateCore.Compare(GameVersion.Current, "7.8.0") >= 0 && NetSession.Protocol.StartsWith("BackroomsEscape-MP-1"), T + "versión " + GameVersion.Current + " (7.8.0 o posterior), protocolo " + NetSession.Protocol);
         // modelo
         GameObject car = Resources.Load<GameObject>("Desert/Car/DCar");
         r.Check(car != null, T + "modelo del todoterreno en Resources/Desert/Car");

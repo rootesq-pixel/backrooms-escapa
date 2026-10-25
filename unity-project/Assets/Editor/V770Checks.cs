@@ -46,7 +46,7 @@ public static class V770Checks
             T + "clima determinista por semilla, el primer tramo despejado, salen los 7 climas (despejado " + n[0] + ", nieve " + n[5] + ", hermoso " + n[6] + ")");
         r.Check(Mathf.Approximately(DesertSky.SegLength * 4f, DesertSky.DayLength), T + "el clima cambia cada «6 h» (4 tramos por día de " + DesertSky.DayLength + " s)");
         r.Check(credits.Contains("Sonicelmaspro2") && credits.Contains("Omaigad12") && credits.Contains("Poly Haven") && ui.Contains("Sonicelmaspro2") && ui.Contains("Omaigad12"), T + "créditos: Sonicelmaspro2, Omaigad12 y Poly Haven (CREDITS.md y pantalla de créditos)");
-        r.Check((GameVersion.Current.StartsWith("7.7.") || GameVersion.Current.StartsWith("7.8.")) && NetSession.Protocol.StartsWith("BackroomsEscape-MP-1"), T + "versión " + GameVersion.Current + ", protocolo " + NetSession.Protocol);
+        r.Check(UpdateCore.Compare(GameVersion.Current, "7.7.0") >= 0 && NetSession.Protocol.StartsWith("BackroomsEscape-MP-1"), T + "versión " + GameVersion.Current + ", protocolo " + NetSession.Protocol);
         foreach (string s in new[] { "Desert/Shaders/DesertSky", "Desert/Shaders/DesertSand" })
         {
             Shader sh = Resources.Load<Shader>(s);

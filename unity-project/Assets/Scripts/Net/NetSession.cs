@@ -42,7 +42,7 @@ public class NetStart
 // Los clientes generan el mismo mundo a partir de la semilla que envía el anfitrión. Transporte: TCP propio (NetTransport).
 public class NetSession : MonoBehaviour
 {
-    public const string Protocol = "BackroomsEscape-MP-11";   // v7.8.0: todoterreno del Nivel 114 (peticiones por OceanReq, eventos por OceanEvent y bloque «coches» detrás del reloj del desierto); antes MP-10: v7.7.0: nivel 8 (Nivel 114, El Desierto Cálido): bloque «desierto» (reloj del nivel: hora y clima) en el snapshot y objetos de la arena (5000+); antes MP-9: v7.5.0: sin mensajes nuevos, pero el Nivel 3 (hotel) es otro mapa y la v7.4.0 no debe entrar; antes MP-8: v7.3.0: nivel 7 (Talasofobia): OceanReq / OceanEvent y bloque «mar» en el snapshot; antes MP-7: v7.2.0: reanimar manteniendo E (bit FlagRevive en el estado); v7.1.0: nivel 6 (Parque de bolas); v7.0.4: llaves de la salida (UnlockReq / ExitUnlocked)
+    public const string Protocol = "BackroomsEscape-MP-12";   // v7.9.0: nivel 0: reloj del nivel en el snapshot (apagones rojos a la vez para todos); antes MP-11: v7.8.0: todoterreno del Nivel 114 (peticiones por OceanReq, eventos por OceanEvent y bloque «coches» detrás del reloj del desierto); antes MP-10: v7.7.0: nivel 8 (Nivel 114, El Desierto Cálido): bloque «desierto» (reloj del nivel: hora y clima) en el snapshot y objetos de la arena (5000+); antes MP-9: v7.5.0: sin mensajes nuevos, pero el Nivel 3 (hotel) es otro mapa y la v7.4.0 no debe entrar; antes MP-8: v7.3.0: nivel 7 (Talasofobia): OceanReq / OceanEvent y bloque «mar» en el snapshot; antes MP-7: v7.2.0: reanimar manteniendo E (bit FlagRevive en el estado); v7.1.0: nivel 6 (Parque de bolas); v7.0.4: llaves de la salida (UnlockReq / ExitUnlocked)
     // antes: "BackroomsEscape-MP-4"   // v7.0.2: silbido (G) y un imitador extra por nivel (más monstruos en la red)
     public const int MaxPlayers = 4;
     public const int DefaultPort = 7777;
@@ -655,6 +655,7 @@ public class NetSession : MonoBehaviour
             w.Float(DesertSky.Active.Clock);   // v7.7.0: reloj del desierto (hora y clima iguales para todos)
             if (DesertCars.Active != null) DesertCars.Active.WriteNet(w); else w.Byte(0);   // v7.8.0: todoterrenos
         }
+        else if (Level0Events.Active != null) w.Float(Level0Events.Active.Clock);   // v7.9.0: reloj del nivel 0 (apagones rojos)
         Broadcast(w.ToArray());
     }
 
@@ -948,6 +949,10 @@ public class NetSession : MonoBehaviour
         {
             try { DesertSky.Active.NetClock(r.Float()); DesertSnapshots++; if (DesertCars.Active != null) DesertCars.Active.ReadNet(r); }
             catch (Exception e) { Debug.LogWarning("[NetSession] bloque del desierto no válido: " + e.Message); }
+        }
+        else if (valid && Level0Events.Active != null && !r.End)
+        {
+            try { Level0Events.Active.NetClock(r.Float()); } catch (Exception e) { Debug.LogWarning("[NetSession] reloj del nivel 0 no válido: " + e.Message); }
         }
     }
     public int DesertSnapshots, CarReqsReceived, CarEventsReceived;

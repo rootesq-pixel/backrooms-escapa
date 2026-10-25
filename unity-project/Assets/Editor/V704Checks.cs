@@ -383,7 +383,7 @@ public static class V704Checks
             fpc.SetStaminaForTests(30f);
             adr.ResetBoostCooldownForTests();
             foreach (MonsterAI m in gm.monsters) if (m != null) { kds[m] = m.killDistance; m.killDistance = 0.05f; }   // que no lo atrape durante la prueba
-            int b0 = adr.Boosts;
+            int b0 = adr.Boosts, beats0 = adr.Beats;
             main.WarpTo(msp, Quaternion.LookRotation(-md).eulerAngles.y);
             main.ChaseForTests();
             float st0 = fpc.Stamina01;
@@ -401,7 +401,11 @@ public static class V704Checks
             Color sc = hud != null ? hud.StaminaColor : Color.clear;
             r.Check(adr.Level01 > 0.5f && sc.r > sc.g + 0.15f, tag + "[Adrenalina] barra RES teñida (" + sc + ") y latido (" + adr.Level01.ToString("F2") + ")");
             AudioSource heart = adr.transform.Find("Heartbeat") != null ? adr.transform.Find("Heartbeat").GetComponent<AudioSource>() : null;
-            r.Check(heart != null && heart.isPlaying && heart.volume > 0.01f, tag + "[Adrenalina] latido sonando (vol " + (heart != null ? heart.volume : 0f).ToString("F2") + ")");
+            r.Check(heart != null && adr.HeartVolume > 0.01f && adr.Beats > beats0 && adr.Bpm > 110f && heart.bypassListenerEffects, tag + "[Adrenalina] latido sonando deprisa (vol " + adr.HeartVolume.ToString("F2") + ", " + adr.Bpm.ToString("F0") + " ppm, " + (adr.Beats - beats0) + " latidos, fuera del paso-bajo)");
+            {   // v7.9.0: durante la persecución el resto de sonidos se apagan (paso-bajo del oyente); el latido no
+                AudioLowPassFilter lpf = fpc.GetComponentInChildren<AudioListener>() != null ? fpc.GetComponentInChildren<AudioListener>().GetComponent<AudioLowPassFilter>() : null;
+                r.Check(lpf != null && lpf.cutoffFrequency < 6000f && adr.ChaseMuffle01 > 0.3f, tag + "[Latido] persecución: resto de sonidos con paso-bajo (" + (lpf != null ? lpf.cutoffFrequency : 0f).ToString("F0") + " Hz)");
+            }
             // fin: el monstruo deja de perseguir (lejos) → dura unos segundos y se apaga
             main.Stop(); main.WarpTo(main.transform.position + FarOff(), 0f);
             // v7.4.0: las esperas del test van en tiempo real (timeSinceStartup) y la adrenalina en tiempo de juego (deltaTime, con tope

@@ -282,6 +282,23 @@ public static class MpPlayRunner
         ui.PressEscape();
         yield return 0.2f;
 
+        {   // v7.9.0: apagón rojo del nivel 0: el anfitrión adelanta su reloj y el cliente lo ve a la vez (reloj en el snapshot)
+            Level0Events le = Level0Events.Active; var Inv = System.Globalization.CultureInfo.InvariantCulture;
+            r.Check(le != null && le.Schedule.Count > 0, "[Nivel 0 MP] sucesos del nivel 0 en el anfitrión");
+            if (le != null && le.Schedule.Count > 0)
+            {
+                float t = le.Schedule[0].start + 3f; le.DebugSetClock(t);
+                File.WriteAllText(MpTest.Dir + "/host_red.txt", le.Schedule[0].start.ToString("R", Inv) + " " + le.Schedule[0].dur.ToString("R", Inv));
+                Mark("host_red_on");
+                yield return 0.5f;
+                r.Check(le.RedOn, "[Nivel 0 MP] apagón rojo en el anfitrión");
+                yield return WaitMark("client_red_seen", 60);
+                le.DebugSetClock(le.Schedule[0].End + 2f);
+                Mark("host_red_off");
+                yield return WaitMark("client_red_off", 60);
+                le.DebugSetClock(5f);
+            }
+        }
         // ---- acuerdo de monstruos ----
         yield return Wait(() => ns.DbgReportCount >= 6, 60, "informes de monstruos del cliente");
         r.Check(ns.DbgClientMonsters.Count == ns.DbgHostMonsters.Count && ns.DbgHostMonsters.Count >= 1, "cliente y anfitrión tienen el mismo número de monstruos (" + ns.DbgHostMonsters.Count + ")");
@@ -879,6 +896,20 @@ public static class MpPlayRunner
         yield return 0.6f;
         r.Check(ui.Current == UIManager.Screen.None, "se cierra el inventario");
 
+        {   // v7.9.0: apagón rojo a la vez que el anfitrión (su reloj llega en el snapshot; la semilla es la misma)
+            Level0Events le = Level0Events.Active; var Inv = System.Globalization.CultureInfo.InvariantCulture;
+            yield return WaitMark("host_red_on", 120);
+            string[] hr = File.ReadAllText(MpTest.Dir + "/host_red.txt").Trim().Split(' ');
+            float hs = float.Parse(hr[0], Inv), hd = float.Parse(hr[1], Inv);
+            yield return Wait(() => le != null && le.RedOn, 10, "apagón rojo en el cliente");
+            r.Check(le != null && le.RedOn && le.Schedule.Count > 0 && Mathf.Abs(le.Schedule[0].start - hs) < 1e-3f && Mathf.Abs(le.Schedule[0].dur - hd) < 1e-3f && le.NetClocks > 10,
+                "[Nivel 0 MP] el cliente ve el apagón rojo a la vez (mismo calendario: " + hs.ToString("F1") + " s + " + hd.ToString("F1") + " s; reloj " + (le != null ? le.Clock.ToString("F1") : "-") + ", " + (le != null ? le.NetClocks : 0) + " relojes del anfitrión)");
+            Mark("client_red_seen");
+            yield return WaitMark("host_red_off", 60);
+            yield return Wait(() => le != null && !le.RedOn, 10, "fin del apagón rojo en el cliente");
+            r.Check(le != null && !le.RedOn, "[Nivel 0 MP] el apagón rojo acaba también en el cliente");
+            Mark("client_red_off");
+        }
         // ---- monstruos ----
         ns.DebugReports = true;
         yield return Wait(() => Marked("host_monsters_ok"), 90, "comprobación de monstruos del anfitrión");

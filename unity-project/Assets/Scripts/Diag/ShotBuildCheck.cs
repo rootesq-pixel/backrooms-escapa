@@ -80,7 +80,7 @@ public class ShotBuildCheck : MonoBehaviour
         if (PoolPlanarReflection.Instance != null) PoolPlanarReflection.Instance.Refresh(mc);
         if (FieldGrass.Active != null) FieldGrass.Active.Submit();
         Texture2D tex = Grab(mc, n);
-        float minMean = n.Contains("a_oscuras") ? 0.008f : n.StartsWith("l3_") || n.StartsWith("l4_") ? 0.010f : 0.03f;   // el plano a oscuras es negro a propósito (solo señuelo y fotóforos); v7.5.0: el hotel es oscuro a propósito
+        float minMean = n.Contains("a_oscuras") ? 0.008f : n.Contains("apagon_rojo") ? 0.006f : n.StartsWith("l3_") || n.StartsWith("l4_") ? 0.010f : 0.03f;   // el plano a oscuras es negro a propósito (solo señuelo y fotóforos); v7.5.0: el hotel es oscuro a propósito
         Check(Mean(tex) > minMean, "captura " + n + " no negra (media " + Mean(tex).ToString("F3") + ", mínimo " + minMean.ToString("F3") + ")");
         Destroy(tex);
         // tiempo real de fotograma del ejecutable en esta vista (sin vsync), mediana de 120 fotogramas
@@ -114,13 +114,16 @@ public class ShotBuildCheck : MonoBehaviour
         }
         cand.Sort((a, b) => b.s.CompareTo(a.s));
         var used = new System.Collections.Generic.List<Vector3>(); int n = 0;
+        var redViews = new System.Collections.Generic.List<(Vector3 p, Vector3 t, Vector3 st)>();
         Vector3 st2 = Vector3.zero, p2 = Vector3.zero, d2 = Vector3.forward;
         foreach (var c in cand)
         {
             bool far = true; foreach (Vector3 u in used) if ((u - c.p).sqrMagnitude < 100f) far = false;
             if (!far) continue; used.Add(c.p);
             Vector3 stand = new Vector3(c.p.x, gen.Root.TransformPoint(Vector3.zero).y + 0.02f, c.p.z);
+            if (Level0Events.Active != null) Level0Events.Active.DebugSetClock(1f);   // v7.9.0: luz normal en las capturas normales
             yield return View(pw, mc, "l0_0" + (n + 1) + "_sala_amarilla", c.p, c.p + c.d * 8f + Vector3.down * 0.75f, 58f, stand);
+            redViews.Add((c.p, c.p + c.d * 8f + Vector3.down * 0.75f, stand));
             if (n == 1) { st2 = stand; p2 = c.p; d2 = c.d; }
             if (++n == 3) break;
         }
@@ -128,6 +131,7 @@ public class ShotBuildCheck : MonoBehaviour
         if (n >= 2)
         {
             Info("nivel 0: pantallas empotradas " + (gen.UsesTroffers ? "sí" : "no") + ", lotes de marcos " + gen.TrofferFrameBatches + ", paneles de relleno " + gen.FillerPanelCount);
+            if (Level0Events.Active != null) Level0Events.Active.DebugSetClock(1f);
             yield return View(pw, mc, "l0_04_techo_pantallas", p2, p2 + d2 * 3.2f + Vector3.up * 1.9f, 55f, st2);
             // un grupo apagado: difusor gris sin luz con los tubos a contraluz
             Transform fx = gen.Root.Find("Fixtures"); Renderer best = null; float bd = 1e9f;
@@ -152,8 +156,22 @@ public class ShotBuildCheck : MonoBehaviour
                     Vector3 c2 = tgt + Vector3.down * 1.35f + dir * 1.5f;
                     if (!Physics.Linecast(c2, tgt + Vector3.down * 0.05f, mask, QueryTriggerInteraction.Ignore) && !Physics.Linecast(tgt + Vector3.down * 1.35f, c2, mask, QueryTriggerInteraction.Ignore)) { cp = c2; break; }
                 }
+                if (Level0Events.Active != null) Level0Events.Active.DebugSetClock(1f);
                 yield return View(pw, mc, "l0_05_techo_apagado", cp, tgt, 55f, new Vector3(cp.x, gen.Root.TransformPoint(Vector3.zero).y + 0.02f, cp.z));
             }
+        }
+        // v7.9.0: apagón rojo (se adelanta el reloj del nivel a un apagón del calendario): las mismas vistas en rojo
+        Level0Events le = Level0Events.Active;
+        if (le != null && le.Schedule.Count > 0)
+        {
+            for (int i = 0; i < redViews.Count && i < 3; i++)
+            {
+                le.DebugSetClock(le.Schedule[0].start + 1.5f);
+                yield return View(pw, mc, "l0_0" + (6 + i) + "_apagon_rojo", redViews[i].p, redViews[i].t, 58f, redViews[i].st);
+                Check(le.RedOn, "apagón rojo activo en l0_0" + (6 + i) + " (rojo " + le.Red01.ToString("F2") + ", ambiente " + RenderSettings.ambientLight + ")");
+            }
+            if (n >= 2) { le.DebugSetClock(le.Schedule[0].start + 1.5f); yield return View(pw, mc, "l0_09_apagon_rojo_techo", p2, p2 + d2 * 3.2f + Vector3.up * 1.9f, 55f, st2); }
+            le.DebugSetClock(1f);
         }
         if (vx != null) vx.intensityOverride = -1f;
     }
