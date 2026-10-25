@@ -237,13 +237,17 @@ public static class SeedReachCheck
                 Check(gm8.generator.UsedSeed == s8 && dw.ExitTransform != null && dw.plan.exitVillage >= 0, T8 + "pueblo de la salida " + dw.plan.exitVillage + " con puerta de piedra");
                 // rejilla de 2 m sobre el tramo periódico: pendiente transitable y sin chocar (cápsula del jugador)
                 const float G = 2f; int N = Mathf.RoundToInt(dw.L / G);
-                int mask = ~(1 << pw.gameObject.layer);
+                // v7.7.0: sin máscara (el jugador está en Default): se ignoran solo sus colliders (su raíz es BackroomsWorld: no sirve)
+                Collider[] hitBuf = new Collider[16];
+                Transform dunes = dw.transform.Find("Dunes");
                 Transform R = dw.levelRoot;
                 System.Func<int, int, bool> free = (ix, iz) =>
                 {
                     float x = (ix + 0.5f) * G, z = (iz + 0.5f) * G, y = DesertHeight.H(x, z);
                     Vector3 a0 = R.TransformPoint(new Vector3(x, y + 0.75f, z)), a1 = R.TransformPoint(new Vector3(x, y + 1.6f, z));
-                    return !Physics.CheckCapsule(a0, a1, 0.32f, mask, QueryTriggerInteraction.Ignore);
+                    int nh = Physics.OverlapCapsuleNonAlloc(a0, a1, 0.32f, hitBuf, ~0, QueryTriggerInteraction.Ignore);
+                    for (int q = 0; q < nh; q++) if (!hitBuf[q].transform.IsChildOf(pw.transform) && (dunes == null || !hitBuf[q].transform.IsChildOf(dunes))) return false;   // la arena no cuenta (pendiente aparte)
+                    return true;
                 };
                 Vector3 st = dw.StartLocal, ex = dw.ExitLocal;
                 int sx = ((Mathf.FloorToInt(st.x / G) % N) + N) % N, sz = ((Mathf.FloorToInt(st.z / G) % N) + N) % N;
@@ -271,13 +275,18 @@ public static class SeedReachCheck
                 Vector3 door = dw.ExitTransform.position, ew = R.TransformPoint(ex);
                 Vector3 dir = ew - door; dir.y = 0f; dir.Normalize();
                 Vector3 from = ew + dir * 4f; Vector3 fl = R.InverseTransformPoint(from); from = R.TransformPoint(new Vector3(fl.x, DesertHeight.H(fl.x, fl.z) + 0.15f, fl.z));
+                if (UIManager.Instance != null && UIManager.Instance.Current != UIManager.Screen.None) UIManager.Instance.SetScreen(UIManager.Screen.None);   // con SEEDREACH_ONLY=8 el menú principal sigue abierto (bloquea la entrada)
                 pw.Teleport(from, Mathf.Atan2(-dir.x, -dir.z) * Mathf.Rad2Deg);
                 yield return 0.4f;
                 pw.debugInput = true; pw.debugMove = new Vector2(0f, 1f);
                 double tg = EditorApplication.timeSinceStartup;
                 while (gm8.State == GameManager.GameState.Playing && EditorApplication.timeSinceStartup - tg < 12) yield return 0.1f;
                 pw.debugInput = false; pw.debugMove = Vector2.zero;
-                Check(gm8.State == GameManager.GameState.Won || gm8.State == GameManager.GameState.LevelComplete, T8 + "andando de pie hacia la puerta de piedra se sale del nivel (" + gm8.State + ")");
+                Vector3 endW = pw.transform.position, dd = endW - door; dd.y = 0f;
+                int colAll = 0, colDune = 0; foreach (Collider cc in dw.GetComponentsInChildren<Collider>(true)) { colAll++; if (dunes != null && cc.transform.IsChildOf(dunes)) colDune++; }
+                string diag8 = " fin " + R.InverseTransformPoint(endW).ToString("F1") + " desde " + fl.ToString("F1") + " a la losa " + dd.magnitude.ToString("F2") + " m, gm.exit=" + (gm8.exit != null ? gm8.exit.name : "null") + (gm8.exit == dw.ExitTransform ? "(losa)" : "") +
+                    ", bloqueado " + ElevatorCabin.PlayerLocked + ", cc " + (pw.GetComponent<CharacterController>() != null && pw.GetComponent<CharacterController>().enabled) + ", colliders " + colAll + " (dunas " + colDune + "), dw==root " + (dw.transform == R) + ", input " + pw.InputEnabled + ", ui " + (UIManager.Instance != null ? UIManager.Instance.Current.ToString() : "-") + ", walk " + pw.walkSpeed.ToString("F2") + ", fx " + (DesertFx.Active != null ? DesertFx.Active.Busy + "/" + DesertFx.Active.Slips : "-") + ", ts " + Time.timeScale + ", st " + gm8.State;
+                Check(gm8.State == GameManager.GameState.Won || gm8.State == GameManager.GameState.LevelComplete, T8 + "andando de pie hacia la puerta de piedra se sale del nivel (" + gm8.State + ")" + (gm8.State == GameManager.GameState.Playing ? diag8 : ""));
                 yield return 1.5f;
             }
             DesertFx.HazardsOn = true;

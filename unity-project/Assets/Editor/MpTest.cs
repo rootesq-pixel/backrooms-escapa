@@ -584,10 +584,55 @@ public static class MpPlayRunner
             // salida: los dos en la poza de la gruta
             yield return WaitMark("client_oc_atexit", 60);
             hp.Teleport(OceanWorld.PocketCenter + new Vector3(-0.8f, -1.4f, 0f), 0f);
-            yield return Wait(() => GameManager.Instance.State == GameManager.GameState.Won, 20, "victoria (anfitrión)");
-            r.Check(GameManager.Instance.State == GameManager.GameState.Won, "[Mar MP] los dos en la poza de la gruta: victoria final (8 niveles)");
+            yield return Wait(() => GameManager.Instance == null || GameManager.Instance.State != GameManager.GameState.Playing || gb.CurrentLevel == 8, 20, "nivel superado (anfitrión)");
+            r.Check(GameManager.Instance == null || GameManager.Instance.State == GameManager.GameState.LevelComplete || gb.CurrentLevel == 8, "[Mar MP] los dos en la poza de la gruta: nivel superado (v7.7.0: sigue el Nivel 114)");
             yield return WaitMark("client_oc_done", 60);
             Mark("host_oc_done");
+        }
+
+        // ---- v7.7.0: nivel 8 (Nivel 114, El Desierto Cálido): misma huella, mismo reloj (hora y clima), objetos de la arena, arenas movedizas y salida en grupo ----
+        {
+            var Inv = System.Globalization.CultureInfo.InvariantCulture;
+            yield return Wait(() => WorldReady(gb, ns, 8), 240, "nivel 8 cargado (anfitrión)");
+            yield return Wait(() => ns.AllReady(), 180, "todos listos en el nivel 8");
+            DesertWorld dw = DesertWorld.Active; DesertSky sky = DesertSky.Active;
+            r.Check(gb.CurrentLevel == 8 && ns.HashesMatch() && ns.HashMismatches == 0 && dw != null && sky != null && MonsterAI.Instances.Count == 0, "[Desierto MP] Nivel 114 con la misma huella en los dos equipos, cielo propio y sin entidades");
+            ElevatorCabin cab8 = ElevatorCabin.Current;
+            yield return Wait(() => cab8 == null || cab8.Released, 40, "puertas del ascensor abiertas (desierto)");
+            DesertFx.HazardsOn = false;
+            NetPlayer rc = ns.Players.Find(p => !p.isLocal);
+            FirstPersonController hp = GameManager.Instance.player;
+            Mark("host_level8");
+            yield return 2.0f;
+            File.WriteAllText(MpTest.Dir + "/host_dclock.txt", sky.Clock.ToString("R", Inv) + " " + DateTime.UtcNow.Ticks + " " + (int)sky.Current + " " + sky.Hour.ToString("R", Inv));
+            Mark("host_dclock");
+            yield return WaitMark("client_dclock", 60);
+            // un objeto de la arena: lo coge el anfitrión
+            ItemPickup sp = null; foreach (ItemPickup ip in UnityEngine.Object.FindObjectsOfType<ItemPickup>()) if (ip.netId >= DesertItems.NetBase && ip.netId < DesertItems.NetBase + 1000 && (sp == null || ip.netId < sp.netId)) sp = ip;
+            int pid = sp != null ? sp.netId : -1;
+            if (sp != null) hp.Teleport(sp.transform.position + Vector3.up * 0.15f, 0f);
+            yield return Wait(() => pid >= 0 && !NetSession.PickupExists(pid), 15, "objeto del desierto recogido (anfitrión)");
+            r.Check(pid >= 0 && !NetSession.PickupExists(pid), "[Desierto MP] el anfitrión recoge un objeto de la arena (id " + pid + ")");
+            File.WriteAllText(MpTest.Dir + "/host_dpick.txt", pid.ToString());
+            Mark("host_dpick_done");
+            // arenas movedizas del cliente: el anfitrión lo ve reaparecer lejos
+            yield return WaitMark("client_dquick_start", 60);
+            Vector3 q0 = rc != null && rc.avatar != null ? rc.avatar.LatestPos : Vector3.zero;
+            yield return WaitMark("client_dquick_done", 60);
+            yield return 1.0f;
+            Vector3 q1 = rc != null && rc.avatar != null ? rc.avatar.LatestPos : Vector3.zero;
+            Vector3 dq = new Vector3(DesertHeight.Wrap(q1.x - q0.x), 0f, DesertHeight.Wrap(q1.z - q0.z));
+            r.Check(dq.magnitude > 15f, "[Desierto MP] el anfitrión ve al cliente reaparecer lejos tras las arenas movedizas (" + dq.magnitude.ToString("F0") + " m)");
+            // salida en grupo por la puerta de piedra
+            yield return WaitMark("client_d_atexit", 60);
+            Vector3 door = dw.ExitTransform.position, st = dw.levelRoot.TransformPoint(dw.ExitLocal);
+            Vector3 side = Vector3.Cross(Vector3.up, st - door).normalized;
+            hp.Teleport(st + side * 0.45f + Vector3.up * 0.1f, Mathf.Atan2(door.x - st.x, door.z - st.z) * Mathf.Rad2Deg);
+            yield return Wait(() => GameManager.Instance.State == GameManager.GameState.Won, 20, "victoria (anfitrión)");
+            r.Check(GameManager.Instance.State == GameManager.GameState.Won, "[Desierto MP] los dos en la puerta de piedra: victoria final (9 niveles)");
+            yield return WaitMark("client_d_done", 60);
+            Mark("host_d_done");
+            DesertFx.HazardsOn = true;
         }
 
         // ---- desconexión del cliente ----
@@ -1079,10 +1124,56 @@ public static class MpPlayRunner
             yield return Wait(() => NetSession.LocalAtExit || GameManager.Instance.State == GameManager.GameState.Won, 4, "cliente en la salida");
             r.Check(NetSession.LocalAtExit || GameManager.Instance.State == GameManager.GameState.Won, "[Mar MP] el cliente en la poza de la gruta cuenta como en la salida");
             Mark("client_oc_atexit");
-            yield return Wait(() => gm.State == GameManager.GameState.Won, 30, "victoria (cliente)");
-            r.Check(gm.State == GameManager.GameState.Won, "[Mar MP] el cliente ve la victoria final");
+            yield return Wait(() => gm == null || gm.State != GameManager.GameState.Playing || gb.CurrentLevel == 8, 30, "nivel superado (cliente)");
+            r.Check(gm == null || gm.State == GameManager.GameState.LevelComplete || gb.CurrentLevel == 8, "[Mar MP] el cliente pasa al Nivel 114 tras la poza de la gruta");
             Mark("client_oc_done");
             yield return WaitMark("host_oc_done", 60);
+        }
+
+        // ---- v7.7.0: nivel 8 (desierto) en el cliente ----
+        {
+            var Inv = System.Globalization.CultureInfo.InvariantCulture;
+            yield return Wait(() => WorldReady(gb, ns, 8) && gb.IsLoaded, 240, "nivel 8 cargado (cliente)");
+            yield return WaitMark("host_level8", 240);
+            DesertWorld dw = DesertWorld.Active; DesertSky sky = DesertSky.Active; DesertFx fx = DesertFx.Active;
+            gm = GameManager.Instance; FirstPersonController pc = gm.player;
+            DesertFx.HazardsOn = false;
+            r.Check(dw != null && sky != null && fx != null && DesertItems.Placed > 0 && MonsterAI.Instances.Count == 0, "[Desierto MP] el cliente tiene el desierto (cielo, clima y " + DesertItems.Placed + " objetos), sin entidades");
+            yield return WaitMark("host_dclock", 60);
+            string[] hc = File.ReadAllText(MpTest.Dir + "/host_dclock.txt").Trim().Split(' ');
+            float hClock = float.Parse(hc[0], Inv); long t0 = long.Parse(hc[1]);
+            float expect = hClock + (float)((DateTime.UtcNow.Ticks - t0) / 1e7);
+            float diff = Mathf.Abs(sky.Clock - expect);
+            r.Check(diff < 1.5f && (int)sky.Current == int.Parse(hc[2]) && ns.DesertSnapshots > 10, "[Desierto MP] mismo reloj del desierto que el anfitrión: hora y clima iguales (diferencia " + diff.ToString("F2") + " s, clima " + sky.Current + ", " + ns.DesertSnapshots + " bloques recibidos)");
+            Mark("client_dclock");
+            yield return WaitMark("host_dpick_done", 60);
+            int pid = int.Parse(File.ReadAllText(MpTest.Dir + "/host_dpick.txt").Trim());
+            yield return Wait(() => !NetSession.PickupExists(pid), 10, "objeto del desierto retirado (cliente)");
+            r.Check(pid >= 0 && !NetSession.PickupExists(pid), "[Desierto MP] el objeto que coge el anfitrión desaparece también en el cliente");
+            // arenas movedizas
+            DesertFx.HazardsOn = true; DesertFx.VoidOn = false;
+            Vector2 q = dw.plan.quick[0].c;
+            pc.Teleport(dw.levelRoot.TransformPoint(new Vector3(q.x, DesertHeight.H(q.x, q.y) + 0.2f, q.y)), 0f);
+            int s0 = fx.QuickSinks;
+            yield return 0.8f;
+            Mark("client_dquick_start");
+            yield return Wait(() => fx.QuickSinks > s0 && !fx.Busy, 20, "arenas movedizas (cliente)");
+            r.Check(fx.QuickSinks > s0 && !fx.Busy && gm.State == GameManager.GameState.Playing, "[Desierto MP] el cliente se hunde en las arenas movedizas y reaparece en otra zona, vivo");
+            DesertFx.HazardsOn = false;
+            yield return 0.5f;
+            Mark("client_dquick_done");
+            // salida en grupo
+            Vector3 door = dw.ExitTransform.position, st = dw.levelRoot.TransformPoint(dw.ExitLocal);
+            Vector3 side = Vector3.Cross(Vector3.up, st - door).normalized;
+            pc.Teleport(st - side * 0.45f + Vector3.up * 0.1f, Mathf.Atan2(door.x - st.x, door.z - st.z) * Mathf.Rad2Deg);
+            yield return Wait(() => NetSession.LocalAtExit || gm.State == GameManager.GameState.Won, 4, "cliente en la puerta de piedra");
+            r.Check(NetSession.LocalAtExit || gm.State == GameManager.GameState.Won, "[Desierto MP] el cliente en la puerta de piedra cuenta como en la salida");
+            Mark("client_d_atexit");
+            yield return Wait(() => gm.State == GameManager.GameState.Won, 30, "victoria (cliente)");
+            r.Check(gm.State == GameManager.GameState.Won, "[Desierto MP] el cliente ve la victoria final");
+            Mark("client_d_done");
+            yield return WaitMark("host_d_done", 60);
+            DesertFx.HazardsOn = true;
         }
 
         // ---- salir, reintentar con la partida en marcha, reunirse y ver el cierre del anfitrión ----

@@ -82,18 +82,20 @@ Shader "Backrooms/DesertSky"
                 if (_SkyParams.w > 0.001 && d.y > 0.02)
                 {
                     float3 acc = 0;
-                    [unroll] for (int k = 0; k < 8; k++)
+                    float jit = hash12(d.xz * float2(937.1, 611.3));   // capas con altura tramada: sin filas de puntos en el horizonte
+                    [loop] for (int k = 0; k < 24; k++)
                     {
-                        float hk = 1.0 + k * 0.22;
+                        float fk = (k + jit) / 24.0;
+                        float hk = 1.0 + fk * 2.4;                                      // cortina alta (capas de 1.0 a 3.4)
                         float2 p = d.xz * (hk / d.y) * 0.5 + float2(t * 0.004, t * 0.002);
                         float w = vn(p * 0.55) * 0.65 + vn(p * 1.3 + 7.0) * 0.35;
-                        float rib = smoothstep(0.12, 0.0, abs(w - 0.5));                // cinta estrecha que serpentea
-                        float ray = 0.25 + 0.75 * pow(vn(float2(atan2(d.x, d.z) * 140.0, t * 0.15 + k * 0.3)), 2.0);   // rayos verticales finos
-                        float fk = k / 7.0;
-                        float3 col = lerp(float3(0.15, 1.0, 0.45), float3(0.55, 0.25, 1.0), smoothstep(0.35, 1.0, fk));
-                        acc += col * rib * ray * pow(1.0 - fk, 0.8) * 0.32;
+                        float rib = smoothstep(0.045, 0.0, abs(w - 0.5));               // cinta fina que serpentea
+                        // rayos: ruido en la posición de la cortina (igual en todas las capas -> estrías verticales continuas)
+                        float ray = 0.35 + 0.65 * vn(p * 7.0 + float2(t * 0.02, 0.0)) * (0.6 + 0.4 * vn(p * 2.1 + 3.0));
+                        float3 col = lerp(float3(0.15, 1.0, 0.45), float3(0.55, 0.25, 1.0), smoothstep(0.45, 1.0, fk));
+                        acc += col * rib * ray * pow(1.0 - fk, 1.5) * (0.085 + 0.085 * smoothstep(0.0, 0.1, fk));
                     }
-                    c += acc * smoothstep(0.02, 0.2, d.y) * _SkyParams.w;
+                    c += acc * smoothstep(0.04, 0.32, d.y) * _SkyParams.w;
                 }
                 // --- nubes (plano a ~2 km): cobertura y luz según el clima y la hora
                 if (d.y > 0.0)
