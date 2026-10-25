@@ -111,14 +111,19 @@ def make_backing(ob, thick):
     return bk
 
 def push_behind(bk, ob):
-    # nunca por delante de la cáscara: el vértice del respaldo que quede delante (o a menos de 6 cm) de la superficie escaneada se lleva 6 cm detrás
+    # el respaldo nunca asoma por delante del escaneo: se quitan sus caras que queden delante (o a menos de 4 cm) de la cáscara;
+    # desde delante las tapa el escaneo y desde atrás se ve la otra cara del respaldo. Sin mover vértices (no se pliegan triángulos).
     from mathutils.bvhtree import BVHTree
-    tree = BVHTree.FromObject(ob, bpy.context.evaluated_depsgraph_get()); moved = 0
-    for v in bk.data.vertices:
+    tree = BVHTree.FromObject(ob, bpy.context.evaluated_depsgraph_get())
+    bm = bmesh.new(); bm.from_mesh(bk.data); front = {}
+    for v in bm.verts:
         loc, nrm, idx, dist = tree.find_nearest(v.co)
-        if loc is None or dist > 0.6: continue
-        if (v.co - loc).dot(nrm) > -0.06: v.co = loc - nrm * 0.06; moved += 1
-    return moved
+        front[v.index] = loc is not None and dist < 0.6 and (v.co - loc).dot(nrm) > -0.04
+    kill = [f for f in bm.faces if all(front[v.index] for v in f.verts)]
+    bmesh.ops.delete(bm, geom=kill, context='FACES')
+    for f in bm.faces: f.smooth = True
+    bm.to_mesh(bk.data); bm.free()
+    return len(kill)
 
 def remove_parts(ob, mode, amount, rnd):
     bpy.context.view_layer.objects.active = ob; bpy.ops.object.select_all(action='DESELECT'); ob.select_set(True)
@@ -186,7 +191,7 @@ for src, name, lods, breakage in ITEMS:
             bt = max(450, t // 3); nb = tris(bc)
             if bt < nb:
                 d = bc.modifiers.new("dec", 'DECIMATE'); d.ratio = bt / nb; apply_mod(bc, d)
-            print("BACKING", cp.name, "tris", tris(bc), "pushed", push_behind(bc, ob), "of", len(bc.data.vertices), flush=True)
+            print("BACKING", cp.name, "tris", tris(bc), "culled", push_behind(bc, ob), "faces", flush=True)
             bpy.ops.object.select_all(action='DESELECT'); bc.select_set(True); cp.select_set(True); bpy.context.view_layer.objects.active = cp; bpy.ops.object.join()
         out.append(cp)
     if backing is not None: bpy.data.objects.remove(backing)

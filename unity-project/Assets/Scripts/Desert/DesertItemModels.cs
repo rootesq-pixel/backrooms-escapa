@@ -138,12 +138,12 @@ public static class DesertItemModels
     // ---------------------------------------------------------------- modelos
     // botella de 33 cl: 25 cm de alto, 6,6 cm de diámetro
     static readonly Vector2[] BottleOut = {
-        new Vector2(0f, 0.012f), new Vector2(0.012f, 0.009f), new Vector2(0.024f, 0.004f), new Vector2(0.030f, 0.0005f), new Vector2(0.0325f, 0.003f),
+        new Vector2(0f, 0.006f), new Vector2(0.014f, 0.0048f), new Vector2(0.025f, 0.0022f), new Vector2(0.030f, 0.0005f), new Vector2(0.0325f, 0.003f),
         new Vector2(0.0332f, 0.012f), new Vector2(0.0332f, 0.150f), new Vector2(0.0326f, 0.160f), new Vector2(0.029f, 0.178f), new Vector2(0.021f, 0.196f),
         new Vector2(0.0145f, 0.212f), new Vector2(0.0128f, 0.228f), new Vector2(0.0128f, 0.238f), new Vector2(0.0150f, 0.240f), new Vector2(0.0152f, 0.247f),
         new Vector2(0.0136f, 0.249f), new Vector2(0.0108f, 0.249f) };
     static readonly Vector2[] LiquidProf = {
-        new Vector2(0f, 0.014f), new Vector2(0.012f, 0.0115f), new Vector2(0.023f, 0.0075f), new Vector2(0.0300f, 0.0068f), new Vector2(0.0312f, 0.013f),
+        new Vector2(0f, 0.0075f), new Vector2(0.0300f, 0.0075f), new Vector2(0.0312f, 0.012f),
         new Vector2(0.0312f, 0.150f), new Vector2(0.0300f, 0.164f), new Vector2(0.0262f, 0.176f), new Vector2(0.0f, 0.176f) };
     static readonly Vector2[] LabelProf = { new Vector2(0.03345f, 0.048f), new Vector2(0.03345f, 0.118f) };
     static readonly Vector2[] CapProf = {
