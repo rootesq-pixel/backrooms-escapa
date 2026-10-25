@@ -415,10 +415,12 @@ public class DesertCar : MonoBehaviour
         probe.timeSlicingMode = ReflectionProbeTimeSlicingMode.NoTimeSlicing;   // las 6 caras de golpe (64 px): nunca queda a medias en negro probe.resolution = 64; probe.hdr = true;
         probe.size = new Vector3(14f, 10f, 14f); probe.boxProjection = false; probe.importance = 2; probe.shadowDistance = 0f;
         probe.farClipPlane = 400f; probe.nearClipPlane = 0.5f; probe.clearFlags = ReflectionProbeClearFlags.Skybox;
+        // sin dispositivo gráfico (-nographics: servidor/pruebas) pintar una sonda en tiempo real revienta Unity: se queda apagada
+        if (SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null) probe.enabled = false;
     }
     private void UpdateProbe()
     {
-        if (probe == null) return;
+        if (probe == null || !probe.enabled) return;
         Camera cam = Camera.main; if (cam == null) return;
         bool near = (cam.transform.position - transform.position).sqrMagnitude < 70f * 70f;
         bool arrived = near && !probeNear; probeNear = near;
