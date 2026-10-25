@@ -1477,8 +1477,8 @@ public class BackroomsGenerator : MonoBehaviour
             b.AddOrientedBox(0, new Vector3((i % 2 == 0 ? -0.15f : 0.15f), -0.028f, (i < 2 ? -0.09f : 0.09f)), Vector3.right, Vector3.up, Vector3.forward, new Vector3(0.009f, 0.004f, 0.009f), uvp, 0.02f);
         float r = 0.052f, y = -0.09f, half = 0.11f; Vector3 up = Vector3.up;
         // tapas del difusor (parte de la carcasa) y jaula: 3 aros y 3 varillas a lo largo
-        b.AddRing(0, new Vector3(-half - 0.006f, y, 0f), Vector3.right, up, 0f, r + 0.008f, 0.012f, 16, 1.4f);
-        b.AddRing(0, new Vector3(half + 0.006f, y, 0f), Vector3.right, up, 0f, r + 0.008f, 0.012f, 16, 1.4f);
+        b.AddRing(0, new Vector3(-half - 0.006f, y, 0f), Vector3.right, up, 0.004f, r + 0.008f, 0.012f, 16, 1.4f);
+        b.AddRing(0, new Vector3(half + 0.006f, y, 0f), Vector3.right, up, 0.004f, r + 0.008f, 0.012f, 16, 1.4f);
         foreach (float x in new[] { -0.055f, 0f, 0.055f }) b.AddRing(0, new Vector3(x, y, 0f), Vector3.right, up, r + 0.010f, r + 0.015f, 0.006f, 16, 1.6f);
         foreach (float a in new[] { -50f, 0f, 50f })
         {
