@@ -55,11 +55,11 @@ Shader "Backrooms/DesertSky"
                     float3 scol = lerp(float3(0.75, 0.85, 1.1), float3(1.1, 0.95, 0.8), hash13(cell + 3.3));
                     // Vía Láctea: banda tenue inclinada con nubes de polvo
                     float3 gal = normalize(float3(0.35, 0.25, 0.9));
-                    float band = exp(-pow(dot(d, gal) * 5.5, 2.0));
+                    float band = exp(-pow(dot(d, gal) * 3.4, 2.0));
                     float2 gp = float2(atan2(d.x, d.z) * 5.0, d.y * 9.0);
                     float dustL = smoothstep(0.35, 0.75, fbm(gp * 2.3 + 3.0));              // nubes oscuras de polvo
-                    float mw = band * (0.45 + 0.55 * fbm(gp)) * (1.0 - 0.7 * dustL * band) * 0.22 + exp(-pow(dot(d, gal) * 2.2, 2.0)) * 0.025;
-                    c += (st * scol + mw * float3(0.75, 0.78, 0.9)) * stars;
+                    float mw = band * (0.45 + 0.55 * fbm(gp)) * (1.0 - 0.45 * dustL * band) * 0.10 + exp(-pow(dot(d, gal) * 1.8, 2.0)) * 0.02;
+                    c += (st * scol + mw * float3(0.86, 0.85, 0.88)) * stars;
                     // luna con fase (terminador según la fase) y halo
                     float mc = dot(d, md);
                     float disk = smoothstep(0.99955, 0.99975, mc);

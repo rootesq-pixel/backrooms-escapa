@@ -48,7 +48,8 @@ public class ElevatorCabin : MonoBehaviour
         new Color(1.00f, 0.14f, 0.07f),   // 4 industrial: luz de emergencia roja
         new Color(0.92f, 0.96f, 1.00f),   // 5 campo infinito: luz de día fría
         new Color(1.00f, 0.90f, 0.78f),   // 6 parque de bolas: fluorescente cálido y desvaído
-        new Color(0.62f, 0.86f, 0.92f)    // 7 talasofobia: luz fría y húmeda, verdeazulada
+        new Color(0.62f, 0.86f, 0.92f),   // 7 talasofobia: luz fría y húmeda, verdeazulada
+        new Color(1.00f, 0.88f, 0.70f)    // 8 Nivel 114 desierto: cálida, como la arena al sol
     };
 
     public Phase CurrentPhase { get; private set; }
@@ -159,6 +160,12 @@ public class ElevatorCabin : MonoBehaviour
         float frontExtent = 1.07f * ScaleZ;
         Vector3 pos = cell + Forward * (config.cellSize * 0.5f - frontExtent - 0.03f);
         pos.y = cell.y - 0.12f;                                // el suelo de goma queda 2 cm sobre el suelo del nivel
+        // v7.7.0: en el desierto la cabina va en el punto de salida del plano (explanada llana, mirando al pueblo más cercano)
+        if (config.layout == LayoutKind.Desert && DesertWorld.Active != null)
+        {
+            Vector3 st = DesertWorld.Active.levelRoot.TransformPoint(DesertWorld.Active.StartLocal);
+            pos = st - Forward * (0.1f * ScaleZ); pos.y = st.y - 0.12f;
+        }
         transform.SetPositionAndRotation(pos, rot);
 
         BuildModel();

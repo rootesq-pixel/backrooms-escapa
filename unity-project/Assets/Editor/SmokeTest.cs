@@ -2554,8 +2554,8 @@ public static class SmokePlayRunner
         int thumbs = 0; for (int i = 0; i < LevelConfig.Count; i++) if (LevelThumbs.Get(i) != null) thumbs++;
         r.Check(thumbs == LevelConfig.Count, "miniaturas de nivel en Resources/UI/LevelThumbs: " + thumbs + "/" + LevelConfig.Count);
         {
-            Button c3 = null; foreach (Button bt in UnityEngine.Object.FindObjectsOfType<Button>(false)) if (bt.name == "LevelBtn_3") c3 = bt;
-            r.Check(c3 != null && c3.navigation.selectOnRight != null && c3.navigation.selectOnRight.name.Contains("Jugar este nivel") && c3.navigation.selectOnDown != null && c3.navigation.selectOnDown.name == "LevelBtn_7", "navegación de la rejilla (derecha → «Jugar este nivel», abajo → nivel 7)");
+            Button c3 = null; foreach (Button bt in UnityEngine.Object.FindObjectsOfType<Button>(false)) if (bt.name == "LevelBtn_4") c3 = bt;   // v7.7.0: rejilla de 5 columnas
+            r.Check(c3 != null && c3.navigation.selectOnRight != null && c3.navigation.selectOnRight.name.Contains("Jugar este nivel") && c3.navigation.selectOnDown != null && c3.navigation.selectOnDown.name == "LevelBtn_8", "navegación de la rejilla (tarjeta 4: derecha → «Jugar este nivel», abajo → nivel 8)");
             bool desc = true; for (int i = 0; i < LevelConfig.Count; i++) { ui.FocusLevel(i); if (string.IsNullOrEmpty(LevelConfig.Get(i).subtitle)) desc = false; }
             r.Check(desc, "cada nivel tiene descripción en la vista previa");
         }
