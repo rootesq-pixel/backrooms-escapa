@@ -31,6 +31,8 @@ public static class V780Checks
             r.Check(miss == "" && tris > 15000 && tris < 80000, T + "piezas del 4x4 (carrocería, cristales, interior, faros, pilotos, rueda, volante), " + tris + " triángulos con 4 ruedas" + (miss != "" ? " faltan:" + miss : ""));
             Texture2D pt = Resources.Load<Texture2D>("Desert/Car/DCar_paint");
             r.Check(pt != null && pt.width >= 512, T + "pintura con polvo y óxido horneada (" + (pt != null ? pt.width + " px" : "falta") + ")");
+            Texture2D wt = Resources.Load<Texture2D>("Desert/Car/DCar_wheel"), it = Resources.Load<Texture2D>("Desert/Car/DCar_interior");
+            r.Check(pt != null && pt.width >= 2048 && wt != null && wt.width >= 1024 && it != null && it.width >= 1024, T + "desgaste horneado en 3 atlas: carrocería " + (pt != null ? pt.width : 0) + " px, rueda " + (wt != null ? wt.width : 0) + " px, interior " + (it != null ? it.width : 0) + " px");
         }
         r.Check(Shader.Find("Backrooms/SandDecal") != null && Shader.Find("Backrooms/SandDecal").isSupported, T + "shader de huellas (Backrooms/SandDecal) soportado");
         // sonido: viento (capa base y tormenta), motor, neumáticos
@@ -87,6 +89,20 @@ public static class V780Checks
         Vector3 wl = w.levelRoot.InverseTransformPoint(dc.wreck.transform.position);
         float wh = wl.y - DesertHeight.H(Mathf.Repeat(wl.x, w.L), Mathf.Repeat(wl.z, w.L));
         r.Check(wh < -0.5f && dc.DriftCount >= 2 && dc.wreck.GetComponentsInChildren<BoxCollider>().Length >= 4, T + "chatarra medio enterrada (" + wh.ToString("F2") + " m) con dunas contra el coche, se puede pisar");
+        {   // realismo: todas las piezas de carrocería, rueda e interior con su atlas de desgaste; cristal muy liso; sonda de reflejos propia
+            int plain = 0, total = 0; float glassSmooth = 0f;
+            foreach (MeshRenderer mr in car.GetComponentsInChildren<MeshRenderer>(true))
+                foreach (Material m in mr.sharedMaterials)
+                {
+                    if (m == null) continue;
+                    if (mr.name.StartsWith("DCar_Glass")) { glassSmooth = m.HasProperty("_Glossiness") ? m.GetFloat("_Glossiness") : 0f; continue; }
+                    if (!(mr.name.StartsWith("DCar_Body") || mr.name.StartsWith("DCar_Wheel") || mr.name.StartsWith("DCar_Interior"))) continue;
+                    total++; if (m.mainTexture == null) plain++;
+                }
+            r.Check(total >= 20 && plain == 0, T + "materiales con desgaste horneado (" + total + " ranuras, " + plain + " sin textura)");
+            r.Check(glassSmooth > 0.9f && car.probe != null && car.probe.mode == UnityEngine.Rendering.ReflectionProbeMode.Realtime && car.probe.resolution <= 128, T + "cristales con reflejos (lisura " + glassSmooth.ToString("F2") + ", sonda en tiempo real " + (car.probe != null ? car.probe.resolution + " px" : "—") + ")");
+            r.Check(DesertCars.WheelSand > 0.1f && dc.DriftCount >= 2, T + "arena acumulada contra las ruedas (" + DesertCars.WheelSand.ToString("F2") + " m)");
+        }
         // se puede trepar: el techo y el capó tienen colisión arriba
         {
             Vector3 roof = car.transform.TransformPoint(new Vector3(0f, 3.5f, -0.6f)), hood = car.transform.TransformPoint(new Vector3(0f, 3.5f, 1.7f)), bump = car.transform.TransformPoint(new Vector3(0f, 3.5f, 2.47f));

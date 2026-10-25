@@ -83,6 +83,7 @@ public class DesertCar : MonoBehaviour
             c.BuildLights();
             c.BuildAudio(track);
             c.BuildDust(track);
+            c.BuildProbe();
             Rigidbody rb = go.AddComponent<Rigidbody>();
             rb.mass = Mass; rb.drag = 0.02f; rb.angularDrag = 1.2f; rb.centerOfMass = new Vector3(0f, 0.50f, 0.05f);
             rb.interpolation = RigidbodyInterpolation.Interpolate; rb.collisionDetectionMode = CollisionDetectionMode.Discrete;
@@ -147,9 +148,12 @@ public class DesertCar : MonoBehaviour
             {
                 string nm = cur[i] != null ? cur[i].name : "Black";
                 string key = "Black";
-                foreach (string k in new[] { "Paint", "Black", "Metal", "Glass", "Cloth", "Lamp", "Tail", "Rubber", "Rim" }) if (nm.StartsWith(k)) { key = k; break; }
-                if (wreck && key == "Paint") key = "PaintWreck";
-                if (wreck && key == "Glass") key = "Glass";
+                foreach (string k in new[] { "Glass", "Lamp", "Tail" }) if (nm.StartsWith(k)) { key = k; break; }
+                string slot = null;
+                if (key == "Black") foreach (string k in DesertCars.Slots) if (nm.StartsWith(k)) { slot = k; break; }
+                string atlas = r.name.StartsWith("DCar_Body") ? (wreck ? "Wreck" : "Body") : r.name.StartsWith("DCar_Wheel") ? "Wheel" : r.name.StartsWith("DCar_Interior") ? "Interior" : null;
+                if (key == "Black" && atlas != null && slot != null && mats.ContainsKey(atlas + "/" + slot)) { cur[i] = mats[atlas + "/" + slot]; continue; }
+                if (key == "Black" && slot == "Chrome") key = "Chrome";
                 cur[i] = key == "Lamp" && lampM != null ? lampM : key == "Tail" && tailM != null ? tailM : mats[key];
             }
             r.sharedMaterials = cur;
@@ -179,7 +183,7 @@ public class DesertCar : MonoBehaviour
         Material[] ms = mr.sharedMaterials;
         for (int si = 0; si < m.subMeshCount && si < ms.Length; si++)
         {
-            if (ms[si] == null || !ms[si].name.StartsWith("Black")) continue;
+            if (ms[si] == null || !(ms[si].name.StartsWith("Black") || ms[si].name.EndsWith("_Black"))) continue;
             if (!m.isReadable) break;
             int[] tri = m.GetTriangles(si); Vector3[] v = m.vertices; float acc = 0f;
             foreach (int ti in tri) acc += Vector3.Dot(v[ti], axle);
@@ -398,10 +402,33 @@ public class DesertCar : MonoBehaviour
     public int NetFlags { get { return (lights ? 1 : 0) | (handbrake ? 2 : 0) | (brake > 0.1f ? 4 : 0) | (engineOn ? 8 : 0) | (hidden ? 16 : 0) | (sinking ? 32 : 0); } }
 
     private float engineT;
+    // v7.8.0 (realismo): sonda de reflejos propia (cielo, dunas, sol) para los cristales y la pintura; en el desierto no hay otra.
+    // Barata: 64 px, una cara por fotograma, se repinta cada 2,5 s y solo si la cámara está a menos de 70 m.
+    public ReflectionProbe probe;
+    private float probeT = -10f;
+    public int ProbeRenders { get; private set; }
+    private void BuildProbe()
+    {
+        GameObject g = new GameObject("CarReflections"); g.transform.SetParent(transform, false); g.transform.localPosition = new Vector3(0f, 3.0f, 0f);
+        probe = g.AddComponent<ReflectionProbe>();
+        probe.mode = ReflectionProbeMode.Realtime; probe.refreshMode = ReflectionProbeRefreshMode.ViaScripting;
+        probe.timeSlicingMode = ReflectionProbeTimeSlicingMode.IndividualFaces; probe.resolution = 64; probe.hdr = true;
+        probe.size = new Vector3(14f, 10f, 14f); probe.boxProjection = false; probe.importance = 2; probe.shadowDistance = 0f;
+        probe.farClipPlane = 400f; probe.nearClipPlane = 0.5f; probe.clearFlags = ReflectionProbeClearFlags.Skybox;
+    }
+    private void UpdateProbe()
+    {
+        if (probe == null || Time.time - probeT < 2.5f) return;
+        Camera cam = Camera.main; if (cam == null) return;
+        if ((cam.transform.position - transform.position).sqrMagnitude > 70f * 70f) return;
+        probeT = Time.time; probe.RenderProbe(); ProbeRenders++;
+    }
+
     private void Update()
     {
         if (wreck) return;
         float dt = Time.deltaTime;
+        UpdateProbe();
         // clientes: siguen la pose del anfitrión (suavizada; saltos grandes = vuelta del desierto → directo)
         if (!DesertCars.Authority && netHas && lroot != null)
         {

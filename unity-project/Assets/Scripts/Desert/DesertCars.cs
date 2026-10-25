@@ -100,21 +100,29 @@ public class DesertCars : MonoBehaviour
         if (m.HasProperty("_Metallic")) m.SetFloat("_Metallic", metal);
         return m;
     }
+    // v7.8.0 (realismo): carrocería, rueda e interior llevan el desgaste horneado en un atlas cada uno (polvo, óxido, desconchones);
+    // cada ranura del modelo usa su atlas con su propio brillo/metal. Claves: "<atlas>/<ranura>" (atlas: Body, Wheel, Interior, Wreck).
+    public static readonly string[] Slots = { "Paint", "Black", "Metal", "Chrome", "Rubber", "Rim", "Cloth", "Amber", "Plate", "Orange", "Canvas", "Jerry" };
+    private static readonly float[] SlotSmooth = { 0.40f, 0.18f, 0.45f, 0.80f, 0.06f, 0.30f, 0.03f, 0.70f, 0.40f, 0.35f, 0.04f, 0.35f };
+    private static readonly float[] SlotMetal = { 0.05f, 0f, 0.6f, 0.9f, 0f, 0.45f, 0f, 0f, 0f, 0f, 0f, 0f };
     private static Dictionary<string, Material> Materials(System.Action<Object> track)
     {
         Texture2D paint = Resources.Load<Texture2D>("Desert/Car/DCar_paint");
+        Texture2D wheel = Resources.Load<Texture2D>("Desert/Car/DCar_wheel");
+        Texture2D inter = Resources.Load<Texture2D>("Desert/Car/DCar_interior");
         Dictionary<string, Material> d = new Dictionary<string, Material>();
-        d["Paint"] = M(Color.white, paint, 0.34f, 0.12f, track); d["Paint"].name = "Car_Paint";
-        d["PaintWreck"] = M(new Color(0.70f, 0.55f, 0.44f), paint, 0.10f, 0.05f, track); d["PaintWreck"].name = "Car_PaintWreck";
-        d["Black"] = M(new Color(0.05f, 0.05f, 0.05f), null, 0.22f, 0f, track);
-        d["Metal"] = M(new Color(0.56f, 0.56f, 0.54f), null, 0.55f, 0.6f, track);
-        d["Rubber"] = M(new Color(0.045f, 0.043f, 0.04f), null, 0.08f, 0f, track);
-        d["Rim"] = M(new Color(0.30f, 0.30f, 0.29f), null, 0.35f, 0.5f, track);
-        d["Cloth"] = M(new Color(0.20f, 0.17f, 0.15f), null, 0.04f, 0f, track);
+        foreach (var at in new[] { ("Body", paint, Color.white, 1f), ("Wreck", paint, new Color(0.92f, 0.70f, 0.55f), 0.3f), ("Wheel", wheel, Color.white, 1f), ("Interior", inter, Color.white, 1f) })
+            for (int i = 0; i < Slots.Length; i++)
+            {
+                Material m = M(at.Item3, at.Item2, SlotSmooth[i] * at.Item4, SlotMetal[i] * at.Item4, track); m.name = "Car_" + at.Item1 + "_" + Slots[i];
+                d[at.Item1 + "/" + Slots[i]] = m;
+            }
+        d["Black"] = M(new Color(0.03f, 0.03f, 0.03f), null, 0.25f, 0f, track);   // volante (sin atlas)
+        d["Chrome"] = M(new Color(0.62f, 0.62f, 0.60f), null, 0.8f, 0.9f, track);
         d["Lamp"] = M(new Color(0.92f, 0.92f, 0.88f), null, 0.9f, 0f, track); ProceduralAssets.SetEmission(d["Lamp"], new Color(0.001f, 0.001f, 0.001f));
         d["Tail"] = M(new Color(0.55f, 0.05f, 0.03f), null, 0.8f, 0f, track); ProceduralAssets.SetEmission(d["Tail"], new Color(0.001f, 0f, 0f));
         Material g = ProceduralAssets.CreateWaterMaterial(null, new Color(0.30f, 0.35f, 0.37f, 0.30f)); track(g); g.name = "Car_Glass";
-        if (g.HasProperty("_Glossiness")) g.SetFloat("_Glossiness", 0.94f);
+        if (g.HasProperty("_Glossiness")) g.SetFloat("_Glossiness", 0.97f);
         g.renderQueue = 3010; d["Glass"] = g;
         return d;
     }
@@ -148,7 +156,15 @@ public class DesertCars : MonoBehaviour
                 float ring = h * Mathf.Exp(-Mathf.Pow((rr - 1.05f) / 0.38f, 2f)) * (0.6f + 0.8f * noise);
                 if (side != 0f) ring *= Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(-0.15f, 0.75f, side * Mathf.Cos(a))) * (0.75f + 0.25f * Mathf.Abs(Mathf.Cos(a)));
                 float centre = rr < 1f ? fill * (1f - rr * rr) : 0f;
-                float bump = Mathf.Max(ring, centre) * Mathf.Clamp01((2.1f - rr) / 0.6f);
+                // arena acumulada contra cada rueda (las ruedas quedan algo metidas en la arena)
+                float lx = Mathf.Cos(a) * 1.05f * rr, lz = Mathf.Sin(a) * 2.45f * rr, wheels = 0f;
+                for (int wq = 0; wq < 4; wq++)
+                {
+                    float wx = (wq & 1) == 0 ? -0.95f : 0.95f, wz = (wq & 2) == 0 ? -1.40f : 1.40f;
+                    float dd = ((lx - wx) * (lx - wx) * 1.6f + (lz - wz) * (lz - wz)) / (0.46f * 0.46f);
+                    wheels = Mathf.Max(wheels, WheelSand * Mathf.Exp(-dd) * (0.8f + 0.4f * noise));
+                }
+                float bump = Mathf.Max(Mathf.Max(ring, centre), wheels) * Mathf.Clamp01((2.1f - rr) / 0.6f);
                 float x = c.x + o.x, z = c.z + o.y;
                 v.Add(new Vector3(x, DesertHeight.H(Mathf.Repeat(x, L), Mathf.Repeat(z, L)) + bump - 0.035f, z));
             }
@@ -172,6 +188,7 @@ public class DesertCars : MonoBehaviour
         DriftCount++;
     }
     public int DriftCount { get; private set; }
+    public const float WheelSand = 0.24f;
 
     // ------------------------------------------------------------------ consultas
     public static bool IsSeated(int id) { if (Active == null) return false; foreach (DesertCar c in Active.cars) if (c.SeatOf(id) >= 0) return true; return false; }
