@@ -577,7 +577,7 @@ public class UIManager : MonoBehaviour
             n.selectOnLeft = col > 0 ? lvCards[i - 1] : null;
             n.selectOnRight = col < cols - 1 && i + 1 < lvCards.Count ? lvCards[i + 1] : lvPlay;
             n.selectOnUp = row > 0 ? lvCards[i - cols] : null;
-            n.selectOnDown = row + 1 < rows && i + cols < lvCards.Count ? lvCards[i + cols] : back;
+            n.selectOnDown = row + 1 < rows ? lvCards[Mathf.Min(i + cols, lvCards.Count - 1)] : back;   // v7.7.0: fila incompleta -> la última tarjeta
             lvCards[i].navigation = n;
         }
         Navigation np = new Navigation { mode = Navigation.Mode.Explicit, selectOnLeft = lvCards.Count >= cols ? lvCards[cols - 1] : null, selectOnDown = null };

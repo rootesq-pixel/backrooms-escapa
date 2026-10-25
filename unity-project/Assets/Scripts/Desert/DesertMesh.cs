@@ -214,7 +214,8 @@ public class DesertMesh
             for (int k = 0; k < segs; k++)
             {
                 int a0 = b0 + i * segs + k, a1 = b0 + i * segs + (k + 1) % segs, c0 = a0 + segs, c1 = a1 + segs;
-                t.Add(a0); t.Add(a1); t.Add(c0); t.Add(a1); t.Add(c1); t.Add(c0);
+                if (i > 0) { t.Add(a0); t.Add(a1); t.Add(c0); }   // v7.7.0 g: en el anillo 0 (cúspide) ese triángulo tiene área 0
+                t.Add(a1); t.Add(c1); t.Add(c0);
             }
         // normales suaves del montón
         Vector3[] acc = new Vector3[(rings + 1) * segs];

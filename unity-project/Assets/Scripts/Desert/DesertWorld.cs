@@ -269,7 +269,7 @@ public class DesertWorld : MonoBehaviour
             for (int k = 0; k < edge.Count; k++)
             {
                 int e = edge[k]; Vector3 o = v[e] - ctr; o.y = 0f; o.Normalize();
-                nr.Add((nr[e] + o * 0.6f).normalized);
+                nr.Add((o + Vector3.up * 0.4f).normalized);   // v7.7.0 g: hacia fuera de verdad (con la normal del terreno, en laderas hacia dentro quedaba al revés)
             }
             for (int k = 0; k < edge.Count; k++)
             {

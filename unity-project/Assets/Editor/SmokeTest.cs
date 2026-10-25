@@ -3236,7 +3236,7 @@ public static class SmokePlayRunner
                         }
                         yield return null; yield return null;
                         float a0 = Vector3.Dot(gm.player.transform.position - cb.transform.position, cb.Forward);
-                        if (pass == 1) Time.captureDeltaTime = 0.33f;
+                        Time.captureDeltaTime = pass == 1 ? 0.33f : 1f / 30f;   // v7.7.0: pasada normal a 30 fps fijos (el desierto en batchmode va a ~60 ms reales por fotograma y en el reloj del editor apenas avanzaba)
                         gm.player.debugInput = true; gm.player.debugMove = new Vector2(0f, 1f);
                         float tw0 = Time.time; int fr0 = Time.frameCount;
                         yield return Until(() => Time.time - tw0 >= 2.6f);
