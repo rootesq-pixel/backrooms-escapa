@@ -173,7 +173,8 @@ public class DesertCars : MonoBehaviour
             for (int k = 0; k < SEG; k++)
             {
                 int a = i * SEG + k, b = i * SEG + (k + 1) % SEG, cc = (i + 1) * SEG + k, d = (i + 1) * SEG + (k + 1) % SEG;
-                tri.Add(a); tri.Add(cc); tri.Add(b); tri.Add(b); tri.Add(cc); tri.Add(d);
+                if (i > 0) { tri.Add(a); tri.Add(cc); tri.Add(b); }   // el anillo 0 es el centro (un punto): ahí solo el triángulo del abanico
+                tri.Add(b); tri.Add(cc); tri.Add(d);
             }
         Mesh m = new Mesh { name = "SandDrift" }; m.SetVertices(v); m.SetTriangles(tri, 0);
         Vector2[] uv = new Vector2[v.Count]; for (int i = 0; i < uv.Length; i++) uv[i] = new Vector2(v[i].x, v[i].z) * 0.25f; m.uv = uv;

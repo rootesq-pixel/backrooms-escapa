@@ -71,6 +71,18 @@ public static class CarQuick
         yield return 1.0f;
         GameManager gm = GameManager.Instance;
         r.Info("nivel " + gb.CurrentLevel + " semilla " + gb.seed + " LoadDiag: " + LoadDiag.Report);
+        foreach (MeshFilter mf in Object.FindObjectsOfType<MeshFilter>())
+        {
+            if (mf.name != "SandDrift" || mf.sharedMesh == null) continue;
+            Mesh mesh = mf.sharedMesh; Vector3[] vv = mesh.vertices; Vector3[] nn = mesh.normals; int[] tr = mesh.triangles;
+            for (int i = 0; i < tr.Length; i += 3)
+            {
+                Vector3 gn = Vector3.Cross(vv[tr[i + 1]] - vv[tr[i]], vv[tr[i + 2]] - vv[tr[i]]);
+                if (gn.sqrMagnitude < 1e-14f) continue;
+                if (Vector3.Dot(gn, nn[tr[i]]) <= 0f && Vector3.Dot(gn, nn[tr[i + 1]]) <= 0f && Vector3.Dot(gn, nn[tr[i + 2]]) <= 0f)
+                    r.Info("DRIFT tri " + (i / 3) + " idx " + tr[i] + "," + tr[i + 1] + "," + tr[i + 2] + " gn " + gn.ToString("G4") + " |gn|² " + gn.sqrMagnitude.ToString("G3") + " n0 " + nn[tr[i]].ToString("F2") + " v0 " + vv[tr[i]].ToString("F3") + " v1 " + vv[tr[i + 1]].ToString("F3") + " v2 " + vv[tr[i + 2]].ToString("F3"));
+            }
+        }
         // grabación de lo que se oye mientras se conduce (la prueba conduce en los primeros ~20 s)
         AudioListener al = Object.FindObjectOfType<AudioListener>();
         Tap tap = al != null ? al.gameObject.AddComponent<Tap>() : null;
