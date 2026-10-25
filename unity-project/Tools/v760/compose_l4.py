@@ -119,7 +119,7 @@ if ONLY in ('','wall'):
             dx=pdist(X+xo, o, PW); dy=pdist(Hh-rows[r_],P*0.5,P)
             d2=(dx*dx+dy*dy)/(RAD*RAD); rv=np.maximum(rv,np.sqrt(np.clip(1-d2,0,1))*band)
     rv=rv*(Hh>0.02)*(Hh<WH-0.02)
-    height+=4.0*rv
+    height+=5.0*rv
     # pintura por chapa: gris verdoso gastado arriba, más oscuro abajo; zócalo sin pintar
     rng=np.random.default_rng(4401)
     ptint=rng.uniform(0.86,1.12,(4,3)).astype(np.float32); phue=rng.uniform(-0.015,0.015,(4,3)).astype(np.float32)
@@ -134,7 +134,7 @@ if ONLY in ('','wall'):
     mott=noise(4,4402,N,N,5)
     runs=downstreak(ss(0.75,0.95,noise(40,4414,N,N,2))*(dye<0.06)*(rowi>0)*1.0, 0.997, 4415, N, N)
     runs=blurw(runs*ss(0.3,0.7,noise(80,4416,N,N,2,cy=3)),1.2,0.5)
-    paint=paint*(0.86+0.18*mott[...,None])*(0.92+0.10*np.clip(stl,0.4,1.6)[...,None])*(1-0.28*runs)[...,None]
+    paint=paint*(0.86+0.18*mott[...,None])*(0.92+0.10*np.clip(stl,0.4,1.6)[...,None])*(1-0.38*runs)[...,None]
     dk=resample(dark,1.8,1.7,N,N,0.31,0.17)
     kick=dk*np.array([0.55,0.53,0.51],np.float32)
     # desconchones: borde fractal; más en bordes de chapa, alrededor de remaches y abajo; arriba pocos y pequeños
@@ -180,7 +180,7 @@ if ONLY in ('','wall'):
     scr=blurw(np.asarray(im,np.float32)/255,0.7)*(rowi>0)*(1-chip)
     alb=mix(alb, st*0.55, scr*0.35)
     rim=np.clip(blurw(rv,1.5)-rv,0,1)*3
-    alb=alb*(1-0.35*np.clip(rim,0,1))[...,None]*(1+0.10*rv)[...,None]
+    alb=alb*(1-0.5*np.clip(rim,0,1))[...,None]*(1+0.10*rv)[...,None]
     alb=mix(alb,ru,rv*ss(0.55,0.7,noise(50,4419,N,N,2))*0.8)
     alb=np.clip(alb,0,1)
     rr=resample(rustR,1.5,1.4,N,N,0.12,0.4)
@@ -225,7 +225,7 @@ if ONLY in ('','floor'):
     height=1.5*lug - 1.0*seam - 0.6*bolt - 0.8*bslot + 0.3*bolt*(1-bslot)
     height+=1.2*(noise(4,4500,N,N,3)-0.5)   # chapa no del todo plana
     big=noise(3,4501,N,N,5); mid=noise(12,4502,N,N,4); fine=noise(60,4507,N,N,3)
-    base=col([0.36,0.355,0.345])*(0.80+0.28*big[...,None])*(0.92+0.16*fine[...,None])
+    base=col([0.31,0.305,0.295])*(0.80+0.28*big[...,None])*(0.92+0.16*fine[...,None])
     # por chapa un tono un poco distinto
     pid=(np.floor(X/PWx)%2).astype(np.int32); base=base*np.where(pid==0,1.0,0.93)[...,None]
     wear=ss(0.25,0.75,noise(5,4503,N,N,4))
@@ -242,7 +242,7 @@ if ONLY in ('','floor'):
     alb=mix(alb,ru*0.9,rbleed*0.6)
     oil=ss(0.80,0.86,chipfield(4505,N,N,3)); dust=ss(0.70,0.80,chipfield(4506,N,N,5))*(0.4+0.6*recess)
     alb=alb*(1-0.50*oil)[...,None]
-    alb=mix(alb,col([0.38,0.35,0.30]),dust*0.40)
+    alb=mix(alb,col([0.34,0.31,0.27]),dust*0.30)
     alb=mix(alb,col([0.12,0.11,0.10]),seam*0.85)
     alb=mix(alb,col([0.46,0.45,0.44]),bolt*(1-bslot)*0.5)
     # pisadas/arrastres: rayas finas pulidas
@@ -256,8 +256,8 @@ if ONLY in ('','floor'):
     scr=blurw(np.asarray(im,np.float32)/255,0.6)*(1-rmask)
     alb=mix(alb,col([0.55,0.54,0.52]),scr*0.35)
     alb=np.clip(alb,0,1)
-    metal=np.clip(0.60+0.30*top*wear-0.65*rmask-0.3*rbleed-0.35*dust-0.3*recess*gr+0.2*scr,0,1)
-    sm=np.clip(0.30+0.26*top*wear-0.22*rmask-0.12*rbleed-0.16*dust+0.38*oil-0.08*recess*gr+0.1*scr,0.04,0.85)
+    metal=np.clip(0.60+0.30*top*wear-0.4*oil-0.65*rmask-0.3*rbleed-0.35*dust-0.3*recess*gr+0.2*scr,0,1)
+    sm=np.clip(0.30+0.26*top*wear-0.22*rmask-0.12*rbleed-0.16*dust+0.10*oil-0.08*recess*gr+0.1*scr,0.04,0.75)
     ao=np.clip(1-0.22*recess*(1-ss(0.0,0.5,lug))-0.5*seam-0.3*bslot,0.4,1)
     rh=lum(ru); rh=(rh-rh.mean())/max(float(rh.std()),1e-3)
     height+=rmask*(0.35*rh-0.4)

@@ -1416,6 +1416,22 @@ public class BackroomsGenerator : MonoBehaviour
                 lightY = wh - 0.6f;
                 break;
             }
+            case FixtureKind.Emergency when config.industrialPipes:
+            {   // v7.6.0: lámpara estanca de emergencia con rejilla: placa, cuerpo, difusor cilíndrico rojo con tapas y jaula de alambre
+                EnsureLampMeshes();
+                GameObject body = new GameObject("Housing"); body.transform.SetParent(fx.transform, false); body.transform.localPosition = new Vector3(0f, wh, 0f);
+                body.transform.localRotation = Quaternion.Euler(0f, ((curCell.x * 7 + curCell.y * 3) % 2 == 0) ? 0f : 90f, 0f);
+                body.AddComponent<MeshFilter>().sharedMesh = lampBody;
+                MeshRenderer br = body.AddComponent<MeshRenderer>(); br.sharedMaterial = PipeMaterial != null ? PipeMaterial : housing;
+                br.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                GameObject lg = new GameObject("Lens"); lg.transform.SetParent(body.transform, false);
+                lg.AddComponent<MeshFilter>().sharedMesh = lampLens;
+                MeshRenderer lr = lg.AddComponent<MeshRenderer>(); lr.sharedMaterial = lensMat;
+                lr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off; lr.receiveShadows = false;
+                lens = lr;
+                lightY = wh - 0.55f;
+                break;
+            }
             case FixtureKind.Emergency:
             {
                 ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "Housing", fx.transform, new Vector3(0f, wh - 0.1f, 0f), new Vector3(0.4f, 0.2f, 0.26f), housing, false);
@@ -1446,6 +1462,31 @@ public class BackroomsGenerator : MonoBehaviour
 
         if (isDead) return;
         CreateFixtureLight(fx.transform, new Vector3(0f, lightY, 0f), lens, rng, buzzClip);
+    }
+
+    // v7.6.0: mallas de la lámpara de emergencia (una sola vez por nivel; origen = techo, -Y hacia abajo)
+    private Mesh lampBody, lampLens;
+    private void EnsureLampMeshes()
+    {
+        if (lampBody != null && lampLens != null) return;
+        MeshBuilder b = new MeshBuilder(1), l = new MeshBuilder(1);
+        Vector2 uvp = new Vector2(1.80f, 0.30f);
+        b.AddOrientedBox(0, new Vector3(0f, -0.0125f, 0f), Vector3.right, Vector3.up, Vector3.forward, new Vector3(0.17f, 0.0125f, 0.11f), uvp, 0.06f);   // placa
+        b.AddOrientedBox(0, new Vector3(0f, -0.055f, 0f), Vector3.right, Vector3.up, Vector3.forward, new Vector3(0.13f, 0.03f, 0.075f), uvp, 0.06f);      // cuerpo
+        for (int i = 0; i < 4; i++)   // tornillos de la placa
+            b.AddOrientedBox(0, new Vector3((i % 2 == 0 ? -0.15f : 0.15f), -0.028f, (i < 2 ? -0.09f : 0.09f)), Vector3.right, Vector3.up, Vector3.forward, new Vector3(0.009f, 0.004f, 0.009f), uvp, 0.02f);
+        float r = 0.052f, y = -0.09f, half = 0.11f; Vector3 up = Vector3.up;
+        // tapas del difusor (parte de la carcasa) y jaula: 3 aros y 3 varillas a lo largo
+        b.AddRing(0, new Vector3(-half - 0.006f, y, 0f), Vector3.right, up, 0f, r + 0.008f, 0.012f, 16, 1.4f);
+        b.AddRing(0, new Vector3(half + 0.006f, y, 0f), Vector3.right, up, 0f, r + 0.008f, 0.012f, 16, 1.4f);
+        foreach (float x in new[] { -0.055f, 0f, 0.055f }) b.AddRing(0, new Vector3(x, y, 0f), Vector3.right, up, r + 0.010f, r + 0.015f, 0.006f, 16, 1.6f);
+        foreach (float a in new[] { -50f, 0f, 50f })
+        {
+            Vector3 n = Quaternion.AngleAxis(a, Vector3.right) * Vector3.down;
+            b.AddOrientedBox(0, new Vector3(0f, y, 0f) + n * (r + 0.0125f), Vector3.right, n, Vector3.Cross(Vector3.right, n), new Vector3(half + 0.006f, 0.0025f, 0.0025f), uvp, 0.02f);
+        }
+        l.AddSweep(0, new List<Vector3> { new Vector3(-half, y, 0f), new Vector3(half, y, 0f) }, r, 16, 0.25f, 0f, up);
+        lampBody = Track(b.ToMesh("LampBody760")); lampLens = Track(l.ToMesh("LampLens760"));
     }
 
     private void CreateSconce(Transform parent, Vector3 wallPos, Vector3 dirToWall, bool isDead, Material emissive,

@@ -827,6 +827,21 @@ public class ShotBuildCheck : MonoBehaviour
             yield return View(pw, mc, "l4_04_pared", s2 + Vector3.up * 1.45f, face + along * 0.9f + Vector3.up * 0.9f, 60f, s2);
             yield return View(pw, mc, "l4_05_suelo", s2 + Vector3.up * 1.62f, face + outw * 0.6f + along * 1.6f + Vector3.up * 0.05f, 62f, s2);
         }
+        // lámpara de emergencia viva más cercana al primer pasillo, de cerca y desde abajo
+        {
+            FlickeringLight best = null; float bdl = 1e9f;
+            foreach (FlickeringLight f in FindObjectsOfType<FlickeringLight>())
+            {
+                if (f.transform.parent == null || f.transform.parent.name != "Fixture") continue;
+                float dd = (f.transform.parent.position - ref0).sqrMagnitude; if (dd < bdl) { bdl = dd; best = f; }
+            }
+            if (best != null)
+            {
+                Vector3 lp = best.transform.parent.position + Vector3.up * (gen.wallHeight - 0.1f);
+                Vector3 st = best.transform.parent.position + new Vector3(1.3f, 0.02f, 0.9f);
+                yield return View(pw, mc, "l4_07_lampara", st + Vector3.up * 1.62f, lp, 50f, st);
+            }
+        }
         // sala: la celda con más espacio libre en diagonal
         {
             int best = -1; Vector3 hp = Vector3.zero, ht = Vector3.zero;
