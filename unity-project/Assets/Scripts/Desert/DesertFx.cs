@@ -54,14 +54,16 @@ public class DesertFx : MonoBehaviour
     }
 
     // ------------------------------------------------------------------ partículas (siguen a la cámara)
+    // partículas con el shader del juego (Hidden/BackroomsParticle: color de vértice + niebla); el color va en startColor
     private Material PMat(Texture2D tex, Color c, bool additive)
     {
-        Shader sh = Shader.Find(additive ? "Legacy Shaders/Particles/Additive" : "Legacy Shaders/Particles/Alpha Blended");
-        if (sh == null) sh = Shader.Find("Particles/Standard Unlit");
+        Shader sh = Resources.Load<Shader>(WaterVolume.ParticleShaderResource);
+        if (sh == null) sh = Shader.Find("Sprites/Default");
         Material m = new Material(sh); owned.Add(m);
-        m.mainTexture = tex; if (m.HasProperty("_TintColor")) m.SetColor("_TintColor", c); m.color = c;
+        m.mainTexture = tex; pendingColor = c;
         return m;
     }
+    private Color pendingColor = Color.white;
 
     private static Texture2D SoftDot(int n, float hard)
     {
@@ -110,6 +112,7 @@ public class DesertFx : MonoBehaviour
         main.scalingMode = ParticleSystemScalingMode.Shape;
         ParticleSystemRenderer r = g.GetComponent<ParticleSystemRenderer>();
         r.sharedMaterial = m; r.renderMode = mode; r.shadowCastingMode = ShadowCastingMode.Off; r.receiveShadows = false;
+        main.startColor = pendingColor;
         var em = ps.emission; em.rateOverTime = 0f;
         ps.Play();
         return ps;
@@ -356,9 +359,12 @@ public class DesertFx : MonoBehaviour
         // color de la lluvia: lechosa (almendras) o rojiza (dolor líquido)
         if (rain != null)
         {
-            Material rm = rain.GetComponent<ParticleSystemRenderer>().sharedMaterial;
             Color rc = sky.PainK > 0.5f ? new Color(0.85f, 0.45f, 0.42f, 0.42f) : new Color(0.92f, 0.90f, 0.84f, 0.40f);
-            if (rm.HasProperty("_TintColor")) rm.SetColor("_TintColor", rc * Mathf.Lerp(0.15f, 1f, 1f - sky.Night)); else rm.color = rc;
+            float lum = Mathf.Lerp(0.12f, 1f, 1f - sky.Night);
+            var rmn = rain.main; rmn.startColor = new Color(rc.r * lum, rc.g * lum, rc.b * lum, rc.a);
+            var dmn = dust.main; float dl = Mathf.Lerp(0.06f, 1f, 1f - sky.Night); dmn.startColor = new Color(0.80f * dl, 0.60f * dl, 0.40f * dl, 0.30f);
+            var gmn = grains.main; gmn.startColor = new Color(0.86f * dl, 0.70f * dl, 0.50f * dl, 0.55f);
+            var smn = snow.main; smn.startColor = new Color(dl, dl, dl * 1.02f, 0.9f);
         }
         // sonido: arena con la tormenta (y un poco siempre de día), lluvia; de noche, casi silencio
         float sandV = sky.Storm * 0.5f + (1f - sky.Night) * 0.035f;

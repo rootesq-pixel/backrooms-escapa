@@ -52,6 +52,19 @@ public static class ShaderVariantKeeper
             created++;
         }
 
+        // v7.7.0: recorte por alfa (matas del Desierto Cálido), con y sin normal map / máscara
+        for (int mask = 0; mask < 4; mask++)
+        {
+            bool normal = (mask & 1) != 0, gloss = (mask & 2) != 0;
+            Material m = new Material(standard);
+            m.SetFloat("_Mode", 1f); m.SetOverrideTag("RenderType", "TransparentCutout");
+            m.EnableKeyword("_ALPHATEST_ON"); m.renderQueue = 2450;
+            if (normal) m.EnableKeyword("_NORMALMAP");
+            if (gloss) m.EnableKeyword("_METALLICGLOSSMAP");
+            Save(m, "Cutout_N" + (normal ? 1 : 0) + "_G" + (gloss ? 1 : 0));
+            created++;
+        }
+
         // Transparente premultiplicado (agua), con y sin normal map; v7.4.0: + máscara de brillo (calcomanías del aparcamiento)
         for (int n = 0; n < 3; n++)
         {
