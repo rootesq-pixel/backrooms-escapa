@@ -293,6 +293,38 @@ public class ShotBuildCheck : MonoBehaviour
             Set(w == 6 ? 23f : 12f, w);
             if (want(wn[w])) yield return View(pw, mc, wn[w], wEye, wLook, 62f, P(eye.x, eye.y, 0.05f));
         }
+        // v7.7.1: afloramientos grandes (DCliff0 / DCliff1) a varias distancias (LOD0-2), de día: sin esquirlas flotando
+        {
+            int[] kinds = { 0, 1 }; float[] dists = { 9f, 22f, 45f, 90f };
+            Set(12.5f, 0);
+            foreach (int kd in kinds)
+            {
+                DesertPlan.Outcrop oc = default(DesertPlan.Outcrop); bool got = false;
+                foreach (DesertPlan.Outcrop o in pl.outcrops) if (!o.cave && o.kind == kd) { oc = o; got = true; break; }
+                if (!got) { Info("sin afloramiento de tipo " + kd); continue; }
+                for (int di = 0; di < dists.Length; di++)
+                {
+                    string nm = "d_" + (18 + kd * 4 + di) + "_roca" + kd + "_" + dists[di].ToString("F0") + "m";
+                    float a = oc.yaw * Mathf.Deg2Rad + 0.6f; Vector2 e = oc.c + new Vector2(Mathf.Sin(a), Mathf.Cos(a)) * dists[di];
+                    if (want(nm)) yield return View(pw, mc, nm, P(e.x, e.y, 1.7f), P(oc.c.x, oc.c.y, 2.5f), 58f, P(e.x, e.y, 0.05f));
+                }
+            }
+        }
+        // v7.7.1: objetos de la arena de cerca (botella de agua de almendras y los demás)
+        {
+            Set(11f, 0);
+            var seenT = new System.Collections.Generic.HashSet<ItemType>(); int shot = 0;
+            foreach (ItemPickup ip in Object.FindObjectsOfType<ItemPickup>())
+            {
+                if (ip.netId < DesertItems.NetBase || ip.netId >= DesertItems.NetBase + 1000 || seenT.Contains(ip.type)) continue;
+                seenT.Add(ip.type);
+                Vector3 c = ip.transform.position, lc = root.InverseTransformPoint(c);
+                Vector3 eW = root.TransformPoint(lc + new Vector3(0.75f, 0f, 0.55f)); eW.y = c.y + 0.55f;
+                string nm = "d_" + (26 + shot) + "_objeto_" + ip.type;
+                if (want(nm) || want("d_26")) yield return View(pw, mc, nm, eW, c, 40f, root.TransformPoint(lc + new Vector3(1.6f, 0f, 1.2f)));
+                if (++shot >= 4) break;
+            }
+        }
         DesertSky.ForceHour = -1f; DesertSky.ForceWeather = -1;
     }
 
