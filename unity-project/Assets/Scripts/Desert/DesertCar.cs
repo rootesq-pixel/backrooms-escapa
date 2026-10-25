@@ -249,14 +249,14 @@ public class DesertCar : MonoBehaviour
         Material m = new Material(sh) { mainTexture = puff }; track(m);
         GameObject g = new GameObject("WheelDust"); g.transform.SetParent(transform, false);
         ParticleSystem ps = g.AddComponent<ParticleSystem>(); ps.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
-        var main = ps.main; main.loop = true; main.playOnAwake = false; main.maxParticles = 500; main.simulationSpace = ParticleSystemSimulationSpace.World;
+        var main = ps.main; main.loop = true; main.playOnAwake = false; main.maxParticles = 700; main.simulationSpace = ParticleSystemSimulationSpace.World;
         main.startLifetime = new ParticleSystem.MinMaxCurve(1.6f, 3.2f); main.startSpeed = new ParticleSystem.MinMaxCurve(0.3f, 1.2f);
-        main.startSize = new ParticleSystem.MinMaxCurve(0.9f, 2.2f); main.startRotation = new ParticleSystem.MinMaxCurve(0f, 6.28f);
-        main.startColor = new Color(0.80f, 0.64f, 0.46f, 0.38f); main.gravityModifier = -0.01f;
+        main.startSize = new ParticleSystem.MinMaxCurve(1.3f, 2.8f); main.startRotation = new ParticleSystem.MinMaxCurve(0f, 6.28f);
+        main.startColor = new Color(0.80f, 0.64f, 0.46f, 0.6f); main.gravityModifier = -0.01f;
         var em = ps.emission; em.rateOverTime = 0f;
         var shp = ps.shape; shp.enabled = false;
         var col = ps.colorOverLifetime; col.enabled = true;
-        Gradient gr = new Gradient(); gr.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) }, new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.12f), new GradientAlphaKey(0.5f, 0.5f), new GradientAlphaKey(0f, 1f) });
+        Gradient gr = new Gradient(); gr.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) }, new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.08f), new GradientAlphaKey(0.7f, 0.5f), new GradientAlphaKey(0f, 1f) });
         col.color = gr;
         var sz = ps.sizeOverLifetime; sz.enabled = true; sz.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 0.6f, 1f, 1.8f));
         var vel = ps.velocityOverLifetime; vel.enabled = true; vel.space = ParticleSystemSimulationSpace.World; vel.y = new ParticleSystem.MinMaxCurve(0.15f, 0.6f);
@@ -501,12 +501,13 @@ public class DesertCar : MonoBehaviour
     // ------------------------------------------------------------------ polvo y rodadas
     private float dustAcc;
     public int DustEmitted { get; private set; }
+    public int DustAlive { get { return dustPs != null ? dustPs.particleCount : 0; } }
     private void UpdateDust(float dt)
     {
         if (dustPs == null) return;
         float v = Speed;
         float q = GameSettings.Quality == 0 ? 0.4f : GameSettings.Quality == 1 ? 0.7f : 1f;
-        float rate = (v > 1.5f ? Mathf.Clamp01((v - 1.5f) / 14f) * 26f + SlipAmount * 20f : 0f) * q;
+        float rate = (v > 1.5f ? Mathf.Clamp01((v - 1.5f) / 12f) * 60f + SlipAmount * 40f : 0f) * q;
         dustAcc += rate * dt;
         bool night = DesertSky.Active != null && DesertSky.Active.Night > 0.5f;
         float dl = DesertSky.Active != null ? Mathf.Lerp(0.08f, 1f, 1f - DesertSky.Active.Night) : 1f;
@@ -519,7 +520,7 @@ public class DesertCar : MonoBehaviour
             var ep = new ParticleSystem.EmitParams();
             ep.position = contactPt[i] + Vector3.up * 0.3f - transform.forward * 0.4f;
             ep.velocity = -transform.forward * Mathf.Min(v, 12f) * 0.18f + Random.insideUnitSphere * 0.6f + Vector3.up * 0.5f;
-            ep.startColor = new Color(0.80f * dl, 0.64f * dl, 0.46f * dl, night ? 0.25f : 0.40f);
+            ep.startColor = new Color(0.80f * dl, 0.64f * dl, 0.46f * dl, night ? 0.35f : 0.62f);
             dustPs.Emit(ep, 1); DustEmitted++;
         }
     }

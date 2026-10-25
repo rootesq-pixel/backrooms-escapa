@@ -121,6 +121,7 @@ public static class V780Checks
         float roll = Vector3.Angle(car.transform.up, Vector3.up);
         r.Check(roll < 35f && car.Grounded, T + "estable en las dunas (inclinación " + roll.ToString("F0") + "°), ruedas en el suelo");
         r.Check(car.EngineVolume > 0.3f && dc.tracks.TyreAdded > f0 + 10 && car.DustEmitted > d0 + 10, T + "motor sonando (" + car.EngineVolume.ToString("F2") + "), rodadas (" + (dc.tracks.TyreAdded - f0) + ") y polvo de las ruedas (" + (car.DustEmitted - d0) + ")");
+        r.Check(car.DustAlive >= 25, T + "nube de polvo visible detrás del coche (" + car.DustAlive + " partículas vivas)");
         // girar
         DesertCars.DbgThrottle = 0.6f; DesertCars.DbgSteer = 1f;
         float y1 = car.transform.eulerAngles.y;

@@ -50,7 +50,7 @@ public class DesertCars : MonoBehaviour
         // dunas pequeñas contra las ruedas del que se conduce y la chatarra hundida en una duna
         // el que se conduce: la arena amontonada solo contra el costado del copiloto (barlovento), así al salir no deja un cráter
         m.Drift(a, ya, 0.62f, 0f, track, -car.driverSide);
-        m.Drift(b, yb, 0.72f, 0.30f, track, 0f);
+        m.Drift(b, yb, 0.60f, 0.22f, track, 0f);
         m.tracks = DesertTracks.Create(dw);
         return m;
     }
@@ -126,7 +126,8 @@ public class DesertCars : MonoBehaviour
             {
                 float dx = (x + 0.5f) / n * 2f - 1f, dy = (y + 0.5f) / n * 2f - 1f, d = Mathf.Sqrt(dx * dx + dy * dy);
                 float nz = Mathf.PerlinNoise(seed + x * 0.08f, y * 0.08f) * 0.6f + Mathf.PerlinNoise(seed + 7 + x * 0.2f, y * 0.2f) * 0.4f;
-                t.SetPixel(x, y, new Color(1f, 1f, 1f, Mathf.Clamp01(1f - d) * Mathf.Clamp01(nz * 1.5f - 0.2f)));
+                float fall = Mathf.Clamp01(1f - d); fall = fall * fall * (3f - 2f * fall);   // borde suave, centro denso
+                t.SetPixel(x, y, new Color(1f, 1f, 1f, fall * Mathf.Clamp01(0.45f + nz * 0.9f)));
             }
         t.Apply(true); return t;
     }
