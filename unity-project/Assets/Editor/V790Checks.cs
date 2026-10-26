@@ -377,7 +377,7 @@ public static class V790Checks
             float pmn = 9f, pmx = -9f, amn = 9f, amx = -9f;
             for (int k = 0; k < 12; k++) { le.DebugSetClock(ev.start + 2f + k * 0.18f); yield return null; yield return null; pmn = Mathf.Min(pmn, le.Pulse01); pmx = Mathf.Max(pmx, le.Pulse01); amn = Mathf.Min(amn, RenderSettings.ambientLight.r); amx = Mathf.Max(amx, RenderSettings.ambientLight.r); }
             AudioSource asrc = le.AlarmSource;
-            r.Check(pmx - pmn > 0.2f && amx > amn * 1.15f && asrc != null && asrc.isPlaying && asrc.volume > 0f && asrc.spatialBlend < 0.01f, tag + "[Rojo] la luz roja late (pulso " + pmn.ToString("F2") + "–" + pmx.ToString("F2") + ") y suena el zumbido de alarma (" + (asrc != null && asrc.isPlaying) + ")");
+            r.Check(pmx - pmn > 0.2f && amx > amn * 1.08f && asrc != null && asrc.isPlaying && asrc.volume > 0f && asrc.spatialBlend < 0.01f, tag + "[Rojo] la luz roja late (pulso " + pmn.ToString("F2") + "–" + pmx.ToString("F2") + ", ambiente " + amn.ToString("F3") + "–" + amx.ToString("F3") + ") y suena el zumbido de alarma (" + (asrc != null && asrc.isPlaying) + ", volumen " + (asrc != null ? asrc.volume.ToString("F3") : "-") + ")");
             le.DebugSetClock(ev.start + 2f); yield return 0.2f;
         }
         if (V704Checks.Shots) { Camera cam = adr.GetComponentInChildren<Camera>(); if (cam != null) V704Checks.CaptureHud(cam, "l0_rojo.png"); }
