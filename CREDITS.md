@@ -179,3 +179,6 @@ El roce de la hierba, el viento, el zumbido de radio de la salida, el terreno, l
 - **Apagones rojos del Nivel 0** y el chasquido del relé: hechos por código.
 - **Latido**: sintetizado por código (`Adrenaline`), un latido suelto que se dispara a su ritmo.
 - **Sonidos de la noche del Nivel 114** (zumbido grave, llamada lejana, metal con eco, murmullos): sintetizados por código (`DesertNight`), solo tonos graves, sin siseo ni crujidos. CC0.
+
+## Alarma roja del Nivel 0 (v7.9.1)
+- **Alarma roja**: la luz roja de toda la sala, su pulso y el zumbido grave de alarma están hechos por código (`Level0Events`, tono de 180 Hz con armónicos suaves, sin siseo). CC0, sin grabaciones externas.

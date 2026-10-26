@@ -5,8 +5,9 @@ using UnityEngine;
 //  · Ruidos aleatorios en 3D lejos del jugador: un portazo lejano, pasos al fondo, golpes apagados en una pared y un golpe
 //    metálico sordo. Todos generados por código, graves y amortiguados: sin crujidos de madera y sin siseo de aire.
 //    Son locales de cada jugador (cada uno oye los suyos).
-//  · Apagón rojo: cada cierto tiempo los fluorescentes se van a rojo durante 10–30 s y luego vuelven. El nivel sigue oscuro
-//    (el rojo ilumina menos que la luz normal). El calendario sale de la semilla del nivel y del reloj del nivel; en el
+//  · Alarma roja: cada cierto tiempo TODA la sala se ilumina de rojo durante 10–30 s y luego vuelve la luz de siempre
+//    (v7.9.1: como la luz de emergencia de una alarma: todos los fluorescentes y paneles en rojo, ambiente y niebla rojos,
+//    paredes y suelo claramente rojos, con un pulso lento de alarma y un zumbido grave de alarma; sin siseo). El calendario sale de la semilla del nivel y del reloj del nivel; en el
 //    multijugador el anfitrión manda su reloj en el snapshot, así que el rojo empieza y acaba a la vez para todos.
 public class Level0Events : MonoBehaviour
 {
@@ -14,11 +15,15 @@ public class Level0Events : MonoBehaviour
 
     // calendario del rojo
     public const float RedMin = 10f, RedMax = 30f, FirstMin = 50f, FirstMax = 100f, GapMin = 75f, GapMax = 160f, Fade = 0.9f;
-    public static readonly Color RedLight = new Color(1f, 0.10f, 0.06f);
-    public static readonly Color RedEmission = new Color(0.95f, 0.07f, 0.04f);
-    public const float RedIntensity = 0.72f;           // el rojo da menos luz que el fluorescente: el nivel sigue oscuro
-    public static readonly Color RedAmbient = new Color(0.085f, 0.014f, 0.010f);
-    public static readonly Color RedFog = new Color(0.075f, 0.010f, 0.008f);
+    public static readonly Color RedLight = new Color(1f, 0.05f, 0.03f);
+    public static readonly Color RedEmission = new Color(1f, 0.05f, 0.03f);
+    public const float RedIntensity = 1.15f;           // v7.9.1: el rojo alumbra toda la sala (antes 0,72 y casi a oscuras)
+    public static readonly Color RedAmbient = new Color(0.34f, 0.028f, 0.020f);   // v7.9.1: la sala entera roja, también rincones y lejos de las luces
+    public static readonly Color RedFog = new Color(0.30f, 0.022f, 0.016f);
+    public const float PulsePeriod = 2.0f, PulseMin = 0.70f;   // pulso lento de alarma (mismo reloj → igual para todos)
+    public const float AlarmVolume = 0.20f, AlarmHz = 180f;
+    // pulso de la alarma: 1 en el pico, PulseMin en el valle (en el reloj del nivel)
+    public static float PulseAt(float clock) { float s = Mathf.Sin(Mathf.PI * clock / PulsePeriod); return PulseMin + (1f - PulseMin) * s * s; }
 
     public struct RedEvent { public float start, dur; public float End { get { return start + dur; } } }
     public readonly List<RedEvent> Schedule = new List<RedEvent>();
@@ -44,7 +49,10 @@ public class Level0Events : MonoBehaviour
     private Color baseAmbient, baseFog;
     private float appliedRed = -1f;
     private AudioClip[] clips;
-    private AudioSource noiseSrc, relaySrc; private AudioLowPassFilter noiseLp;
+    private AudioSource noiseSrc, relaySrc, alarmSrc; private AudioLowPassFilter noiseLp;
+    private AudioClip alarmClip;
+    public AudioSource AlarmSource { get { return alarmSrc; } }
+    public float Pulse01 { get; private set; } = 1f;
     private float noiseT;
     private System.Random noiseRng;
 
@@ -76,6 +84,9 @@ public class Level0Events : MonoBehaviour
         noiseLp = noiseSrc.gameObject.AddComponent<AudioLowPassFilter>(); noiseLp.cutoffFrequency = 1800f;
         AudioReverbFilter rv = noiseSrc.gameObject.AddComponent<AudioReverbFilter>(); rv.reverbPreset = AudioReverbPreset.Hallway;
         relaySrc = Src("L0Relay", 3f, 30f);
+        alarmClip = CreateAlarm();
+        alarmSrc = Src("L0Alarm", 4f, 40f); alarmSrc.spatialBlend = 0f; alarmSrc.loop = true; alarmSrc.clip = alarmClip; alarmSrc.volume = 0f;
+        AudioLowPassFilter alp = alarmSrc.gameObject.AddComponent<AudioLowPassFilter>(); alp.cutoffFrequency = 1400f;
         noiseRng = new System.Random(Seed * 613 + (int)(System.DateTime.Now.Ticks & 0xffff));   // local de cada jugador
         noiseT = 20f + (float)noiseRng.NextDouble() * 25f;
     }
@@ -94,6 +105,7 @@ public class Level0Events : MonoBehaviour
         if (Active == this) Active = null;
         if (appliedRed > 0f) ApplyRed(0f, true);
         if (clips != null) foreach (AudioClip c in clips) if (c != null) ProceduralAssets.SafeDestroy(c);
+        if (alarmClip != null) ProceduralAssets.SafeDestroy(alarmClip);
     }
 
     // calendario determinista: misma semilla → mismos apagones rojos (anfitrión y clientes)
@@ -155,6 +167,7 @@ public class Level0Events : MonoBehaviour
         RedOn = on;
         Red01 = red;
         if (Screamer.Active == null) ApplyRed(red, false);   // el susto guarda y restaura el ambiente: no se pisa
+        TickAlarm(red);
         if (playing && !DisableNoiseForTests) TickNoise(dt);
     }
 
@@ -166,19 +179,54 @@ public class Level0Events : MonoBehaviour
         relaySrc.PlayOneShot(clips[3], AudioMix.Event(0.35f)); AudioEventLog.Note("L0_Rele");
     }
 
+    private float appliedPulse = -1f;
     public void ApplyRed(float red, bool force)
     {
-        if (!force && Mathf.Abs(red - appliedRed) < 0.004f) return;
-        appliedRed = red;
-        foreach (FlickeringLight f in lights) if (f != null) f.SetRed(red, RedLight, RedEmission, RedIntensity);
+        float pulse = red > 0f ? PulseAt(Clock) : 1f;
+        Pulse01 = pulse;
+        if (!force && Mathf.Abs(red - appliedRed) < 0.004f && Mathf.Abs(pulse - appliedPulse) < 0.02f) return;
+        appliedRed = red; appliedPulse = pulse;
+        foreach (FlickeringLight f in lights) if (f != null) f.SetRed(red, RedLight, RedEmission, RedIntensity * pulse);
         if (panelMat != null)
         {
             float lum = panelBase.maxColorComponent;
-            panelMat.SetColor("_EmissionColor", Color.Lerp(panelBase, RedEmission * lum * 0.85f, red));
+            panelMat.SetColor("_EmissionColor", Color.Lerp(panelBase, RedEmission * lum * pulse, red));
         }
-        RenderSettings.ambientLight = Color.Lerp(baseAmbient, RedAmbient, red);
-        RenderSettings.fogColor = Color.Lerp(baseFog, RedFog, red);
+        float ap = Mathf.Lerp(1f, 0.55f + 0.45f * pulse, red);   // el ambiente también late (los rincones se oscurecen un poco en el valle)
+        RenderSettings.ambientLight = Color.Lerp(baseAmbient, RedAmbient * ap, red);
+        RenderSettings.fogColor = Color.Lerp(baseFog, RedFog * ap, red);
         if (cam != null) cam.backgroundColor = RenderSettings.fogColor;
+    }
+
+    // ---- zumbido de alarma (bucle de 4 s = dos pulsos, en fase con el reloj del nivel) ----
+    private void TickAlarm(float red)
+    {
+        if (alarmSrc == null) return;
+        GameManager gm = GameManager.Instance;
+        bool playing = gm == null || gm.State == GameManager.GameState.Playing;
+        float target = playing && Screamer.Active == null ? red * AlarmVolume : 0f;
+        alarmSrc.volume = AudioMix.Event(target);
+        if (target > 0.001f)
+        {
+            if (!alarmSrc.isPlaying) { alarmSrc.time = Mathf.Repeat(Clock, AlarmLoop); alarmSrc.Play(); }
+        }
+        else if (alarmSrc.isPlaying) alarmSrc.Stop();
+    }
+    public const float AlarmLoop = 2f * PulsePeriod;
+    // tono grave de alarma: 180 Hz con armónicos suaves (todo por debajo de ~1 kHz), envolvente sin² del pulso; ciclos enteros → sin costura
+    public static AudioClip CreateAlarm() { float[] d = AlarmData(); AudioClip c = AudioClip.Create("L0_Alarma", d.Length, 1, SR, false); c.SetData(d, 0); return c; }
+    public static float[] AlarmData()
+    {
+        int n = Mathf.RoundToInt(AlarmLoop * SR); float[] d = new float[n];
+        for (int i = 0; i < n; i++)
+        {
+            float t = i / (float)SR;
+            float env = Mathf.Sin(Mathf.PI * t / PulsePeriod); env = 0.25f + 0.75f * env * env;
+            float w = 2f * Mathf.PI * AlarmHz * t;
+            float v = Mathf.Sin(w) * 0.62f + Mathf.Sin(2f * w) * 0.22f + Mathf.Sin(3f * w) * 0.10f + Mathf.Sin(5f * w) * 0.04f;
+            d[i] = v * env * 0.5f;
+        }
+        return d;
     }
 
     // ---- ruidos ----

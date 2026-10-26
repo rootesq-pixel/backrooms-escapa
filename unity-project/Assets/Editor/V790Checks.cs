@@ -234,7 +234,7 @@ public static class V790Checks
     {
         string T = "[v7.9.0] ";
         EditMore(r, T);
-        r.Check(GameVersion.Current == "7.9.0" && NetSession.Protocol == "BackroomsEscape-MP-12", T + "versión " + GameVersion.Current + ", protocolo " + NetSession.Protocol);
+        r.Check(GameVersion.Current == "7.9.1" && NetSession.Protocol == "BackroomsEscape-MP-12", T + "versión " + GameVersion.Current + ", protocolo " + NetSession.Protocol);
         // ruidos
         string bad = ""; float worst = 0f;
         for (int k = 0; k < Level0Events.NoiseNames.Length; k++)
@@ -270,6 +270,14 @@ public static class V790Checks
         r.Check(okDur, T + "[Rojo] cada apagón rojo dura 10–30 s");
         r.Check(okGap, T + "[Rojo] el primero llega a los 50–100 s y entre uno y otro pasan 75–160 s (" + first.Trim() + ")");
         r.Check(det && differ, T + "[Rojo] el calendario sale de la semilla: igual en todos los equipos, distinto en cada partida");
+        {   // v7.9.1: alarma roja: toda la sala roja, pulso lento y zumbido grave sin siseo ni costura
+            float[] al = Level0Events.AlarmData(); float hiA = HighRatio(al, 22050, 2000f), seamA = SeamJump(al);
+            float pMin = 9f, pMax = -9f; for (float c = 0f; c < 4f; c += 0.05f) { float pv = Level0Events.PulseAt(c); pMin = Mathf.Min(pMin, pv); pMax = Mathf.Max(pMax, pv); }
+            Color ra = Level0Events.RedAmbient, rf = Level0Events.RedFog;
+            r.Check(ra.r > 0.25f && ra.r > 8f * ra.g && ra.r > 8f * ra.b && rf.r > 8f * rf.g && Level0Events.RedIntensity >= 1f, T + "[Rojo] alarma: ambiente y niebla rojos intensos (ambiente " + ra + "), luces ×" + Level0Events.RedIntensity);
+            r.Check(pMin >= Level0Events.PulseMin - 0.01f && pMin < 0.75f && pMax > 0.98f && Mathf.Abs(Level0Events.PulseAt(1.3f) - Level0Events.PulseAt(1.3f + Level0Events.PulsePeriod)) < 1e-4f, T + "[Rojo] la luz late despacio (" + pMin.ToString("F2") + "–" + pMax.ToString("F2") + " cada " + Level0Events.PulsePeriod.ToString("F0") + " s, en el reloj del nivel)");
+            r.Check(hiA < 0.01f && seamA < 2f && al.Length == Mathf.RoundToInt(Level0Events.AlarmLoop * 22050), T + "[Rojo] zumbido de alarma grave, sin siseo (" + (hiA * 100f).ToString("F2") + " % por encima de 2 kHz) y sin costura (" + seamA.ToString("F2") + ")");
+        }
         // latido
         AudioClip hb = Adrenaline.CreateHeartbeat();
         r.Check(hb.length > 0.3f && hb.length < 0.5f, T + "[Latido] un latido suelto (" + hb.length.ToString("F2") + " s) que se dispara a su ritmo");
@@ -363,14 +371,22 @@ public static class V790Checks
         Color pan1 = gen.PanelEmissiveMat.GetColor("_EmissionColor");
         r.Check(before && le.RedOn && le.Red01 > 0.99f && le.RedStarts == rs0 + 1, tag + "[Rojo] empieza a su hora (" + ev.start.ToString("F0") + " s) y dura " + ev.dur.ToString("F0") + " s");
         r.Check(col1.r > 4f * col1.g && col1.r > 4f * col1.b && pan1.r > 4f * pan1.g, tag + "[Rojo] fluorescentes y paneles en rojo (luz " + col1 + ", panel " + pan1 + ")");
-        r.Check(Lum(amb1) < Lum(amb0) * 0.6f && lit.targetLight.intensity <= lit.baseIntensity * 0.75f + 1e-3f && Lum(pan1) < Lum(pan0), tag + "[Rojo] el nivel sigue oscuro: ambiente " + Lum(amb0).ToString("F3") + " → " + Lum(amb1).ToString("F3") + ", luces ×" + Level0Events.RedIntensity);
+        int allRed = 0, nLights = 0; foreach (FlickeringLight f in fls) if (f != null && f.targetLight != null) { nLights++; if (f.targetLight.color.r > 6f * f.targetLight.color.g) allRed++; }
+        r.Check(amb1.r > amb0.r && amb1.r > 6f * amb1.g && RenderSettings.fogColor.r > 6f * RenderSettings.fogColor.g && allRed == nLights && nLights > 0, tag + "[Rojo] toda la sala roja: ambiente " + amb0 + " → " + amb1 + ", niebla " + RenderSettings.fogColor + ", " + allRed + "/" + nLights + " luces en rojo");
+        {   // v7.9.1: pulso de alarma y zumbido mientras dura
+            float pmn = 9f, pmx = -9f, amn = 9f, amx = -9f;
+            for (int k = 0; k < 12; k++) { le.DebugSetClock(ev.start + 2f + k * 0.18f); yield return null; yield return null; pmn = Mathf.Min(pmn, le.Pulse01); pmx = Mathf.Max(pmx, le.Pulse01); amn = Mathf.Min(amn, RenderSettings.ambientLight.r); amx = Mathf.Max(amx, RenderSettings.ambientLight.r); }
+            AudioSource asrc = le.AlarmSource;
+            r.Check(pmx - pmn > 0.2f && amx > amn * 1.15f && asrc != null && asrc.isPlaying && asrc.volume > 0f && asrc.spatialBlend < 0.01f, tag + "[Rojo] la luz roja late (pulso " + pmn.ToString("F2") + "–" + pmx.ToString("F2") + ") y suena el zumbido de alarma (" + (asrc != null && asrc.isPlaying) + ")");
+            le.DebugSetClock(ev.start + 2f); yield return 0.2f;
+        }
         if (V704Checks.Shots) { Camera cam = adr.GetComponentInChildren<Camera>(); if (cam != null) V704Checks.CaptureHud(cam, "l0_rojo.png"); }
         le.DebugSetClock(ev.End - 0.3f); yield return 0.1f;
         le.DebugSetClock(ev.End + 1.5f); yield return 0.3f;
         Color amb2 = RenderSettings.ambientLight, col2 = lit != null ? lit.targetLight.color : Color.black;
         Color pan2 = gen.PanelEmissiveMat.GetColor("_EmissionColor");
         bool back = !le.RedOn && le.Red01 == 0f && Mathf.Abs(amb2.r - amb0.r) + Mathf.Abs(amb2.g - amb0.g) < 0.002f && Mathf.Abs(col2.g - col0.g) < 0.01f && Mathf.Abs(pan2.g - pan0.g) < 0.01f;
-        r.Check(back, tag + "[Rojo] al acabar vuelve la luz de siempre");
+        r.Check(back && (le.AlarmSource == null || !le.AlarmSource.isPlaying), tag + "[Rojo] al acabar vuelve la luz de siempre y calla la alarma");
         le.DebugSetClock(1f); yield return 0.2f;
     }
 
