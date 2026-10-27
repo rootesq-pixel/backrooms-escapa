@@ -40,6 +40,8 @@ public class DesertWorld : MonoBehaviour
     private System.Action<Object> track;
     private FirstPersonController fpc;
 
+    // pruebas (V792Sand): vuelve a dejar que la sonda del coche tiña la arena, como en la v7.8.0–v7.9.1, para medir el antes
+    public static bool DebugOldSandProbe;
     public const float ChunkSize = 32f, WallT = 0.45f, DoorW = 1.1f, DoorH = 2.2f;
     public static float FarClip { get { return GameSettings.Quality == 0 ? 300f : 460f; } }
     public static float GhostRange { get { return FarClip + 12f; } }
@@ -1005,7 +1007,7 @@ public class DesertWorld : MonoBehaviour
                         Matrix4x4 m = sh * gh.local;
                         for (int s = 0; s < gh.mats.Length && s < mesh.subMeshCount; s++)
                         {
-                            if (gh.mats[s] == sandM) { RenderParams rp = new RenderParams(sandM) { shadowCastingMode = ShadowCastingMode.Off, receiveShadows = true, reflectionProbeUsage = ReflectionProbeUsage.Off, worldBounds = new Bounds(lw.MultiplyPoint3x4(p), Vector3.one * (gh.radius * 2.2f + 400f)) }; Graphics.RenderMesh(rp, mesh, s, m); }   // v7.9.2: sin la sonda del coche
+                            if (gh.mats[s] == sandM && !DebugOldSandProbe) { RenderParams rp = new RenderParams(sandM) { shadowCastingMode = ShadowCastingMode.Off, receiveShadows = true, reflectionProbeUsage = ReflectionProbeUsage.Off, worldBounds = new Bounds(lw.MultiplyPoint3x4(p), Vector3.one * (gh.radius * 2.2f + 400f)) }; Graphics.RenderMesh(rp, mesh, s, m); }   // v7.9.2: sin la sonda del coche
                             else Graphics.DrawMesh(mesh, m, gh.mats[s], 0, null, s, null, ShadowCastingMode.Off, true);
                             GhostDraws++;
                         }

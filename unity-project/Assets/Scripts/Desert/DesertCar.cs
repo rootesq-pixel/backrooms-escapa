@@ -183,6 +183,10 @@ public class DesertCar : MonoBehaviour
             steerAxis = s.x < s.y && s.x < s.z ? Vector3.right : s.y < s.z ? Vector3.up : Vector3.forward;
             // v7.9.0: agarres del volante (a las 10 y a las 2) en el plano del aro, en coordenadas del volante (giran con él)
             gripC = m.bounds.center; gripR = Mathf.Max(s.x, Mathf.Max(s.y, s.z)) * 0.5f * 0.9f;
+            // v7.9.2: el eje del volante apunta hacia delante (del conductor al salpicadero); así girar a la derecha (D, ángulo +)
+            // lo gira en el sentido de las agujas del reloj visto desde el asiento, y a la izquierda (A) al revés. Antes el signo
+            // dependía de hacia dónde quedaba el eje del modelo y el volante (y las manos) giraban al revés que el coche.
+            if (Vector3.Dot(steering.TransformDirection(steerAxis), transform.forward) < 0f) steerAxis = -steerAxis;
             Vector3 upL = steering.InverseTransformDirection(transform.up); upL -= Vector3.Dot(upL, steerAxis) * steerAxis;
             if (upL.sqrMagnitude < 1e-4f) upL = steerAxis == Vector3.up ? Vector3.forward : Vector3.up;
             gripUp = upL.normalized; gripRight = Vector3.Cross(steerAxis, gripUp).normalized;
@@ -316,7 +320,7 @@ public class DesertCar : MonoBehaviour
         var main = ps.main; main.loop = true; main.playOnAwake = false; main.maxParticles = 700; main.simulationSpace = ParticleSystemSimulationSpace.World; main.cullingMode = ParticleSystemCullingMode.AlwaysSimulate;
         main.startLifetime = new ParticleSystem.MinMaxCurve(1.6f, 3.2f); main.startSpeed = new ParticleSystem.MinMaxCurve(0.3f, 1.2f);
         main.startSize = new ParticleSystem.MinMaxCurve(1.3f, 2.8f); main.startRotation = new ParticleSystem.MinMaxCurve(0f, 6.28f);
-        main.startColor = new Color(0.80f, 0.64f, 0.46f, 0.6f); main.gravityModifier = -0.01f;
+        main.startColor = new Color(DustCol.r, DustCol.g, DustCol.b, 0.6f); main.gravityModifier = -0.01f;
         var em = ps.emission; em.rateOverTime = 0f;
         var shp = ps.shape; shp.enabled = false;
         var col = ps.colorOverLifetime; col.enabled = true;
@@ -593,6 +597,9 @@ public class DesertCar : MonoBehaviour
 
     // ------------------------------------------------------------------ polvo y rodadas
     private float dustAcc;
+    // v7.9.2 (t453u): el polvo (sin luz) con el tono que tiene la arena al sol en pantalla; antes era más naranja (0.80, 0.64, 0.46)
+    // y detrás del coche dejaba una mancha de otro color que iba con él
+    public static readonly Color DustCol = new Color(0.86f, 0.73f, 0.56f);
     public int DustEmitted { get; private set; }
     public int DustAlive { get { return dustPs != null ? dustPs.particleCount : 0; } }
     private void UpdateDust(float dt)
@@ -613,7 +620,7 @@ public class DesertCar : MonoBehaviour
             var ep = new ParticleSystem.EmitParams();
             ep.position = contactPt[i] + Vector3.up * 0.3f - transform.forward * 0.4f;
             ep.velocity = -transform.forward * Mathf.Min(v, 12f) * 0.18f + Random.insideUnitSphere * 0.6f + Vector3.up * 0.5f;
-            ep.startColor = new Color(0.80f * dl, 0.64f * dl, 0.46f * dl, night ? 0.35f : 0.62f);
+            ep.startColor = new Color(DustCol.r * dl, DustCol.g * dl, DustCol.b * dl, night ? 0.35f : 0.62f);
             dustPs.Emit(ep, 1); DustEmitted++;
         }
     }

@@ -121,6 +121,25 @@ public static class V792Preview
         for (int i = 0; i < res.GetLength(0); i++) { Shot("hud_coche_" + res[i, 0] + "x" + res[i, 1], res[i, 0], res[i, 1], true); yield return 0.2f; }
         DesertCars.CamView = 0; yield return 1.0f;
         Shot("coche_1a_persona_hud", 1920, 1080, true);
+        // v7.9.2 (t454u/t455u): sentido del volante y de las manos: D (derecha) y A (izquierda), parado
+        DesertCars.DbgThrottle = 0f; DesertCars.DbgHandbrake = true;
+        DesertCars.DbgSteer = 0f; yield return 1.0f;
+        Vector3 gl0, gr0; car.Grips(out gl0, out gr0); float yl0 = ct.InverseTransformPoint(gl0).y, yr0 = ct.InverseTransformPoint(gr0).y;
+        float[] sts = { 0.3f, -0.3f }; string[] stn = { "D_derecha", "A_izquierda" };
+        for (int i = 0; i < 2; i++)
+        {
+            DesertCars.DbgSteer = sts[i]; yield return 1.0f;
+            Shot("volante_1a_persona_" + stn[i], 1920, 1080, false);
+            Vector3 e4 = ct.TransformPoint(new Vector3(side * 0.40f, 1.75f, 2.7f)), t4 = ct.TransformPoint(new Vector3(side * 0.40f, 1.15f, 0.45f));   // por el parabrisas
+            DesertCars.CamView = 1; yield return 0.8f;
+            Shot("volante_fuera_" + stn[i], 1920, 1080, false, c => { c.transform.position = e4; c.transform.rotation = Quaternion.LookRotation(t4 - e4); });
+            DesertCars.CamView = 0; yield return 0.8f;
+            Vector3 gl1, gr1; car.Grips(out gl1, out gr1);
+            float dl = ct.InverseTransformPoint(gl1).y - yl0, dr = ct.InverseTransformPoint(gr1).y - yr0;
+            // visto desde el asiento: horario = el agarre derecho baja y el izquierdo sube (con poco giro); se mide a 1/4 de giro
+            Log("volante " + stn[i] + ": ángulo ruedas " + car.steerAngle.ToString("F1") + ", agarre izq " + (dl * 100f).ToString("+0;-0") + " cm, der " + (dr * 100f).ToString("+0;-0") + " cm");
+        }
+        DesertCars.DbgSteer = 0f;
         DesertCars.DebugDrive = false;
         DesertSky.ForceWeather = -1; DesertSky.ForceHour = -1f; Health.DisableForTests = false;
         Log("FIN");

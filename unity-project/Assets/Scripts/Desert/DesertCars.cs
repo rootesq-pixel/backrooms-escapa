@@ -225,7 +225,7 @@ public class DesertCars : MonoBehaviour
         m.RecalculateTangents(); m.RecalculateBounds(); track(m);
         GameObject g = new GameObject("SandDrift"); g.transform.SetParent(dw.transform, false);
         g.AddComponent<MeshFilter>().sharedMesh = m;
-        MeshRenderer mr = g.AddComponent<MeshRenderer>(); mr.sharedMaterial = dw.SandMat; mr.shadowCastingMode = ShadowCastingMode.Off; mr.receiveShadows = true;
+        MeshRenderer mr = g.AddComponent<MeshRenderer>(); mr.sharedMaterial = dw.SandMat; mr.shadowCastingMode = ShadowCastingMode.Off; mr.receiveShadows = true; mr.reflectionProbeUsage = ReflectionProbeUsage.Off;   // v7.9.2: como las dunas
         DriftCount++;
     }
     public int DriftCount { get; private set; }

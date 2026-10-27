@@ -174,6 +174,27 @@ public static class V790Checks
         DesertCars.DbgSteer = 0f; yield return 0.6f;
         Vector3 gl0, gr0; bool hasG = car.Grips(out gl0, out gr0);
         r.Check(hasG && Vector3.Distance(gl0, gr0) > 0.18f && Vector3.Distance(gl0, gr0) < 0.5f, T + "agarres del volante a las 10 y a las 2 (" + Vector3.Distance(gl0, gr0).ToString("F2") + " m entre manos)");
+        {   // v7.9.2: sentido del volante: D (derecha) lo gira en el sentido de las agujas del reloj visto desde el asiento
+            // (el agarre derecho baja y el izquierdo sube) y A al revés; las ruedas y las manos van hacia el mismo lado
+            Transform ctr = car.transform;
+            System.Func<Vector3, float> Yc = v => ctr.InverseTransformPoint(v).y;
+            float h0 = bodyOn && pb.RightHand != null ? Yc(pb.RightHand.position) : 0f;
+            for (int sd = 1; sd >= -1; sd -= 2)
+            {
+                DesertCars.DbgSteer = sd * 0.3f; yield return 0.8f;   // un cuarto de vuelta del volante (a tope da más de media vuelta y el signo de la altura se invierte)
+                Vector3 glS, grS; car.Grips(out glS, out grS);
+                float dR = Yc(grS) - Yc(gr0), dL = Yc(glS) - Yc(gl0), ang = car.steerAngle;
+                bool wheelOk = sd > 0 ? (ang > 3f && dR < -0.02f && dL > 0.02f) : (ang < -3f && dR > 0.02f && dL < -0.02f);
+                string hnote = "";
+                if (bodyOn && pb.RightHand != null)
+                {
+                    float dh = Yc(pb.RightHand.position) - h0;
+                    wheelOk &= sd > 0 ? dh < -0.01f : dh > 0.01f; hnote = ", mano derecha " + (dh * 100f).ToString("+0;-0") + " cm";
+                }
+                r.Check(wheelOk, T + (sd > 0 ? "D (derecha): ruedas a la derecha (" : "A (izquierda): ruedas a la izquierda (") + ang.ToString("F0") + "°) y el volante gira " + (sd > 0 ? "a la derecha, en el sentido del reloj" : "a la izquierda, contra el reloj") + " (agarre derecho " + (dR * 100f).ToString("+0;-0") + " cm, izquierdo " + (dL * 100f).ToString("+0;-0") + " cm" + hnote + ")");
+            }
+            DesertCars.DbgSteer = 0f; yield return 0.8f;
+        }
         if (bodyOn)
         {
             r.Check(pb.OnWheel && pb.WheelErrL < 0.06f && pb.WheelErrR < 0.06f, T + "primera persona: las dos manos en el volante (error " + pb.WheelErrL.ToString("F3") + " / " + pb.WheelErrR.ToString("F3") + " m, se inclina " + pb.WheelLean.ToString("F2") + " m)");
@@ -211,6 +232,11 @@ public static class V790Checks
             r.Check(pbx != null && PlayerBody.ExternalView && pbx.Visible && pbx.HeadShown && layerOn && !pbx.PropShown && pbx.OnWheel && new Vector2(bl.x - sl.x, bl.z - sl.z).magnitude < 0.35f && Vector3.Dot(pbx.transform.forward, car.transform.forward) > 0.95f && headY < car.ModelHeight - 0.12f,
                 T + "C (por detrás): el conductor se ve en su asiento (capa " + layerOn + ", cabeza " + (pbx != null && pbx.HeadShown) + ", volante " + (pbx != null && pbx.OnWheel) + ", linterna oculta " + (pbx != null && !pbx.PropShown) + ", a " + new Vector2(bl.x - sl.x, bl.z - sl.z).magnitude.ToString("F2") + " m del asiento, cabeza a " + headY.ToString("F2") + " m, techo " + car.ModelHeight.ToString("F2") + " m)");
         }
+        {   // v7.9.2 (t445u/t453u): la sonda de reflejos del coche no tiñe la arena (manchas blancas que seguían al coche)
+            DesertWorld dw = DesertWorld.Active; int sr = 0, sp = 0;
+            if (dw != null) foreach (MeshRenderer mr in dw.GetComponentsInChildren<MeshRenderer>(true)) if (mr.sharedMaterial == dw.SandMat) { sr++; if (mr.reflectionProbeUsage != UnityEngine.Rendering.ReflectionProbeUsage.Off) sp++; }
+            r.Check(dw != null && sr > 0 && sp == 0 && !DesertWorld.DebugOldSandProbe, T + "la arena no usa la sonda de reflejos del coche (" + sr + " trozos de duna, " + sp + " con sonda); color medido en V792Sand");
+        }
         DesertCars.DbgCamCycle = true; yield return 0.3f;
         { Vector3 lastH = Vector3.one * 99f; IEnumerator wf = WaitFor(() => { Vector3 h = car.transform.InverseTransformPoint(cam.position); bool st = (h - lastH).magnitude < 0.01f && h.z > 0.9f; lastH = h; return st; }, 4f); while (wf.MoveNext()) yield return wf.Current; }   // la cámara se desliza: esperar a que llegue (con fotogramas lentos tarda más)
         Vector3 hood = car.transform.InverseTransformPoint(cam.position);
@@ -243,7 +269,7 @@ public static class V790Checks
     {
         string T = "[v7.9.0] ";
         EditMore(r, T);
-        r.Check(GameVersion.Current == "7.9.1" && NetSession.Protocol == "BackroomsEscape-MP-12", T + "versión " + GameVersion.Current + ", protocolo " + NetSession.Protocol);
+        r.Check(GameVersion.Current == "7.9.2" && NetSession.Protocol == "BackroomsEscape-MP-12", T + "versión " + GameVersion.Current + ", protocolo " + NetSession.Protocol);
         // ruidos
         string bad = ""; float worst = 0f;
         for (int k = 0; k < Level0Events.NoiseNames.Length; k++)
