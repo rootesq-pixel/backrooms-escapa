@@ -20,7 +20,7 @@ using UnityEngine.EventSystems;
 //      (sin -quit en PlayMode: el propio test llama a EditorApplication.Exit)
 public static class SmokeTest
 {
-    private const string EditReport = "/workspace/logs/smoke-editmode.txt";
+    private static readonly string EditReport = TestPaths.Logs + "/smoke-editmode.txt";
     private static readonly int[] Seeds = { 1, 7, 12345 };
 
     // ------------------------------------------------------------------
@@ -859,18 +859,18 @@ public static class SmokeTest
     private static void TestV4Assets(Report r)
     {
         // Niveles
-        r.Check(LevelConfig.Count == 9 && LevelConfig.Get(5).name == "Campo infinito" && LevelConfig.Get(5).layout == LayoutKind.Field && LevelConfig.Get(6).name == "Parque de bolas" && LevelConfig.Get(6).halls > 0 && LevelConfig.Get(7).name == "Talasofobia" && LevelConfig.Get(7).layout == LayoutKind.Ocean && LevelConfig.Get(8).layout == LayoutKind.Desert && LevelConfig.Get(8).DisplayNumber == "114", "hay 9 niveles; el 5 es el Campo infinito, el 6 el Parque de bolas, el 7 Talasofobia y el 8 el Nivel 114 (desierto) (" + LevelConfig.Count + ")");
+        r.Check(LevelConfig.Count == 10 && LevelConfig.Get(9).layout == LayoutKind.Corridor && LevelConfig.Get(9).DisplayNumber == "7460" && LevelConfig.Get(5).name == "Campo infinito" && LevelConfig.Get(5).layout == LayoutKind.Field && LevelConfig.Get(6).name == "Parque de bolas" && LevelConfig.Get(6).halls > 0 && LevelConfig.Get(7).name == "Talasofobia" && LevelConfig.Get(7).layout == LayoutKind.Ocean && LevelConfig.Get(8).layout == LayoutKind.Desert && LevelConfig.Get(8).DisplayNumber == "114", "hay 10 niveles; el 5 es el Campo infinito, el 6 el Parque de bolas, el 7 Talasofobia, el 8 el Nivel 114 (desierto) y el 9 el Nivel 7460 (pasillo de puertas) (" + LevelConfig.Count + ")");
         r.Check(LevelConfig.Get(2).water && LevelConfig.Get(2).name == "Poolrooms", "nivel 2 = Poolrooms (antes «Salas inundadas»: agua realista)");
         bool onlyOneWater = true; for (int i = 0; i < LevelConfig.Count; i++) if (i != 2 && LevelConfig.Get(i).water && LevelConfig.Get(i).layout != LayoutKind.Ocean) onlyOneWater = false;   // v7.3.0: el mar abierto es aparte
         r.Check(onlyOneWater && LevelConfig.Get(3).name == "Hotel abandonado" && LevelConfig.Get(4).name == "Complejo industrial", "sin otro nivel de agua; nivel 3 = hotel, nivel 4 = industrial");
         r.Check(MonsterProfile.ForLevel(2).id == "DrownedZombie", "el Ahogado es el monstruo del nivel de agua (Poolrooms)");
         r.Check(Resources.Load<GameObject>("Poolrooms/PoolHall") == null && MonsterProfile.ById("AlienBug") == null, "el modelo PoolHall y El Reptador ya no existen");
-        r.Check(LoreNotes.Total == 27 && !LoreNotes.Valid(90) && LoreNotes.Valid(82) && LoreNotes.Valid(72) && LoreNotes.Valid(62) && LoreNotes.Valid(52), "27 notas de ambiente (3 por nivel, 9 niveles)");
+        r.Check(LoreNotes.Total == 30 && !LoreNotes.Valid(100) && LoreNotes.Valid(92) && LoreNotes.Valid(82) && LoreNotes.Valid(72) && LoreNotes.Valid(62) && LoreNotes.Valid(52), "30 notas de ambiente (3 por nivel, 10 niveles)");
         var seenMonsters = new HashSet<string>();
         for (int i = 0; i < LevelConfig.Count; i++)
         {
             LevelConfig c = LevelConfig.Get(i);
-            if (!c.HasMonsterAI) { r.Check((c.layout == LayoutKind.Desert ? c.monsterModel == LevelConfig.NoMonsterId : c.monsterModel == LevelConfig.OceanCreaturesId) && c.monsterCount == 0, "nivel " + i + " (" + c.name + "): sin monstruo de NavMesh (" + (c.layout == LayoutKind.Desert ? "desierto sin entidades" : "criaturas propias del mar") + ")"); continue; }
+            if (!c.HasMonsterAI) { r.Check((c.NoEntities ? c.monsterModel == LevelConfig.NoMonsterId : c.monsterModel == LevelConfig.OceanCreaturesId) && c.monsterCount == 0, "nivel " + i + " (" + c.name + "): sin monstruo de NavMesh (" + (c.NoEntities ? "nivel sin entidades" : "criaturas propias del mar") + ")"); continue; }
             r.Check(MonsterProfile.ById(c.monsterModel) != null, "nivel " + i + " (" + c.name + "): perfil de monstruo '" + c.monsterModel + "'");
             seenMonsters.Add(c.monsterModel);
         }
@@ -1131,6 +1131,7 @@ public static class SmokeTest
         V770Checks.Edit(r, credits, ui);   // v7.7.0: Nivel 114, El Desierto Cálido
         V771Checks.Edit(r);                // v7.7.1: rocas cerradas, objetos modelados, cordura
         V780Checks.Edit(r);                // v7.8.0: todoterreno, viento, huellas
+        V7460Checks.Edit(r);               // Nivel 7460 (pasillo de puertas)
         V790Checks.Edit(r);                // v7.9.0: nivel 0 (ruidos, apagones rojos) y latido
     }
 
@@ -1427,13 +1428,14 @@ public static class SmokeTest
 
         r.Check(gen.HasLevel, tag + "nivel generado");
         r.Check(gen.ExitTransform != null, tag + "existe la puerta de salida");
-        if (cfg.layout == LayoutKind.Desert) r.Check(cfg.monsterCount == 0 && !cfg.HasMonsterAI, tag + "desierto: sin entidades (nivel seguro)");   // v7.7.0
+        if (cfg.NoEntities) r.Check(cfg.monsterCount == 0 && !cfg.HasMonsterAI, tag + "sin entidades (" + cfg.layout + ")");   // v7.7.0
         else r.Check(gen.MonsterSpawns != null && gen.MonsterSpawns.Count == Mathf.Max(1, cfg.monsterCount), tag + "apariciones de monstruo = " + cfg.monsterCount);
         r.Check(gen.BatterySpots != null && gen.BatterySpots.Count == cfg.batteries, tag + "pilas colocadas = " + cfg.batteries + " (hay " + (gen.BatterySpots != null ? gen.BatterySpots.Count : 0) + ")");
         if (cfg.layout == LayoutKind.Ocean) r.Check(gen.Root.GetComponentInChildren<OceanLighthouse>(true) != null && gen.Root.GetComponentInChildren<OceanCage>(true) != null, tag + "mar: faro a lo lejos y jaula en el muelle");   // v7.3.0
         else if (cfg.layout == LayoutKind.Desert) { DesertWorld dw0 = gen.Root.GetComponentInChildren<DesertWorld>(true); r.Check(dw0 != null && dw0.houseCount > 10 && dw0.ExitTransform != null, tag + "desierto: aldeas con casas y puerta de piedra (sin lámparas: luz del sol y de la luna)"); }
         else if (cfg.layout != LayoutKind.Field) r.Check(gen.FixtureCount > 0, tag + "hay accesorios de luz");
         else r.Check(gen.Root.GetComponentInChildren<FieldExitBeacon>(true) != null, tag + "campo: la salida tiene su farol/radio (pistas sutiles)");
+        if (cfg.layout == LayoutKind.Corridor) V7460Checks.Geometry(r, tag, gen);   // Nivel 7460
         if (cfg.layout == LayoutKind.OpenPillars) r.Check(gen.PillarCount > 0, tag + "hay pilares");
         if (cfg.roomPillars > 0f) r.Check(gen.PillarCount > 0, tag + "pilares empapelados en las salas abiertas: " + gen.PillarCount);
 
@@ -1620,7 +1622,7 @@ public static class SmokeTest
             }
             prev = path[i];
         }
-        if (cfg.layout != LayoutKind.Desert) r.Check(pathFree, tag + "el camino BFS no choca con paredes/pilares (SphereCast r=0.34)");   // v7.7.0: el desierto tiene su propia prueba (SeedReachCheck, a pie por la arena)
+        if (cfg.layout != LayoutKind.Desert && cfg.layout != LayoutKind.Corridor) r.Check(pathFree, tag + "el camino BFS no choca con paredes/pilares (SphereCast r=0.34)");   // v7.7.0: el desierto tiene su propia prueba (SeedReachCheck, a pie por la arena)
         if (path.Count > 0)
         {
             Vector3 last = path[path.Count - 1];
@@ -2050,7 +2052,7 @@ public static class SmokeTest
 
     public static void RunPlayMode()
     {
-        Directory.CreateDirectory("/workspace/logs");
+        Directory.CreateDirectory(TestPaths.Logs);
         File.WriteAllText(PlayReport, "");
         EditorSceneManager.OpenScene("Assets/Scenes/Main.unity");
         SessionState.SetString("smoke_phase", "play");
@@ -2058,7 +2060,7 @@ public static class SmokeTest
         EditorApplication.EnterPlaymode();
     }
 
-    public const string PlayReport = "/workspace/logs/smoke-playmode.txt";
+    public static readonly string PlayReport = TestPaths.Logs + "/smoke-playmode.txt";
 
     // ------------------------------------------------------------------
     // Informe
@@ -2186,7 +2188,7 @@ public static class SmokePlayRunner
     private static void Census(SmokeTest.Report r, string tag, bool inGame, bool compareToLevel0)
     {
         string dump = AudioCensus.Dump(tag);
-        try { File.AppendAllText("/workspace/logs/audio-census.txt", dump); } catch { }
+        try { File.AppendAllText(TestPaths.Logs + "/audio-census.txt", dump); } catch { }
         System.Collections.Generic.List<AudioCensus.Row> rows = AudioCensus.Take();
         int total = 0, drones = 0, hiss = 0, buzzPlaying = 0, buzzAudible = 0, loopsAudible = 0, loopsPlaying = 0, noiseLoopsAudible = 0;
         foreach (AudioCensus.Row x in rows) if (x.clip != "FluorescentBuzz") total++;   // los zumbidos varían con la semilla
@@ -2312,7 +2314,7 @@ public static class SmokePlayRunner
                 r.Check(!up.DialogOpen && !up.CornerButtonVisible && up.CornerText == GameVersion.Label, "[Actualizador] estado restablecido tras la prueba");
             }
         }
-        try { File.Delete("/workspace/logs/audio-census.txt"); } catch { }
+        try { File.Delete(TestPaths.Logs + "/audio-census.txt"); } catch { }
         yield return 0.5f;
         Census(r, "[Audio menú inicial]", false, false);
         r.Check(UnityEngine.Object.FindObjectOfType<UnityEngine.EventSystems.EventSystem>() != null
@@ -3296,6 +3298,14 @@ public static class SmokePlayRunner
                 while (d79.MoveNext()) yield return d79.Current;
                 IEnumerator dp = V770Checks.DesertPlay(r, tag, gm);
                 while (dp.MoveNext()) yield return dp.Current;
+                gm = GameManager.Instance;
+                goto OceanExit;
+            }
+            if (cfg.layout == LayoutKind.Corridor)
+            {   // Nivel 7460: sin entidades; su recorrido termina en la salida abierta con la llave buena
+                Census(r, "[Audio nivel " + lv + " pasillo]", true, false);
+                IEnumerator cp7 = V7460Checks.Play(r, tag, gm);
+                while (cp7.MoveNext()) yield return cp7.Current;
                 gm = GameManager.Instance;
                 goto OceanExit;
             }

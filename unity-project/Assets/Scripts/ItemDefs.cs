@@ -120,6 +120,11 @@ public static class LoreNotes
             "Diario cubierto de arena|Llevo tres días andando y la arena sigue tibia, de día y de noche. No hay nadie: ni bichos, ni monstruos, nada. Solo pájaros de día. Al que cacé le salió sangre amarilla. De noche no queda ni uno.",
             "Papel clavado en un pozo|Si la arena te traga, no luches: no te mueres, apareces en otro sitio del desierto. De noche lleva linterna y no corras cuesta abajo, que resbala. Lo blanco que cae a veces del cielo es nieve, aunque no haga frío.",
             "Hoja arrancada de un mapa|En uno de estos pueblos una casa no tiene puerta de madera: la tiene de PIEDRA. Esa es la salida. Busca el pueblo con la torre alta y mira bien todas las fachadas." },
+        // Nivel 9 — Nivel 7460, El pasillo de las puertas (diseño propio: la wiki no tiene datos)
+        new[] {
+            "Hoja pegada con cinta|He contado 212 puertas y luego he dejado de contar. Son todas iguales: blancas, la manilla a la misma altura, el mismo arañazo en el marco. Casi todas están cerradas. Las que se abren dan a la misma habitación vacía.",
+            "Tarjeta de visita en blanco|No hay nadie más aquí. Lo sé. Pero cuando camino, alguien camina detrás de mí, al mismo paso. Si me giro, se calla. Si me paro, se para. No te gires mucho: no le gusta que lo busquen.",
+            "Nota doblada en cuatro|Detrás de una de estas puertas hay un muro de ladrillo. Detrás de otra, la salida: una puerta que no se abre con la manilla, sino con la llave buena. Las llaves están en las habitaciones. Solo una encaja." },
     };
 
     public static int Total { get { return data.Length * PerLevel; } }

@@ -13,8 +13,8 @@ using UnityEngine.UI;
 // Se coordinan con ficheros marcador en /workspace/logs/mp y con el propio estado de red. Ver mp-test.sh.
 public static class MpTest
 {
-    public const string Dir = "/workspace/logs/mp";
-    public const int TestPort = 47777;
+    public static readonly string Dir = TestPaths.Logs + "/mp";
+    public static readonly int TestPort = int.TryParse(Environment.GetEnvironmentVariable("BE_MP_PORT"), out int tpEnv) ? tpEnv : 47777;   // BE_MP_PORT: otro puerto si hay dos pruebas a la vez
     public static void RunHost() { Start("host"); }
     public static void RunClient() { Start("client"); }
 
@@ -705,11 +705,47 @@ public static class MpPlayRunner
             Vector3 door = dw.ExitTransform.position, st = dw.levelRoot.TransformPoint(dw.ExitLocal);
             Vector3 side = Vector3.Cross(Vector3.up, st - door).normalized;
             hp.Teleport(st + side * 0.45f + Vector3.up * 0.1f, Mathf.Atan2(door.x - st.x, door.z - st.z) * Mathf.Rad2Deg);
-            yield return Wait(() => GameManager.Instance.State == GameManager.GameState.Won, 20, "victoria (anfitrión)");
-            r.Check(GameManager.Instance.State == GameManager.GameState.Won, "[Desierto MP] los dos en la puerta de piedra: victoria final (9 niveles)");
+            yield return Wait(() => GameManager.Instance == null || GameManager.Instance.State != GameManager.GameState.Playing || gb.CurrentLevel == 9, 20, "nivel superado (anfitrión, desierto)");
+            r.Check(GameManager.Instance == null || GameManager.Instance.State == GameManager.GameState.LevelComplete || gb.CurrentLevel == 9, "[Desierto MP] los dos en la puerta de piedra: nivel superado (sigue el Nivel 7460)");
             yield return WaitMark("client_d_done", 60);
             Mark("host_d_done");
             DesertFx.HazardsOn = true;
+        }
+
+        // ---- Nivel 7460 (El pasillo de las puertas): mismo plano para todos, puertas que se abren al pasar cualquiera, ruidos locales y salida en grupo ----
+        {
+            yield return Wait(() => WorldReady(gb, ns, 9), 240, "nivel 9 cargado (anfitrión)");
+            yield return Wait(() => ns.AllReady(), 180, "todos listos en el nivel 9");
+            CorridorWorld cw = CorridorWorld.Active;
+            r.Check(gb.CurrentLevel == 9 && ns.HashesMatch() && ns.HashMismatches == 0 && cw != null && MonsterAI.Instances.Count == 0 && ExitLock.Active != null, "[Pasillo MP] Nivel 7460 con la misma huella en los dos equipos, sin entidades y con cerradura");
+            ElevatorCabin cab9 = ElevatorCabin.Current;
+            yield return Wait(() => cab9 == null || cab9.Released, 40, "puertas del ascensor abiertas (pasillo)");
+            r.Check(cab9 == null || cab9.Released, "[Pasillo MP] llegada en ascensor como en los demás niveles");
+            FirstPersonController hp = GameManager.Instance.player;
+            File.WriteAllText(MpTest.Dir + "/host_corridor.txt", gb.Generator.UsedSeed + ";" + cw.plan.exitRow + ";" + cw.plan.exitSide + ";" + cw.plan.Count(CorridorPlan.Door.Room) + ";" + cw.RoomCount);
+            Mark("host_level9");
+            r.Check(CorridorEvents.Active != null, "[Pasillo MP] ruidos a la espalda del anfitrión (locales, no viajan por la red)");
+            // una habitación: el anfitrión se acerca y el cliente debe ver la hoja abierta
+            int rr = -1, rs = 0;
+            for (int j = 0; j < cw.plan.rows && rr < 0; j++) for (int sd = 0; sd < 2; sd++) if (cw.plan.doors[sd, j] == CorridorPlan.Door.Room) { rr = j; rs = sd; break; }
+            yield return WaitMark("client_c_ready", 60);
+            if (rr >= 0)
+            {
+                hp.Teleport(cw.DoorWorld(rs, rr, 0.6f), rs == CorridorPlan.Left ? 270f : 90f);
+                File.WriteAllText(MpTest.Dir + "/host_c_door.txt", rs + ";" + rr);
+                Mark("host_c_door");
+                yield return WaitMark("client_c_door_seen", 30);
+            }
+            // salida en grupo (la llave la prueba el bloque «Llaves»; aquí AutoKeyForTests)
+            yield return WaitMark("client_c_atexit", 90);
+            Vector3 st = cw.DoorWorld(cw.plan.exitSide, cw.plan.exitRow, 0.75f);
+            Vector3 along = cw.levelRoot.TransformDirection(Vector3.forward);
+            hp.Teleport(st + along * 0.35f + Vector3.up * 0.1f, cw.plan.exitSide == CorridorPlan.Left ? 270f : 90f);
+            yield return Wait(() => GameManager.Instance.State == GameManager.GameState.Won, 25, "victoria (anfitrión)");
+            r.Check(ExitLock.Active == null || ExitLock.Active.Unlocked, "[Pasillo MP] la salida queda abierta para los dos");
+            r.Check(GameManager.Instance.State == GameManager.GameState.Won, "[Pasillo MP] los dos en la salida del pasillo: victoria final (10 niveles)");
+            yield return WaitMark("client_c_done", 60);
+            Mark("host_c_done");
         }
 
         // ---- desconexión del cliente ----
@@ -1324,11 +1360,47 @@ public static class MpPlayRunner
             yield return Wait(() => NetSession.LocalAtExit || gm.State == GameManager.GameState.Won, 4, "cliente en la puerta de piedra");
             r.Check(NetSession.LocalAtExit || gm.State == GameManager.GameState.Won, "[Desierto MP] el cliente en la puerta de piedra cuenta como en la salida");
             Mark("client_d_atexit");
-            yield return Wait(() => gm.State == GameManager.GameState.Won, 30, "victoria (cliente)");
-            r.Check(gm.State == GameManager.GameState.Won, "[Desierto MP] el cliente ve la victoria final");
+            yield return Wait(() => gm == null || gm.State != GameManager.GameState.Playing || gb.CurrentLevel == 9, 30, "nivel superado (cliente, desierto)");
+            r.Check(gm == null || gm.State == GameManager.GameState.LevelComplete || gb.CurrentLevel == 9, "[Desierto MP] el cliente pasa al Nivel 7460 tras la puerta de piedra");
             Mark("client_d_done");
             yield return WaitMark("host_d_done", 60);
             DesertFx.HazardsOn = true;
+        }
+
+        // ---- Nivel 7460 en el cliente ----
+        {
+            yield return Wait(() => WorldReady(gb, ns, 9) && gb.IsLoaded, 240, "nivel 9 cargado (cliente)");
+            yield return WaitMark("host_level9", 240);
+            gm = GameManager.Instance; FirstPersonController pc = gm.player;
+            CorridorWorld cw = CorridorWorld.Active;
+            string[] hc = File.ReadAllText(MpTest.Dir + "/host_corridor.txt").Split(';');
+            r.Check(cw != null && hc.Length >= 5 && gb.Generator.UsedSeed == int.Parse(hc[0]) && cw.plan.exitRow == int.Parse(hc[1]) && cw.plan.exitSide == int.Parse(hc[2]) && cw.RoomCount == int.Parse(hc[4]),
+                "[Pasillo MP] el cliente tiene el mismo pasillo (semilla, puerta de salida en el módulo " + (cw != null ? cw.plan.exitRow : -1) + ", " + (cw != null ? cw.RoomCount : 0) + " habitaciones)");
+            r.Check(MonsterAI.Instances.Count == 0 && CorridorEvents.Active != null && ExitLock.Active != null, "[Pasillo MP] el cliente: sin entidades, con sus propios ruidos a la espalda y la misma cerradura");
+            r.Check(gm.healthFill != null && gm.healthFill.gameObject.activeInHierarchy, "[Pasillo MP] VIDA en el HUD del cliente");
+            pc.Teleport(cw.levelRoot.TransformPoint(new Vector3(cw.CenterX, 0.1f, 2f)), 0f);
+            Mark("client_c_ready");
+            yield return WaitMark("host_c_door", 60);
+            {
+                string[] dd = File.ReadAllText(MpTest.Dir + "/host_c_door.txt").Split(';');
+                Vector3 dp = cw.DoorWorld(int.Parse(dd[0]), int.Parse(dd[1]), 0.6f); dp.y = 0f;
+                HotelDoorLeaf leaf = null; float best = 9f;
+                foreach (HotelDoorLeaf l in cw.OpenableDoors) { Vector3 c = l.center; c.y = 0f; float d = Vector3.Distance(c, dp); if (d < best) { best = d; leaf = l; } }
+                yield return Wait(() => leaf != null && leaf.IsOpen, 8, "la puerta de la habitación se abre al llegar el anfitrión (cliente)");
+                r.Check(leaf != null && leaf.IsOpen, "[Pasillo MP] el cliente ve abrirse la puerta de la habitación cuando llega el anfitrión");
+                Mark("client_c_door_seen");
+            }
+            Vector3 st = cw.DoorWorld(cw.plan.exitSide, cw.plan.exitRow, 0.75f);
+            Vector3 along = cw.levelRoot.TransformDirection(Vector3.forward);
+            pc.Teleport(st - along * 0.35f + Vector3.up * 0.1f, cw.plan.exitSide == CorridorPlan.Left ? 270f : 90f);
+            yield return Wait(() => NetSession.LocalAtExit || gm.State == GameManager.GameState.Won, 6, "cliente en la salida del pasillo");
+            r.Check(NetSession.LocalAtExit || gm.State == GameManager.GameState.Won, "[Pasillo MP] el cliente en la puerta de salida cuenta como en la salida");
+            Mark("client_c_atexit");
+            yield return Wait(() => gm.State == GameManager.GameState.Won, 30, "victoria (cliente)");
+            r.Check(ExitLock.Active == null || ExitLock.Active.Unlocked, "[Pasillo MP] el cliente ve la salida abierta");
+            r.Check(gm.State == GameManager.GameState.Won, "[Pasillo MP] el cliente ve la victoria final");
+            Mark("client_c_done");
+            yield return WaitMark("host_c_done", 60);
         }
 
         // ---- salir, reintentar con la partida en marcha, reunirse y ver el cierre del anfitrión ----

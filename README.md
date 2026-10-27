@@ -1,6 +1,6 @@
 # BACKROOMS: ESCAPA
 
-Juego de terror en primera persona para PC (Windows 64 bits) hecho con **Unity**: escapa de las Backrooms a través de **9 niveles** encadenados. Cada nivel es un laberinto (o aparcamiento abierto, campo, mar o desierto) procedural con su propia estética, luces, dificultad y criaturas que patrullan y te persiguen (el Nivel 114, el desierto cálido, es seguro: no hay entidades). La salida es una puerta discreta que **solo se descubre explorando**: sin cartel, sin flecha, sin indicador de distancia.
+Juego de terror en primera persona para PC (Windows 64 bits) hecho con **Unity**: escapa de las Backrooms a través de **10 niveles** encadenados. Cada nivel es un laberinto (o aparcamiento abierto, campo, mar, desierto o un pasillo infinito) procedural con su propia estética, luces, dificultad y criaturas que patrullan y te persiguen (el Nivel 114, el desierto cálido, y el Nivel 7460, el pasillo de las puertas, no tienen entidades). La salida es una puerta discreta que **solo se descubre explorando**: sin cartel, sin flecha, sin indicador de distancia.
 
 - 🌐 **Web:** https://rootesq-pixel.github.io/backrooms-escapa/
 - ⬇️ **Descarga directa v7.3.0 (Windows, ZIP ≈ 201 MB):** [BackroomsEscape_v7_3_0_Windows.zip](https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v7.3.0/BackroomsEscape_v7_3_0_Windows.zip)
