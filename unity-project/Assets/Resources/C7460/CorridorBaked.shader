@@ -26,7 +26,7 @@ Shader "Backrooms/CorridorBaked"
         #pragma surface surf Standard noambient nolightmap nodynlightmap nodirlightmap vertex:vert
         #pragma target 3.0
         sampler2D _MainTex, _BumpMap, _MaskMap, _LightMap;
-        sampler2D _C7460PlanarTex; float _C7460PlanarOn; float4 _C7460PlanarP;   // x fuerza, y F0, z distorsión, w mip por rugosidad
+        sampler2D _C7460PlanarTex; float _C7460PlanarOn; float4 _C7460PlanarP; float _C7460Streak;   // v3: estela vertical (resina brillante, no espejo)   // x fuerza, y F0, z distorsión, w mip por rugosidad
         fixed4 _Color; half _Glossiness, _LMScale, _LMMin, _BumpScale, _PlanarK, _ProbeK;
         struct Input { float2 uv_MainTex; float2 lmuv; float4 screenPos; float3 worldPos; float wny; };
         void vert(inout appdata_full v, out Input o) { UNITY_INITIALIZE_OUTPUT(Input, o); o.lmuv = v.texcoord1.xy; o.wny = UnityObjectToWorldNormal(v.normal).y; }
@@ -49,7 +49,14 @@ Shader "Backrooms/CorridorBaked"
                 float F = _C7460PlanarP.y + (1.0 - _C7460PlanarP.y) * pow(1.0 - ndv, 5.0);
                 float2 suv = IN.screenPos.xy / max(IN.screenPos.w, 1e-4) + tn.xy * _C7460PlanarP.z;
                 float rough = 1.0 - o.Smoothness;
-                float3 pr = tex2Dlod(_C7460PlanarTex, float4(suv, 0, rough * _C7460PlanarP.w)).rgb;
+                float mip = rough * _C7460PlanarP.w;
+                float3 pr = 0; float wsum = 0;
+                [unroll] for (int i = -4; i <= 4; i++)
+                {   // reflejo estirado hacia el observador: los plafones dejan una raya larga en el suelo, como en la foto
+                    float wgt = exp(-i * i / 10.0);
+                    pr += tex2Dlod(_C7460PlanarTex, float4(suv + float2(0, i * _C7460Streak), 0, mip)).rgb * wgt; wsum += wgt;
+                }
+                pr /= wsum;
                 o.Emission = o.Emission * (1.0 - F) + pr * F * _PlanarK * _C7460PlanarP.x;   // energía: lo que refleja no se difunde
                 o.Occlusion *= 0.12;   // la sonda casi no suma: el reflejo nítido viene del planar
             }

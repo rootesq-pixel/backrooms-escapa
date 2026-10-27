@@ -15,12 +15,15 @@ public class CorridorWorld : MonoBehaviour
     public static CorridorWorld Active { get; private set; }
     // medidas del módulo de Blender (corridor.json)
     public const float CS = 2.4f, HW = 1.55f, H = 3.0f, DW = 0.92f, DH = 2.12f, JT = 0.16f, XF = 1.58f, XB = 1.62f, XR = 1.71f, RD = 3.0f, RW = 2.2f, RH = 2.8f;   // v2: una puerta cada 2,4 m (como la foto)
+    // v3: muebles de la habitación (x desde el eje del pasillo, z desde el centro de la puerta): mesa, silla, archivador, cajas
+    public static readonly Vector4[] Furn = { new Vector4(4.05f, 4.68f, -0.62f, 0.52f), new Vector4(3.52f, 3.97f, -0.30f, 0.12f), new Vector4(4.175f, 4.69f, 0.63f, 1.08f), new Vector4(3.26f, 4.16f, -1.07f, -0.67f) };
+    public static readonly float[] FurnH = { 0.74f, 0.92f, 1.02f, 0.64f };
     public const float Gap = 0.003f, HandleY = 1.0f, HandleZ = 0.39f;
     public const int ChunkModules = 10;
-    public const float BakeExposure = 0.40f, RoomExposure = 0.95f;   // v2: módulo más denso (irradiancia mediana 3,5 en vez de 2,1)   // irradiancia horneada -> pantalla (con el ACES del PostStack)
-    public const float PanelEmission = 3.2f;
-    public static readonly Color WallTint = new Color(0.88f, 0.88f, 0.89f), FloorTint = new Color(1.16f, 1.18f, 1.22f), CeilTint = new Color(1.40f, 1.40f, 1.40f);
-    public const float WallBump = 0.3f, TrimMinLM = 0.95f;   // pizarra menos azul (como la foto) y resina algo más clara
+    public const float BakeExposure = 0.32f, RoomExposure = 0.95f;   // v2: módulo más denso (irradiancia mediana 3,5 en vez de 2,1)   // irradiancia horneada -> pantalla (con el ACES del PostStack)
+    public const float PanelEmission = 2.4f;   // v3: plafones nítidos, sin halo (la foto no tiene bloom)
+    public static readonly Color WallTint = new Color(0.88f, 0.88f, 0.89f), FloorTint = new Color(1.28f, 1.30f, 1.40f), CeilTint = new Color(1.95f, 1.97f, 2.03f);   // v3: medidos frente a la foto (mediana de píxeles de pared/techo/suelo)
+    public const float WallBump = 0.12f, TrimMinLM = 0.95f, LeafMinLM = 2.4f;   // pizarra menos azul (como la foto) y resina algo más clara
     public const float FarClip = 420f;
     public static bool HasAssets { get { return Resources.Load<TextAsset>("C7460/C7460Module") != null && Shader.Find("Backrooms/CorridorBaked") != null; } }
 
@@ -75,7 +78,7 @@ public class CorridorWorld : MonoBehaviour
     }
 
     // submallas de Blender (build_corridor.py)
-    public const int MFloor = 0, MWall = 1, MCeil = 2, MTrim = 3, MDoor = 4, MMetal = 5, MEmit = 6, MBrick = 7;
+    public const int MFloor = 0, MWall = 1, MCeil = 2, MTrim = 3, MDoor = 4, MMetal = 5, MEmit = 6, MBrick = 7, MWood = 8, MPaint = 9, MCard = 10, MFabric = 11;
     static readonly float[] Tile = { 6.8f, 2.0f, 2.0f, 1f, 1f, 1f, 1f, 2f };
 
     // combinador de mallas con transformación (espejo en x opcional) y desplazamiento de UV0 por material
@@ -188,7 +191,9 @@ public class CorridorWorld : MonoBehaviour
         roomMats = new Material[] {
             Baked("C7460Floor", lmr, RoomExposure, 1f, 1f, FloorTint), Baked("C7460Wall", lmr, RoomExposure, 1f, 0f, WallTint),
             Baked("C7460Ceil", lmr, RoomExposure, 1f, 0f, CeilTint), Baked("C7460Trim", lmr, RoomExposure, 1f, 0f, white),
-            Baked("C7460Trim", lmr, RoomExposure, 1.05f, 0f, white) };
+            Baked("C7460Trim", lmr, RoomExposure, 1.05f, 0f, white), null, null, null,
+            Baked("C7460Wood", lmr, RoomExposure, 1f, 0f, white), Baked("C7460Paint", lmr, RoomExposure, 1f, 0f, white),
+            Baked("C7460Card", lmr, RoomExposure, 1f, 0f, white), Baked("C7460Fabric", lmr, RoomExposure, 1f, 0f, white) };   // v3: muebles horneados con la habitación
         roomMats[1].SetFloat("_BumpScale", WallBump);
         metalMat = ProceduralAssets.CreateMaterial(new Color(0.80f, 0.80f, 0.82f), null, Vector2.one, 0.86f); metalMat.SetFloat("_Metallic", 1f); metalMat.name = "C7460_Chrome"; track(metalMat);
         emitMat = ProceduralAssets.CreateMaterial(new Color(0.95f, 0.95f, 0.95f), null, Vector2.one, 0.2f); ProceduralAssets.SetEmission(emitMat, new Color(1f, 0.99f, 0.97f) * PanelEmission); emitMat.name = "C7460_Panel"; track(emitMat);
@@ -203,7 +208,7 @@ public class CorridorWorld : MonoBehaviour
         brickMat = Baked("C7460Brick", dim, BakeExposure, 1f, 0f, white);
         Material nicheTrim = Baked("C7460Trim", dim, BakeExposure, 1f, 0f, white);
         Material endTrim = Baked("C7460Trim", flat, BakeExposure, 1f, 0f, white);
-        glowMat = ProceduralAssets.CreateMaterial(Color.white, null, Vector2.one, 0f); ProceduralAssets.SetEmission(glowMat, new Color(1f, 0.98f, 0.94f) * 4.5f); glowMat.name = "C7460_ExitGlow"; track(glowMat);
+        glowMat = ProceduralAssets.CreateMaterial(Color.white, null, Vector2.one, 0f); ProceduralAssets.SetEmission(glowMat, new Color(1f, 0.98f, 0.94f) * 1.9f); glowMat.name = "C7460_ExitGlow"; track(glowMat);
 
         Loaded mod = Load("C7460/C7460Module"), leaf = Load("C7460/C7460Leaf"), room = Load("C7460/C7460Room");
         Vector3 hinge = new Vector3(XB, 0f, -DW * 0.5f + Gap);
@@ -231,7 +236,10 @@ public class CorridorWorld : MonoBehaviour
         // --- hojas que se mueven (habitaciones, tapiadas, salida) y lo que hay detrás ---
         Combiner lc = new Combiner(); lc.Add(leaf, Vector3.zero, false, 0f);
         Mesh leafMesh = lc.Build("C7460Leaf", out List<int> leafIds); track(leafMesh);
-        Material[] leafMats = MatsFor(leafIds, modMats);
+        // v3: la cara de la hoja que da a la habitación se horneó a oscuras (puerta cerrada): mínimo de irradiancia propio, como la luz que entra del pasillo
+        Material leafDoor = new Material(modMats[4]) { name = "C7460_LeafDoor" }; leafDoor.SetFloat("_LMMin", LeafMinLM); track(leafDoor);
+        Material leafTrim = new Material(modMats[3]) { name = "C7460_LeafTrim" }; leafTrim.SetFloat("_LMMin", LeafMinLM); track(leafTrim);
+        Material[] leafMats = MatsFor(leafIds, new[] { modMats[0], modMats[1], modMats[2], leafTrim, leafDoor });
         Combiner rc = new Combiner(); rc.Add(room, Vector3.zero, false, 0f);
         Mesh roomMesh = rc.Build("C7460Room", out List<int> roomIds); track(roomMesh);
         Material[] rMats = MatsFor(roomIds, roomMats);
@@ -260,6 +268,11 @@ public class CorridorWorld : MonoBehaviour
                     Box("RoomS_" + s + "_" + k, new Vector3(rcx, RH * 0.5f, zc - RW * 0.5f - 0.1f), new Vector3(RD + 0.4f, RH, 0.2f));
                     Box("RoomN_" + s + "_" + k, new Vector3(rcx, RH * 0.5f, zc + RW * 0.5f + 0.1f), new Vector3(RD + 0.4f, RH, 0.2f));
                     Box("RoomCeil_" + s + "_" + k, new Vector3(rcx, RH + 0.1f, zc), new Vector3(RD + 0.4f, 0.2f, RW + 0.4f));
+                    foreach (Vector4 fb in Furn)   // muebles (mismas medidas que build_corridor.py: x0, x1, y0, y1 y alto en FurnH)
+                    {
+                        int fi = System.Array.IndexOf(Furn, fb);
+                        Box("RoomFurn_" + s + "_" + k + "_" + fi, new Vector3(cx + sg * (fb.x + fb.y) * 0.5f, FurnH[fi] * 0.5f, zc + (fb.z + fb.w) * 0.5f), new Vector3(fb.y - fb.x, FurnH[fi], fb.w - fb.z));
+                    }
                     RoomCount++;
                 }
                 else if (d == CorridorPlan.Door.Bricked)
@@ -370,7 +383,7 @@ public class CorridorWorld : MonoBehaviour
         {
             Vector2Int rm = rooms[ri++ % rooms.Count];
             float sg = rm.x == CorridorPlan.Left ? -1f : 1f;
-            float x = CenterX + sg * (XR + 0.6f + (float)r.NextDouble() * (RD - 1.2f)), z = (rm.y + 0.5f) * CS + ((float)r.NextDouble() - 0.5f) * (RW - 1.2f);
+            float x = CenterX + sg * (XR + 0.7f + (float)r.NextDouble() * 0.7f), z = (rm.y + 0.5f) * CS - 0.3f + (float)r.NextDouble() * 0.8f;   // v3: delante de los muebles y fuera del barrido de la hoja
             return levelRoot.TransformPoint(new Vector3(x, 0.1f, z));
         };
         System.Func<Vector3> hallSpot = () =>
@@ -472,13 +485,15 @@ public class CorridorPlanar : MonoBehaviour
     public static CorridorPlanar Instance { get; private set; }
     public static bool ForceOff;
     public int Renders { get; private set; }
-    public static readonly Vector4 Params = new Vector4(1.0f, 0.045f, 0.012f, 5.5f);
+    public static readonly Vector4 Params = new Vector4(0.85f, 0.04f, 0.010f, 6.5f);
     public static CorridorPlanar Ensure(GameObject host, float y)
     {
         CorridorPlanar p = host.GetComponent<CorridorPlanar>(); if (p == null) p = host.AddComponent<CorridorPlanar>();
         p.floorY = y; Instance = p; return p;
     }
     private Camera rc; private RenderTexture rt; private int size;
+    public static float Streak = 0.011f;   // v3: separación vertical de las 9 muestras del reflejo (pantalla)
+    private static readonly int StreakId = Shader.PropertyToID("_C7460Streak");
     private static readonly int TexId = Shader.PropertyToID("_C7460PlanarTex"), OnId = Shader.PropertyToID("_C7460PlanarOn"), PId = Shader.PropertyToID("_C7460PlanarP");
     private int lastFrame = -10;
     private void OnEnable() { Camera.onPreCull += PreCull; }
@@ -501,7 +516,7 @@ public class CorridorPlanar : MonoBehaviour
         if (Instance != this) return;
         int q = GameSettings.Quality;
         int want = q >= 2 ? 720 : q == 1 ? 432 : 0;
-        Shader.SetGlobalVector(PId, Params);
+        Shader.SetGlobalVector(PId, Params); Shader.SetGlobalFloat(StreakId, Streak);
         if (ForceOff || cam == null || want == 0 || SystemInfo.graphicsDeviceType == GraphicsDeviceType.Null) { Shader.SetGlobalFloat(OnId, 0f); return; }
         float aspect = Mathf.Max(1f, cam.aspect);
         if (rt == null || size != want)

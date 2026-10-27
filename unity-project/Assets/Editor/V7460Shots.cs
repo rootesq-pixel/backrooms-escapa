@@ -102,6 +102,7 @@ public static class V7460Shots
         // pasillo: composición como la foto de referencia (centrado, a la altura de los ojos, hacia el punto de fuga)
         p.Teleport(L(0f, 0.1f, 20f * cs), 0f); yield return 2.0f;
         Shot("03_pasillo_centro_punto_de_fuga", false, L(0f, 1.55f, 20.5f * cs), L(0f, 1.45f, 60f * cs));
+        Shot("03b_pasillo_a_1m_como_la_foto", false, L(0f, 1.0f, 20.5f * cs), L(0f, 1.0f, 60f * cs));
         Shot("04_pasillo_centro_hud", true, L(0f, 1.55f, 20.5f * cs), L(0f, 1.45f, 60f * cs));
         Shot("05_pasillo_hacia_el_ascensor", false, L(0f, 1.55f, 30.2f * cs), L(0f, 1.45f, 0f));
         Shot("06_suelo_reflejo", false, L(-0.5f, 1.6f, 22.0f * cs), L(0.2f, 0f, 24.5f * cs));
@@ -117,7 +118,9 @@ public static class V7460Shots
             p.Teleport(w.DoorWorld(rs, rr, 0.7f), rs == CorridorPlan.Left ? 270f : 90f); yield return 2.5f;
             Shot("08_habitacion_puerta_abierta", false, L(-rg * 0.9f, 1.55f, (rr + 0.5f) * cs - 0.9f), L(rg * 3.4f, 1.1f, (rr + 0.5f) * cs));
             p.Teleport(w.RoomCenterWorld(rs, rr) + Vector3.up * 0.1f, 0f); yield return 1.0f;
-            Shot("09_habitacion_dentro", false, w.RoomCenterWorld(rs, rr) + w.levelRoot.TransformVector(new Vector3(rg * 1.25f, 1.55f, -0.85f)), w.RoomCenterWorld(rs, rr) + w.levelRoot.TransformVector(new Vector3(-rg * 1.6f, 1.15f, 0.25f)));
+            Vector3 rc = w.RoomCenterWorld(rs, rr);
+            Shot("09_habitacion_muebles", false, rc + w.levelRoot.TransformVector(new Vector3(-rg * 1.1f, 1.55f, 0.8f)), rc + w.levelRoot.TransformVector(new Vector3(rg * 1.3f, 0.75f, -0.45f)));
+            Shot("09b_habitacion_hacia_la_puerta", false, rc + w.levelRoot.TransformVector(new Vector3(rg * 0.9f, 1.55f, 0.8f)), rc + w.levelRoot.TransformVector(new Vector3(-rg * 1.6f, 1.1f, -0.2f)));
         }
         // tapiada
         int br = -1, bs = 0; for (int j = 0; j < w.plan.rows && br < 0; j++) for (int s = 0; s < 2; s++) if (w.plan.doors[s, j] == CorridorPlan.Door.Bricked) { br = j; bs = s; break; }

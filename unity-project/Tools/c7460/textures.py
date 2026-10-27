@@ -113,4 +113,4 @@ def brick(n=1024):
     h = blur(h.astype(np.float32), 1.0)
     save('C7460Brick', alb, h, np.where(mort, 0.05, 0.25) + noise * 0.05, np.where(mort, 0.7, 1.0), strength=4.0)
 
-floor(); wall(); trim(); ceil(); brick()
+if __name__ == '__main__': floor(); wall(); trim(); ceil(); brick()

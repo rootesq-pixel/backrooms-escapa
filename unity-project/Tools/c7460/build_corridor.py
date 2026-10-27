@@ -33,12 +33,12 @@ CW = 0.075; CP = 0.014; BW = 0.024; BP = 0.022 # moldura: ancho, saliente, junqu
 SKH = 0.11; SKT = 0.016                       # zócalo
 GAP = 0.003                                   # holgura de la hoja
 LW = DW - 2 * GAP; LH = DH - GAP - 0.008      # hoja
-PX = 1.45; PY = 0.95; PF = 0.035              # plafón grande (x a lo ancho, y a lo largo), marco
+PX = 1.0; PY = 1.9; PF = 0.03                 # v3: plafón largo y estrecho (x a lo ancho, y a lo largo): de lejos se funden en una franja, como la foto
 RD = 3.0; RWh = 2.2; RHt = 2.8                # habitación: fondo, ancho (< módulo), alto
 HY = DW / 2 - 0.07; HZ = 1.0                  # manilla: posición a lo largo (lado +y) y altura
-M_FLOOR, M_WALL, M_CEIL, M_TRIM, M_DOOR, M_METAL, M_EMIT, M_BRICK = range(8)
-NMAT = 8
-TILE = {M_FLOOR: 6.8, M_WALL: 2.0, M_CEIL: 2.0, M_TRIM: 1.0, M_DOOR: 1.0, M_METAL: 1.0, M_EMIT: 1.0, M_BRICK: 2.0}
+M_FLOOR, M_WALL, M_CEIL, M_TRIM, M_DOOR, M_METAL, M_EMIT, M_BRICK, M_WOOD, M_PAINT, M_CARD, M_FABRIC = range(12)
+NMAT = 12
+TILE = {M_FLOOR: 6.8, M_WALL: 2.0, M_CEIL: 2.0, M_TRIM: 1.0, M_DOOR: 1.0, M_METAL: 1.0, M_EMIT: 1.0, M_BRICK: 2.0, M_WOOD: 1.2, M_PAINT: 1.0, M_CARD: 0.6, M_FABRIC: 0.5}
 
 def face(bm, pts, m, nrm):
     vs = [bm.verts.new(p) for p in pts]
@@ -182,7 +182,43 @@ def room_mesh():
     box(bm, x0, x0 + SKT, y0, -DW / 2 - CW, 0, SKH, M_TRIM, bevel=0.004); box(bm, x0, x0 + SKT, DW / 2 + CW, y1, 0, SKH, M_TRIM, bevel=0.004)
     box(bm, x1 - SKT, x1, y0, y1, 0, SKH, M_TRIM, bevel=0.004)
     box(bm, x0 + SKT, x1 - SKT, y0, y0 + SKT, 0, SKH, M_TRIM, bevel=0.004); box(bm, x0 + SKT, x1 - SKT, y1 - SKT, y1, 0, SKH, M_TRIM, bevel=0.004)
+    furniture(bm, x0, x1, y0, y1)
     return bm
+
+# v3: muebles de oficina abandonada (horneados con la habitación: sombras de contacto reales). La hoja abierta barre x < XR+1.0, y < -0.4.
+FURN = []   # cajas de colisión para Unity (x0,x1,y0,y1,z1) en coordenadas de la habitación
+def furniture(bm, x0, x1, y0, y1):
+    # mesa contra el fondo: tablero de madera y patas de chapa blanca
+    dx0, dx1, dy0, dy1, dz = x1 - 0.66, x1 - 0.03, -0.62, 0.52, 0.74
+    box(bm, dx0, dx1, dy0, dy1, dz - 0.03, dz, M_WOOD, bevel=0.004)
+    for (lx, ly) in ((dx0 + 0.04, dy0 + 0.04), (dx1 - 0.04, dy0 + 0.04), (dx0 + 0.04, dy1 - 0.04), (dx1 - 0.04, dy1 - 0.04)):
+        box(bm, lx - 0.02, lx + 0.02, ly - 0.02, ly + 0.02, 0, dz - 0.03, M_PAINT, skip=('-z', '+z'))
+    box(bm, dx1 - 0.02, dx1, dy0 + 0.06, dy1 - 0.06, 0.40, dz - 0.03, M_PAINT, skip=('+x',))   # faldón trasero
+    FURN.append((dx0, dx1, dy0, dy1, dz))
+    # silla: asiento y respaldo de tela, armazón cromado, algo girada hacia la puerta
+    cx0, cx1, cy0, cy1 = dx0 - 0.50, dx0 - 0.08, -0.30, 0.12
+    box(bm, cx0, cx1, cy0, cy1, 0.43, 0.48, M_FABRIC, bevel=0.01)
+    box(bm, cx0 - 0.03, cx0 + 0.02, cy0 + 0.02, cy1 - 0.02, 0.52, 0.92, M_FABRIC, bevel=0.012)
+    for (lx, ly) in ((cx0 + 0.03, cy0 + 0.03), (cx1 - 0.03, cy0 + 0.03), (cx0 + 0.03, cy1 - 0.03), (cx1 - 0.03, cy1 - 0.03)):
+        cyl(bm, (lx, ly, 0.0), (0, 0, 1), 0.011, 0.43, M_METAL, seg=10)
+    for ly in (cy0 + 0.03, cy1 - 0.03): cyl(bm, (cx0 - 0.005, ly, 0.48), (0, 0, 1), 0.010, 0.44, M_METAL, seg=10)
+    FURN.append((cx0 - 0.03, cx1, cy0, cy1, 0.92))
+    # archivador metálico de 3 cajones en el rincón
+    fx0, fx1, fy0, fy1, fh = x1 - 0.50, x1 - 0.02, y1 - 0.47, y1 - 0.02, 1.02
+    box(bm, fx0, fx1, fy0, fy1, 0, fh, M_PAINT, bevel=0.005)
+    for k in range(3):
+        z0 = 0.06 + k * 0.32
+        box(bm, fx0 - 0.012, fx0, fy0 + 0.03, fy1 - 0.03, z0, z0 + 0.29, M_PAINT, skip=('+x',), bevel=0.002)
+        box(bm, fx0 - 0.035, fx0 - 0.012, (fy0 + fy1) / 2 - 0.06, (fy0 + fy1) / 2 + 0.06, z0 + 0.22, z0 + 0.24, M_METAL, skip=('+x',))
+    FURN.append((fx0 - 0.035, fx1, fy0, fy1, fh))
+    # cajas de cartón apiladas junto a la pared lateral
+    bx0, bx1, by0, by1 = x0 + 1.55, x0 + 2.05, y0 + 0.03, y0 + 0.43
+    box(bm, bx0, bx1, by0, by1, 0, 0.36, M_CARD, bevel=0.006)
+    box(bm, bx0 + 0.05, bx1 - 0.02, by0 + 0.03, by1 - 0.04, 0.36, 0.64, M_CARD, bevel=0.006)
+    box(bm, bx1 + 0.05, bx1 + 0.40, by0 + 0.02, by0 + 0.32, 0, 0.26, M_CARD, bevel=0.006)
+    FURN.append((bx0, bx1 + 0.40, by0, by1, 0.64))
+    # papeles sobre la mesa
+    box(bm, dx0 + 0.12, dx0 + 0.33, -0.15, 0.15, dz, dz + 0.004, M_TRIM)
 
 def uv0(me):
     uv = me.uv_layers.new(name='UV0')
@@ -231,7 +267,8 @@ def mat(name, col, rough, emit=0.0, metal=0.0):
     return m
 mats = [mat('Floor', (0.205, 0.212, 0.226), 0.14), mat('Wall', (0.093, 0.104, 0.137), 0.55), mat('Ceil', (0.78, 0.80, 0.79), 0.9),
         mat('Trim', (0.84, 0.85, 0.83), 0.35), mat('Door', (0.84, 0.85, 0.83), 0.35), mat('Metal', (0.8, 0.8, 0.8), 0.25, metal=1.0),
-        mat('Emit', (1, 1, 1), 1.0, emit=float(os.environ.get('PANEL_EMIT', '30'))), mat('Brick', (0.38, 0.38, 0.36), 0.8)]
+        mat('Emit', (1, 1, 1), 1.0, emit=float(os.environ.get('PANEL_EMIT', '30'))), mat('Brick', (0.38, 0.38, 0.36), 0.8),
+        mat('Wood', (0.23, 0.12, 0.05), 0.5), mat('Paint', (0.19, 0.20, 0.21), 0.45), mat('Card', (0.40, 0.23, 0.10), 0.9), mat('Fabric', (0.03, 0.035, 0.045), 0.9)]
 for o in (modo, room):
     for m in mats: o.data.materials.append(m)
 
@@ -307,7 +344,7 @@ export(modo, OUT + 'C7460Module.bytes', keep=lambda p: not isleaf(p))
 HINGE = (XB, -DW / 2 + GAP, 0.0)
 export(modo, OUT + 'C7460Leaf.bytes', keep=lambda p: isleaf(p) and p.center.x > 0, origin=HINGE)
 export(room, OUT + 'C7460Room.bytes')
-json.dump(dict(CS=CS, HW=HW, H=H, DW=DW, DH=DH, JT=JT, XF=XF, XB=XB, XR=XR, LT=LT, RD=RD, RW=RWh, RH=RHt, PX=PX, PY=PY, hinge=[HINGE[0], HINGE[2], HINGE[1]],
+json.dump(dict(furn=FURN, CS=CS, HW=HW, H=H, DW=DW, DH=DH, JT=JT, XF=XF, XB=XB, XR=XR, LT=LT, RD=RD, RW=RWh, RH=RHt, PX=PX, PY=PY, hinge=[HINGE[0], HINGE[2], HINGE[1]],
                handle=[XF, HZ, HY], lamp_w=LAMPW, spp=SPP, res=RES, resr=RESR, device=dev), open(OUT + 'corridor.json', 'w'), indent=1)
 bpy.ops.wm.save_as_mainfile(filepath=OUT + 'corridor.blend')
 print('DONE', flush=True)
