@@ -1515,6 +1515,7 @@ public static class SmokeTest
         for (int x = 0; x < gen.GridWidth; x++) for (int z = 0; z < gen.GridHeight; z++) if (gen.DistanceFromStart(x, z) >= 0) reach++;
         int blockedCells = gen.FieldPlan != null ? gen.FieldPlan.blocked.Count : 0;
         if (gen.Hotel != null) for (int x = 0; x < gen.GridWidth; x++) for (int z = 0; z < gen.GridHeight; z++) if (!gen.Hotel.Walkable(x, z)) blockedCells++;   // v7.5.0: hotel: macizo/huecos de ascensor no son celdas
+        if (gen.Corridor != null) for (int x = 0; x < gen.GridWidth; x++) for (int z = 0; z < gen.GridHeight; z++) if (x != 1 && !gen.Corridor.IsRoomCell(x, z)) blockedCells++;   // Nivel 7460: tras las puertas cerradas/tapiadas no hay nada
         r.Check(reach == total - blockedCells, tag + "todas las celdas alcanzables desde el inicio (" + reach + "/" + (total - blockedCells) + (blockedCells > 0 ? ", " + blockedCells + (gen.Hotel != null ? " macizas (hotel)" : " ocupadas por casas/accesorios") : "") + ")");
         r.Check(gen.DistanceFromStart(gen.ExitCell.x, gen.ExitCell.y) >= 0, tag + "celda de salida alcanzable (dist " + gen.DistanceFromStart(gen.ExitCell.x, gen.ExitCell.y) + ")");
 

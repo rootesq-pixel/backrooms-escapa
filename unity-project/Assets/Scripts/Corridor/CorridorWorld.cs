@@ -14,12 +14,12 @@ public class CorridorWorld : MonoBehaviour
 {
     public static CorridorWorld Active { get; private set; }
     // medidas del módulo de Blender (corridor.json)
-    public const float CS = 3.4f, HW = 1.7f, H = 3.2f, DW = 0.94f, DH = 2.14f, JT = 0.16f, XF = 1.73f, XB = 1.77f, XR = 1.86f, RD = 3.0f, RW = 3.2f, RH = 3.0f;
-    public const float Gap = 0.003f, HandleY = 1.0f, HandleZ = 0.40f;
+    public const float CS = 2.4f, HW = 1.55f, H = 3.0f, DW = 0.92f, DH = 2.12f, JT = 0.16f, XF = 1.58f, XB = 1.62f, XR = 1.71f, RD = 3.0f, RW = 2.2f, RH = 2.8f;   // v2: una puerta cada 2,4 m (como la foto)
+    public const float Gap = 0.003f, HandleY = 1.0f, HandleZ = 0.39f;
     public const int ChunkModules = 10;
-    public const float BakeExposure = 0.52f, RoomExposure = 0.58f;   // irradiancia horneada -> pantalla (con el ACES del PostStack)
+    public const float BakeExposure = 0.40f, RoomExposure = 0.95f;   // v2: módulo más denso (irradiancia mediana 3,5 en vez de 2,1)   // irradiancia horneada -> pantalla (con el ACES del PostStack)
     public const float PanelEmission = 3.2f;
-    public static readonly Color WallTint = new Color(0.95f, 0.95f, 0.95f), FloorTint = new Color(1.08f, 1.10f, 1.14f), CeilTint = new Color(1.22f, 1.22f, 1.22f);
+    public static readonly Color WallTint = new Color(0.88f, 0.88f, 0.89f), FloorTint = new Color(1.16f, 1.18f, 1.22f), CeilTint = new Color(1.40f, 1.40f, 1.40f);
     public const float WallBump = 0.3f, TrimMinLM = 0.95f;   // pizarra menos azul (como la foto) y resina algo más clara
     public const float FarClip = 420f;
     public static bool HasAssets { get { return Resources.Load<TextAsset>("C7460/C7460Module") != null && Shader.Find("Backrooms/CorridorBaked") != null; } }

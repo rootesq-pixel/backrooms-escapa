@@ -111,7 +111,7 @@ public static class V7460Shots
             p.Teleport(w.DoorWorld(rs, rr, 0.7f), rs == CorridorPlan.Left ? 270f : 90f); yield return 2.5f;
             Shot("08_habitacion_puerta_abierta", false, L(-rg * 0.9f, 1.55f, (rr + 0.5f) * cs - 0.9f), L(rg * 3.4f, 1.1f, (rr + 0.5f) * cs));
             p.Teleport(w.RoomCenterWorld(rs, rr) + Vector3.up * 0.1f, 0f); yield return 1.0f;
-            Shot("09_habitacion_dentro", false, w.RoomCenterWorld(rs, rr) + w.levelRoot.TransformVector(new Vector3(rg * 1.2f, 1.55f, -1.2f)), w.RoomCenterWorld(rs, rr) + w.levelRoot.TransformVector(new Vector3(-rg * 1.6f, 1.2f, 0.6f)));
+            Shot("09_habitacion_dentro", false, w.RoomCenterWorld(rs, rr) + w.levelRoot.TransformVector(new Vector3(rg * 1.25f, 1.55f, -0.85f)), w.RoomCenterWorld(rs, rr) + w.levelRoot.TransformVector(new Vector3(-rg * 1.6f, 1.15f, 0.25f)));
         }
         // tapiada
         int br = -1, bs = 0; for (int j = 0; j < w.plan.rows && br < 0; j++) for (int s = 0; s < 2; s++) if (w.plan.doors[s, j] == CorridorPlan.Door.Bricked) { br = j; bs = s; break; }

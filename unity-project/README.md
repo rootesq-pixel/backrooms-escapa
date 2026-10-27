@@ -481,3 +481,24 @@ y se volcó cada clip a WAV (`AudioDump`) para analizarlo con numpy/scipy (RMS, 
 - Nuevo **nivel 8 = Nivel 114 de la wiki** (de Sonicelmaspro2, ampliado por Omaigad12): desierto cálido sin fin (10-17 °C), seguro (sin entidades), con día y noche, clima cada «6 horas» (despejado, nublado, lluvia de agua de almendras, lluvia de «dolor líquido», tormenta de arena, nieve muy rara y el rarísimo «Clima Hermoso» con auroras y arena de colores), pájaros de sangre amarilla solo de día, aldeas en ruinas (casas de adobe y piedra, muebles rotos, pozos, una torre), cuevas con vetas de hierro, oro, plomo y diamante, arenas movedizas que te llevan a otra zona y, muy rara vez, el Vacío.
 - La salida es una **puerta de piedra** en lugar de una puerta de madera en una casa de un pueblo. Objetos: agua de almendras, Raciones Reales (caducadas), agua de anacardo y la rarísima agua de neón.
 - Código: `Assets/Scripts/Desert/` (DesertPlan, DesertHeight, DesertWorld, DesertMesh, DesertSky, DesertFx, DesertItems), shaders `Resources/Desert/Shaders`. Pruebas: `V770Checks`, `SeedReachCheck` (nivel 8). Multijugador: protocolo MP-10 (reloj del desierto del anfitrión).
+
+## Nivel 7460 «El pasillo de las puertas» (rama `level7460`, en pruebas)
+- Nuevo **nivel 9 = Nivel 7460**. La wiki no tiene datos del nivel, así que es un **diseño propio** a partir de la foto de
+  referencia: un pasillo recto y simétrico de ~336 m, paredes gris pizarra, zócalos y molduras blancas, suelo de resina gris
+  brillante y una fila de plafones blancos hasta el punto de fuga. Cientos de **puertas blancas idénticas** a los dos lados
+  (una cada 2,4 m). Casi todas están **cerradas** (la manilla baja y no abre); 14 dan a una **habitación vacía** idéntica (ahí
+  están las 5 llaves, las notas y pilas), alguna da a un **muro de ladrillo** y **una sola es la salida** (cerradura con la
+  llave buena, `ExitLock`; pista de luz bajo la puerta solo a < 7 m). Plano por semilla: igual para todos en multijugador.
+- **Sin entidades**. La tensión la ponen los **ruidos a tu espalda** (`CorridorEvents`): pasos sobre la resina que se callan
+  si te giras a mirar, una puerta que se abre y se cierra (picaporte y golpe, sin crujidos), golpes de nudillos lejanos y
+  susurros. Audio 3D detrás del oyente (±30°, 6–30 m, dentro del pasillo), cada 18–45 s al azar, propios de cada jugador,
+  graves y sin siseo; cada ruido sube el latido (`Adrenaline.Scare`).
+- **Arte**: módulo, hoja de puerta y habitación modelados por código en **Blender 4.2** (`Tools/c7460/build_corridor.py`:
+  molduras de dos escalones, jambas, topes, zócalos biselados, hoja de dos plafones rehundidos, manilla de palanca con roseta y
+  bocallave, bisagras, plafón con marco y difusor) y **horneados con Cycles** (256 muestras, irradiancia directa + indirecta,
+  OIDN) a mapas de luz EXR; texturas PBR propias (`Tools/c7460/textures.py`). En Unity, shader `Backrooms/CorridorBaked`
+  (albedo × luz horneada + especular de sonda), **reflejo planar del suelo** (Alto 720p / Medio 432p / Bajo sin él), sonda de
+  reflexión con proyección de caja que salta de módulo en módulo, niebla clara y bloom suave para el punto de fuga.
+- Pruebas: `V7460Checks` (edición y juego), bloques en `SmokeTest`, `SeedReachCheck` (nivel 9 andando) y `MpTest`
+  (mismo pasillo en los dos equipos, puertas que se abren al llegar el otro, salida en grupo). Capturas: `V7460Shots`.
+  `BE_LOG_DIR` / `BE_MP_PORT` permiten probar dos árboles de trabajo a la vez.
