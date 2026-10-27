@@ -30,6 +30,9 @@ public class Adrenaline : MonoBehaviour
     public int Beats { get; private set; }
     public float ChaseMuffle01 { get; private set; }  // paso-bajo del resto de sonidos durante la persecución (VhsEffect)
     public static float ForceThreatForTests = -1f;    // >= 0: amenaza fija (pruebas)
+    // Nivel 7460: un ruido a tu espalda (CorridorEvents) acelera el latido un rato aunque no haya monstruos
+    public static float ScareThreat;                  // 0..1, decae solo
+    public static void Scare(float k) { ScareThreat = Mathf.Max(ScareThreat, Mathf.Clamp01(k)); }
     private float beatPhase;
 
     private void Awake()
@@ -124,6 +127,7 @@ public class Adrenaline : MonoBehaviour
         if (ForceChasedForTests == 1 && playing) th = Mathf.Max(th, 0.85f);
         if (NetSession.Active && NetSession.Instance != null && NetSession.Instance.LocalDowned) th = 0f;
         th = Mathf.Max(th, Level01 * 0.8f);
+        if (ScareThreat > 0f) { if (playing) th = Mathf.Max(th, ScareThreat); ScareThreat = Mathf.Max(0f, ScareThreat - dt * 0.07f); }
         bool scare = Screamer.Active != null;
         Threat01 = Mathf.MoveTowards(Threat01, th, dt * (th > Threat01 ? 1.6f : 0.35f));
         Bpm = Mathf.Lerp(HeartMinBpm, HeartMaxBpm, Threat01);

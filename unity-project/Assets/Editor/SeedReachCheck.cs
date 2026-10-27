@@ -8,7 +8,7 @@ using UnityEditor; using UnityEditor.SceneManagement; using UnityEngine; using U
 [InitializeOnLoad]
 public static class SeedReachCheck
 {
-    public const string Report = "/workspace/logs/smoke-seedreach.txt";
+    public static readonly string Report = TestPaths.Logs + "/smoke-seedreach.txt";
     public static readonly int[] Level5Seeds = { 7110, 1, 42, 1234, 98765, 20261024 };
     public static readonly int[] Level3Seeds = { 1, 7, 42, 100, 1234, 5555, 98765, 31337, 271828, 8675309, 20261024, 777 };   // v7.5.0
     public static readonly int[] Level8Seeds = { 7110, 1, 42, 1234, 98765, 20261024, 31337, 777 };   // v7.7.0

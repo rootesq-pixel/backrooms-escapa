@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public enum LayoutKind { Maze, OpenPillars, Field, Ocean, Desert }   // v7.3.0: Ocean = Talasofobia (mar abierto, OceanWorld); v7.7.0: Desert = Nivel 114 (DesertWorld)
+public enum LayoutKind { Maze, OpenPillars, Field, Ocean, Desert, Corridor }   // Corridor = Nivel 7460 (CorridorWorld)   // v7.3.0: Ocean = Talasofobia (mar abierto, OceanWorld); v7.7.0: Desert = Nivel 114 (DesertWorld)
 public enum FixtureKind { Panel, Tube, Sconce, Emergency }
 public enum AmbientEvent { None, Drip, Clank }   // v7.3.0d: sin crujido de madera (el usuario lo quitó)
 public enum StepKind { Carpet, Concrete, Water, Metal, Grass, Sand }
@@ -114,7 +114,7 @@ public class LevelConfig
     public Color doorColor = new Color(0.55f, 0.52f, 0.38f);
     public Color doorFrameColor = new Color(0.30f, 0.24f, 0.14f);
 
-    public const int Count = 9;   // v7.3.0: nivel 7 (Talasofobia); v7.7.0: nivel 8 = Nivel 114 (El Desierto Cálido)
+    public const int Count = 10;   // nivel 9 = Nivel 7460 (El pasillo de las puertas)   // v7.3.0: nivel 7 (Talasofobia); v7.7.0: nivel 8 = Nivel 114 (El Desierto Cálido)
     private static LevelConfig[] cache;
 
     public static LevelConfig Get(int index)
@@ -129,7 +129,8 @@ public class LevelConfig
 
     public const string OceanCreaturesId = "OceanCreatures";
     public const string NoMonsterId = "None";   // v7.7.0: el Desierto Cálido es de clase 0: ninguna entidad puede entrar
-    public bool HasMonsterAI { get { return layout != LayoutKind.Ocean && layout != LayoutKind.Desert; } }   // v7.3.0
+    public bool HasMonsterAI { get { return layout != LayoutKind.Ocean && layout != LayoutKind.Desert && layout != LayoutKind.Corridor; } }
+    public bool NoEntities { get { return layout == LayoutKind.Desert || layout == LayoutKind.Corridor; } }   // niveles sin ninguna entidad (114, 7460)   // v7.3.0
     public static int MonsterAILevels { get { int n = 0; for (int i = 0; i < Count; i++) if (Get(i).HasMonsterAI) n++; return n; } }
 
     private static LevelConfig Create(int i)
@@ -145,10 +146,11 @@ public class LevelConfig
             case 5: c = Level5(); break;
             case 6: c = Level6(); break;
             case 7: c = Level7(); break;
-            default: c = Level8(); break;
+            case 8: c = Level8(); break;
+            default: c = Level9(); break;
         }
         // un monstruo distinto por nivel; en Talasofobia no hay monstruo de NavMesh: sus criaturas (Los Pálidos y El Farolero) son procedurales
-        c.monsterModel = c.layout == LayoutKind.Ocean ? OceanCreaturesId : c.layout == LayoutKind.Desert ? NoMonsterId : MonsterProfile.ForLevel(i).id;
+        c.monsterModel = c.layout == LayoutKind.Ocean ? OceanCreaturesId : c.NoEntities ? NoMonsterId : MonsterProfile.ForLevel(i).id;
         return c;
     }
 
@@ -464,6 +466,40 @@ public class LevelConfig
         c.step = StepKind.Sand;
         c.extraSpots = 16;
         c.doorColor = new Color(0.55f, 0.50f, 0.44f); c.doorFrameColor = new Color(0.40f, 0.36f, 0.30f);
+        return c;
+    }
+
+    // Nivel 9: Nivel 7460 — El pasillo de las puertas. La wiki no tiene datos de este nivel ([NO DATA] en las listas del
+    // clúster VIII), así que es un diseño propio: un pasillo gris pizarra, recto y simétrico, que no se acaba, con cientos de
+    // puertas blancas idénticas a los dos lados y plafones blancos en fila hasta el punto de fuga. Casi todas las puertas están
+    // cerradas; algunas dan a habitaciones vacías iguales, otras a un muro de ladrillo y una sola es la salida (con llave).
+    // No hay entidades... pero algo camina detrás de ti (ruidos a tu espalda, CorridorEvents).
+    private static LevelConfig Level9()
+    {
+        LevelConfig c = new LevelConfig();
+        c.index = 9; c.wikiNumber = 7460;
+        c.name = "El pasillo de las puertas";
+        c.subtitle = "Un pasillo gris que no termina y cientos de puertas blancas iguales. Casi todas están cerradas. A tu espalda, alguien camina cuando tú caminas.";
+        c.layout = LayoutKind.Corridor;
+        c.gridW = 3; c.gridH = 100; c.cellSize = 3.4f; c.wallHeight = 3.2f;   // 100 módulos de 3,4 m = 340 m
+        c.loopChance = 0f; c.roomCount = 0;
+        c.wallStyle = SurfaceStyle.ConcreteWall; c.floorStyle = SurfaceStyle.ConcreteFloor; c.ceilingStyle = SurfaceStyle.ConcreteCeiling;
+        c.ambient = new Color(0.62f, 0.63f, 0.66f);      // solo para objetos y cuerpos (el pasillo trae su luz horneada)
+        c.fog = new Color(0.86f, 0.87f, 0.89f);          // el fondo se funde en blanco, como el punto de fuga de la foto
+        c.fogDensity = 0.0042f;
+        c.grade = 0.2f;
+        c.reflectionIntensity = 1f;
+        c.fixture = FixtureKind.Panel; c.lightSpacing = 1; c.deadChance = 0f; c.flickerChance = 0f;
+        c.lightColor = new Color(1f, 0.985f, 0.96f); c.emissionColor = Color.white;
+        c.lightIntensity = 1f; c.lightRange = 0f; c.maxRealtimeLights = 2; c.buzzChance = 0f;
+        c.postExposure = 0.92f; c.postBloom = 0.05f; c.postThreshold = 1.5f;   // plafones nítidos (sin halo grande)
+        c.flashlightDrain = 0.25f; c.flashlightRecharge = 0.3f; c.batteries = 3; c.batteryAmount = 35f; c.flashlightIntensity = 2.0f;
+        c.monsterCount = 0; c.killDistance = 1.3f;
+        c.droneHz = 58f; c.droneNoise = 0.02f; c.droneVolume = 0.10f; c.ambientEvent = AmbientEvent.None;   // zumbido muy bajo de los plafones
+        c.eventInterval = new Vector2(18f, 42f);
+        c.step = StepKind.Concrete;
+        c.extraSpots = 9;
+        c.doorColor = new Color(0.92f, 0.92f, 0.90f); c.doorFrameColor = new Color(0.92f, 0.92f, 0.90f);
         return c;
     }
 }

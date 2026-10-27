@@ -522,7 +522,7 @@ public class GameBootstrap : MonoBehaviour
         RenderSettings.fogColor = cfg.fog;
         RenderSettings.fogDensity = cfg.fogDensity;
         Shader.SetGlobalFloat("_GradeAmt", cfg.grade);
-        PostStack.LevelActive = cfg.index == 2 || cfg.layout == LayoutKind.Field || cfg.layout == LayoutKind.Ocean || cfg.layout == LayoutKind.Desert;   // v6.9: post-procesado tipo POOLS (Poolrooms; v7.0 también el campo)
+        PostStack.LevelActive = cfg.index == 2 || cfg.layout == LayoutKind.Field || cfg.layout == LayoutKind.Ocean || cfg.layout == LayoutKind.Desert || cfg.layout == LayoutKind.Corridor;   // v6.9: post-procesado tipo POOLS (Poolrooms; v7.0 también el campo)
         PostStack.Exposure = cfg.postExposure; PostStack.BloomInt = cfg.postBloom; PostStack.Threshold = cfg.postThreshold;   // v7.2.0: por nivel
         Shader.SetGlobalFloat("_GradeWarm", 1f);
         Shader.SetGlobalFloat("_GradeContrast", 1.4f);
@@ -568,7 +568,8 @@ public class GameBootstrap : MonoBehaviour
         cam.allowHDR = true;
         if (cfg.layout == LayoutKind.Field) FieldAtmosphere.SetupCamera(cam);
         if (cfg.layout == LayoutKind.Desert) { cam.clearFlags = CameraClearFlags.Skybox; cam.farClipPlane = DesertWorld.FarClip; }   // v7.7.0
-        if (cfg.layout == LayoutKind.Ocean) cam.farClipPlane = 330f;   // v7.3.0: el faro se intuye a ~230 m entre la niebla
+        if (cfg.layout == LayoutKind.Ocean) cam.farClipPlane = 330f;
+        if (cfg.layout == LayoutKind.Corridor) cam.farClipPlane = CorridorWorld.FarClip;   // Nivel 7460: el punto de fuga a 340 m   // v7.3.0: el faro se intuye a ~230 m entre la niebla
         camGo.AddComponent<AudioListener>();
         camGo.AddComponent<VhsEffect>();
 
@@ -617,7 +618,8 @@ public class GameBootstrap : MonoBehaviour
         AmbienceAudio amb = worldRoot.AddComponent<AmbienceAudio>();
         amb.Setup(cfg, player.transform);
         if (cfg.index == 0 && cfg.layout == LayoutKind.Maze && !LevelConfig.OldL0) Level0Events.Create(worldRoot.transform, generator, cfg, player.transform, cam);   // v7.9.0: ruidos y apagones rojos
-        if (generator.Halls.Count > 0) PlayparkAudio.Create(worldRoot.transform, player.transform);   // v7.1.0: caja de música y risas lejanas
+        if (generator.Halls.Count > 0) PlayparkAudio.Create(worldRoot.transform, player.transform);
+        if (cfg.layout == LayoutKind.Corridor) CorridorEvents.Create(worldRoot.transform, generator, cfg, player.transform, cam);   // Nivel 7460: ruidos a tu espalda   // v7.1.0: caja de música y risas lejanas
         return player;
     }
 

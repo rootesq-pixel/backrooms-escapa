@@ -47,6 +47,8 @@ public class BackroomsGenerator : MonoBehaviour
     public bool IsField { get { return config != null && config.layout == LayoutKind.Field; } }
     public bool IsDesert { get { return config != null && config.layout == LayoutKind.Desert; } }   // v7.7.0
     public DesertPlan DesertPlan { get; private set; }
+    public bool IsCorridor { get { return config != null && config.layout == LayoutKind.Corridor; } }   // Nivel 7460
+    public CorridorPlan Corridor { get; private set; }
     public Vector3 PlayerStart { get; private set; }
     public float PlayerStartYaw { get; private set; }
     public Vector3 MonsterSpawn { get; private set; }
@@ -164,7 +166,7 @@ public class BackroomsGenerator : MonoBehaviour
         roomCount = config.roomCount;
         roomSizeRange = config.roomSize;
 
-        FieldHeight.Reset(); FieldWrap.OtherRoot = null; DesertPlan = null; FieldPlan = null; Garage = null; GaragePlan.Active = null; StartDoorRepairs = 0;
+        FieldHeight.Reset(); FieldWrap.OtherRoot = null; DesertPlan = null; Corridor = null; FieldPlan = null; Garage = null; GaragePlan.Active = null; StartDoorRepairs = 0;
         UsedSeed = useRandomSeed ? System.Environment.TickCount : seed;
         System.Random rng = new System.Random(UsedSeed);
 
@@ -388,6 +390,15 @@ public class BackroomsGenerator : MonoBehaviour
         for (int i = 0; i <= w; i++) for (int j = 0; j < h; j++) wallsV[i, j] = true;
         for (int i = 0; i < w; i++) for (int j = 0; j <= h; j++) wallsH[i, j] = true;
 
+        // Nivel 7460: un pasillo recto (columna 1) con puertas a los dos lados; detrás, habitaciones (columnas 0 y 2)
+        if (config.layout == LayoutKind.Corridor)
+        {
+            Hotel = null;
+            Corridor = CorridorPlan.Make(UsedSeed, w, h, wallsV, wallsH);
+            startCell = new Vector2Int(1, 0);
+            ChoosePoolBlock(); ChooseHalls();
+            return;
+        }
         // v7.5.0: hotel: plano de edificio completo (no hay laberinto)
         if (config.hotel && config.layout == LayoutKind.Maze)
         {
@@ -788,6 +799,7 @@ public class BackroomsGenerator : MonoBehaviour
         if (cfg.layout == LayoutKind.Field) { BuildFieldGeometry(rng); return; }
         if (cfg.layout == LayoutKind.Ocean) { BuildOceanGeometry(rng); return; }
         if (cfg.layout == LayoutKind.Desert) { BuildDesertGeometry(rng); return; }
+        if (cfg.layout == LayoutKind.Corridor) { BuildCorridorGeometry(rng); return; }
 
         float cs = cellSize;
         float totalW = w * cs;
@@ -1761,6 +1773,25 @@ public class BackroomsGenerator : MonoBehaviour
         KeySpots = new List<Vector3>();
         ExitTransform = dw.ExitTransform;
         ExitPosition = dw.ExitTransform.position;
+    }
+
+    // Nivel 7460: todo el pasillo lo construye CorridorWorld (módulos horneados en Blender, puertas, habitaciones, colisión)
+    private void BuildCorridorGeometry(System.Random rng)
+    {
+        LevelConfig cfg = config;
+        TextureLibrary.ReleaseAllExcept(new HashSet<string>());
+        WallSegmentCount = 0; PillarCount = 0;
+        CorridorWorld cw = CorridorWorld.Build(this, cfg, levelRoot, Corridor, o => Track(o));
+        FixtureCount = cw.plan.rows; LiveFixtureCount = cw.plan.rows;   // un plafón por módulo (emisivo; sin luces en tiempo real)
+        exitCell = Corridor.ExitCell;
+        PlayerStart = levelRoot.TransformPoint(cw.StartLocal + new Vector3(0f, 0.1f, 1.2f)); PlayerStartYaw = 0f;
+        MonsterSpawns = new List<Vector3>();
+        MonsterSpawn = PlayerStart;
+        BatterySpots = new List<Vector3>(cw.BatterySpots);
+        ExtraSpots = new List<Vector3>(cw.ExtraSpots);
+        KeySpots = new List<Vector3>(cw.KeySpots);
+        ExitTransform = cw.ExitTransform;
+        ExitPosition = cw.ExitTransform.position;
     }
 
     // v7.0 Campo infinito: terreno, casas y accesorios (FieldWorld); sin muros, techo ni luces de techo

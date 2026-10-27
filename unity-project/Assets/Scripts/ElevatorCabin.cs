@@ -49,7 +49,8 @@ public class ElevatorCabin : MonoBehaviour
         new Color(0.92f, 0.96f, 1.00f),   // 5 campo infinito: luz de día fría
         new Color(1.00f, 0.90f, 0.78f),   // 6 parque de bolas: fluorescente cálido y desvaído
         new Color(0.62f, 0.86f, 0.92f),   // 7 talasofobia: luz fría y húmeda, verdeazulada
-        new Color(1.00f, 0.88f, 0.70f)    // 8 Nivel 114 desierto: cálida, como la arena al sol
+        new Color(1.00f, 0.88f, 0.70f),   // 8 Nivel 114 desierto: cálida, como la arena al sol
+        new Color(0.96f, 0.97f, 1.00f)    // 9 Nivel 7460 pasillo de puertas: blanco neutro de los plafones
     };
 
     public Phase CurrentPhase { get; private set; }
@@ -166,10 +167,16 @@ public class ElevatorCabin : MonoBehaviour
             Vector3 st = DesertWorld.Active.levelRoot.TransformPoint(DesertWorld.Active.StartLocal);
             pos = st - Forward * (0.1f * ScaleZ); pos.y = st.y - 0.12f;
         }
+        // Nivel 7460: la cabina queda detrás del muro sur del pasillo (z = 0), con el frente en el hueco del muro
+        if (config.layout == LayoutKind.Corridor && CorridorWorld.Active != null)
+        {
+            Vector3 st = CorridorWorld.Active.levelRoot.TransformPoint(CorridorWorld.Active.StartLocal);
+            pos = st - Forward * (frontExtent + 0.02f); pos.y = st.y - 0.12f;
+        }
         transform.SetPositionAndRotation(pos, rot);
 
         BuildModel();
-        bool openShell = config.layout == LayoutKind.Field || config.layout == LayoutKind.Ocean || config.layout == LayoutKind.Desert;   // v7.3.0: en el mar la cabina asoma detrás de la casa inundada
+        bool openShell = config.layout == LayoutKind.Field || config.layout == LayoutKind.Ocean || config.layout == LayoutKind.Desert || config.layout == LayoutKind.Corridor;   // v7.3.0: en el mar la cabina asoma detrás de la casa inundada
         if (openShell) BuildFieldShell(frontExtent);
         else if (IsRealistic) BuildLanding(config);
         BuildColliders(openShell ? 0f : config.cellSize, frontExtent);
@@ -604,6 +611,9 @@ public class ElevatorCabin : MonoBehaviour
         ar.anchorMin = ar.anchorMax = new Vector2(0.5f, 0.5f); ar.sizeDelta = new Vector2(62f, 62f); ar.anchoredPosition = new Vector2(-190f, 0f);
         numText = MakeText(cg.transform, "Number", new Vector2(-30f, 0f), new Vector2(240f, 110f), 92, TextAnchor.MiddleCenter);
         labelText = MakeText(cg.transform, "Label", new Vector2(150f, 0f), new Vector2(170f, 100f), 30, TextAnchor.MiddleCenter);
+        // Nivel 7460: «NIVEL 7460» no cabía y se montaba sobre el número: la etiqueta se encoge si hace falta
+        labelText.horizontalOverflow = HorizontalWrapMode.Wrap; labelText.verticalOverflow = VerticalWrapMode.Truncate;
+        labelText.resizeTextForBestFit = true; labelText.resizeTextMinSize = 14; labelText.resizeTextMaxSize = 30;
         if (IsRealistic)
         {
             // v7.4.0: indicador exterior sobre el dintel del rellano (mira hacia fuera; sigue encendido con la puerta cerrada)
