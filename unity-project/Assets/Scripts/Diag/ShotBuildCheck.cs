@@ -38,8 +38,15 @@ public class ShotBuildCheck : MonoBehaviour
     static Vector3 B(float x, float y, float z) { return new Vector3(x * SX, z + DECK, y * SZ); }
     static float VFov(float lensMm) { return 2f * Mathf.Atan(Mathf.Tan(Mathf.Atan(18f / lensMm)) * 9f / 16f) * Mathf.Rad2Deg; }
 
+    // v7.10.0: si una vista lanza una excepción, la corrutina muere sin Finish(): el ejecutable quedaba abierto y sin restaurar la calidad
+    IEnumerator Watchdog()
+    {
+        float t0 = Time.realtimeSinceStartup; while (Time.realtimeSinceStartup - t0 < 420f) yield return null;
+        Check(false, "tiempo agotado (420 s): la captura no terminó"); Finish();
+    }
     IEnumerator Start()
     {
+        StartCoroutine(Watchdog());
         Directory.CreateDirectory(dir);
         float t0 = Time.realtimeSinceStartup;
         while ((GameBootstrap.Instance == null || !GameBootstrap.Instance.IsLoaded || GameManager.Instance == null || FirstPersonController.LocalInstance == null) && Time.realtimeSinceStartup - t0 < 300f) yield return null;
@@ -1160,9 +1167,11 @@ public class ShotBuildCheck : MonoBehaviour
         Health.DisableForTests = true; CorridorEvents.DisableForTests = true;
         foreach (Renderer rr0 in pw.GetComponentsInChildren<Renderer>(true)) rr0.enabled = false;
         System.Func<float, float, float, Vector3> L = (x, y, z) => w.levelRoot.TransformPoint(new Vector3(w.CenterX + x, y, z));
+        { ReflectionProbe pb = w.Probe; Info("sonda: renders " + w.ProbeRenders + ", modo " + (pb != null ? pb.mode.ToString() : "-") + ", textura " + (pb != null && pb.texture != null ? pb.texture.name + " " + pb.texture.width : "null") + ", custom " + (pb != null && pb.customBakedTexture != null) + ", bounds " + (pb != null ? pb.bounds.ToString() : "-") + ", reflejo por defecto " + RenderSettings.defaultReflectionMode + ", batch " + Application.isBatchMode); }
         Info("pasillo: " + w.plan.rows + " módulos, salida en " + w.plan.exitRow + ", habitaciones " + w.RoomCount + ", fov " + fov.ToString("F0"));
         Vector3 st = L(0f, 0.1f, 20f * cs);
         yield return View(pw, mc, "c_03_pasillo_centro", L(0f, 1.55f, 20.5f * cs), L(0f, 1.45f, 60f * cs), fov, st);
+        { ReflectionProbe pb = w.Probe; Info("sonda tras la 1.ª vista: renders " + w.ProbeRenders + ", modo " + pb.mode + ", textura " + (pb.texture != null ? pb.texture.name : "null") + ", pos " + pb.transform.position + ", bounds " + pb.bounds); }
         yield return View(pw, mc, "c_03b_pasillo_a_1m_como_la_foto", L(0f, 1.0f, 20.5f * cs), L(0f, 1.0f, 60f * cs), fov, st);
         yield return View(pw, mc, "c_05_hacia_el_ascensor", L(0f, 1.55f, 30.2f * cs), L(0f, 1.45f, 0f), fov, L(0f, 0.1f, 30f * cs));
         yield return View(pw, mc, "c_06_suelo_reflejo", L(-0.5f, 1.6f, 22.0f * cs), L(0.2f, 0f, 24.5f * cs), fov, st);

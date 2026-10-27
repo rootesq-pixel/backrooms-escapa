@@ -22,8 +22,11 @@ public class CorridorWorld : MonoBehaviour
     public const int ChunkModules = 10;
     public const float BakeExposure = 0.32f, RoomExposure = 0.95f;   // v2: módulo más denso (irradiancia mediana 3,5 en vez de 2,1)   // irradiancia horneada -> pantalla (con el ACES del PostStack)
     public const float PanelEmission = 2.4f;   // v3: plafones nítidos, sin halo (la foto no tiene bloom)
-    public static readonly Color WallTint = new Color(0.88f, 0.88f, 0.89f), FloorTint = new Color(1.28f, 1.30f, 1.40f), CeilTint = new Color(1.95f, 1.97f, 2.03f);   // v3: medidos frente a la foto (mediana de píxeles de pared/techo/suelo)
-    public const float WallBump = 0.12f, TrimMinLM = 0.95f, LeafMinLM = 2.4f;   // pizarra menos azul (como la foto) y resina algo más clara
+    public const float ProbeK = 0f;   // v3: sin especular de sonda (en el ejecutable en -batchmode/D3D11 la sonda sale negra y en el editor no: mismo aspecto en todas partes)
+    public const float WallGloss = 0.4f, TrimGloss = 0.7f;   // v3: lacado satinado (sin chispas del plafón en el relieve)
+      // v3: pintura mate (antes casi todo el brillo de la pared venía de la sonda)
+    public static readonly Color WallTint = new Color(1.49f, 1.43f, 1.42f), RoomWallTint = new Color(0.95f, 0.95f, 0.97f), FloorTint = new Color(1.27f, 1.29f, 1.38f), CeilTint = new Color(2.47f, 2.50f, 2.58f);   // v3: medidos frente a la foto (mediana de píxeles de pared/techo/suelo)
+    public const float WallBump = 0.06f, TrimMinLM = 0.95f, LeafMinLM = 2.4f;   // pizarra menos azul (como la foto) y resina algo más clara
     public const float FarClip = 420f;
     public static bool HasAssets { get { return Resources.Load<TextAsset>("C7460/C7460Module") != null && Shader.Find("Backrooms/CorridorBaked") != null; } }
 
@@ -132,7 +135,7 @@ public class CorridorWorld : MonoBehaviour
         m.SetTexture("_BumpMap", Resources.Load<Texture2D>("Textures/C7460/" + tex + "_n"));
         m.SetTexture("_MaskMap", Resources.Load<Texture2D>("Textures/C7460/" + tex + "_m"));
         m.SetTexture("_LightMap", lm); m.SetFloat("_LMScale", exposure); m.SetFloat("_Glossiness", gloss); m.SetFloat("_PlanarK", planar);
-        m.SetColor("_Color", tint);
+        m.SetColor("_Color", tint); m.SetFloat("_ProbeK", ProbeK);
         track(m); return m;
     }
 
@@ -175,21 +178,21 @@ public class CorridorWorld : MonoBehaviour
         return w;
     }
 
-    private void OnDestroy() { if (Active == this) Active = null; if (rattleClip != null) ProceduralAssets.SafeDestroy(rattleClip); }
+    private void OnDestroy() { if (probeCube != null) { probeCube.Release(); Destroy(probeCube); } if (probeCam != null) Destroy(probeCam.gameObject); if (Active == this) Active = null; if (rattleClip != null) ProceduralAssets.SafeDestroy(rattleClip); }
 
     void BuildAll()
     {
         Texture lm = Resources.Load<Texture2D>("C7460/C7460_LM"), lmr = Resources.Load<Texture2D>("C7460/C7460Room_LM");
         Color white = Color.white;
         modMats = new Material[] {
-            Baked("C7460Floor", lm, BakeExposure, 1f, 1f, FloorTint), Baked("C7460Wall", lm, BakeExposure, 1f, 0f, WallTint),
-            Baked("C7460Ceil", lm, BakeExposure, 1f, 0f, CeilTint), Baked("C7460Trim", lm, BakeExposure, 1f, 0f, white),
-            Baked("C7460Trim", lm, BakeExposure, 1.05f, 0f, white) };
+            Baked("C7460Floor", lm, BakeExposure, 1f, 1f, FloorTint), Baked("C7460Wall", lm, BakeExposure, WallGloss, 0f, WallTint),
+            Baked("C7460Ceil", lm, BakeExposure, 1f, 0f, CeilTint), Baked("C7460Trim", lm, BakeExposure, TrimGloss, 0f, white),
+            Baked("C7460Trim", lm, BakeExposure, TrimGloss, 0f, white) };
         FloorMat = modMats[0];
         modMats[1].SetFloat("_BumpScale", WallBump);                                     // pintura mate lisa (como la foto)
         modMats[3].SetFloat("_LMMin", TrimMinLM); modMats[4].SetFloat("_LMMin", TrimMinLM);   // jambas y cantos de hoja sin manchas negras
         roomMats = new Material[] {
-            Baked("C7460Floor", lmr, RoomExposure, 1f, 1f, FloorTint), Baked("C7460Wall", lmr, RoomExposure, 1f, 0f, WallTint),
+            Baked("C7460Floor", lmr, RoomExposure, 1f, 1f, FloorTint), Baked("C7460Wall", lmr, RoomExposure, WallGloss, 0f, RoomWallTint),
             Baked("C7460Ceil", lmr, RoomExposure, 1f, 0f, CeilTint), Baked("C7460Trim", lmr, RoomExposure, 1f, 0f, white),
             Baked("C7460Trim", lmr, RoomExposure, 1.05f, 0f, white), null, null, null,
             Baked("C7460Wood", lmr, RoomExposure, 1f, 0f, white), Baked("C7460Paint", lmr, RoomExposure, 1f, 0f, white),
@@ -205,6 +208,8 @@ public class CorridorWorld : MonoBehaviour
         Texture2D dim = new Texture2D(2, 2, TextureFormat.RGBAHalf, false, true) { name = "C7460_NicheLM" };
         Color dl = new Color(1.15f, 1.16f, 1.19f, 1f); dim.SetPixels(new[] { dl, dl, dl, dl }); dim.Apply(false, false); track(dim);
         endMat = Baked("C7460Wall", flat, BakeExposure, 1f, 0f, WallTint);
+        // manillas y bisagras: acero satinado con irradiancia constante (el cromo de verdad necesitaba la sonda y salía negro en el ejecutable)
+        metalMat = Baked("C7460Trim", flat, BakeExposure, 0.9f, 0f, new Color(0.70f, 0.71f, 0.74f)); metalMat.name = "C7460_Steel";
         brickMat = Baked("C7460Brick", dim, BakeExposure, 1f, 0f, white);
         Material nicheTrim = Baked("C7460Trim", dim, BakeExposure, 1f, 0f, white);
         Material endTrim = Baked("C7460Trim", flat, BakeExposure, 1f, 0f, white);
@@ -413,6 +418,28 @@ public class CorridorWorld : MonoBehaviour
         probeDirty = 2;
     }
     private int probeDirty;
+    private RenderTexture probeCube; private Camera probeCam;
+    // v3: la captura de la sonda se hace a mano (RenderToCubemap) y se le da como cubemap propio: funciona igual en el juego normal,
+    // en el editor y en el ejecutable en -batchmode (allí Unity no procesa las sondas en tiempo real: manillas negras y paredes sin brillo)
+    void RenderProbeCube()
+    {
+        if (SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null) { Probe.RenderProbe(); ProbeRenders++; return; }
+        if (probeCube == null)
+        {
+            probeCube = new RenderTexture(256, 256, 16, RenderTextureFormat.ARGB32)   // LDR: los plafones se recortan a 1 y los mips (sin convolución) no dejan chispas
+                 { name = "C7460ProbeCube", dimension = UnityEngine.Rendering.TextureDimension.Cube, useMipMap = true, autoGenerateMips = true };
+            probeCube.Create();
+            GameObject g = new GameObject("C7460ProbeCam"); g.hideFlags = HideFlags.HideAndDontSave;
+            probeCam = g.AddComponent<Camera>(); probeCam.enabled = false; probeCam.cameraType = CameraType.Reflection;
+            probeCam.nearClipPlane = 0.05f; probeCam.farClipPlane = 200f; probeCam.clearFlags = CameraClearFlags.SolidColor; probeCam.backgroundColor = cfg.fog;
+            probeCam.cullingMask = Probe.cullingMask; probeCam.allowHDR = false; probeCam.allowMSAA = false; probeCam.useOcclusionCulling = false;
+        }
+        probeCam.transform.position = Probe.transform.position; probeCam.transform.rotation = Quaternion.identity;
+        float on = Shader.GetGlobalFloat("_C7460PlanarOn"); Shader.SetGlobalFloat("_C7460PlanarOn", 0f);
+        probeCam.RenderToCubemap(probeCube, 63);
+        Shader.SetGlobalFloat("_C7460PlanarOn", on);
+        Probe.mode = ReflectionProbeMode.Custom; Probe.customBakedTexture = probeCube; ProbeRenders++;
+    }
 
     private void LateUpdate()
     {
@@ -422,7 +449,7 @@ public class CorridorWorld : MonoBehaviour
             Vector3 lp = levelRoot.InverseTransformPoint(cam.transform.position);
             float row = Mathf.Clamp(Mathf.Floor(lp.z / CS), 8f, plan.rows - 9f);
             Probe.transform.localPosition = new Vector3(CenterX, 1.6f, (row + 0.5f) * CS);
-            if (probeDirty > 0 && --probeDirty == 0) { Probe.RenderProbe(); ProbeRenders++; }
+            if (probeDirty > 0 && --probeDirty == 0) RenderProbeCube();
         }
         // puerta de salida: se abre cuando la llave buena la abre
         if (ExitLeaf != null)
