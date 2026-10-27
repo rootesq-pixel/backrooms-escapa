@@ -2562,7 +2562,7 @@ public static class SmokePlayRunner
         r.Check(thumbs == LevelConfig.Count, "miniaturas de nivel en Resources/UI/LevelThumbs: " + thumbs + "/" + LevelConfig.Count);
         {
             Button c3 = null; foreach (Button bt in UnityEngine.Object.FindObjectsOfType<Button>(false)) if (bt.name == "LevelBtn_4") c3 = bt;   // v7.7.0: rejilla de 5 columnas
-            r.Check(c3 != null && c3.navigation.selectOnRight != null && c3.navigation.selectOnRight.name.Contains("Jugar este nivel") && c3.navigation.selectOnDown != null && c3.navigation.selectOnDown.name == "LevelBtn_8", "navegación de la rejilla (tarjeta 4: derecha → «Jugar este nivel», abajo → nivel 8)");
+            r.Check(c3 != null && c3.navigation.selectOnRight != null && c3.navigation.selectOnRight.name.Contains("Jugar este nivel") && c3.navigation.selectOnDown != null && c3.navigation.selectOnDown.name == "LevelBtn_" + Mathf.Min(9, LevelConfig.Count - 1), "navegación de la rejilla (tarjeta 4: derecha → «Jugar este nivel», abajo → nivel " + Mathf.Min(9, LevelConfig.Count - 1) + ")");   // Nivel 7460: 10 tarjetas, la 4 baja a la 9
             bool desc = true; for (int i = 0; i < LevelConfig.Count; i++) { ui.FocusLevel(i); if (string.IsNullOrEmpty(LevelConfig.Get(i).subtitle)) desc = false; }
             r.Check(desc, "cada nivel tiene descripción en la vista previa");
         }
@@ -3216,7 +3216,8 @@ public static class SmokePlayRunner
                 {
                     Vector3 cc = gm.generator.CellCenterWorld(gm.generator.StartCell.x, gm.generator.StartCell.y);
                     Vector3 off = cb.transform.position - cc; off.y = 0f;
-                    r.Check(off.magnitude < cfg.cellSize * 0.5f && gm.generator.PlayerStart == cb.InteriorCenter && cb.ColliderCount >= 9, eg + "la cabina está en la celda de inicio y es el punto de aparición");
+                    float camTol = cfg.layout == LayoutKind.Corridor ? cfg.cellSize * 1.1f : cfg.cellSize * 0.5f;   // Nivel 7460: la cabina va en el hueco del muro sur, justo detrás de la celda de inicio
+                    r.Check(off.magnitude < camTol && gm.generator.PlayerStart == cb.InteriorCenter && cb.ColliderCount >= 9, eg + "la cabina está en la celda de inicio y es el punto de aparición");
                     int dirIdx = ((Mathf.RoundToInt(gm.generator.PlayerStartYaw / 90f) % 4) + 4) % 4;
                     r.Check(gm.generator.IsCellOpen(gm.generator.StartCell.x, gm.generator.StartCell.y, dirIdx), eg + "la puerta mira a la salida abierta de la celda de inicio (dir " + dirIdx + ")");
                     r.Check(!cb.Locked && cb.Open01 > 0.99f && !cb.CollidersBlockDoor, eg + "(modo prueba) cabina abierta y jugador libre");
