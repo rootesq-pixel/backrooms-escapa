@@ -25,15 +25,15 @@ public static class V7460Checks
         r.Check(LoreNotes.Valid(LoreNotes.IdFor(Lv, 2)) && LoreNotes.Get(LoreNotes.IdFor(Lv, 0)).text.Contains("puertas"), T + "3 notas de ambiente del nivel");
 
         // plano por semilla: determinista, una salida, habitaciones y tapiadas
-        bool det = true, okExit = true, differ = false; string ex = "";
+        bool det = true, okExit = true, differ = false; string ex = ""; int N = c.gridH;
         foreach (int seed in new[] { 1, 7, 12345, 144139097, 99 })
         {
-            CorridorPlan a = CorridorPlan.Make(seed, 3, 100, new bool[4, 100], new bool[3, 101]);
-            CorridorPlan b = CorridorPlan.Make(seed, 3, 100, new bool[4, 100], new bool[3, 101]);
+            CorridorPlan a = CorridorPlan.Make(seed, 3, N, new bool[4, N], new bool[3, N + 1]);
+            CorridorPlan b = CorridorPlan.Make(seed, 3, N, new bool[4, N], new bool[3, N + 1]);
             int exits = 0;
-            for (int s = 0; s < 2; s++) for (int j = 0; j < 100; j++) { if (a.doors[s, j] != b.doors[s, j]) det = false; if (a.doors[s, j] == CorridorPlan.Door.Exit) exits++; }
-            if (exits != 1 || a.exitRow < 40 || a.exitRow > 92 || a.Count(CorridorPlan.Door.Room) < 10) okExit = false;
-            CorridorPlan o = CorridorPlan.Make(seed + 1, 3, 100, new bool[4, 100], new bool[3, 101]);
+            for (int s = 0; s < 2; s++) for (int j = 0; j < N; j++) { if (a.doors[s, j] != b.doors[s, j]) det = false; if (a.doors[s, j] == CorridorPlan.Door.Exit) exits++; }
+            if (exits != 1 || a.exitRow < N * 0.4f || a.exitRow > N * 0.92f || a.Count(CorridorPlan.Door.Room) < 10) okExit = false;
+            CorridorPlan o = CorridorPlan.Make(seed + 1, 3, N, new bool[4, N], new bool[3, N + 1]);
             if (o.exitRow != a.exitRow || o.exitSide != a.exitSide) differ = true;
             ex += " " + a.exitRow + (a.exitSide == 0 ? "I" : "D") + "/" + a.Count(CorridorPlan.Door.Room) + "h/" + a.Count(CorridorPlan.Door.Bricked) + "t";
         }
@@ -68,8 +68,8 @@ public static class V7460Checks
         CorridorWorld w = gen.Root.GetComponentInChildren<CorridorWorld>(true);
         r.Check(w != null && gen.Corridor != null, T + "pasillo construido por CorridorWorld");
         if (w == null) return;
-        r.Check(w.ChunkCount == 10 && w.RoomCount == gen.Corridor.Count(CorridorPlan.Door.Room), T + w.ChunkCount + " tramos de 10 módulos y " + w.RoomCount + " habitaciones");
-        r.Check(w.Length > 300f && gen.FixtureCount == 100, T + "pasillo de " + w.Length.ToString("F0") + " m con " + gen.FixtureCount + " plafones");
+        r.Check(w.ChunkCount == (gen.Corridor.rows + CorridorWorld.ChunkModules - 1) / CorridorWorld.ChunkModules && w.RoomCount == gen.Corridor.Count(CorridorPlan.Door.Room), T + w.ChunkCount + " tramos de 10 módulos y " + w.RoomCount + " habitaciones");
+        r.Check(w.Length > 300f && gen.FixtureCount == gen.Corridor.rows, T + "pasillo de " + w.Length.ToString("F0") + " m con " + gen.FixtureCount + " plafones");
         r.Check(gen.KeySpots.Count == ExitLock.KeyCount, T + "5 sitios de llave");
         int inRooms = 0; foreach (Vector3 k in gen.KeySpots) { Vector3 l = w.levelRoot.InverseTransformPoint(k); if (Mathf.Abs(l.x - w.CenterX) > CorridorWorld.HW + 0.2f) inRooms++; }
         r.Check(inRooms == gen.KeySpots.Count, T + "las llaves están dentro de las habitaciones (" + inRooms + "/" + gen.KeySpots.Count + ")");

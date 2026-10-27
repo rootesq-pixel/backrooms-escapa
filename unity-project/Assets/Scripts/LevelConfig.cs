@@ -481,7 +481,7 @@ public class LevelConfig
         c.name = "El pasillo de las puertas";
         c.subtitle = "Un pasillo gris que no termina y cientos de puertas blancas iguales. Casi todas están cerradas. A tu espalda, alguien camina cuando tú caminas.";
         c.layout = LayoutKind.Corridor;
-        c.gridW = 3; c.gridH = 100; c.cellSize = 3.4f; c.wallHeight = 3.2f;   // 100 módulos de 3,4 m = 340 m
+        c.gridW = 3; c.gridH = 140; c.cellSize = 2.4f; c.wallHeight = 3.0f;   // 140 módulos de 2,4 m = 336 m (una puerta a cada lado de cada módulo)
         c.loopChance = 0f; c.roomCount = 0;
         c.wallStyle = SurfaceStyle.ConcreteWall; c.floorStyle = SurfaceStyle.ConcreteFloor; c.ceilingStyle = SurfaceStyle.ConcreteCeiling;
         c.ambient = new Color(0.62f, 0.63f, 0.66f);      // solo para objetos y cuerpos (el pasillo trae su luz horneada)

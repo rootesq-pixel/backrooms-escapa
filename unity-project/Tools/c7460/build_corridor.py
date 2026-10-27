@@ -24,8 +24,8 @@ def cycles_device(sc):
 for o in list(bpy.data.objects): bpy.data.objects.remove(o)
 
 # ---------------- medidas (m) ----------------
-CS = 3.4; HW = 1.7; H = 3.2                   # módulo, medio ancho, altura del techo
-DW = 0.94; DH = 2.14                          # hueco de la puerta
+CS = 2.4; HW = 1.55; H = 3.0                  # módulo (= separación entre puertas, como la foto), medio ancho, altura del techo
+DW = 0.92; DH = 2.12                          # hueco de la puerta
 JT = 0.16                                     # fondo del hueco (grueso del muro)
 XF = HW + 0.03; LT = 0.04; XB = XF + LT       # cara de la hoja hacia el pasillo / grueso / cara trasera
 XR = HW + JT                                  # cara interior de la habitación (muro del pasillo)
@@ -33,8 +33,8 @@ CW = 0.075; CP = 0.014; BW = 0.024; BP = 0.022 # moldura: ancho, saliente, junqu
 SKH = 0.11; SKT = 0.016                       # zócalo
 GAP = 0.003                                   # holgura de la hoja
 LW = DW - 2 * GAP; LH = DH - GAP - 0.008      # hoja
-PX = 1.22; PY = 0.62; PF = 0.035              # plafón (x a lo ancho, y a lo largo), marco
-RD = 3.0; RWh = 3.2; RHt = 3.0                # habitación: fondo, ancho, alto
+PX = 1.45; PY = 0.95; PF = 0.035              # plafón grande (x a lo ancho, y a lo largo), marco
+RD = 3.0; RWh = 2.2; RHt = 2.8                # habitación: fondo, ancho (< módulo), alto
 HY = DW / 2 - 0.07; HZ = 1.0                  # manilla: posición a lo largo (lado +y) y altura
 M_FLOOR, M_WALL, M_CEIL, M_TRIM, M_DOOR, M_METAL, M_EMIT, M_BRICK = range(8)
 NMAT = 8
@@ -238,7 +238,7 @@ for o in (modo, room):
 sc = bpy.context.scene; sc.render.engine = 'CYCLES'; cy = sc.cycles; dev = cycles_device(sc); cy.samples = SPP
 cy.max_bounces = 8; cy.diffuse_bounces = 5; cy.glossy_bounces = 3; cy.use_denoising = False
 sc.world = bpy.data.worlds.new('W'); sc.world.use_nodes = True; sc.world.node_tree.nodes['Background'].inputs[1].default_value = 0.0
-LAMPW = float(os.environ.get('LAMPW', '140'))
+LAMPW = float(os.environ.get('LAMPW', '100'))
 def lamp(x, y, z, sx, sy, w):
     L = bpy.data.lights.new('Panel', 'AREA'); L.shape = 'RECTANGLE'; L.size = sx; L.size_y = sy; L.energy = w; L.color = (1.0, 0.985, 0.96)
     o = bpy.data.objects.new('Panel', L); o.location = (x, y, z); sc.collection.objects.link(o); return o
@@ -248,7 +248,7 @@ for k in range(-NCOPY, NCOPY + 1):
     if k != 0:
         c = bpy.data.objects.new('Mod%d' % k, modo.data); c.location = (0, k * CS, 0); sc.collection.objects.link(c)
     lamp(0, k * CS, H - 0.002, PX - 2 * PF, PY - 2 * PF, LAMPW)
-lamp(XR + RD / 2, 0, RHt - 0.002, 0.54, 0.54, LAMPW * 0.9)
+lamp(XR + RD / 2, 0, RHt - 0.002, 0.54, 0.54, LAMPW * 0.8)
 # tapas de los extremos (el pasillo sigue: un muro lejano gris para no dejar escapar la luz al vacío)
 endw = bpy.data.meshes.new('Ends'); eb = bmesh.new()
 for s in (-1, 1): rect_y(eb, s * (NCOPY + 0.5) * CS, -HW, HW, 0, H, M_WALL, -s)

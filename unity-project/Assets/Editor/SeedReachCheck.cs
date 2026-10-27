@@ -12,6 +12,7 @@ public static class SeedReachCheck
     public static readonly int[] Level5Seeds = { 7110, 1, 42, 1234, 98765, 20261024 };
     public static readonly int[] Level3Seeds = { 1, 7, 42, 100, 1234, 5555, 98765, 31337, 271828, 8675309, 20261024, 777 };   // v7.5.0
     public static readonly int[] Level8Seeds = { 7110, 1, 42, 1234, 98765, 20261024, 31337, 777 };   // v7.7.0
+    public static readonly int[] Level9Seeds = { 7460, 1, 42, 98765 };   // Nivel 7460
     public static readonly int[] Level6Seeds = { 64257619, 100, 200, 300, 400, 1, 7, 42, 1234, 5555, 98765, 31337, 271828, 314159, 8675309, 20261024, 123456789, 99, 2024, 777 };
     static IEnumerator it; static double wait; static int pass, fail;
     static SeedReachCheck() { if (SessionState.GetString("seedreach", "") != "1") return; EditorApplication.update += Tick; }
@@ -291,7 +292,60 @@ public static class SeedReachCheck
             }
             DesertFx.HazardsOn = true;
         }
-        if (only == "8") yield break;
+        if (only == "" || only == "9")
+        {   // Nivel 7460: andando de verdad (CharacterController): salir del ascensor, recorrer el pasillo, entrar en una habitación y cruzar la salida
+            foreach (int s9 in Level9Seeds)
+            {
+                gb.useRandomSeed = false; gb.seed = s9 - 9 * 101;
+                int lc9 = gb.LoadCount; gb.LoadLevel(9);
+                double t9 = EditorApplication.timeSinceStartup;
+                while (!(gb.LoadCount > lc9 && gb.IsLoaded && GameManager.Instance != null && CorridorWorld.Active != null) && EditorApplication.timeSinceStartup - t9 < 120) yield return 0.1f;
+                yield return 1.0f;
+                if (ElevatorCabin.Current != null) ElevatorCabin.Current.Skip();
+                double tw = EditorApplication.timeSinceStartup; while (ElevatorCabin.PlayerLocked && EditorApplication.timeSinceStartup - tw < 20) yield return 0.25f;
+                if (UIManager.Instance != null && UIManager.Instance.Current != UIManager.Screen.None) UIManager.Instance.SetScreen(UIManager.Screen.None);
+                GameManager gm9 = GameManager.Instance; FirstPersonController pw = gm9.player; CorridorWorld cw = CorridorWorld.Active; Transform R = cw.levelRoot;
+                string T9 = "[nivel 9 semilla " + gm9.generator.UsedSeed + "] ";
+                float cs = CorridorWorld.CS;
+                Check(gm9.generator.UsedSeed == s9 && gm9.exit != null && cw.plan.exitRow > 0, T9 + "pasillo con salida en el módulo " + cw.plan.exitRow + " (" + (cw.plan.exitRow * cs).ToString("F0") + " m)");
+                // 1) del ascensor al pasillo, andando
+                pw.debugInput = true; pw.debugMove = new Vector2(0f, 1f);
+                double tg = EditorApplication.timeSinceStartup; while (EditorApplication.timeSinceStartup - tg < 4.0) yield return 0.1f;
+                pw.debugMove = Vector2.zero; yield return 0.2f;
+                Vector3 l1 = R.InverseTransformPoint(pw.transform.position);
+                Check(l1.z > 6f && Mathf.Abs(l1.x - cw.CenterX) < CorridorWorld.HW, T9 + "se sale del ascensor andando al pasillo (z " + l1.z.ToString("F1") + " m)");
+                // 2) un tramo largo andando por el centro (corriendo) sin quedarse enganchado
+                int r0 = Mathf.Max(3, cw.plan.exitRow - 12);
+                pw.Teleport(R.TransformPoint(new Vector3(cw.CenterX, 0.1f, r0 * cs)), 0f); yield return 0.3f;
+                pw.debugMove = new Vector2(0f, 1f); pw.debugSprint = true;
+                tg = EditorApplication.timeSinceStartup; while (EditorApplication.timeSinceStartup - tg < 6.0) yield return 0.1f;
+                pw.debugMove = Vector2.zero; pw.debugSprint = false; yield return 0.2f;
+                Vector3 l2 = R.InverseTransformPoint(pw.transform.position);
+                Check(l2.z - r0 * cs > 12f && l2.y > -0.2f, T9 + "corriendo por el pasillo se avanza (" + (l2.z - r0 * cs).ToString("F1") + " m en 6 s)");
+                // 3) entrar en una habitación por su puerta (se abre al acercarse)
+                int rr = -1, rs = 0; for (int j = 2; j < cw.plan.rows && rr < 0; j++) for (int sd = 0; sd < 2; sd++) if (cw.plan.doors[sd, j] == CorridorPlan.Door.Room) { rr = j; rs = sd; break; }
+                if (rr >= 0)
+                {
+                    float sg = rs == CorridorPlan.Left ? -1f : 1f;
+                    pw.Teleport(R.TransformPoint(new Vector3(cw.CenterX - sg * 0.6f, 0.1f, (rr + 0.5f) * cs)), rs == CorridorPlan.Left ? 270f : 90f); yield return 0.3f;
+                    pw.debugMove = new Vector2(0f, 1f);
+                    tg = EditorApplication.timeSinceStartup; while (EditorApplication.timeSinceStartup - tg < 4.0) yield return 0.1f;
+                    pw.debugMove = Vector2.zero; yield return 0.2f;
+                    Vector3 l3 = R.InverseTransformPoint(pw.transform.position);
+                    Check(sg * (l3.x - cw.CenterX) > CorridorWorld.XR + 0.4f, T9 + "se entra andando en una habitación (x " + (l3.x - cw.CenterX).ToString("F2") + " m del centro)");
+                }
+                // 4) salida: la llave buena y andar hacia la puerta
+                Inventory.Instance.Add(ExitLock.Active.CorrectKey, 1); ExitLock.Active.ResetCooldownForTests();
+                float eg = cw.plan.exitSide == CorridorPlan.Left ? -1f : 1f;
+                pw.Teleport(R.TransformPoint(new Vector3(cw.CenterX - eg * 0.7f, 0.1f, (cw.plan.exitRow + 0.5f) * cs)), cw.plan.exitSide == CorridorPlan.Left ? 270f : 90f); yield return 0.3f;
+                pw.debugMove = new Vector2(0f, 1f);
+                tg = EditorApplication.timeSinceStartup; while (gm9.State == GameManager.GameState.Playing && EditorApplication.timeSinceStartup - tg < 10) yield return 0.1f;
+                pw.debugInput = false; pw.debugMove = Vector2.zero;
+                Check(gm9.State == GameManager.GameState.Won || gm9.State == GameManager.GameState.LevelComplete, T9 + "con la llave buena, andando hacia la salida se sale del nivel (" + gm9.State + ")");
+                yield return 1.5f;
+            }
+        }
+        if (only == "8" || only == "9") yield break;
         if (only == "5" || only == "3") yield break;
         const int lv = 6;
         Check(!BackroomsGenerator.HallEastDoor && !BackroomsGenerator.HallDoorV(new RectInt(10, 10, 5, 4), 15, 11) && BackroomsGenerator.HallDoorV(new RectInt(10, 10, 5, 4), 10, 11),
