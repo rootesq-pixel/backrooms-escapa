@@ -21,7 +21,8 @@ public class Level0Events : MonoBehaviour
     public static readonly Color RedAmbient = new Color(0.34f, 0.028f, 0.020f);   // v7.9.1: la sala entera roja, también rincones y lejos de las luces
     public static readonly Color RedFog = new Color(0.30f, 0.022f, 0.016f);
     public const float PulsePeriod = 2.0f, PulseMin = 0.70f;   // pulso lento de alarma (mismo reloj → igual para todos)
-    public const float AlarmVolume = 0.20f, AlarmHz = 180f;
+    public const float AlarmVolume = 0.22f, AlarmHz = 440f, AlarmHz2 = 660f;   // v7.9.4 (t473u): antes 0,20 × sucesos (0,75) y 180 Hz: unos −32 dB, por debajo del drone y casi inaudible en altavoces pequeños
+    public static float AlarmGain { get { return AudioMix.A(AlarmVolume); } }
     // pulso de la alarma: 1 en el pico, PulseMin en el valle (en el reloj del nivel)
     public static float PulseAt(float clock) { float s = Mathf.Sin(Mathf.PI * clock / PulsePeriod); return PulseMin + (1f - PulseMin) * s * s; }
 
@@ -86,7 +87,7 @@ public class Level0Events : MonoBehaviour
         relaySrc = Src("L0Relay", 3f, 30f);
         alarmClip = CreateAlarm();
         alarmSrc = Src("L0Alarm", 4f, 40f); alarmSrc.spatialBlend = 0f; alarmSrc.loop = true; alarmSrc.clip = alarmClip; alarmSrc.volume = 0f;
-        AudioLowPassFilter alp = alarmSrc.gameObject.AddComponent<AudioLowPassFilter>(); alp.cutoffFrequency = 1400f;
+        AudioLowPassFilter alp = alarmSrc.gameObject.AddComponent<AudioLowPassFilter>(); alp.cutoffFrequency = 2400f;   // v7.9.4: deja pasar la sirena (todo < 2 kHz, sin siseo)
         noiseRng = new System.Random(Seed * 613 + (int)(System.DateTime.Now.Ticks & 0xffff));   // local de cada jugador
         noiseT = 20f + (float)noiseRng.NextDouble() * 25f;
     }
@@ -205,7 +206,7 @@ public class Level0Events : MonoBehaviour
         GameManager gm = GameManager.Instance;
         bool playing = gm == null || gm.State == GameManager.GameState.Playing;
         float target = playing && Screamer.Active == null ? red * AlarmVolume : 0f;
-        alarmSrc.volume = AudioMix.Event(target);
+        alarmSrc.volume = AudioMix.A(target);   // v7.9.4: en el grupo Ambiente, sin la rebaja de los sucesos
         if (target > 0.001f)
         {
             if (!alarmSrc.isPlaying) { alarmSrc.time = Mathf.Repeat(Clock, AlarmLoop); alarmSrc.Play(); }
@@ -213,19 +214,31 @@ public class Level0Events : MonoBehaviour
         else if (alarmSrc.isPlaying) alarmSrc.Stop();
     }
     public const float AlarmLoop = 2f * PulsePeriod;
-    // tono grave de alarma: 180 Hz con armónicos suaves (todo por debajo de ~1 kHz), envolvente sin² del pulso; ciclos enteros → sin costura
+    // v7.9.4 (t473u): sirena de alarma: en cada pulso de la luz el tono sube de 440 a 660 Hz y baja (como una sirena «whoop»),
+    // con 2.º y 3.er armónico y una octava grave para el cuerpo; todo por debajo de 2 kHz (sin siseo) y sin crujidos. El bucle
+    // (4 s = dos pulsos) va en fase con el reloj del nivel, así que sube cuando la luz roja llega a su pico. Fase integrada y
+    // ajustada a ciclos enteros: sin costura.
     public static AudioClip CreateAlarm() { float[] d = AlarmData(); AudioClip c = AudioClip.Create("L0_Alarma", d.Length, 1, SR, false); c.SetData(d, 0); return c; }
+    public static float AlarmFreq(float t)
+    {   // 0 → PulsePeriod: sube con el pulso (sin² del mismo reloj que la luz)
+        float s = Mathf.Sin(Mathf.PI * t / PulsePeriod); return AlarmHz + (AlarmHz2 - AlarmHz) * s * s;
+    }
     public static float[] AlarmData()
     {
         int n = Mathf.RoundToInt(AlarmLoop * SR); float[] d = new float[n];
+        double total = 0; for (int i = 0; i < n; i++) total += AlarmFreq(i / (float)SR) / SR;
+        double k = 2.0 * System.Math.Round(total * 0.5) / total;   // ciclos enteros (y pares, por la octava grave) en el bucle
+        double ph = 0; float peak = 0f;
         for (int i = 0; i < n; i++)
         {
             float t = i / (float)SR;
-            float env = Mathf.Sin(Mathf.PI * t / PulsePeriod); env = 0.25f + 0.75f * env * env;
-            float w = 2f * Mathf.PI * AlarmHz * t;
-            float v = Mathf.Sin(w) * 0.62f + Mathf.Sin(2f * w) * 0.22f + Mathf.Sin(3f * w) * 0.10f + Mathf.Sin(5f * w) * 0.04f;
-            d[i] = v * env * 0.5f;
+            float env = Mathf.Sin(Mathf.PI * t / PulsePeriod); env = 0.35f + 0.65f * env * env;
+            float w = (float)(2.0 * System.Math.PI * ph);
+            float v = Mathf.Sin(w) * 0.60f + Mathf.Sin(2f * w) * 0.24f + Mathf.Sin(3f * w) * 0.08f + Mathf.Sin(0.5f * w) * 0.22f;
+            d[i] = v * env; peak = Mathf.Max(peak, Mathf.Abs(d[i]));
+            ph += AlarmFreq(t) / SR * k;
         }
+        float g = 0.9f / Mathf.Max(1e-4f, peak); for (int i = 0; i < n; i++) d[i] *= g;
         return d;
     }
 

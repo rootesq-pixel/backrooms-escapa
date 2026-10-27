@@ -17,7 +17,7 @@ Shader "Backrooms/DesertSand"
         _CrestCol ("Color de las crestas", Color) = (0.86, 0.70, 0.50, 1)
         _L ("Periodo del desierto (m)", Float) = 512
         _RippleK ("Ondas (kx, kz, kx2, kz2) rad/m", Vector) = (30, 6, 24, -9)
-        _RippleAmp ("Pendiente de las ondas", Float) = 0.32
+        _RippleAmp ("Pendiente de las ondas", Float) = 0.24
         _GrainScale ("Grano (m)", Float) = 2
         _Glint ("Destellos", Float) = 1
     }
@@ -73,7 +73,11 @@ Shader "Backrooms/DesertSand"
             float warp = (m1 - 0.5) * 9.0 + (m2 - 0.5) * 14.0;
             float ph1 = dot(lp, _RippleK.xy) + warp;
             float ph2 = dot(lp, _RippleK.zw) + warp * 0.8 + 1.7;
-            float aa = saturate(1.6 - fwidth(ph1) * 0.9);            // sin parpadeo: fuera cuando cada píxel cubre varias ondas
+            // v7.9.4 (t469u): las ondas miden 20 cm; desde la cámara del coche (2,7 m de alto, mirada rasante) a pocos metros ya
+            // caen 3–4 píxeles por onda y salían rayas duras que se repetían (aliasing). Ahora se apagan del todo antes de
+            // 6 píxeles por onda (y empiezan a apagarse a 14), con la huella de las dos familias de ondas.
+            float fw = max(fwidth(ph1), fwidth(ph2));
+            float aa = 1.0 - smoothstep(0.45, 1.05, fw);
             float slopeOK = saturate((wn.y - 0.86) * 9.0);           // en las caras de avalancha no hay ondas
             float patch = saturate(m2 * 2.6 - 0.45) * 0.75 + 0.25;
             float amp = _RippleAmp * aa * slopeOK * patch * (1.0 - _DesertWeather.x * 0.9);
@@ -85,11 +89,11 @@ Shader "Backrooms/DesertSand"
             n.xy -= grad * amp;
             // oclusión en los valles de las ondas (sombra fina)
             float valley = 0.5 + 0.5 * sin(ph1 + 0.65 * sin(ph1));
-            alb *= lerp(1.0, 0.8 + 0.2 * valley, amp / max(_RippleAmp, 1e-3));
+            alb *= lerp(1.0, 0.9 + 0.1 * valley, amp / max(_RippleAmp, 1e-3));   // v7.9.4: sombra de los valles más suave (0.8 → 0.9)
             // a lo lejos, donde las ondas ya no se resuelven, queda su huella como vetas de tono (sin parpadeo: baja frecuencia)
             float far = (1.0 - aa) * slopeOK * patch * (1.0 - _DesertWeather.x * 0.9);
             float streak = tex2D(_MacroA, float2(dot(lp, normalize(_RippleK.xy)) / 3.0, dot(lp, normalize(_RippleK.xy).yx * float2(-1, 1)) / 40.0) + 0.21).r;
-            alb *= 1.0 - far * (0.10 * streak);
+            alb *= 1.0 - far * (0.05 * streak);   // v7.9.4: vetas lejanas más suaves
             float smooth = 0.05 + 0.03 * gl;   // v7.9.2: arena mate: sin el velo blanco del cielo en las caras de lado y a lo lejos
             // --- arenas movedizas: más oscuras, lisas y húmedas, con ondas lentas concéntricas
             float qk = 0;

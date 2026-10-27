@@ -170,6 +170,24 @@ public static class V790Checks
         PlayerBody pb = Object.FindObjectOfType<PlayerBody>();
         bool bodyOn = pb != null && pb.Loaded && pb.Visible;
         r.Check(fl != null && !fl.IsOn && (!bodyOn || !pb.PropShown), T + "al subir la linterna se apaga y se guarda (encendida " + (fl != null && fl.IsOn) + ", en la mano " + (bodyOn && pb.PropShown) + ")");
+        if (bodyOn)
+        {   // v7.9.4 (t472u): 1.ª persona, arrancar recto sin tocar el volante: las manos quietas en el aro; al girar, las dos con él
+            DesertCars.DbgThrottle = 0f; DesertCars.DbgSteer = 0f; DesertCars.DbgHandbrake = true; yield return 1.0f;
+            Quaternion r0 = pb.WheelHandR, l0 = pb.WheelHandL; float mr = 0f, ml = 0f, stMax = 0f, sp = 0f;
+            DesertCars.DbgHandbrake = false; DesertCars.DbgThrottle = 1f;
+            for (float t = 0f; t < 2.5f; t += Time.deltaTime) { yield return null; mr = Mathf.Max(mr, Quaternion.Angle(r0, pb.WheelHandR)); ml = Mathf.Max(ml, Quaternion.Angle(l0, pb.WheelHandL)); stMax = Mathf.Max(stMax, Mathf.Abs(car.steerAngle)); sp = Mathf.Max(sp, car.Speed); }
+            r.Check(pb.OnWheel && sp > 6f && stMax < 0.01f && mr < 6f && ml < 6f, T + "1.ª persona: arrancando recto (" + (sp * 3.6f).ToString("F0") + " km/h, volante " + stMax.ToString("F2") + "°) las manos no se mueven solas en el aro (dcha. " + mr.ToString("F1") + "°, izq. " + ml.ToString("F1") + "°)");
+            DesertCars.DbgThrottle = 0f; DesertCars.DbgHandbrake = true;
+            { IEnumerator wf = WaitFor(() => car.Speed < 0.4f, 8f); while (wf.MoveNext()) yield return wf.Current; }
+            yield return 0.5f;
+            System.Func<Quaternion, Quaternion> toCar = q => Quaternion.Inverse(car.transform.rotation) * car.steering.rotation * q;
+            Quaternion cr0 = toCar(pb.WheelHandR), cl0 = toCar(pb.WheelHandL);
+            DesertCars.DbgSteer = 0.6f; yield return 1.2f;
+            float gr = Quaternion.Angle(cr0, toCar(pb.WheelHandR)), gl = Quaternion.Angle(cl0, toCar(pb.WheelHandL)); float sa = car.steerAngle;
+            DesertCars.DbgSteer = 0f; yield return 1.2f;
+            r.Check(Mathf.Abs(sa) > 10f && gr > 15f && gl > 15f && Mathf.Abs(gr - gl) < 12f, T + "1.ª persona: al girar el volante (" + sa.ToString("F0") + "°) las dos manos giran con él (dcha. " + gr.ToString("F0") + "°, izq. " + gl.ToString("F0") + "°)");
+        }
+        else r.Info(T + "1.ª persona: cuerpo sin cargar, sin medida de las manos");
         // manos en el volante, siguiendo el giro
         DesertCars.DbgSteer = 0f; yield return 0.6f;
         Vector3 gl0, gr0; bool hasG = car.Grips(out gl0, out gr0);
@@ -246,6 +264,37 @@ public static class V790Checks
             float footY = 9f; if (pbs != null) foreach (Transform tf in pbs.GetComponentsInChildren<Transform>()) if (tf.name == "Foot.L" || tf.name == "Foot.R") footY = Mathf.Min(footY, car.transform.InverseTransformPoint(tf.position).y);
             r.Check(sameModel && pbs.SeatScaled && hipY > 0.55f && hipY < 0.8f && top < car.ModelHeight - 0.08f && footY > 0.36f, T + "C (por detrás): el conductor es el traje del jugador (" + smr + " mallas), sentado (cadera a " + hipY.ToString("F2") + " m del asiento, botas a " + footY.ToString("F2") + " m, suelo de la cabina 0.48) y la capucha bajo el techo (" + top.ToString("F2") + " / " + car.ModelHeight.ToString("F2") + " m)");
         }
+        {   // v7.9.4 (t470u): con la cámara por detrás, conduciendo y al cruzar el borde del desierto (el coche salta 512 m)
+            // la cámara sigue pegada al coche (antes volaba por el mapa hasta él, como una cámara libre)
+            DesertWorld dw = DesertWorld.Active;
+            DesertCarCam.MaxCarDist = 0f; DesertCarCam.Frames = 0; DesertCarCam.OutFrames = 0;
+            DesertCars.DbgHandbrake = false; DesertCars.DbgThrottle = 1f; DesertCars.DbgSteer = 0f;
+            float sp = 0f; for (float t = 0f; t < 3f; t += Time.deltaTime) { yield return null; sp = Mathf.Max(sp, car.Speed); }
+            float driveMax = DesertCarCam.MaxCarDist; int driveOut = DesertCarCam.OutFrames, driveFr = DesertCarCam.Frames;
+            // borde: sitio despejado junto a x = 0, mirando hacia −x
+            float zb = 40f; bool found = false;
+            if (dw != null) for (int k = 0; k < 24 && !found; k++)
+            {
+                float z = 30f + k * 19f; bool clear = true;
+                for (float x = -20f; x <= 30f && clear; x += 10f)
+                {
+                    Vector3 q = new Vector3(Mathf.Repeat(x, dw.L), 0f, z); q.y = DesertHeight.H(q.x, q.z);
+                    foreach (Collider c in Physics.OverlapSphere(dw.levelRoot.TransformPoint(q + Vector3.up * 1.5f), 7f, ~0, QueryTriggerInteraction.Ignore))
+                        if (!(c.name.StartsWith("Dune_") || c.transform.IsChildOf(car.transform) || c is CharacterController)) { clear = false; break; }
+                }
+                if (clear && dw.plan.QuickAt(new Vector2(0f, z), 30f) < 0) { zb = z; found = true; }
+            }
+            int w0 = car.Wraps, j0 = DesertCarCam.Jumps;
+            DesertCarCam.MaxCarDist = 0f; DesertCarCam.Frames = 0; DesertCarCam.OutFrames = 0;
+            car.DebugPlace(new Vector3(14f, 0f, zb), -90f);
+            float tw = -1f;
+            for (float t = 0f; t < 8f; t += Time.deltaTime) { yield return null; if (tw < 0f && car.Wraps > w0) tw = t; if (tw >= 0f && t > tw + 1.5f) break; }
+            float maxD = DesertCarCam.MaxCarDist; int outFrames = DesertCarCam.OutFrames, frames = DesertCarCam.Frames;
+            r.Check(sp > 8f && driveFr > 20 && driveMax < 10f && driveOut == 0, T + "C (por detrás) conduciendo a " + (sp * 3.6f).ToString("F0") + " km/h: la cámara sigue al coche (máx. " + driveMax.ToString("F1") + " m, coche fuera de la imagen " + driveOut + " fotogramas)");
+            r.Check(car.Wraps > w0 && maxD < 10f && outFrames == 0 && DesertCarCam.Jumps >= j0 + 2, T + "C (por detrás) al recolocar el coche y al cruzar el borde del desierto (" + (car.Wraps - w0) + " vuelta, sitio " + (found ? "despejado" : "por defecto") + " z " + zb.ToString("F0") + "): la cámara salta con él (máx. " + maxD.ToString("F1") + " m del coche, " + outFrames + " fotogramas sin el coche en la imagen de " + frames + ")");
+            DesertCars.DbgThrottle = 0f; DesertCars.DbgHandbrake = true;
+            { IEnumerator wf = WaitFor(() => car.Speed < 0.4f, 8f); while (wf.MoveNext()) yield return wf.Current; }
+        }
         DesertCars.DbgCamCycle = true; yield return 0.3f;
         { Vector3 lastH = Vector3.one * 99f; IEnumerator wf = WaitFor(() => { Vector3 h = car.transform.InverseTransformPoint(cam.position); bool st = (h - lastH).magnitude < 0.01f && h.z > 0.9f; lastH = h; return st; }, 4f); while (wf.MoveNext()) yield return wf.Current; }   // la cámara se desliza: esperar a que llegue (con fotogramas lentos tarda más)
         Vector3 hood = car.transform.InverseTransformPoint(cam.position);
@@ -278,7 +327,7 @@ public static class V790Checks
     {
         string T = "[v7.9.0] ";
         EditMore(r, T);
-        r.Check(GameVersion.Current == "7.9.3" && NetSession.Protocol == "BackroomsEscape-MP-12", T + "versión " + GameVersion.Current + ", protocolo " + NetSession.Protocol);
+        r.Check(GameVersion.Current == "7.9.4" && NetSession.Protocol == "BackroomsEscape-MP-12", T + "versión " + GameVersion.Current + ", protocolo " + NetSession.Protocol);
         // ruidos
         string bad = ""; float worst = 0f;
         for (int k = 0; k < Level0Events.NoiseNames.Length; k++)
@@ -320,7 +369,18 @@ public static class V790Checks
             Color ra = Level0Events.RedAmbient, rf = Level0Events.RedFog;
             r.Check(ra.r > 0.25f && ra.r > 8f * ra.g && ra.r > 8f * ra.b && rf.r > 8f * rf.g && Level0Events.RedIntensity >= 1f, T + "[Rojo] alarma: ambiente y niebla rojos intensos (ambiente " + ra + "), luces ×" + Level0Events.RedIntensity);
             r.Check(pMin >= Level0Events.PulseMin - 0.01f && pMin < 0.75f && pMax > 0.98f && Mathf.Abs(Level0Events.PulseAt(1.3f) - Level0Events.PulseAt(1.3f + Level0Events.PulsePeriod)) < 1e-4f, T + "[Rojo] la luz late despacio (" + pMin.ToString("F2") + "–" + pMax.ToString("F2") + " cada " + Level0Events.PulsePeriod.ToString("F0") + " s, en el reloj del nivel)");
-            r.Check(hiA < 0.01f && seamA < 2f && al.Length == Mathf.RoundToInt(Level0Events.AlarmLoop * 22050), T + "[Rojo] zumbido de alarma grave, sin siseo (" + (hiA * 100f).ToString("F2") + " % por encima de 2 kHz) y sin costura (" + seamA.ToString("F2") + ")");
+            r.Check(hiA < 0.01f && seamA < 2f && al.Length == Mathf.RoundToInt(Level0Events.AlarmLoop * 22050), T + "[Rojo] sirena de alarma sin siseo (" + (hiA * 100f).ToString("F2") + " % por encima de 2 kHz) y sin costura (" + seamA.ToString("F2") + ")");
+            {   // v7.9.4 (t473u): se oye claramente: por encima del drone del Nivel 0, del zumbido de los fluorescentes y de los pasos
+                double ss = 0; float pk = 0f; foreach (float x in al) { ss += x * x; pk = Mathf.Max(pk, Mathf.Abs(x)); }
+                float rmsA = Mathf.Sqrt((float)(ss / al.Length)), effA = AudioMix.Db(rmsA * Level0Events.AlarmGain);
+                LevelConfig c0 = LevelConfig.Get(0); AudioClip dc0 = ProceduralAudio.CreateDrone(c0.droneHz, c0.droneNoise, 1000);
+                float effD = AudioMix.Db(AudioAudit.Measure(dc0).rms * AudioMix.Drone(c0.droneVolume)); Object.DestroyImmediate(dc0);
+                AudioClip bz = ProceduralAudio.CreateBuzzClip(); float effB = AudioMix.Db(AudioAudit.Measure(bz).rms * AudioMix.Buzz(0.25f)); Object.DestroyImmediate(bz);
+                AudioClip st = ProceduralAudio.CreateFootstep(StepKind.Carpet); float effS = AudioMix.Db(AudioAudit.Measure(st).rms * AudioMix.StepMaster); Object.DestroyImmediate(st);
+                float fLo = Level0Events.AlarmFreq(0f), fHi = Level0Events.AlarmFreq(Level0Events.PulsePeriod * 0.5f);
+                r.Check(effA > effD + 10f && effA > effB + 6f && effA > effS + 6f && effA < -16f && pk * Level0Events.AlarmGain < 0.5f && fLo >= 400f && fHi > fLo * 1.3f,
+                    T + "[Rojo] la sirena se oye claramente: " + effA.ToString("F1") + " dB (drone del Nivel 0 " + effD.ToString("F1") + ", fluorescentes " + effB.ToString("F1") + ", pasos " + effS.ToString("F1") + " dB), sube de " + fLo.ToString("F0") + " a " + fHi.ToString("F0") + " Hz con cada pulso de la luz");
+            }
         }
         // latido
         AudioClip hb = Adrenaline.CreateHeartbeat();

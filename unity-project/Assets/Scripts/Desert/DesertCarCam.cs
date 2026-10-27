@@ -9,7 +9,13 @@ public class DesertCarCam : MonoBehaviour
     public const float ChaseDist = 7.0f, ChaseHeight = 2.7f, MinAboveSand = 0.7f;
     public static int AppliedView { get; private set; }
     public static float LastClearance { get; private set; }
-    private Vector3 pos, vel; private bool has;
+    private Vector3 pos, vel, lastCar; private bool has;
+    // v7.9.4 (t470u): el coche salta de golpe al cruzar el borde del desierto (toroidal, 512 m), al reaparecer o al recolocarlo;
+    // la cámara lo seguía volando por el mapa (SmoothDamp, 80 m/s) como una cámara libre. Ahora se mueve con el salto.
+    public const float JumpDist = 12f, SnapDist = 20f;
+    public static bool DebugOldFollow;   // solo pruebas: el seguimiento de la v7.9.3 (para medir el antes)
+    public static int Jumps { get; private set; }
+    public static float MaxCarDist; public static int Frames, OutFrames;   // medida de las pruebas (se pone a 0 desde fuera)
     private Camera cam;
     private void OnDisable() { PlayerBody.ExternalView = false; }
 
@@ -41,7 +47,14 @@ public class DesertCarCam : MonoBehaviour
                 if (!h.collider.transform.IsChildOf(carT) && !(h.collider is CharacterController) && h.distance < best) best = h.distance;
             desired = focus + dir * Mathf.Max(1.5f, best - 0.2f);
             desired = AboveSand(desired);
-            if (!has) { pos = desired; vel = Vector3.zero; has = true; }
+            if (!has) { pos = desired; vel = Vector3.zero; has = true; lastCar = carT.position; }
+            if (!DebugOldFollow)
+            {
+                Vector3 jump = carT.position - lastCar;
+                if (jump.magnitude > JumpDist) { pos += jump; Jumps++; }      // salto del coche (borde, reaparición): la cámara salta con él
+                if ((pos - desired).magnitude > SnapDist) { pos = desired; vel = Vector3.zero; }
+            }
+            lastCar = carT.position;
             pos = Vector3.SmoothDamp(pos, desired, ref vel, 0.12f, 80f, dt);
             pos = AboveSand(pos);
             rot = Quaternion.LookRotation((focus + Vector3.up * 0.3f) - pos, Vector3.up);
@@ -54,6 +67,12 @@ public class DesertCarCam : MonoBehaviour
         }
         ct.position = pos; ct.rotation = rot;
         AppliedView = view;
+        if (view == 1)
+        {
+            Vector3 f = carT.position + Vector3.up * 1.0f; MaxCarDist = Mathf.Max(MaxCarDist, Vector3.Distance(pos, f)); Frames++;
+            Vector3 d = Quaternion.Inverse(rot) * (f - pos);   // ¿el coche en la imagen? (cono de ±25°)
+            if (d.z <= 0f || Mathf.Abs(d.x) > d.z * 0.47f || Mathf.Abs(d.y) > d.z * 0.47f) OutFrames++;
+        }
     }
 
     private static Vector3 AboveSand(Vector3 world)

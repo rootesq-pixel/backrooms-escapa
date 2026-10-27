@@ -52,6 +52,7 @@ public class DesertWorld : MonoBehaviour
         GameObject root = new GameObject("Desert");
         root.transform.SetParent(levelRoot, false);
         DesertWorld dw = root.AddComponent<DesertWorld>();
+        root.AddComponent<DesertGhostDraw>().world = dw;   // v7.9.4: copias del borde con la cámara ya colocada
         dw.plan = plan; dw.gen = gen; dw.levelRoot = levelRoot; dw.L = plan.L; dw.track = o => { track(o); };
         FieldWrap.OtherRoot = levelRoot;
         LoadDiag.Step("desierto: materiales");
@@ -972,7 +973,6 @@ public class DesertWorld : MonoBehaviour
                 WrapCount++;
             }
         }
-        DrawGhosts();
     }
 
     public static float LastGhostMs; public static int GhostDraws;

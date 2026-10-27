@@ -47,7 +47,10 @@ public class PlayerBody : MonoBehaviour
     private Transform head, neck, torso, hips, upper, lower, hand, footL, footR, mid2, mid3;
     private Transform upperL, lowerL, handL;
     public bool PropShown { get { return prop != null && prop.activeSelf; } }
-    public bool OnWheel { get; private set; }               // v7.9.0: manos en el volante del todoterreno
+    public bool OnWheel { get; private set; }
+    public static bool DebugOldWheelArm;   // solo pruebas: el brazo derecho como en la v7.9.3 (para medir el antes)
+    public Quaternion WheelHandR { get; private set; } public Quaternion WheelHandL { get; private set; }   // v7.9.4: pruebas
+    public Vector3 WheelHandPosR { get; private set; } public Vector3 WheelHandPosL { get; private set; }               // v7.9.0: manos en el volante del todoterreno
     public float WheelErrL { get; private set; }
     public float WheelLean { get; private set; }
     public float WheelErrR { get; private set; }
@@ -147,6 +150,7 @@ public class PlayerBody : MonoBehaviour
             }
         }
         modelBaseScale = model.localScale;
+        restR = ArmRest(upper, hand); restL = ArmRest(upperL, handL);
         if (upper != null && lower != null && hand != null)
         {
             upperLen = Vector3.Distance(upper.position, lower.position);
@@ -475,6 +479,13 @@ public class PlayerBody : MonoBehaviour
         float pitch01 = Mathf.Clamp01(fpc.Pitch / 70f);                 // mirando hacia abajo (pitch > 0)
         transform.localPosition = new Vector3(lean * fpc.leanDistance * 0.55f, 0f, -(backOffset + 0.10f * pitch01));
         transform.localRotation = Quaternion.Euler(0f, 0f, -lean * fpc.leanDegrees * 0.35f);
+        // v7.9.4 (t472u): al volante en 1.ª persona el cuerpo va con el coche (antes se quedaba derecho respecto al mundo
+        // mientras el coche cabeceaba por las dunas, y los brazos se retorcían respecto al volante al arrancar)
+        if (fpc.IsMounted && !DebugOldWheelArm && DesertCars.LocalDriverCar != null)
+        {
+            Transform ct = DesertCars.LocalDriverCar.transform;
+            transform.rotation = Quaternion.LookRotation(ct.forward, ct.up);
+        }
     }
 
     private void LateUpdate() { Tick(); }
@@ -519,6 +530,11 @@ public class PlayerBody : MonoBehaviour
         OnWheel = false;
         if (car == null || !car.Grips(out Vector3 gl, out Vector3 gr)) return;
         if (lower != null) lower.localScale = lowerBaseScale;   // al volante el antebrazo con su largo real (llega al aro)
+        // v7.9.4 (t472u): los dos brazos parten siempre de la misma postura (la de reposo del modelo) antes del IK del volante.
+        // El IK solo dobla hombro y codo con el giro mínimo, así que el giro del antebrazo y de la mano dependía de la postura
+        // de partida (la animación de reposo que respira y, en el derecho, el IK de la linterna): con el volante recto las
+        // manos giraban solas al arrancar. Así, con el volante quieto las manos están quietas y giran igual las dos con él.
+        if (!DebugOldWheelArm) { ApplyRest(restR); ApplyRest(restL); }
         // el conductor se inclina hacia el volante lo justo para llegar (como mucho 25 cm)
         if (upper != null && lower != null && hand != null && upperL != null && lowerL != null && handL != null)
         {
@@ -535,7 +551,27 @@ public class PlayerBody : MonoBehaviour
         WheelErrR = ArmIk.Solve(upper, lower, hand, gr, transform.right * 0.6f + Vector3.down);
         WheelErrL = ArmIk.Solve(upperL, lowerL, handL, gl, -transform.right * 0.6f + Vector3.down);
         OnWheel = true;
+        if (car.steering != null && hand != null && handL != null)
+        {   // medida de las pruebas: manos respecto al volante
+            Quaternion inv = Quaternion.Inverse(car.steering.rotation);
+            WheelHandR = inv * hand.rotation; WheelHandL = inv * handL.rotation;
+            WheelHandPosR = car.steering.InverseTransformPoint(hand.position); WheelHandPosL = car.steering.InverseTransformPoint(handL.position);
+        }
     }
+
+    private struct Rest { public Transform[] t; public Quaternion[] q; }
+    private Rest restR, restL;
+    private static Rest ArmRest(Transform upperBone, Transform tip)
+    {
+        Rest r = new Rest();
+        if (upperBone == null || tip == null || !tip.IsChildOf(upperBone)) return r;
+        List<Transform> ts = new List<Transform>();
+        for (Transform t = tip; t != null; t = t.parent) { ts.Add(t); if (t == upperBone) break; }
+        r.t = ts.ToArray(); r.q = new Quaternion[r.t.Length];
+        for (int i = 0; i < r.t.Length; i++) r.q[i] = r.t[i].localRotation;
+        return r;
+    }
+    private static void ApplyRest(Rest r) { if (r.t == null) return; for (int i = 0; i < r.t.Length; i++) if (r.t[i] != null) r.t[i].localRotation = r.q[i]; }
 
     private void ResetLightOrigin()
     {
@@ -598,6 +634,10 @@ public class PlayerBody : MonoBehaviour
     private void SolveArm()
     {
         IkActive = false;
+        // v7.9.4 (t472u): al volante el brazo derecho no pasa antes por el IK de la linterna. Ese IK sigue a la cámara con
+        // retraso y dejaba el brazo en una postura distinta cada fotograma; el IK del volante parte de esa postura, así que
+        // la mano derecha giraba sola al arrancar aunque el volante estuviera recto (la izquierda partía siempre de la animación).
+        if (fpc != null && fpc.IsMounted && DesertCars.LocalDriverCar != null && !DebugOldWheelArm) { handInit = false; return; }
         if (upper == null || lower == null || hand == null || upperLen < 0.01f || lowerLen < 0.01f) return;
         // antebrazo + mano más pequeños (se reaplica cada fotograma por si la animación escribe la escala)
         lower.localScale = lowerBaseScale * forearmScale;
