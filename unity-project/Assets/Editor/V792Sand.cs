@@ -158,7 +158,7 @@ public static class V792Sand
                 string nm = string.Format("arena_{0:0000}m_{1}", ds[k], fr == 0 ? "a" : "b");
                 Patch[] ps = ShotAndMeasure(nm, cam, car.transform);
                 Spread(ps, out float a0, out float a1, out float g0, out float g1, out int n);
-                foreach (Patch q in ps) if (q.ok && q.row == 0) { seqBrMin = Mathf.Min(seqBrMin, q.BR); seqBrMax = Mathf.Max(seqBrMax, q.BR); seqGrMin = Mathf.Min(seqGrMin, q.GR); seqGrMax = Mathf.Max(seqGrMax, q.GR); }
+                foreach (Patch pq in ps) if (pq.ok && pq.row == 0) { seqBrMin = Mathf.Min(seqBrMin, pq.BR); seqBrMax = Mathf.Max(seqBrMax, pq.BR); seqGrMin = Mathf.Min(seqGrMin, pq.GR); seqGrMax = Mathf.Max(seqGrMax, pq.GR); }
                 bool ok = n >= 6 && RowB <= 0.08f && RowG <= 0.05f;
                 okAll &= ok;
                 if (Diag && fr == 1)
