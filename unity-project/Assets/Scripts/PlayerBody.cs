@@ -15,6 +15,11 @@ public class PlayerBody : MonoBehaviour
     public const string LayerName = "PlayerBody";
     public const string PrefabResource = "Player/PlayerHazmat";
     public static int LayerMaskBit { get { return 1 << Layer; } }
+    // v7.9.2: cámara exterior del todoterreno (por detrás / capó): el cuerpo se ve entero (con cabeza) sentado en su plaza, mirando
+    // hacia delante del coche, y sin objeto en la mano (antes la cámara exterior ocultaba la capa del cuerpo: asiento vacío)
+    public static bool ExternalView;
+    public bool HeadShown { get; private set; }
+    private readonly List<Renderer> headRenderers = new List<Renderer>();
 
     public FirstPersonController fpc;
     public Transform cam;
@@ -156,7 +161,7 @@ public class PlayerBody : MonoBehaviour
             r.receiveShadows = true;
             bool isHead = r.name.ToLowerInvariant().Contains("head");
             r.shadowCastingMode = isHead ? UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly : UnityEngine.Rendering.ShadowCastingMode.On;
-            if (isHead) ShadowOnlyCount++;
+            if (isHead) { ShadowOnlyCount++; headRenderers.Add(r); }
             renderers.Add(r);
             Material[] ms = r.materials;      // instancias propias (mojado)
             for (int i = 0; i < ms.Length; i++)
@@ -443,6 +448,17 @@ public class PlayerBody : MonoBehaviour
     private void PlaceBody()
     {
         if (fpc == null) return;
+        if (ExternalView && fpc.IsMounted && DesertCars.Active != null)
+        {   // v7.9.2: sentado en su plaza mirando al frente del coche (el ratón gira la cámara exterior, no el cuerpo)
+            DesertCar car = DesertCars.Active.LocalCar(out int _);
+            if (car != null)
+            {
+                transform.SetPositionAndRotation(fpc.transform.position, Quaternion.LookRotation(car.transform.forward, car.transform.up));
+                SeatedLegs.Apply(model, transform);
+                if (head != null) { float dy = Vector3.Dot(fpc.transform.position + car.transform.up * DesertCar.SeatHeadY - head.position, car.transform.up); transform.position += car.transform.up * Mathf.Clamp(dy, -0.6f, 0.6f); }
+                return;
+            }
+        }
         float lean = fpc.Lean;
         float pitch01 = Mathf.Clamp01(fpc.Pitch / 70f);                 // mirando hacia abajo (pitch > 0)
         transform.localPosition = new Vector3(lean * fpc.leanDistance * 0.55f, 0f, -(backOffset + 0.10f * pitch01));
@@ -454,7 +470,7 @@ public class PlayerBody : MonoBehaviour
     public void Tick()
     {
         if (!Loaded) return;
-        bool want = showWanted;
+        bool want = showWanted || ExternalView;
         if (want != Visible)
         {
             Visible = want;
@@ -464,6 +480,12 @@ public class PlayerBody : MonoBehaviour
             if (!Visible) ResetLightOrigin();
         }
         if (!Visible || fpc == null || cam == null) return;
+        bool hs = ExternalView && fpc.IsMounted;
+        if (hs != HeadShown)
+        {
+            HeadShown = hs;
+            foreach (Renderer r in headRenderers) if (r != null) r.shadowCastingMode = hs ? UnityEngine.Rendering.ShadowCastingMode.On : UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly;
+        }
         ExcludeFromFlashlight();
 
         PlaceBody();
@@ -514,7 +536,9 @@ public class PlayerBody : MonoBehaviour
         if (animator == null) return;
         float v = fpc.FlatSpeed;
         string want;
-        if (fpc.IsCrouching) want = "Duck";
+        bool sitOut = ExternalView && fpc.IsMounted;   // v7.9.2: sentado (agachado quieto) visto desde fuera
+        if (sitOut) want = "Idle";
+        else if (fpc.IsCrouching) want = "Duck";
         else if (v < 0.2f) want = "Idle";
         else if (fpc.IsSprinting && v > 4.2f) want = "Run";
         else want = "Walk";
@@ -529,7 +553,7 @@ public class PlayerBody : MonoBehaviour
         if (CurrentState == "Walk") speed = Mathf.Clamp(v / (2f * fpc.stepDistanceWalk) * walkLen, 0.3f, 2.5f);
         else if (CurrentState == "Run") speed = Mathf.Clamp(v / (2f * fpc.stepDistanceSprint) * runLen, 0.4f, 2.5f);
         else if (CurrentState == "Duck") speed = 0.6f + Mathf.Clamp01(v / fpc.crouchSpeed) * 0.5f;
-        animator.speed = speed * (fpc.IsSwimming ? 0.5f : 1f);
+        animator.speed = sitOut ? 0f : speed * (fpc.IsSwimming ? 0.5f : 1f);
     }
 
     // Al mirar hacia abajo el torso se inclina un poco hacia delante

@@ -217,9 +217,12 @@ public class DesertWorld : MonoBehaviour
                 GameObject g0 = new GameObject("LOD0"); g0.transform.SetParent(go.transform, false);
                 g0.AddComponent<MeshFilter>().sharedMesh = near;
                 MeshRenderer r0 = g0.AddComponent<MeshRenderer>(); r0.sharedMaterial = sandM; r0.shadowCastingMode = ShadowCastingMode.On; r0.receiveShadows = true;
+                // v7.9.2: la arena NO usa la sonda de reflejos del todoterreno (v7.8.0): las dunas a su alrededor se veían blancas/azuladas
+                // y el tono cambiaba al conducir (la sonda va con el coche). Solo el cielo, igual en todas partes.
+                r0.reflectionProbeUsage = ReflectionProbeUsage.Off;
                 GameObject g1 = new GameObject("LOD1"); g1.transform.SetParent(go.transform, false);
                 g1.AddComponent<MeshFilter>().sharedMesh = far;
-                MeshRenderer r1 = g1.AddComponent<MeshRenderer>(); r1.sharedMaterial = sandM; r1.shadowCastingMode = ShadowCastingMode.Off; r1.receiveShadows = true;
+                MeshRenderer r1 = g1.AddComponent<MeshRenderer>(); r1.sharedMaterial = sandM; r1.shadowCastingMode = ShadowCastingMode.Off; r1.receiveShadows = true; r1.reflectionProbeUsage = ReflectionProbeUsage.Off;
                 LODGroup lg = go.AddComponent<LODGroup>();
                 lg.SetLODs(new[] { new LOD(0.16f, new Renderer[] { r0 }), new LOD(0.0001f, new Renderer[] { r1 }) });
                 lg.fadeMode = LODFadeMode.None; lg.RecalculateBounds();
@@ -1001,7 +1004,11 @@ public class DesertWorld : MonoBehaviour
                         Mesh mesh = gh.far != null && new Vector2(p.x - c.x, p.z - c.z).magnitude - gh.radius > nearLod ? gh.far : gh.mesh;
                         Matrix4x4 m = sh * gh.local;
                         for (int s = 0; s < gh.mats.Length && s < mesh.subMeshCount; s++)
-                        { Graphics.DrawMesh(mesh, m, gh.mats[s], 0, null, s, null, ShadowCastingMode.Off, true); GhostDraws++; }
+                        {
+                            if (gh.mats[s] == sandM) { RenderParams rp = new RenderParams(sandM) { shadowCastingMode = ShadowCastingMode.Off, receiveShadows = true, reflectionProbeUsage = ReflectionProbeUsage.Off, worldBounds = new Bounds(lw.MultiplyPoint3x4(p), Vector3.one * (gh.radius * 2.2f + 400f)) }; Graphics.RenderMesh(rp, mesh, s, m); }   // v7.9.2: sin la sonda del coche
+                            else Graphics.DrawMesh(mesh, m, gh.mats[s], 0, null, s, null, ShadowCastingMode.Off, true);
+                            GhostDraws++;
+                        }
                     }
                 }
         }

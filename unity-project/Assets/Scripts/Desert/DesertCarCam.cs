@@ -10,7 +10,8 @@ public class DesertCarCam : MonoBehaviour
     public static int AppliedView { get; private set; }
     public static float LastClearance { get; private set; }
     private Vector3 pos, vel; private bool has;
-    private int savedMask = int.MinValue; private Camera cam;
+    private Camera cam;
+    private void OnDisable() { PlayerBody.ExternalView = false; }
 
     private void LateUpdate()
     {
@@ -20,10 +21,10 @@ public class DesertCarCam : MonoBehaviour
         if (cam == null && fpc != null && fpc.cameraPivot != null) cam = fpc.cameraPivot.GetComponent<Camera>();
         if (view == 0)
         {
-            if (savedMask != int.MinValue && cam != null) cam.cullingMask = savedMask;
-            savedMask = int.MinValue; has = false; AppliedView = 0; return;
+            PlayerBody.ExternalView = false; has = false; AppliedView = 0; return;
         }
-        if (cam != null && savedMask == int.MinValue) { savedMask = cam.cullingMask; cam.cullingMask &= ~PlayerBody.LayerMaskBit; }   // el cuerpo en 1.ª persona no se ve desde fuera
+        // v7.9.2: desde fuera se ve al conductor (antes se ocultaba la capa del cuerpo y el asiento quedaba vacío)
+        PlayerBody.ExternalView = true;
         Transform ct = fpc.cameraPivot, carT = car.transform;
         float dt = Mathf.Max(1e-4f, Time.deltaTime);
         Vector3 desired; Quaternion rot;

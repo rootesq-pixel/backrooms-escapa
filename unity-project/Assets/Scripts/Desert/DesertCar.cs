@@ -63,6 +63,8 @@ public class DesertCar : MonoBehaviour
     public const float Mass = 1900f, EngineF = 7600f, PowerW = 98000f, BrakeF = 17000f, Vmax = 20.8f, VmaxRev = 7f;   // 75 km/h, 25 km/h atrás
     public static float SinkRespawnSeconds = 25f;
     public static readonly Vector3[] Anchor = { new Vector3(-TrackHalf, AnchorY, AxleZ), new Vector3(TrackHalf, AnchorY, AxleZ), new Vector3(-TrackHalf, AnchorY, -AxleZ), new Vector3(TrackHalf, AnchorY, -AxleZ) };
+    // v7.9.2: sentado, la cabeza queda a esta altura sobre el punto del asiento (por debajo del techo; antes, de pie, lo atravesaba)
+    public const float SeatHeadY = 1.40f;
     public float driverSide = -1f;   // lado del volante (x local), se mide en el modelo
     public Vector3 SeatLocal(int i)
     {
@@ -470,7 +472,8 @@ public class DesertCar : MonoBehaviour
         GameObject g = new GameObject("CarReflections"); g.transform.SetParent(transform, false); g.transform.localPosition = new Vector3(0f, 3.0f, 0f);
         probe = g.AddComponent<ReflectionProbe>();
         probe.mode = ReflectionProbeMode.Realtime; probe.refreshMode = ReflectionProbeRefreshMode.ViaScripting;
-        probe.timeSlicingMode = ReflectionProbeTimeSlicingMode.NoTimeSlicing;   // las 6 caras de golpe (64 px): nunca queda a medias en negro probe.resolution = 64; probe.hdr = true;
+        probe.timeSlicingMode = ReflectionProbeTimeSlicingMode.NoTimeSlicing;   // las 6 caras de golpe (64 px): nunca queda a medias en negro
+        probe.resolution = 64; probe.hdr = true;   // v7.9.2: antes estaba dentro del comentario (iba a 128 px)
         probe.size = new Vector3(14f, 10f, 14f); probe.boxProjection = false; probe.importance = 2; probe.shadowDistance = 0f;
         probe.farClipPlane = 400f; probe.nearClipPlane = 0.5f; probe.clearFlags = ReflectionProbeClearFlags.Skybox;
         // sin dispositivo gráfico (-nographics: servidor/pruebas) pintar una sonda en tiempo real revienta Unity: se queda apagada

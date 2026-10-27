@@ -203,6 +203,14 @@ public static class V790Checks
         yield return 0.3f;
         Vector3 chase = car.transform.InverseTransformPoint(cam.position);
         r.Check(DesertCars.CamView == 1 && DesertCarCam.AppliedView == 1 && chase.z < -3.5f && chase.y > 1.5f && DesertCarCam.LastClearance >= DesertCarCam.MinAboveSand - 0.01f, T + "C: cámara por detrás (" + chase.z.ToString("F1") + " m detrás, " + chase.y.ToString("F1") + " m alto, " + DesertCarCam.LastClearance.ToString("F1") + " m sobre la arena)");
+        {   // v7.9.2: desde fuera se ve al conductor sentado (con cabeza), manos en el volante y sin la linterna en la mano
+            PlayerBody pbx = p.GetComponentInChildren<PlayerBody>(); Camera cc = cam.GetComponent<Camera>();
+            Vector3 bl = pbx != null ? car.transform.InverseTransformPoint(pbx.transform.position) : Vector3.one * 99f, sl = car.SeatLocal(0);
+            bool layerOn = cc != null && (cc.cullingMask & PlayerBody.LayerMaskBit) != 0;
+            float headY = pbx != null && pbx.Head != null ? car.transform.InverseTransformPoint(pbx.Head.position).y : 99f;
+            r.Check(pbx != null && PlayerBody.ExternalView && pbx.Visible && pbx.HeadShown && layerOn && !pbx.PropShown && pbx.OnWheel && new Vector2(bl.x - sl.x, bl.z - sl.z).magnitude < 0.35f && Vector3.Dot(pbx.transform.forward, car.transform.forward) > 0.95f && headY < car.ModelHeight - 0.12f,
+                T + "C (por detrás): el conductor se ve en su asiento (capa " + layerOn + ", cabeza " + (pbx != null && pbx.HeadShown) + ", volante " + (pbx != null && pbx.OnWheel) + ", linterna oculta " + (pbx != null && !pbx.PropShown) + ", a " + new Vector2(bl.x - sl.x, bl.z - sl.z).magnitude.ToString("F2") + " m del asiento, cabeza a " + headY.ToString("F2") + " m, techo " + car.ModelHeight.ToString("F2") + " m)");
+        }
         DesertCars.DbgCamCycle = true; yield return 0.3f;
         { Vector3 lastH = Vector3.one * 99f; IEnumerator wf = WaitFor(() => { Vector3 h = car.transform.InverseTransformPoint(cam.position); bool st = (h - lastH).magnitude < 0.01f && h.z > 0.9f; lastH = h; return st; }, 4f); while (wf.MoveNext()) yield return wf.Current; }   // la cámara se desliza: esperar a que llegue (con fotogramas lentos tarda más)
         Vector3 hood = car.transform.InverseTransformPoint(cam.position);
@@ -210,6 +218,7 @@ public static class V790Checks
         DesertCars.DbgCamCycle = true; yield return 0.3f;
         { IEnumerator wf = WaitFor(() => Vector3.Distance(p.transform.InverseTransformPoint(cam.position), seatCam) < 0.15f, 4f); while (wf.MoveNext()) yield return wf.Current; }
         Vector3 back = p.transform.InverseTransformPoint(cam.position);
+        { PlayerBody pb0 = p.GetComponentInChildren<PlayerBody>(); r.Check(!PlayerBody.ExternalView && pb0 != null && !pb0.HeadShown, T + "C: en el asiento vuelve la 1.ª persona (cabeza solo sombra)"); }
         r.Check(DesertCars.CamView == 0 && DesertCarCam.AppliedView == 0 && Vector3.Distance(back, seatCam) < 0.15f, T + "C otra vez: de vuelta al asiento (" + Vector3.Distance(back, seatCam).ToString("F2") + " m; asiento " + seatCam.ToString("F2") + ", ahora " + back.ToString("F2") + ", capó " + hood.ToString("F2") + ", coche a " + car.Speed.ToString("F2") + " m/s)");
     }
 

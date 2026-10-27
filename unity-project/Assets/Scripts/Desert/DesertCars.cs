@@ -242,6 +242,7 @@ public class DesertCars : MonoBehaviour
     }
     public DesertCar Drivable { get { return cars.Count > 0 ? cars[0] : null; } }
     // v7.9.0: coche que conduce un jugador (local: LocalId) para poner las manos en el volante
+    public static DesertCar CarOf(int id) { if (Active == null) return null; foreach (DesertCar c in Active.cars) if (c.SeatOf(id) >= 0 && !c.hidden) return c; return null; }   // v7.9.2
     public static DesertCar DrivenBy(int id) { if (Active == null) return null; foreach (DesertCar c in Active.cars) if (c.seat[0] == id && !c.hidden) return c; return null; }
     public static DesertCar LocalDriverCar { get { return Active != null && Active.fpc != null && Active.fpc.IsMounted ? DrivenBy(LocalId) : null; } }
 
@@ -480,28 +481,41 @@ public class DesertCars : MonoBehaviour
     public int Dismounts { get; private set; }
 
     // ------------------------------------------------------------------ aviso y velocímetro
-    private GUIStyle style, big;
-    private void OnGUI()
+    // v7.9.2: en uGUI (antes OnGUI a una altura fija del 78 %: pisaba las barras VIDA/BAT/RES/COR de la barra rápida). El aviso
+    // va por encima de la barra rápida y del aviso breve (HudBottom), con ajuste de tamaño y dos líneas en pantallas estrechas.
+    private Canvas hud; private UnityEngine.UI.Text promptT, speedT;
+    public RectTransform PromptRect { get { return promptT != null ? promptT.rectTransform : null; } }
+    public RectTransform SpeedRect { get { return speedT != null ? speedT.rectTransform : null; } }
+    public string PromptShown { get { return promptT != null && hud != null && hud.enabled ? promptT.text : ""; } }
+    public string SpeedShown { get { return speedT != null && hud != null && hud.enabled ? speedT.text : ""; } }
+    private UnityEngine.UI.Text HudText(string n, int size, TextAnchor a)
     {
-        if (UnityEngine.Event.current.type != EventType.Repaint) return;
-        if (UIManager.InputBlocked || (GameManager.Instance != null && GameManager.Instance.State != GameManager.GameState.Playing)) return;
-        DesertCar mine = LocalCar(out int s);
-        if (Prompt == null && mine == null) return;
-        if (style == null)
-        {
-            style = new GUIStyle(GUI.skin.label) { alignment = TextAnchor.MiddleCenter, fontStyle = FontStyle.Bold };
-            big = new GUIStyle(style) { alignment = TextAnchor.MiddleRight };
-        }
-        style.fontSize = Mathf.Max(12, Screen.height / 40); big.fontSize = Mathf.Max(16, Screen.height / 22);
-        if (Prompt != null) Shadowed(new Rect(0, Screen.height * 0.78f, Screen.width, Screen.height * 0.06f), Prompt, style);
-        if (mine != null && s == 0)
-            Shadowed(new Rect(Screen.width * 0.6f, Screen.height * 0.86f, Screen.width * 0.37f, Screen.height * 0.08f), Mathf.RoundToInt(Mathf.Abs(mine.ForwardSpeed) * 3.6f) + " km/h" + (mine.lights ? "  ◐" : ""), big);
+        GameObject g = new GameObject(n, typeof(RectTransform)); g.transform.SetParent(hud.transform, false);
+        UnityEngine.UI.Text t = g.AddComponent<UnityEngine.UI.Text>(); t.font = ProceduralAssets.GetDefaultFont(); t.fontSize = size; t.fontStyle = FontStyle.Bold;
+        t.alignment = a; t.color = new Color(1f, 0.96f, 0.88f, 0.95f); t.raycastTarget = false;
+        t.horizontalOverflow = HorizontalWrapMode.Wrap; t.verticalOverflow = VerticalWrapMode.Truncate;
+        t.resizeTextForBestFit = true; t.resizeTextMinSize = 14; t.resizeTextMaxSize = size;
+        UnityEngine.UI.Shadow sh = g.AddComponent<UnityEngine.UI.Shadow>(); sh.effectColor = new Color(0f, 0f, 0f, 0.8f); sh.effectDistance = new Vector2(2f, -2f);
+        return t;
     }
-    private static void Shadowed(Rect r, string t, GUIStyle st)
+    private void BuildHud()
     {
-        Color old = GUI.color;
-        GUI.color = new Color(0f, 0f, 0f, 0.75f); GUI.Label(new Rect(r.x + 2, r.y + 2, r.width, r.height), t, st);
-        GUI.color = new Color(1f, 0.96f, 0.88f, 0.95f); GUI.Label(r, t, st);
-        GUI.color = old;
+        hud = UiStyle.NewOverlayCanvas(transform, "CarHud", 16);
+        promptT = HudText("CarPrompt", 30, TextAnchor.LowerCenter);
+        speedT = HudText("CarSpeed", 48, TextAnchor.LowerRight);
+        HudBottom.PlaceSpeed(speedT.rectTransform);
+    }
+    private void LateUpdate()
+    {
+        if (hud == null) BuildHud();
+        bool show = !UIManager.InputBlocked && GameManager.Instance != null && GameManager.Instance.State == GameManager.GameState.Playing;
+        DesertCar mine = LocalCar(out int s);
+        show &= Prompt != null || mine != null;
+        if (hud.enabled != show) hud.enabled = show;
+        if (!show) return;
+        float cw = ((RectTransform)hud.transform).rect.width;
+        HudBottom.Place(promptT.rectTransform, HudBottom.CarPromptY, HudBottom.PromptWidth(cw), HudBottom.PromptHeight);
+        promptT.text = Prompt ?? "";
+        speedT.text = mine != null && s == 0 ? Mathf.RoundToInt(Mathf.Abs(mine.ForwardSpeed) * 3.6f) + " km/h" + (mine.lights ? "  ◐" : "") : "";
     }
 }

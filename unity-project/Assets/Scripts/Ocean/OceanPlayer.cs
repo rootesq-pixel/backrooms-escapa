@@ -29,6 +29,9 @@ public class OceanPlayer : MonoBehaviour
     private float drownT, holdT, savedRange, savedAngle, savedIntensity, savedDrain;
     private bool interactPrev;
     private Text promptText, airText;
+    public RectTransform PromptRect { get { return promptText != null ? promptText.rectTransform : null; } }
+    public RectTransform AirRect { get { return airBarBg != null ? airBarBg.rectTransform : null; } }
+    public RectTransform AirTextRect { get { return airText != null ? airText.rectTransform : null; } }
     private Image vignette, airBar, airBarBg;
     private GameObject hudRoot;
 
@@ -192,10 +195,16 @@ public class OceanPlayer : MonoBehaviour
         Font f = ProceduralAssets.GetDefaultFont();
         vignette = NewImage(hudRoot.transform, "HelmetVignette", Vector2.zero, Vector2.one, HelmetVignette());
         vignette.raycastTarget = false; vignette.enabled = false;
-        promptText = NewText(hudRoot.transform, f, 30, new Vector2(0.2f, 0.2f), new Vector2(0.8f, 0.27f));
-        airBarBg = NewImage(hudRoot.transform, "AirBg", new Vector2(0.4f, 0.14f), new Vector2(0.6f, 0.155f), null); airBarBg.color = new Color(0f, 0f, 0f, 0.45f);
+        // v7.9.2: aviso y aire por encima de la barra rápida y del aviso breve (antes en % de la pantalla: pisaban los medidores)
+        promptText = NewText(hudRoot.transform, f, 30, Vector2.zero, Vector2.zero);
+        promptText.horizontalOverflow = HorizontalWrapMode.Wrap; promptText.verticalOverflow = VerticalWrapMode.Truncate;
+        promptText.resizeTextForBestFit = true; promptText.resizeTextMinSize = 14; promptText.resizeTextMaxSize = 30; promptText.alignment = TextAnchor.LowerCenter;
+        HudBottom.Place(promptText.rectTransform, HudBottom.OceanPromptY, HudBottom.PromptMaxWidth, HudBottom.PromptHeight);
+        airBarBg = NewImage(hudRoot.transform, "AirBg", Vector2.zero, Vector2.zero, null); airBarBg.color = new Color(0f, 0f, 0f, 0.45f);
+        HudBottom.Place(airBarBg.rectTransform, HudBottom.OceanAirY, HudBottom.AirBarWidth, HudBottom.AirBarHeight);
         airBar = NewImage(airBarBg.transform, "Air", Vector2.zero, Vector2.one, null); airBar.color = new Color(0.7f, 0.9f, 1f, 0.85f);
-        airText = NewText(hudRoot.transform, f, 22, new Vector2(0.4f, 0.158f), new Vector2(0.6f, 0.19f));
+        airText = NewText(hudRoot.transform, f, 22, Vector2.zero, Vector2.zero);
+        HudBottom.Place(airText.rectTransform, HudBottom.OceanAirTextY, HudBottom.AirBarWidth, HudBottom.AirTextHeight);
     }
 
     private static Texture2D vigTex;
@@ -242,6 +251,7 @@ public class OceanPlayer : MonoBehaviour
         if (hudRoot == null) return;
         bool hide = UIManager.InputBlocked || (GameManager.Instance != null && GameManager.Instance.State != GameManager.GameState.Playing);
         if (promptText != null) promptText.text = hide ? "" : (Prompt ?? "");
+        if (promptText != null) promptText.rectTransform.sizeDelta = new Vector2(HudBottom.PromptWidth(((RectTransform)hudRoot.transform).rect.width), HudBottom.PromptHeight);
         bool showAir = !hide && !HasHelmet && Air01 < 0.999f;
         if (airBarBg != null) airBarBg.enabled = showAir;
         if (airBar != null)

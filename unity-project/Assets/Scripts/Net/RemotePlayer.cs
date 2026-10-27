@@ -328,6 +328,7 @@ public class RemotePlayer : MonoBehaviour
     public bool OnWheel { get; private set; }
     public bool LampShown { get { return lamp != null && lamp.gameObject.activeSelf; } }
     public float WheelErr { get; private set; }
+    private Transform seatHead;
     private void LateUpdate()
     {
         // v7.9.0: en el todoterreno la linterna va guardada; el conductor lleva las dos manos en el volante
@@ -335,6 +336,8 @@ public class RemotePlayer : MonoBehaviour
         if (lamp != null && lamp.gameObject.activeSelf == seated) lamp.gameObject.SetActive(!seated);
         OnWheel = false;
         DesertCar dcar = seated ? DesertCars.DrivenBy(playerId) : null;
+        DesertCar scar = seated ? DesertCars.CarOf(playerId) : null;
+        if (scar != null) SeatPose(scar);   // conductor y pasajeros
         if (dcar != null && model != null && model.gameObject.activeInHierarchy && !Downed && dcar.Grips(out Vector3 gl, out Vector3 gr))
         {
             float e1 = ArmIk.Solve(armU, armL, armH, gr, transform.right * 0.6f + Vector3.down);
@@ -368,7 +371,9 @@ public class RemotePlayer : MonoBehaviour
         if (animator == null) return;
         float v = FlatSpeed;
         string want;
+        bool sit = DesertCars.IsSeated(playerId);   // v7.9.2: sentado en el todoterreno (agachado quieto, más bajo que el techo)
         if (Downed) want = "Duck";
+        else if (sit) want = "Idle";
         else if (Crouching) want = "Duck";
         else if (v < 0.2f) want = "Idle";
         else if (Sprinting && v > 4.2f) want = "Run";
@@ -383,7 +388,7 @@ public class RemotePlayer : MonoBehaviour
         if (CurrentState == "Walk") speed = Mathf.Clamp(v / (2f * 1.7f) * walkLen, 0.3f, 2.5f);
         else if (CurrentState == "Run") speed = Mathf.Clamp(v / (2f * 2.2f) * runLen, 0.4f, 2.5f);
         else if (CurrentState == "Duck") speed = Downed ? 0f : 0.6f + Mathf.Clamp01(v / 1.7f) * 0.5f;
-        animator.speed = speed * (swim ? 0.5f : 1f);
+        animator.speed = sit ? 0f : speed * (swim ? 0.5f : 1f);
         if (IsMimic) animator.speed *= 0.55f + Mathf.PerlinNoise(Time.time * 4f, 1.7f) * 1.2f;   // animación a tirones
     }
 
@@ -399,6 +404,15 @@ public class RemotePlayer : MonoBehaviour
             model.localRotation = Quaternion.Euler(Mathf.Lerp(0f, -82f, downK) + rise + ReviveK * 24f, 0f, 0f);
             model.localPosition = new Vector3(0f, Mathf.Lerp(0f, 0.16f, downK), Mathf.Lerp(0f, -0.35f, downK));
         }
+    }
+    // v7.9.2: sentado mirando al frente del coche y con la cabeza bajo el techo, en cualquier plaza
+    private void SeatPose(DesertCar car)
+    {
+        if (model == null || Downed) return;
+        transform.rotation = Quaternion.LookRotation(car.transform.forward, car.transform.up);
+        SeatedLegs.Apply(model, transform);
+        if (seatHead == null) seatHead = Find(model, "Head");
+        if (seatHead != null) { float dy = Vector3.Dot(transform.position + car.transform.up * DesertCar.SeatHeadY - seatHead.position, car.transform.up); model.position += car.transform.up * Mathf.Clamp(dy, -0.6f, 0.6f); }
     }
 
     private void UpdateLamp(float pitch, float dt)

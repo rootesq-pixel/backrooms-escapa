@@ -26,7 +26,8 @@ public class HotbarHud : MonoBehaviour
     public Color StaminaColor { get { return staFillImg != null ? staFillImg.color : Color.clear; } }
     // v7.0.4: todo el bloque inferior va anclado al borde inferior (antes al centro: en pantallas muy anchas se salía por abajo).
     // TopEdge = borde superior del bloque (etiquetas BAT/RES/COR) en unidades del lienzo de referencia, medido desde abajo.
-    public const float BaseY = -470f, TopEdge = BaseY + 540f + 146f;
+    // v7.9.2: 20 unidades más abajo (más sitio para los avisos por encima)
+    public const float BaseY = -490f, TopEdge = BaseY + 540f + 146f;
     public readonly System.Collections.Generic.List<RectTransform> LayoutRects = new System.Collections.Generic.List<RectTransform>();
     public float Meter(int which) { RectTransform r = which == 0 ? batFill : which == 1 ? staFill : sanFill; return r != null ? r.anchorMax.x : -1f; }
 

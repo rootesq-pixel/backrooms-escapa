@@ -256,6 +256,9 @@ public static class V704Checks
         return Rect.MinMaxRect(mn.x, mn.y, mx.x, mx.y);
     }
 
+    static RectTransform NewProbe(GameObject parent, string n) { GameObject g = new GameObject(n, typeof(RectTransform)); probes.Add(g); return (RectTransform)g.transform; }
+    static readonly List<GameObject> probes = new List<GameObject>();
+
     public static Vector2 RefCanvasSize(float w, float h)
     {
         // CanvasScaler ScaleWithScreenSize, referencia 1920x1080, match 0.5 (todas las capas del HUD)
@@ -318,6 +321,48 @@ public static class V704Checks
         }
         r.Check(bad == 0, tag + "[HUD] el aviso no se solapa con barra rápida, medidores, VHS ni info en " + res.Length + " resoluciones/proporciones" + (bad > 0 ? " (fallos " + bad + "; " + firstBad + ")" : ""));
         gm.ShowToast("");
+        // v7.9.2: avisos de mandos (coche y barca), velocímetro y aire de buceo: ni sobre la barra rápida/medidores ni sobre el aviso breve
+        {
+            GameObject tmp = new GameObject("HudBottomProbe", typeof(RectTransform));
+            RectTransform pr = NewProbe(tmp, "prompt_coche"), sp = NewProbe(tmp, "velocimetro"), op = NewProbe(tmp, "prompt_barca"), oa = NewProbe(tmp, "aire"), ot = NewProbe(tmp, "aire_texto");
+            int bad2 = 0; string first2 = "";
+            foreach (Vector2 sr in res)
+            {
+                Vector2 cs = RefCanvasSize(sr.x, sr.y);
+                HudBottom.Place(pr, HudBottom.CarPromptY, HudBottom.PromptWidth(cs.x), HudBottom.PromptHeight);
+                HudBottom.PlaceSpeed(sp);
+                HudBottom.Place(op, HudBottom.OceanPromptY, HudBottom.PromptWidth(cs.x), HudBottom.PromptHeight);
+                HudBottom.Place(oa, HudBottom.OceanAirY, HudBottom.AirBarWidth, HudBottom.AirBarHeight);
+                HudBottom.Place(ot, HudBottom.OceanAirTextY, HudBottom.AirBarWidth, HudBottom.AirTextHeight);
+                Vector2 sd = gm.toastPanel.rectTransform.sizeDelta;
+                gm.toastPanel.rectTransform.sizeDelta = new Vector2(Mathf.Min(pw, cs.x - 48f), sd.y);
+                Rect toast = CanvasRect(gm.toastPanel.rectTransform, cs);
+                gm.toastPanel.rectTransform.sizeDelta = sd;
+                string why = null;
+                RectTransform[] mine = { pr, sp, op, oa, ot };
+                foreach (RectTransform m in mine)
+                {
+                    if (why != null) break;
+                    Rect a = CanvasRect(m, cs);
+                    if (a.xMin < 0f || a.xMax > cs.x || a.yMin < 0f || a.yMax > cs.y) { why = m.name + " fuera de pantalla " + a; break; }
+                    foreach (var kv in others)
+                    {
+                        Rect o = CanvasRect(kv.Value, cs);
+                        if (o.width <= 0.5f || o.height <= 0.5f) continue;
+                        if (kv.Key.StartsWith("info") || kv.Key.StartsWith("vhs")) { if (a.Overlaps(o)) { why = m.name + " pisa " + kv.Key + " " + o; break; } continue; }
+                        Rect g = new Rect(o.x - 6f, o.y - 6f, o.width + 12f, o.height + 12f);
+                        if (a.Overlaps(g)) { why = m.name + " pisa " + kv.Key + " " + o; break; }
+                    }
+                    if (why == null && m != sp && a.Overlaps(toast)) why = m.name + " pisa el aviso breve " + toast;
+                }
+                // entre sí (barca: aire, texto y aviso no se tocan)
+                if (why == null && (CanvasRect(op, cs).Overlaps(CanvasRect(ot, cs)) || CanvasRect(ot, cs).Overlaps(CanvasRect(oa, cs)))) why = "barca: aviso/aire se tocan";
+                if (why == null && CanvasRect(pr, cs).Overlaps(CanvasRect(sp, cs))) why = "aviso del coche pisa el velocímetro";
+                if (why != null) { bad2++; if (first2 == "") first2 = sr.x + "x" + sr.y + ": " + why; }
+            }
+            UnityEngine.Object.Destroy(tmp); foreach (GameObject g in probes) UnityEngine.Object.Destroy(g); probes.Clear();
+            r.Check(bad2 == 0, tag + "[HUD] avisos del coche/barca, velocímetro y aire sin solaparse con la barra rápida, medidores, aviso breve ni info en " + res.Length + " resoluciones (16:9, 16:10, 4:3, 5:4, 21:9, 32:9, 1:1)" + (bad2 > 0 ? " (fallos " + bad2 + "; " + first2 + ")" : ""));
+        }
     }
 
     public static IEnumerator AdrenalineChecks(SmokeTest.Report r, string tag, int lv, GameManager gm)
