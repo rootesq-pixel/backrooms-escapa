@@ -243,7 +243,8 @@ public static class V790Checks
             float top = -9f; int smr = 0;
             if (pbs != null) foreach (SkinnedMeshRenderer sr in pbs.GetComponentsInChildren<SkinnedMeshRenderer>()) { smr++; top = Mathf.Max(top, car.transform.InverseTransformPoint(sr.bounds.max).y); }
             bool sameModel = pbs != null && pbs.transform.Find("Model") != null && smr >= 2;
-            r.Check(sameModel && pbs.SeatScaled && hipY > 0.42f && hipY < 0.8f && top < car.ModelHeight - 0.08f, T + "C (por detrás): el conductor es el traje del jugador (" + smr + " mallas), sentado en el cojín (cadera a " + hipY.ToString("F2") + " m del asiento) y la capucha bajo el techo (" + top.ToString("F2") + " / " + car.ModelHeight.ToString("F2") + " m)");
+            float footY = 9f; if (pbs != null) foreach (Transform tf in pbs.GetComponentsInChildren<Transform>()) if (tf.name == "Foot.L" || tf.name == "Foot.R") footY = Mathf.Min(footY, car.transform.InverseTransformPoint(tf.position).y);
+            r.Check(sameModel && pbs.SeatScaled && hipY > 0.55f && hipY < 0.8f && top < car.ModelHeight - 0.08f && footY > 0.36f, T + "C (por detrás): el conductor es el traje del jugador (" + smr + " mallas), sentado (cadera a " + hipY.ToString("F2") + " m del asiento, botas a " + footY.ToString("F2") + " m, suelo de la cabina 0.48) y la capucha bajo el techo (" + top.ToString("F2") + " / " + car.ModelHeight.ToString("F2") + " m)");
         }
         DesertCars.DbgCamCycle = true; yield return 0.3f;
         { Vector3 lastH = Vector3.one * 99f; IEnumerator wf = WaitFor(() => { Vector3 h = car.transform.InverseTransformPoint(cam.position); bool st = (h - lastH).magnitude < 0.01f && h.z > 0.9f; lastH = h; return st; }, 4f); while (wf.MoveNext()) yield return wf.Current; }   // la cámara se desliza: esperar a que llegue (con fotogramas lentos tarda más)

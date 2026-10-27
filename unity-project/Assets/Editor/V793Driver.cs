@@ -138,9 +138,15 @@ public static class V793Driver
             foreach (SkinnedMeshRenderer r in pm.GetComponentsInChildren<SkinnedMeshRenderer>()) Log("   " + r.name + " altura local " + ct.InverseTransformPoint(r.bounds.min).y.ToString("F2") + "–" + ct.InverseTransformPoint(r.bounds.max).y.ToString("F2"));
             Transform sh = FindDeep(pm, "UpperArm.R"), hp = FindDeep(pm, "Hips");
             Log("hombro " + (sh != null ? ct.InverseTransformPoint(sh.position).y.ToString("F2") : "-") + ", cadera " + (hp != null ? ct.InverseTransformPoint(hp.position).ToString("F2") : "-") + ", asiento " + car.SeatLocal(0).ToString("F2") + ", inclinación al volante " + pb.WheelLean.ToString("F2") + ", pitch " + p.Pitch.ToString("F0"));
-            foreach (Renderer r in car.GetComponentsInChildren<Renderer>()) if (r.name.StartsWith("DCar_Glass") || r.name.StartsWith("DCar_Body")) Log("   coche " + r.name + " y " + ct.InverseTransformPoint(r.bounds.min).y.ToString("F2") + "–" + ct.InverseTransformPoint(r.bounds.max).y.ToString("F2") + " mats " + string.Join(",", System.Array.ConvertAll(r.sharedMaterials, x => x != null ? x.name + (x.HasProperty("_Color") ? x.color.ToString("F2") : "") : "-")));
+            foreach (Renderer r in car.GetComponentsInChildren<Renderer>()) if (r.name.StartsWith("DCar_")) Log("   coche " + r.name + " y " + ct.InverseTransformPoint(r.bounds.min).y.ToString("F2") + "–" + ct.InverseTransformPoint(r.bounds.max).y.ToString("F2") + " mats " + string.Join(",", System.Array.ConvertAll(r.sharedMaterials, x => x != null ? x.name + (x.HasProperty("_Color") ? x.color.ToString("F2") : "") : "-")));
+        }
+        {   // suelo de la cabina bajo los pies del conductor (rayos hacia abajo desde la cadera, solo el coche)
+            Transform ft = pm != null ? FindDeep(pm, "Foot.L") : null;
+            if (ft != null) Log("pie izq a " + ct.InverseTransformPoint(ft.position).ToString("F2"));
+            foreach (RaycastHit hh in Physics.RaycastAll(ct.TransformPoint(car.SeatLocal(0) + new Vector3(0f, 1.2f, 0.5f)), -ct.up, 3f)) Log("   rayo suelo: " + hh.collider.name + " y " + ct.InverseTransformPoint(hh.point).y.ToString("F2"));
         }
         Vector3 seat = ct.TransformPoint(car.SeatLocal(0)) + ct.up * 1.45f;
+        yield return 0.3f;
         Around("conductor", seat, ct.forward, ct.right * side, 2.6f, 0.15f);
         { Vector3 eb = seat - ct.forward * 3.2f + ct.up * 0.35f + ct.right * side * 0.2f; Shot("conductor_detras", 1920, 1080, false, cm => { cm.transform.position = eb; cm.transform.rotation = Quaternion.LookRotation(seat - eb); }); }
         List<Renderer> carR = new List<Renderer>(); foreach (Renderer r in car.GetComponentsInChildren<Renderer>()) if (r.enabled && (pm == null || !r.transform.IsChildOf(pm))) { carR.Add(r); }
