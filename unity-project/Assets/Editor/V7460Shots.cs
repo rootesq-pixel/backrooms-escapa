@@ -77,7 +77,13 @@ public static class V7460Shots
         GameBootstrap gb = GameBootstrap.Instance;
         while (gb == null || UIManager.Instance == null || !gb.IsLoaded || !gb.InMenu) { yield return 0.2f; gb = GameBootstrap.Instance; }
         yield return 1.0f;
-        Log("calidad " + GameSettings.Quality + ", gráficos " + SystemInfo.graphicsDeviceType + " " + SystemInfo.graphicsDeviceName);
+        int qOrig = GameSettings.Quality; GameSettings.Quality = 2; yield return 0.5f;   // capturas siempre en Alto; al final se restaura (PlayerPrefs compartidas)
+        Log("calidad " + GameSettings.Quality + " (antes " + qOrig + ")" + ", gráficos " + SystemInfo.graphicsDeviceType + " " + SystemInfo.graphicsDeviceName);
+        // selector de niveles con la tarjeta del 7460 enfocada
+        UIManager.Instance.SetScreen(UIManager.Screen.Levels); yield return 0.6f;
+        UIManager.Instance.FocusLevel(9); yield return 0.6f;
+        Shot("00_selector_de_niveles", true);
+        UIManager.Instance.SetScreen(UIManager.Screen.Main); yield return 0.3f;
         gb.useRandomSeed = false; gb.seed = 12345;
         int ld = gb.LoadCount;
         UIManager.Instance.StartGame(9);
@@ -128,12 +134,14 @@ public static class V7460Shots
         Shot("11_salida_cerrada_pista", false, L(-eg * 0.5f, 1.55f, ez - 4.5f), L(eg * 1.7f, 1.0f, ez));
         Inventory.Instance.Add(ExitLock.Active.CorrectKey, 1); ExitLock.Active.Unlock(true, "prueba"); yield return 3.0f;
         Shot("12_salida_abierta", false, L(-eg * 0.5f, 1.55f, ez - 3.0f), L(eg * 2.2f, 1.0f, ez));
+        if (fl != null) { fl.SetOn(true); yield return 0.5f; Shot("12b_linterna_encendida_hud", true); fl.SetOn(false); }
         // calidad baja (sin reflejo planar) para comparar
         int q0 = GameSettings.Quality; GameSettings.Quality = 0; yield return 1.0f;
         Shot("13_pasillo_calidad_baja", true, L(0f, 1.55f, 20.5f * cs), L(0f, 1.45f, 60f * cs));
         GameSettings.Quality = q0; yield return 0.5f;   // se deja como estaba (PlayerPrefs compartidas)
         Log("planar renders " + (CorridorPlanar.Instance != null ? CorridorPlanar.Instance.Renders : -1) + ", sonda " + w.ProbeRenders + ", tramos " + w.ChunkCount + ", habitaciones " + w.RoomCount);
         Health.DisableForTests = false; CorridorEvents.DisableForTests = false;
+        GameSettings.Quality = qOrig;
         Log("FIN");
     }
 }

@@ -196,8 +196,9 @@ public class CorridorWorld : MonoBehaviour
         // superficies sin hornear (extremos, nichos tapiados): irradiancia constante en una textura 1×1 (mismo shader)
         Texture2D flat = new Texture2D(2, 2, TextureFormat.RGBAHalf, false, true) { name = "C7460_FlatLM" };
         Color fl = new Color(1.55f, 1.56f, 1.60f, 1f); flat.SetPixels(new[] { fl, fl, fl, fl }); flat.Apply(false, false); track(flat);
+        // el nicho tapiado recibe la luz del pasillo (antes casi negro)
         Texture2D dim = new Texture2D(2, 2, TextureFormat.RGBAHalf, false, true) { name = "C7460_NicheLM" };
-        Color dl = new Color(0.55f, 0.56f, 0.58f, 1f); dim.SetPixels(new[] { dl, dl, dl, dl }); dim.Apply(false, false); track(dim);
+        Color dl = new Color(1.15f, 1.16f, 1.19f, 1f); dim.SetPixels(new[] { dl, dl, dl, dl }); dim.Apply(false, false); track(dim);
         endMat = Baked("C7460Wall", flat, BakeExposure, 1f, 0f, WallTint);
         brickMat = Baked("C7460Brick", dim, BakeExposure, 1f, 0f, white);
         Material nicheTrim = Baked("C7460Trim", dim, BakeExposure, 1f, 0f, white);

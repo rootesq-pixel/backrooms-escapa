@@ -315,7 +315,7 @@ public static class SeedReachCheck
                 Vector3 l1 = R.InverseTransformPoint(pw.transform.position);
                 Check(l1.z > 6f && Mathf.Abs(l1.x - cw.CenterX) < CorridorWorld.HW, T9 + "se sale del ascensor andando al pasillo (z " + l1.z.ToString("F1") + " m)");
                 // 2) un tramo largo andando por el centro (corriendo) sin quedarse enganchado
-                int r0 = Mathf.Max(3, cw.plan.exitRow - 12);
+                int r0 = Mathf.Max(3, cw.plan.exitRow - 26);   // el tramo (unos 12 módulos) acaba antes de la salida: con AutoKeyForTests, pasar a su lado ya gana el nivel
                 pw.Teleport(R.TransformPoint(new Vector3(cw.CenterX, 0.1f, r0 * cs)), 0f); yield return 0.3f;
                 pw.debugMove = new Vector2(0f, 1f); pw.debugSprint = true;
                 tg = EditorApplication.timeSinceStartup; while (EditorApplication.timeSinceStartup - tg < 6.0) yield return 0.1f;
@@ -332,7 +332,7 @@ public static class SeedReachCheck
                     tg = EditorApplication.timeSinceStartup; while (EditorApplication.timeSinceStartup - tg < 4.0) yield return 0.1f;
                     pw.debugMove = Vector2.zero; yield return 0.2f;
                     Vector3 l3 = R.InverseTransformPoint(pw.transform.position);
-                    Check(sg * (l3.x - cw.CenterX) > CorridorWorld.XR + 0.4f, T9 + "se entra andando en una habitación (x " + (l3.x - cw.CenterX).ToString("F2") + " m del centro)");
+                    Check(sg * (l3.x - cw.CenterX) > CorridorWorld.XR + 0.4f, T9 + "se entra andando en una habitación (x " + (l3.x - cw.CenterX).ToString("F2") + " m del centro; z " + (l3.z - (rr + 0.5f) * cs).ToString("F2") + ", yaw " + pw.transform.eulerAngles.y.ToString("F0") + ", ui " + (UIManager.Instance != null ? UIManager.Instance.Current.ToString() : "-") + ", estado " + gm9.State + ")");
                 }
                 // 4) salida: la llave buena y andar hacia la puerta
                 Inventory.Instance.Add(ExitLock.Active.CorrectKey, 1); ExitLock.Active.ResetCooldownForTests();
