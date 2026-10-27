@@ -10,7 +10,7 @@ public class CorridorEvents : MonoBehaviour
     public static CorridorEvents Active { get; private set; }
     public static readonly string[] NoiseNames = { "C7460_PasosDetras", "C7460_Puerta", "C7460_Golpes", "C7460_Susurro" };
     public static bool DisableForTests;
-    public const float GapMin = 18f, GapMax = 45f, FirstMin = 14f, FirstMax = 28f, DistMin = 6f, DistMax = 30f;
+    public const float GapMin = 18f, GapMax = 45f, FirstMin = 14f, FirstMax = 28f, DistMin = 6f, DistMax = 20f;   // v3: más cerca (se oyen claros)
     public int NoiseEvents { get; private set; }
     public string LastNoise { get; private set; }
     public Vector3 LastPos { get; private set; }
@@ -33,7 +33,7 @@ public class CorridorEvents : MonoBehaviour
         GameObject s = new GameObject("BehindNoise"); s.transform.SetParent(g.transform, false);
         e.src = s.AddComponent<AudioSource>();
         e.src.playOnAwake = false; e.src.loop = false; e.src.spatialBlend = 1f; e.src.rolloffMode = AudioRolloffMode.Linear;
-        e.src.minDistance = 4f; e.src.maxDistance = 46f; e.src.dopplerLevel = 0f; e.src.spread = 0f;
+        e.src.minDistance = 6f; e.src.maxDistance = 40f; e.src.dopplerLevel = 0f; e.src.spread = 0f;
         e.lp = s.AddComponent<AudioLowPassFilter>(); e.lp.cutoffFrequency = 1700f;
         AudioReverbFilter rv = s.AddComponent<AudioReverbFilter>(); rv.reverbPreset = AudioReverbPreset.Hallway;
         e.rng = new System.Random((gen != null ? gen.UsedSeed : 0) * 919 + (int)(System.DateTime.Now.Ticks & 0xffff));   // local de cada jugador
@@ -107,16 +107,16 @@ public class CorridorEvents : MonoBehaviour
     {
         if (listener == null || src == null || clips == null) return;
         float dist = DistMin + (float)rng.NextDouble() * (DistMax - DistMin);
-        if (k == 0) dist = Mathf.Min(dist, 16f);            // pasos: cerca
-        if (k == 3) dist = Mathf.Min(dist, 9f);             // susurro: muy cerca
+        if (k == 0) dist = Mathf.Min(dist, 12f);            // pasos: cerca
+        if (k == 3) dist = Mathf.Min(dist, 6.5f);             // susurro: muy cerca
         Vector3 p = BehindPoint(dist);
         p.y = listener.position.y + (k == 0 ? -1.4f : k == 3 ? 0.1f : -0.4f);
         src.transform.position = p;
         Vector3 to = p - listener.position; to.y = 0f;
         LastBehindDot = to.sqrMagnitude > 0.01f ? Vector3.Dot(Flat(listener.forward), to.normalized) : -1f;
         src.pitch = 0.94f + (float)rng.NextDouble() * 0.12f;
-        lp.cutoffFrequency = k == 3 ? 2400f : k == 2 ? 1300f : 1800f;   // «detrás de la cabeza»: sin brillo
-        float vol = k == 0 ? 0.80f : k == 1 ? 0.85f : k == 2 ? 0.75f : 0.55f;
+        lp.cutoffFrequency = k == 3 ? 3600f : k == 2 ? 2600f : 3000f;   // «detrás de la cabeza»: sin brillo
+        float vol = k == 0 ? 1.0f : k == 1 ? 1.0f : k == 2 ? 0.95f : 0.85f;
         src.Stop();
         src.clip = clips[k]; src.volume = AudioMix.Event(vol); src.Play();
         playingSteps = k == 0 ? clips[k].length : 0f;
@@ -140,6 +140,7 @@ public class CorridorEvents : MonoBehaviour
                     float a = 0.35f + 0.65f * (i / 6f);
                     Click(d, tt, a, 1150f + (i & 1) * 90f, 70f, r);               // tacón (seco)
                     Thud(d, tt + 0.03f, a * 0.55f, 120f, 38f, 0.05f, r, 420f);    // suela
+                    Thud(d, tt + 0.01f, a * 0.35f, 700f, 60f, 0.25f, r, 1600f);   // v3: roce de la suela (medios: se oye en altavoces pequeños)
                 }
                 break;
             case 1:   // picaporte + puerta que se abre, pausa, y se cierra con golpe sordo y pestillo (sin crujido)
@@ -150,7 +151,7 @@ public class CorridorEvents : MonoBehaviour
                 break;
             case 2:   // tres golpes de nudillos en una puerta lejana, pausa, dos más
                 float[] ts = { 0.1f, 0.38f, 0.66f, 1.6f, 1.86f };
-                foreach (float tt in ts) { Thud(d, tt, 1f, 160f, 30f, 0.10f, r, 650f); Thud(d, tt, 0.4f, 300f, 46f, 0.05f, r, 900f); }
+                foreach (float tt in ts) { Thud(d, tt, 1f, 160f, 30f, 0.10f, r, 650f); Thud(d, tt, 0.8f, 420f, 55f, 0.08f, r, 1400f); Click(d, tt, 0.35f, 820f, 120f, r); }   // v3: nudillo con más ataque
                 break;
             default:  // susurro: sílabas cortas de ruido con formantes (vocal apagada), envolvente suave, nada continuo
                 {
@@ -179,9 +180,11 @@ public class CorridorEvents : MonoBehaviour
         float[] o = (float[])d.Clone();
         int[] taps = { 977, 1611, 2459, 3593 }; float[] g = { 0.28f, 0.2f, 0.14f, 0.09f };
         for (int k = 0; k < taps.Length; k++) for (int i = taps[k]; i < n; i++) o[i] += d[i - taps[k]] * g[k];
-        LowPass(o, kind == 3 ? 2600f : 2200f); LowPass(o, kind == 3 ? 2600f : 2200f);
+        LowPass(o, kind == 3 ? 3400f : 3000f); LowPass(o, kind == 3 ? 3400f : 3000f);   // v3: algo más de presencia, sin siseo
         float mx = 1e-4f; for (int i = 0; i < n; i++) mx = Mathf.Max(mx, Mathf.Abs(o[i]));
-        for (int i = 0; i < n; i++) o[i] *= 0.85f / mx;
+        for (int i = 0; i < n; i++) o[i] /= mx;
+        const float drive = 2.4f; float tn = (float)System.Math.Tanh(drive);   // v3: compresión suave (más volumen percibido con el mismo pico)
+        for (int i = 0; i < n; i++) o[i] = 0.9f * (float)System.Math.Tanh(o[i] * drive) / tn;
         int fo = Mathf.Min(n, SR / 5); for (int i = 0; i < fo; i++) o[n - 1 - i] *= i / (float)fo;
         AudioClip c = AudioClip.Create(NoiseNames[kind], n, 1, SR, false); c.SetData(o, 0);
         return c;
@@ -211,5 +214,6 @@ public class CorridorEvents : MonoBehaviour
             d[i0 + i] += amp * env * (Mathf.Sin(2f * Mathf.PI * fs * t) + noiseAmt * 6f * l2);
         }
     }
+    public static float Rms(AudioClip c) { float[] d = new float[c.samples]; c.GetData(d, 0); double a = 0; int cnt = 0; for (int i = 0; i < d.Length; i++) if (Mathf.Abs(d[i]) > 0.01f) { a += d[i] * d[i]; cnt++; } return cnt > 0 ? Mathf.Sqrt((float)(a / cnt)) : 0f; }   // RMS de la parte con sonido
     static void LowPass(float[] d, float cut) { float a = Mathf.Exp(-2f * Mathf.PI * cut / SR), y = 0f; for (int i = 0; i < d.Length; i++) { y = a * y + (1f - a) * d[i]; d[i] = y; } }
 }

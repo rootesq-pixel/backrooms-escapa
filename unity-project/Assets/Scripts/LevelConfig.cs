@@ -492,7 +492,7 @@ public class LevelConfig
         c.fixture = FixtureKind.Panel; c.lightSpacing = 1; c.deadChance = 0f; c.flickerChance = 0f;
         c.lightColor = new Color(1f, 0.985f, 0.96f); c.emissionColor = Color.white;
         c.lightIntensity = 1f; c.lightRange = 0f; c.maxRealtimeLights = 2; c.buzzChance = 0f;
-        c.postExposure = 0.92f; c.postBloom = 0.05f; c.postThreshold = 1.5f;   // plafones nítidos (sin halo grande)
+        c.postExposure = 0.92f; c.postBloom = 0.03f; c.postThreshold = 2.6f;   // v3: plafones nítidos, sin halo (como la foto)
         c.flashlightDrain = 0.25f; c.flashlightRecharge = 0.3f; c.batteries = 3; c.batteryAmount = 35f; c.flashlightIntensity = 2.0f;
         c.monsterCount = 0; c.killDistance = 1.3f;
         c.droneHz = 58f; c.droneNoise = 0.02f; c.droneVolume = 0.10f; c.ambientEvent = AmbientEvent.None;   // zumbido muy bajo de los plafones

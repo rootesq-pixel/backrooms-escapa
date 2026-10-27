@@ -90,7 +90,7 @@ public static class V7460Checks
         int badRooms = 0;
         for (int s = 0; s < 2; s++) for (int j = 0; j < gen.Corridor.rows; j++) if (gen.Corridor.doors[s, j] == CorridorPlan.Door.Room)
         {
-            Vector3 c = w.RoomCenterWorld(s, j) + Vector3.up * 0.95f;
+            Vector3 c = w.RoomCenterWorld(s, j) + Vector3.up * 0.95f + w.levelRoot.TransformDirection(new Vector3(s == CorridorPlan.Left ? 0.4f : -0.4f, 0f, 0f));   // v3: la zona libre entre la puerta y los muebles
             if (Physics.CheckSphere(c, 0.34f)) badRooms++;
             foreach (Vector3 dir in new[] { Vector3.forward, Vector3.back }) if (!Physics.Raycast(c, w.levelRoot.TransformDirection(dir), CorridorWorld.RW)) badRooms++;
         }
@@ -142,6 +142,8 @@ public static class V7460Checks
             yield return 0.4f;
         }
         r.Check(allBehind && ev.NoiseEvents >= 4, T + "[Ruidos] los 4 suenan detrás de ti (3D) y aceleran el latido:" + dots);
+        { string rmsS = ""; bool loud = true; foreach (AudioClip c in ev.Clips) { float v = CorridorEvents.Rms(c); rmsS += " " + c.name + " " + v.ToString("F2"); if (v < 0.16f) loud = false; }
+          r.Check(loud && ev.Source.maxDistance <= 40f && CorridorEvents.DistMax <= 20f, T + "[Ruidos] se oyen claros (RMS de la parte con sonido >= 0,16; a 6-20 m):" + rmsS); }
         p.Teleport(mid, 90f); yield return 0.3f;
         ev.Play(1); yield return 0.1f;
         r.Check(ev.LastBehindDot < -0.8f, T + "[Ruidos] mirando a la pared, también a la espalda (" + ev.LastBehindDot.ToString("F2") + ")");

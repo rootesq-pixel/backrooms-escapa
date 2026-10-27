@@ -55,7 +55,8 @@ public class ShotBuildCheck : MonoBehaviour
         yield return new WaitForSeconds(1.5f);
         if (mc == null) { Check(false, "cámara del jugador"); Finish(); yield break; }
         mc.cullingMask &= ~(1 << 8);
-        if (PoolRoomSetPiece.Root != null) yield return Pool(gm, pw, mc);
+        if (CorridorWorld.Active != null) yield return Corridor(gm, pw, mc);   // Nivel 7460
+        else if (PoolRoomSetPiece.Root != null) yield return Pool(gm, pw, mc);
         else if (FieldWorld.Active != null) yield return Field(gm, pw, mc);
         else if (DesertWorld.Active != null) yield return Desert(gm, pw, mc);
         else if (OceanWorld.Active != null && System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-swimseq") >= 0) yield return SwimSeq(gm, pw, mc);
@@ -78,6 +79,7 @@ public class ShotBuildCheck : MonoBehaviour
         yield return new WaitForSecondsRealtime(0.3f);
         mc.transform.position = p; mc.transform.rotation = Quaternion.LookRotation(t - p); mc.fieldOfView = fov;
         if (PoolPlanarReflection.Instance != null) PoolPlanarReflection.Instance.Refresh(mc);
+        if (CorridorPlanar.Instance != null) CorridorPlanar.Instance.Refresh(mc);
         if (FieldGrass.Active != null) FieldGrass.Active.Submit();
         Texture2D tex = Grab(mc, n);
         float minMean = n.Contains("a_oscuras") ? 0.008f : n.Contains("apagon_rojo") ? 0.006f : n.StartsWith("l3_") || n.StartsWith("l4_") ? 0.010f : 0.03f;   // el plano a oscuras es negro a propósito (solo señuelo y fotóforos); v7.5.0: el hotel es oscuro a propósito
@@ -1148,6 +1150,50 @@ public class ShotBuildCheck : MonoBehaviour
         int worst = Mathf.Max(1, ft.Count / 100); double ws = 0; for (int i = ft.Count - worst; i < ft.Count; i++) ws += ft[i];
         Info("perf " + n + " calidad " + GameSettings.Quality + ": media " + mean.ToString("F2") + " ms = " + (1000.0 / mean).ToString("F0") + " FPS, 1% bajo " + (1000.0 / (ws / worst)).ToString("F0")
             + " FPS (media del 1% peor " + (ws / worst).ToString("F2") + " ms; p99 " + p99.ToString("F2") + " ms), mediana " + ft[ft.Count / 2].ToString("F2") + " ms, " + ft.Count + " fotogramas, AA " + rt.antiAliasing + ", " + SystemInfo.graphicsDeviceName);
+    }
+
+    // Nivel 7460: mismas vistas que V7460Shots (editor) pero en el ejecutable con la GPU real; con -perf, FPS en el pasillo y en una habitación
+    IEnumerator Corridor(GameManager gm, FirstPersonController pw, Camera mc)
+    {
+        CorridorWorld w = CorridorWorld.Active; float cs = CorridorWorld.CS, fov = mc.fieldOfView;
+        VhsEffect vx = mc.GetComponent<VhsEffect>(); if (vx != null) vx.intensityOverride = 0f;
+        Health.DisableForTests = true; CorridorEvents.DisableForTests = true;
+        foreach (Renderer rr0 in pw.GetComponentsInChildren<Renderer>(true)) rr0.enabled = false;
+        System.Func<float, float, float, Vector3> L = (x, y, z) => w.levelRoot.TransformPoint(new Vector3(w.CenterX + x, y, z));
+        Info("pasillo: " + w.plan.rows + " módulos, salida en " + w.plan.exitRow + ", habitaciones " + w.RoomCount + ", fov " + fov.ToString("F0"));
+        Vector3 st = L(0f, 0.1f, 20f * cs);
+        yield return View(pw, mc, "c_03_pasillo_centro", L(0f, 1.55f, 20.5f * cs), L(0f, 1.45f, 60f * cs), fov, st);
+        yield return View(pw, mc, "c_03b_pasillo_a_1m_como_la_foto", L(0f, 1.0f, 20.5f * cs), L(0f, 1.0f, 60f * cs), fov, st);
+        yield return View(pw, mc, "c_05_hacia_el_ascensor", L(0f, 1.55f, 30.2f * cs), L(0f, 1.45f, 0f), fov, L(0f, 0.1f, 30f * cs));
+        yield return View(pw, mc, "c_06_suelo_reflejo", L(-0.5f, 1.6f, 22.0f * cs), L(0.2f, 0f, 24.5f * cs), fov, st);
+        int lr = -1, ls = 0; for (int j = 12; j < w.plan.rows && lr < 0; j++) for (int s = 0; s < 2; s++) if (w.plan.doors[s, j] == CorridorPlan.Door.Locked && w.plan.doors[1 - s, j] == CorridorPlan.Door.Locked) { lr = j; ls = s; break; }
+        float sg = ls == CorridorPlan.Left ? -1f : 1f;
+        yield return View(pw, mc, "c_07_puerta_detalle", L(-sg * 0.6f, 1.45f, (lr + 0.5f) * cs - 1.6f), L(sg * 1.7f, 1.0f, (lr + 0.5f) * cs + 0.2f), fov, L(-sg * 0.6f, 0.1f, (lr + 0.5f) * cs - 1.6f));
+        int rr = -1, rs = 0; for (int j = 5; j < w.plan.rows && rr < 0; j++) for (int s = 0; s < 2; s++) if (w.plan.doors[s, j] == CorridorPlan.Door.Room) { rr = j; rs = s; break; }
+        if (rr >= 0)
+        {
+            float rg = rs == CorridorPlan.Left ? -1f : 1f; Vector3 rc = w.RoomCenterWorld(rs, rr);
+            Vector3 ds = w.DoorWorld(rs, rr, 0.7f);
+            yield return View(pw, mc, "c_08_habitacion_puerta_abierta", L(-rg * 0.9f, 1.55f, (rr + 0.5f) * cs - 0.9f), L(rg * 3.4f, 1.1f, (rr + 0.5f) * cs), fov, ds);
+            Vector3 rin = rc + w.levelRoot.TransformVector(new Vector3(-rg * 1.1f, 0.1f, -0.3f));
+            yield return View(pw, mc, "c_09_habitacion_muebles", rc + w.levelRoot.TransformVector(new Vector3(-rg * 1.1f, 1.55f, 0.8f)), rc + w.levelRoot.TransformVector(new Vector3(rg * 1.3f, 0.75f, -0.45f)), fov, rin);
+            yield return View(pw, mc, "c_09b_habitacion_hacia_la_puerta", rc + w.levelRoot.TransformVector(new Vector3(rg * 0.9f, 1.55f, 0.8f)), rc + w.levelRoot.TransformVector(new Vector3(-rg * 1.6f, 1.1f, -0.2f)), fov, rin);
+            if (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-perf") >= 0)
+                yield return Perf(pw, mc, "habitacion", rc + w.levelRoot.TransformVector(new Vector3(-rg * 1.1f, 1.55f, 0.8f)), rc + w.levelRoot.TransformVector(new Vector3(rg * 1.3f, 0.75f, -0.45f)), fov, rin);
+        }
+        int br = -1, bs = 0; for (int j = 0; j < w.plan.rows && br < 0; j++) for (int s = 0; s < 2; s++) if (w.plan.doors[s, j] == CorridorPlan.Door.Bricked) { br = j; bs = s; break; }
+        if (br >= 0) { float bg = bs == CorridorPlan.Left ? -1f : 1f; yield return View(pw, mc, "c_10_puerta_tapiada", L(-bg * 0.9f, 1.55f, (br + 0.5f) * cs - 1.0f), L(bg * 2.6f, 1.1f, (br + 0.5f) * cs), fov, w.DoorWorld(bs, br, 0.7f)); }
+        float eg = w.plan.exitSide == CorridorPlan.Left ? -1f : 1f; float ez = (w.plan.exitRow + 0.5f) * cs;
+        yield return View(pw, mc, "c_11_salida_cerrada", L(-eg * 0.5f, 1.55f, ez - 4.5f), L(eg * 1.7f, 1.0f, ez), fov, L(-eg * 0.4f, 0.1f, ez - 4f));
+        ExitLock.Active.Unlock(true, "prueba");
+        float t0 = Time.realtimeSinceStartup; while (Time.realtimeSinceStartup - t0 < 3f) yield return null;
+        yield return View(pw, mc, "c_12_salida_abierta", L(-eg * 0.5f, 1.55f, ez - 3.0f), L(eg * 2.2f, 1.0f, ez), fov, L(-eg * 0.4f, 0.1f, ez - 4.5f));
+        if (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-perf") >= 0)
+        {
+            yield return Perf(pw, mc, "pasillo", L(0f, 1.55f, 20.5f * cs), L(0f, 1.45f, 60f * cs), fov, st);
+            yield return Perf(pw, mc, "pasillo_hacia_atras", L(0f, 1.55f, 30.2f * cs), L(0f, 1.45f, 0f), fov, L(0f, 0.1f, 30f * cs));
+        }
+        Health.DisableForTests = false; CorridorEvents.DisableForTests = false;
     }
 
     bool hero;
