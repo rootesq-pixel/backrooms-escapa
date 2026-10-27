@@ -102,13 +102,13 @@
         <h1 class="glitch" id="hero-title" data-title data-text="BACKROOMS: ESCAPA">BACKROOMS: ESCAPA</h1>
         <p class="hero-tagline">Has atravesado la pared equivocada. Zumbido de fluorescentes, moqueta húmeda y kilómetros de pasillos amarillos. Algo te sigue. <strong>Encuentra la salida.</strong></p>
         <div class="hero-actions">
-          <a class="btn btn-primary" href="https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v7.9.1/BackroomsEscape_v7_9_1_Windows.zip" download>
+          <a class="btn btn-primary" href="https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v7.9.2/BackroomsEscape_v7_9_2_Windows.zip" download>
             <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 5.5 10.5 4.4v7.1H3V5.5Zm0 13 7.5 1.1v-7H3v5.9Zm8.4 1.2L21 21v-8.4h-9.6v7.1Zm0-15.4v7.2H21V3l-9.6 1.3Z"/></svg>
             Descargar para Windows
           </a>
           <a class="btn btn-ghost" href="#trailer">Ver gameplay</a>
         </div>
-        <p class="hero-note">Build temprana v7.9.1 (alarma roja en el Nivel 0) · Windows 64 bits · ≈ 357 MB (zip). <a href="https://github.com/rootesq-pixel/backrooms-escapa/releases" target="_blank" rel="noopener">Código y versiones<span class="sr-only"> (se abre en una pestaña nueva)</span></a></p>
+        <p class="hero-note">Build temprana v7.9.2 (conductor visible y arena uniforme en el desierto) · Windows 64 bits · ≈ 375 MB (zip). <a href="https://github.com/rootesq-pixel/backrooms-escapa/releases" target="_blank" rel="noopener">Código y versiones<span class="sr-only"> (se abre en una pestaña nueva)</span></a></p>
         <ul class="hero-facts" aria-label="Datos rápidos">
           <li><strong>8</strong> niveles</li>
           <li><strong>7</strong> criaturas</li>
@@ -148,6 +148,21 @@
         </header>
         <ol class="news-list">
           <li class="news-item news-latest">
+            <div class="news-meta"><span class="news-ver">v7.9.2</span><time datetime="2026-10-27">27 oct 2026</time></div>
+            <figure class="news-shot"><img src="assets/img/news-v7-9-2.jpg" alt="Captura del juego en el desierto (Nivel 8) a mediodía: el todoterreno visto desde fuera, con el conductor con traje amarillo sentado al volante y visible por la ventanilla. La arena tiene el mismo color en toda la imagen y las rodadas son marcas suaves en la arena." width="960" height="540" loading="lazy"></figure>
+            <div class="news-body">
+              <h3>Desierto: conductor visible, arena uniforme, volante en su sentido y HUD ordenado</h3>
+              <ul>
+                <li><strong>Conductor visible:</strong> en la cámara exterior del coche (C) ahora se ve al conductor sentado, con las manos en el volante y sin el objeto en la mano. Lo mismo para los pasajeros y los demás jugadores en multijugador. La vista en primera persona no cambia.</li>
+                <li><strong>Arena uniforme:</strong> la arena junto al coche se veía blanquecina y cambiaba de color al avanzar. La causa era el reflejo en tiempo real del coche (desde la v7.8.0), que también se aplicaba a las dunas cercanas. Ya no les afecta, y la arena tiene ahora un solo tono natural (más mate y con el polvo de su mismo color): ya no hay manchas blancas que siguen al coche.</li>
+                <li><strong>Volante:</strong> al girar a la derecha (D) el volante y las manos giraban hacia la izquierda (y al revés con A). Ahora giran hacia el mismo lado que el coche, también desde fuera y en los demás jugadores.</li>
+                <li><strong>Rodadas:</strong> las marcas de las ruedas ya no son bandas amarillas o naranjas; ahora oscurecen y marcan la arena de forma sutil.</li>
+                <li><strong>HUD:</strong> la ayuda de controles del coche ya no tapa las barras de VIDA, batería, resistencia y cordura. La barra rápida baja un poco, la ayuda va encima y la velocidad queda sobre el contador de la cámara, en cualquier resolución (también 16:10 y 21:9). Lo mismo para el aire y los avisos del océano.</li>
+                <li>Multijugador: el protocolo sigue siendo <strong>MP-12</strong>. Si tienes una versión anterior, el menú principal te ofrece actualizar con un clic.</li>
+              </ul>
+            </div>
+          </li>
+          <li class="news-item">
             <div class="news-meta"><span class="news-ver">v7.9.1</span><time datetime="2026-10-26">26 oct 2026</time></div>
             <figure class="news-shot"><img src="assets/img/news-v7-9-1.jpg" alt="Capturas del juego en el Nivel 0: a la izquierda, un pasillo de las oficinas amarillas con la luz fluorescente de siempre; a la derecha, el mismo pasillo durante la alarma roja, con las paredes, el suelo, el techo y los fluorescentes completamente rojos." width="960" height="540" loading="lazy"></figure>
             <div class="news-body">
@@ -725,7 +740,7 @@
             <h3>Cómo jugar con amigos</h3>
             <p class="mp-opt"><strong>Opción A · Con código</strong> (recomendada: sin abrir puertos, funciona incluso con CGNAT)</p>
             <ol class="steps">
-              <li><strong>Misma versión.</strong> Jugad todos con la v7.9.1 (protocolo <strong>MP-12</strong>); las versiones anteriores a la v7.9.0 no pueden unirse. Desde la v7.5.0, si sale una versión nueva el menú principal os avisa y se actualiza con un clic.</li>
+              <li><strong>Misma versión.</strong> Jugad todos con la v7.9.2 (protocolo <strong>MP-12</strong>); las versiones anteriores a la v7.9.0 no pueden unirse. Desde la v7.5.0, si sale una versión nueva el menú principal os avisa y se actualiza con un clic.</li>
               <li><strong>Anfitrión:</strong> menú principal → <em>Multijugador</em> → escribe tu nombre → <em>Alojar con código</em>. La sala muestra un código de 6 caracteres: pásaselo a tus amigos.</li>
               <li><strong>Clientes:</strong> <em>Multijugador</em> → nombre → <em>Unirse con código</em> → escribe el código. Entraréis en la sala de espera.</li>
               <li>El anfitrión elige el nivel con ◄ ► y pulsa <em>Empezar</em>. No se puede entrar en una partida ya empezada.</li>
@@ -946,11 +961,11 @@
         <div class="download-box">
           <div class="download-main">
             <p class="download-platform">Windows PC · 64 bits</p>
-            <a class="btn btn-primary" href="https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v7.9.1/BackroomsEscape_v7_9_1_Windows.zip" download>
+            <a class="btn btn-primary" href="https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v7.9.2/BackroomsEscape_v7_9_2_Windows.zip" download>
               <svg class="btn-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 5.5 10.5 4.4v7.1H3V5.5Zm0 13 7.5 1.1v-7H3v5.9Zm8.4 1.2L21 21v-8.4h-9.6v7.1Zm0-15.4v7.2H21V3l-9.6 1.3Z"/></svg>
               Descargar para Windows
             </a>
-            <p class="download-note"><strong>v7.9.1</strong> · ZIP de ≈ 357 MB. Descomprime y ejecuta <code>BackroomsEscape.exe</code>.</p>
+            <p class="download-note"><strong>v7.9.2</strong> · ZIP de ≈ 375 MB. Descomprime y ejecuta <code>BackroomsEscape.exe</code>.</p>
             <p class="download-note download-smartscreen"><strong>Aviso de Windows SmartScreen:</strong> el ejecutable no está firmado digitalmente, por lo que Windows puede mostrar «Windows protegió su PC». Pulsa <em>Más información</em> → <em>Ejecutar de todas formas</em> si confías en la descarga. Es una build temprana.</p>
             <p class="download-note"><a href="https://github.com/rootesq-pixel/backrooms-escapa/releases" target="_blank" rel="noopener">Código y versiones<span class="sr-only"> (se abre en una pestaña nueva)</span></a> · <a href="https://github.com/rootesq-pixel/backrooms-escapa" target="_blank" rel="noopener">Repositorio en GitHub<span class="sr-only"> (se abre en una pestaña nueva)</span></a></p>
           </div>
