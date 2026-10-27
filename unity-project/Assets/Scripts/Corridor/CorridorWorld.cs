@@ -35,7 +35,7 @@ public class CorridorWorld : MonoBehaviour
     public int ChunkCount { get; private set; }
     public int RoomCount { get; private set; }
     public float Length { get { return plan.rows * CS; } }
-    public float CenterX { get { return 1.5f * CS; } }
+    public float CenterX { get { return (plan.Col + 0.5f) * CS; } }
     public ReflectionProbe Probe { get; private set; }
     public int ProbeRenders { get; private set; }
     public Material FloorMat { get; private set; }
@@ -285,7 +285,9 @@ public class CorridorWorld : MonoBehaviour
                     ex.transform.SetParent(levelRoot, false);
                     ex.transform.localPosition = new Vector3(cx + sg * (HW - 0.05f), 0f, zc);
                     ex.transform.localRotation = Quaternion.Euler(0f, s == CorridorPlan.Left ? 90f : -90f, 0f);
-                    ExitTransform = ex.transform;
+                    // el punto de salida lógico queda 0,42 m dentro del pasillo (en la columna lógica del pasillo de la rejilla)
+                    GameObject ep = new GameObject("ExitPoint"); ep.transform.SetParent(ex.transform, false); ep.transform.localPosition = new Vector3(0f, 0f, 0.42f);
+                    ExitTransform = ep.transform;
                     BuildExitCue(ex.transform);
                 }
             }
@@ -374,7 +376,7 @@ public class CorridorWorld : MonoBehaviour
         {
             int row = 3 + r.Next(plan.rows - 5); float sg = r.Next(2) == 0 ? -1f : 1f;
             float dz = (DW * 0.5f + 0.35f + (float)r.NextDouble() * (CS * 0.5f - DW * 0.5f - 0.6f)) * (r.Next(2) == 0 ? -1f : 1f);
-            return levelRoot.TransformPoint(new Vector3(CenterX + sg * (HW - 0.32f), 0.1f, (row + 0.5f) * CS + dz));
+            return levelRoot.TransformPoint(new Vector3(CenterX + sg * Mathf.Min(HW - 0.32f, CS * 0.5f - 0.1f), 0.1f, (row + 0.5f) * CS + dz));
         };
         for (int i = 0; i < ExitLock.KeyCount; i++) KeySpots.Add(roomSpot());
         int extra = Mathf.Max(1, cfg.extraSpots);

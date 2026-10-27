@@ -14,13 +14,14 @@ public class CorridorPlan
     public int exitRow, exitSide;
     public readonly List<Vector2Int> rooms = new List<Vector2Int>();   // (lado, fila)
     public readonly List<Vector2Int> bricked = new List<Vector2Int>();
-    public Vector2Int ExitCell { get { return new Vector2Int(1, exitRow); } }
+    public int Col;                            // columna lógica del pasillo (w/2); las habitaciones ocupan las dos columnas de cada lado
+    public Vector2Int ExitCell { get { return new Vector2Int(Col, exitRow); } }
     public const int RoomCount = 14, MinRow = 2;
 
     public static CorridorPlan Make(int seed, int w, int h, bool[,] wallsV, bool[,] wallsH)
     {
         CorridorPlan p = new CorridorPlan();
-        p.rows = h; p.doors = new Door[2, h];
+        p.rows = h; p.doors = new Door[2, h]; p.Col = w / 2;
         System.Random r = new System.Random(seed * 7460 + 31);
         // salida: entre el 45 % y el 88 % del pasillo (130–300 m del ascensor), a un lado al azar
         p.exitRow = Mathf.Clamp(Mathf.RoundToInt(h * (0.45f + 0.43f * (float)r.NextDouble())), MinRow + 2, h - 2);
@@ -43,11 +44,16 @@ public class CorridorPlan
             for (int s = 0; s < 2; s++)
                 if (p.doors[s, j] == Door.Locked && r.NextDouble() < 0.07) { p.doors[s, j] = Door.Bricked; p.bricked.Add(new Vector2Int(s, j)); }
         // muros lógicos: el pasillo abierto de punta a punta y cada habitación abierta solo hacia él
-        for (int j = 1; j < h; j++) wallsH[1, j] = false;
-        foreach (Vector2Int rm in p.rooms) wallsV[rm.x == Left ? 1 : 2, rm.y] = false;
+        int C = p.Col;
+        for (int j = 1; j < h; j++) wallsH[C, j] = false;
+        foreach (Vector2Int rm in p.rooms)
+        {
+            if (rm.x == Left) { wallsV[C, rm.y] = false; if (C - 1 > 0) wallsV[C - 1, rm.y] = false; }
+            else { wallsV[C + 1, rm.y] = false; if (C + 2 < w) wallsV[C + 2, rm.y] = false; }
+        }
         return p;
     }
 
-    public bool IsRoomCell(int x, int z) { return (x == 0 || x == 2) && z >= 0 && z < rows && doors[x == 0 ? Left : Right, z] == Door.Room; }
+    public bool IsRoomCell(int x, int z) { if (x == Col || z < 0 || z >= rows || Mathf.Abs(x - Col) > 2) return false; return doors[x < Col ? Left : Right, z] == Door.Room; }
     public int Count(Door d) { int n = 0; for (int s = 0; s < 2; s++) for (int j = 0; j < rows; j++) if (doors[s, j] == d) n++; return n; }
 }

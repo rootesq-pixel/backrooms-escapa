@@ -28,12 +28,12 @@ public static class V7460Checks
         bool det = true, okExit = true, differ = false; string ex = ""; int N = c.gridH;
         foreach (int seed in new[] { 1, 7, 12345, 144139097, 99 })
         {
-            CorridorPlan a = CorridorPlan.Make(seed, 3, N, new bool[4, N], new bool[3, N + 1]);
-            CorridorPlan b = CorridorPlan.Make(seed, 3, N, new bool[4, N], new bool[3, N + 1]);
+            CorridorPlan a = CorridorPlan.Make(seed, 5, N, new bool[6, N], new bool[5, N + 1]);
+            CorridorPlan b = CorridorPlan.Make(seed, 5, N, new bool[6, N], new bool[5, N + 1]);
             int exits = 0;
             for (int s = 0; s < 2; s++) for (int j = 0; j < N; j++) { if (a.doors[s, j] != b.doors[s, j]) det = false; if (a.doors[s, j] == CorridorPlan.Door.Exit) exits++; }
             if (exits != 1 || a.exitRow < N * 0.4f || a.exitRow > N * 0.92f || a.Count(CorridorPlan.Door.Room) < 10) okExit = false;
-            CorridorPlan o = CorridorPlan.Make(seed + 1, 3, N, new bool[4, N], new bool[3, N + 1]);
+            CorridorPlan o = CorridorPlan.Make(seed + 1, 5, N, new bool[6, N], new bool[5, N + 1]);
             if (o.exitRow != a.exitRow || o.exitSide != a.exitSide) differ = true;
             ex += " " + a.exitRow + (a.exitSide == 0 ? "I" : "D") + "/" + a.Count(CorridorPlan.Door.Room) + "h/" + a.Count(CorridorPlan.Door.Bricked) + "t";
         }

@@ -395,7 +395,7 @@ public class BackroomsGenerator : MonoBehaviour
         {
             Hotel = null;
             Corridor = CorridorPlan.Make(UsedSeed, w, h, wallsV, wallsH);
-            startCell = new Vector2Int(1, 0);
+            startCell = new Vector2Int(Corridor.Col, 0);
             ChoosePoolBlock(); ChooseHalls();
             return;
         }
