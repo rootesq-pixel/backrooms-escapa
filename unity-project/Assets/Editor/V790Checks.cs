@@ -267,23 +267,25 @@ public static class V790Checks
         {   // v7.9.4 (t470u): con la cámara por detrás, conduciendo y al cruzar el borde del desierto (el coche salta 512 m)
             // la cámara sigue pegada al coche (antes volaba por el mapa hasta él, como una cámara libre)
             DesertWorld dw = DesertWorld.Active;
-            DesertCarCam.MaxCarDist = 0f; DesertCarCam.Frames = 0; DesertCarCam.OutFrames = 0;
-            DesertCars.DbgHandbrake = false; DesertCars.DbgThrottle = 1f; DesertCars.DbgSteer = 0f;
-            float sp = 0f; for (float t = 0f; t < 3f; t += Time.deltaTime) { yield return null; sp = Mathf.Max(sp, car.Speed); }
-            float driveMax = DesertCarCam.MaxCarDist; int driveOut = DesertCarCam.OutFrames, driveFr = DesertCarCam.Frames;
             // borde: sitio despejado junto a x = 0, mirando hacia −x
             float zb = 40f; bool found = false;
             if (dw != null) for (int k = 0; k < 24 && !found; k++)
             {
                 float z = 30f + k * 19f; bool clear = true;
-                for (float x = -20f; x <= 30f && clear; x += 10f)
+                for (float x = -20f; x <= 90f && clear; x += 10f)
                 {
                     Vector3 q = new Vector3(Mathf.Repeat(x, dw.L), 0f, z); q.y = DesertHeight.H(q.x, q.z);
+                    if (dw.plan.QuickAt(new Vector2(q.x, z), 8f) >= 0) { clear = false; break; }
                     foreach (Collider c in Physics.OverlapSphere(dw.levelRoot.TransformPoint(q + Vector3.up * 1.5f), 7f, ~0, QueryTriggerInteraction.Ignore))
                         if (!(c.name.StartsWith("Dune_") || c.transform.IsChildOf(car.transform) || c is CharacterController)) { clear = false; break; }
                 }
                 if (clear && dw.plan.QuickAt(new Vector2(0f, z), 30f) < 0) { zb = z; found = true; }
             }
+            car.DebugPlace(new Vector3(85f, 0f, zb), -90f); yield return 0.8f;   // recta despejada hasta el borde
+            DesertCarCam.MaxCarDist = 0f; DesertCarCam.Frames = 0; DesertCarCam.OutFrames = 0;
+            DesertCars.DbgHandbrake = false; DesertCars.DbgThrottle = 1f; DesertCars.DbgSteer = 0f;
+            float sp = 0f; for (float t = 0f; t < 3f; t += Time.deltaTime) { yield return null; sp = Mathf.Max(sp, car.Speed); }
+            float driveMax = DesertCarCam.MaxCarDist; int driveOut = DesertCarCam.OutFrames, driveFr = DesertCarCam.Frames;
             int w0 = car.Wraps, j0 = DesertCarCam.Jumps;
             DesertCarCam.MaxCarDist = 0f; DesertCarCam.Frames = 0; DesertCarCam.OutFrames = 0;
             car.DebugPlace(new Vector3(14f, 0f, zb), -90f);
