@@ -27,6 +27,10 @@ public class Adrenaline : MonoBehaviour
     public float Threat01 { get; private set; }       // 0 calma … 1 encima / persiguiéndote
     public float Bpm { get; private set; }
     public float HeartVolume { get; private set; }
+    // v7.9.4 (t474u): más fuerte y más presente cuanto más cerca (antes 0,10–0,55 con el cuadrado de la amenaza: con un
+    // monstruo a media distancia apenas 0,2, y el latido de 52–64 Hz casi no sale por altavoces ni auriculares normales)
+    public const float HeartGainLo = 0.35f, HeartGainHi = 1.0f;
+    public static float HeartGain(float threat) { return Mathf.Lerp(HeartGainLo, HeartGainHi, Mathf.Pow(Mathf.Clamp01(threat), 1.3f)); }
     public int Beats { get; private set; }
     public float ChaseMuffle01 { get; private set; }  // paso-bajo del resto de sonidos durante la persecución (VhsEffect)
     public static float ForceThreatForTests = -1f;    // >= 0: amenaza fija (pruebas)
@@ -127,7 +131,7 @@ public class Adrenaline : MonoBehaviour
         bool scare = Screamer.Active != null;
         Threat01 = Mathf.MoveTowards(Threat01, th, dt * (th > Threat01 ? 1.6f : 0.35f));
         Bpm = Mathf.Lerp(HeartMinBpm, HeartMaxBpm, Threat01);
-        HeartVolume = scare || Threat01 < 0.06f ? 0f : AudioMix.A(Mathf.Lerp(0.10f, 0.55f, Threat01 * Threat01));
+        HeartVolume = scare || Threat01 < 0.06f ? 0f : AudioMix.A(HeartGain(Threat01));
         ChaseMuffle01 = Mathf.MoveTowards(ChaseMuffle01, scare ? 0f : (Chased ? Mathf.Clamp01(0.4f + 0.6f * Threat01) : 0f), dt * (scare ? 6f : 1.2f));
         if (heart != null)
         {
@@ -148,27 +152,28 @@ public class Adrenaline : MonoBehaviour
     public static Color Tint(Color normal) { Adrenaline a = Local; return a == null ? normal : Color.Lerp(normal, new Color(1f, 0.42f, 0.22f), a.Level01); }
 
     // un latido (lub-dub) suelto: se dispara a su ritmo (v7.9.0; antes un bucle de 2 latidos a 72 ppm)
+    // v7.9.4 (t474u): además del golpe grave (55/68 Hz) lleva sus armónicos y un golpe corto a 160–330 Hz, que es lo que se
+    // oye en altavoces pequeños y auriculares; todo por debajo de 1 kHz, sin ruido (ni siseo)
     public static AudioClip CreateHeartbeat()
     {
         const int SR = 22050; int n = Mathf.RoundToInt(SR * 0.40f);
         float[] d = new float[n];
-        for (int b = 0; b < 1; b++)
+        for (int k = 0; k < 2; k++)
         {
-            float t0 = 0f;
-            for (int k = 0; k < 2; k++)
+            float tk = k * 0.17f, amp = k == 0 ? 1f : 0.72f, f = k == 0 ? 55f : 68f, fb = k == 0 ? 160f : 190f;
+            int i0 = Mathf.RoundToInt(tk * SR), len = Mathf.RoundToInt(0.16f * SR);
+            for (int i = 0; i < len && i0 + i < n; i++)
             {
-                float tk = t0 + k * 0.17f, amp = k == 0 ? 1f : 0.7f, f = k == 0 ? 52f : 64f;
-                int i0 = Mathf.RoundToInt(tk * SR), len = Mathf.RoundToInt(0.16f * SR);
-                for (int i = 0; i < len && i0 + i < n; i++)
-                {
-                    float t = i / (float)SR;
-                    float env = Mathf.Exp(-t * 28f) * (1f - Mathf.Exp(-t * 400f));
-                    d[i0 + i] += amp * env * (Mathf.Sin(2f * Mathf.PI * f * t) + 0.35f * Mathf.Sin(2f * Mathf.PI * f * 2.1f * t));
-                }
+                float t = i / (float)SR, w = 2f * Mathf.PI * f * t;
+                float env = Mathf.Exp(-t * 26f) * (1f - Mathf.Exp(-t * 400f));
+                float body = Mathf.Sin(w) + 0.55f * Mathf.Sin(2f * w) + 0.30f * Mathf.Sin(3f * w);
+                float knock = Mathf.Exp(-t * 55f) * (1f - Mathf.Exp(-t * 900f)) * (0.75f * Mathf.Sin(2f * Mathf.PI * fb * t) + 0.25f * Mathf.Sin(2f * Mathf.PI * fb * 2.05f * t));
+                d[i0 + i] += amp * (env * body + knock);
             }
         }
         float mx = 0.001f; for (int i = 0; i < n; i++) mx = Mathf.Max(mx, Mathf.Abs(d[i]));
-        for (int i = 0; i < n; i++) d[i] *= 0.8f / mx;
+        for (int i = 0; i < n; i++) d[i] *= 0.9f / mx;
+        for (int i = n - 200; i < n; i++) d[i] *= (n - i) / 200f;   // sin chasquido al final
         AudioClip c = AudioClip.Create("Heartbeat", n, 1, SR, false); c.SetData(d, 0);
         return c;
     }

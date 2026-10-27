@@ -308,6 +308,7 @@ public static class V790Checks
         r.Check(DesertCars.CamView == 0 && DesertCarCam.AppliedView == 0 && Vector3.Distance(back, seatCam) < 0.15f, T + "C otra vez: de vuelta al asiento (" + Vector3.Distance(back, seatCam).ToString("F2") + " m; asiento " + seatCam.ToString("F2") + ", ahora " + back.ToString("F2") + ", capó " + hood.ToString("F2") + ", coche a " + car.Speed.ToString("F2") + " m/s)");
     }
 
+    static float LowRatio(float[] d, int sr, float f0) { return 1f - HighRatio(d, sr, f0); }
     static float Lum(Color c) { return 0.2126f * c.r + 0.7152f * c.g + 0.0722f * c.b; }
 
     // fracción de energía por encima de f0 (paso-alto biquad de 2.º orden)
@@ -366,12 +367,12 @@ public static class V790Checks
         r.Check(okGap, T + "[Rojo] el primero llega a los 50–100 s y entre uno y otro pasan 75–160 s (" + first.Trim() + ")");
         r.Check(det && differ, T + "[Rojo] el calendario sale de la semilla: igual en todos los equipos, distinto en cada partida");
         {   // v7.9.1: alarma roja: toda la sala roja, pulso lento y zumbido grave sin siseo ni costura
-            float[] al = Level0Events.AlarmData(); float hiA = HighRatio(al, 22050, 2000f), seamA = SeamJump(al);
+            float[] al = Level0Events.AlarmData(); float hiA = HighRatio(al, 22050, 3000f), seamA = SeamJump(al);
             float pMin = 9f, pMax = -9f; for (float c = 0f; c < 4f; c += 0.05f) { float pv = Level0Events.PulseAt(c); pMin = Mathf.Min(pMin, pv); pMax = Mathf.Max(pMax, pv); }
             Color ra = Level0Events.RedAmbient, rf = Level0Events.RedFog;
             r.Check(ra.r > 0.25f && ra.r > 8f * ra.g && ra.r > 8f * ra.b && rf.r > 8f * rf.g && Level0Events.RedIntensity >= 1f, T + "[Rojo] alarma: ambiente y niebla rojos intensos (ambiente " + ra + "), luces ×" + Level0Events.RedIntensity);
             r.Check(pMin >= Level0Events.PulseMin - 0.01f && pMin < 0.75f && pMax > 0.98f && Mathf.Abs(Level0Events.PulseAt(1.3f) - Level0Events.PulseAt(1.3f + Level0Events.PulsePeriod)) < 1e-4f, T + "[Rojo] la luz late despacio (" + pMin.ToString("F2") + "–" + pMax.ToString("F2") + " cada " + Level0Events.PulsePeriod.ToString("F0") + " s, en el reloj del nivel)");
-            r.Check(hiA < 0.01f && seamA < 2f && al.Length == Mathf.RoundToInt(Level0Events.AlarmLoop * 22050), T + "[Rojo] sirena de alarma sin siseo (" + (hiA * 100f).ToString("F2") + " % por encima de 2 kHz) y sin costura (" + seamA.ToString("F2") + ")");
+            r.Check(hiA < 0.01f && seamA < 2f && al.Length == Mathf.RoundToInt(Level0Events.AlarmLoop * 22050), T + "[Rojo] sirena de alarma sin siseo (" + (hiA * 100f).ToString("F2") + " % por encima de 3 kHz; v7.9.4: tono de 440–660 Hz con armónicos) y sin costura (" + seamA.ToString("F2") + ")");
             {   // v7.9.4 (t473u): se oye claramente: por encima del drone del Nivel 0, del zumbido de los fluorescentes y de los pasos
                 double ss = 0; float pk = 0f; foreach (float x in al) { ss += x * x; pk = Mathf.Max(pk, Mathf.Abs(x)); }
                 float rmsA = Mathf.Sqrt((float)(ss / al.Length)), effA = AudioMix.Db(rmsA * Level0Events.AlarmGain);
@@ -387,6 +388,15 @@ public static class V790Checks
         // latido
         AudioClip hb = Adrenaline.CreateHeartbeat();
         r.Check(hb.length > 0.3f && hb.length < 0.5f, T + "[Latido] un latido suelto (" + hb.length.ToString("F2") + " s) que se dispara a su ritmo");
+        {   // v7.9.4 (t474u): el latido se oye: por encima de los drones de todos los niveles y con energía por encima de 120 Hz
+            float[] hd = new float[hb.samples]; hb.GetData(hd, 0);
+            double ss = 0; foreach (float x in hd) ss += x * x; float rmsH = Mathf.Sqrt((float)(ss / hd.Length));
+            float above = 1f - Mathf.Clamp01(LowRatio(hd, hb.frequency, 120f)), hi1k = HighRatio(hd, hb.frequency, 1000f);
+            float dMax = -99f; for (int i = 0; i < LevelConfig.Count; i++) { LevelConfig cf = LevelConfig.Get(i); AudioClip dcl = ProceduralAudio.CreateDrone(cf.droneHz, cf.droneNoise, 1000 + i * 17); dMax = Mathf.Max(dMax, AudioMix.Db(AudioAudit.Measure(dcl).rms * AudioMix.Drone(cf.droneVolume))); Object.DestroyImmediate(dcl); }
+            float eHi = AudioMix.Db(rmsH * Adrenaline.HeartGain(1f)), eMid = AudioMix.Db(rmsH * Adrenaline.HeartGain(0.5f)), eLo = AudioMix.Db(rmsH * Adrenaline.HeartGain(0.1f));
+            r.Check(eHi > dMax + 14f && eMid > dMax + 10f && eLo > dMax + 4f && above > 0.2f && hi1k < 0.01f && eHi > eMid && eMid > eLo,
+                T + "[Latido] se oye claramente y más cuanto más cerca: " + eLo.ToString("F1") + " / " + eMid.ToString("F1") + " / " + eHi.ToString("F1") + " dB (amenaza 0,1 / 0,5 / 1; drone más alto " + dMax.ToString("F1") + " dB), " + (above * 100f).ToString("F0") + " % por encima de 120 Hz (audible en altavoces pequeños), sin siseo");
+        }
         Object.DestroyImmediate(hb);
         // noche del desierto
         {

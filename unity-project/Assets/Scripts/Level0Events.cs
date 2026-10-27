@@ -234,7 +234,7 @@ public class Level0Events : MonoBehaviour
             float t = i / (float)SR;
             float env = Mathf.Sin(Mathf.PI * t / PulsePeriod); env = 0.35f + 0.65f * env * env;
             float w = (float)(2.0 * System.Math.PI * ph);
-            float v = Mathf.Sin(w) * 0.60f + Mathf.Sin(2f * w) * 0.24f + Mathf.Sin(3f * w) * 0.08f + Mathf.Sin(0.5f * w) * 0.22f;
+            float v = Mathf.Sin(w) * 0.60f + Mathf.Sin(2f * w) * 0.20f + Mathf.Sin(3f * w) * 0.05f + Mathf.Sin(0.5f * w) * 0.24f;
             d[i] = v * env; peak = Mathf.Max(peak, Mathf.Abs(d[i]));
             ph += AlarmFreq(t) / SR * k;
         }
