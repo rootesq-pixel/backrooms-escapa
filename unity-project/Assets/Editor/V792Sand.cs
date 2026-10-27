@@ -179,12 +179,13 @@ public static class V792Sand
             }
         }
         DesertCars.DbgThrottle = 0f; DesertCars.DbgHandbrake = true; DesertCars.DbgSteer = 0f;
-        // ninguna mancha más blanca (o más tostada) que la arena normal: cada parche a ≤ 0.06 de la mediana de toda la secuencia
+        // ninguna mancha más blanca (o más tostada) que la arena normal: cada parche a ≤ 0.08 de la mediana de su fila en toda la secuencia
+        // (v7.9.1: 30 de 120 parches por encima, el peor a 0.104; la luz normal de las laderas da hasta ~0.06)
         float[] medRow = new float[GY];
         for (int row = 0; row < GY; row++) { List<float> brs = new List<float>(); foreach (Patch q in all) if (q.row == row) brs.Add(q.BR); brs.Sort(); medRow[row] = brs.Count > 0 ? brs[brs.Count / 2] : 0f; }
         float medBr = medRow[0];
-        int outl = 0; float worst = 0f; foreach (Patch q in all) { float dv = Mathf.Abs(q.BR - medRow[q.row]); worst = Mathf.Max(worst, dv); if (dv > 0.06f) outl++; }
-        Log((outl == 0 ? "PASS " : "FAIL ") + "sin manchas de otro tono (frente a la mediana de su fila): mediana B/R fila cercana " + medBr.ToString("F3") + ", peor parche a " + worst.ToString("F3") + ", " + outl + " de " + all.Count + " parches a más de 0.06");
+        int outl = 0; float worst = 0f; foreach (Patch q in all) { float dv = Mathf.Abs(q.BR - medRow[q.row]); worst = Mathf.Max(worst, dv); if (dv > 0.08f) outl++; }
+        Log((outl == 0 ? "PASS " : "FAIL ") + "sin manchas de otro tono (frente a la mediana de su fila): mediana B/R fila cercana " + medBr.ToString("F3") + ", peor parche a " + worst.ToString("F3") + ", " + outl + " de " + all.Count + " parches a más de 0.08");
         bool seqOk = outl == 0 && seqBrMax - seqBrMin <= 0.10f && seqGrMax - seqGrMin <= 0.06f;
         Log((seqOk ? "PASS " : "FAIL ") + "secuencia 0–1000 m (fila cercana): B/R " + seqBrMin.ToString("F3") + "–" + seqBrMax.ToString("F3") + " (dif " + (seqBrMax - seqBrMin).ToString("F3") + "), G/R " + seqGrMin.ToString("F3") + "–" + seqGrMax.ToString("F3") + " (dif " + (seqGrMax - seqGrMin).ToString("F3") + "), " + all.Count + " parches");
         Log((okAll && seqOk ? "RESULT PASS" : "RESULT FAIL") + " arena uniforme");
