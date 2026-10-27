@@ -44,7 +44,7 @@ public class PlayerBody : MonoBehaviour
     public float backOffset = 0.17f;                                // el cuerpo queda algo por detrás de la cámara (anti-clipping)
 
     private Transform model;
-    private Transform head, neck, torso, upper, lower, hand, footL, footR, mid2, mid3;
+    private Transform head, neck, torso, hips, upper, lower, hand, footL, footR, mid2, mid3;
     private Transform upperL, lowerL, handL;
     public bool PropShown { get { return prop != null && prop.activeSelf; } }
     public bool OnWheel { get; private set; }               // v7.9.0: manos en el volante del todoterreno
@@ -128,7 +128,7 @@ public class PlayerBody : MonoBehaviour
                 else if (c.name.StartsWith("Run")) runLen = c.length;
             }
         }
-        head = Find(model, "Head"); neck = Find(model, "Neck"); torso = Find(model, "Torso");
+        head = Find(model, "Head"); neck = Find(model, "Neck"); torso = Find(model, "Torso"); hips = Find(model, "Hips");
         upper = Find(model, "UpperArm.R"); lower = Find(model, "LowerArm.R"); hand = Find(model, "Middle1.R");
         upperL = Find(model, "UpperArm.L"); lowerL = Find(model, "LowerArm.L"); handL = Find(model, "Middle1.L");   // v7.9.0: volante
         if (hand == null) hand = Find(model, "Index1.R");
@@ -146,6 +146,7 @@ public class PlayerBody : MonoBehaviour
                 if (animator != null) animator.Update(0f);
             }
         }
+        modelBaseScale = model.localScale;
         if (upper != null && lower != null && hand != null)
         {
             upperLen = Vector3.Distance(upper.position, lower.position);
@@ -445,6 +446,15 @@ public class PlayerBody : MonoBehaviour
     }
 
     // ------------------------------------------------------------------
+    private Vector3 modelBaseScale; private bool seatScaled;
+    private void SetSeatScale(bool on)
+    {
+        if (model == null || on == seatScaled) return;
+        seatScaled = on; model.localScale = on ? modelBaseScale * SeatedLegs.SeatScale : modelBaseScale;
+    }
+    public bool SeatScaled { get { return seatScaled; } }
+    public Transform Hips { get { return hips; } }
+
     private void PlaceBody()
     {
         if (fpc == null) return;
@@ -454,11 +464,13 @@ public class PlayerBody : MonoBehaviour
             if (car != null)
             {
                 transform.SetPositionAndRotation(fpc.transform.position, Quaternion.LookRotation(car.transform.forward, car.transform.up));
+                SetSeatScale(true);
                 SeatedLegs.Apply(model, transform);
-                if (head != null) { float dy = Vector3.Dot(fpc.transform.position + car.transform.up * DesertCar.SeatHeadY - head.position, car.transform.up); transform.position += car.transform.up * Mathf.Clamp(dy, -0.6f, 0.6f); }
+                SeatedLegs.SitOnSeat(hips, fpc.transform.position, car.transform.up, transform);
                 return;
             }
         }
+        SetSeatScale(false);
         float lean = fpc.Lean;
         float pitch01 = Mathf.Clamp01(fpc.Pitch / 70f);                 // mirando hacia abajo (pitch > 0)
         transform.localPosition = new Vector3(lean * fpc.leanDistance * 0.55f, 0f, -(backOffset + 0.10f * pitch01));
@@ -559,7 +571,7 @@ public class PlayerBody : MonoBehaviour
     // Al mirar hacia abajo el torso se inclina un poco hacia delante
     private void BendTorso()
     {
-        if (torso == null) return;
+        if (torso == null || seatScaled) return;   // v7.9.3: sentado y visto desde fuera, la espalda no sigue al ratón
         pitchSmooth = Mathf.Lerp(pitchSmooth, Mathf.Max(0f, fpc.Pitch), 1f - Mathf.Exp(-10f * Dt));
         float bend = pitchSmooth * 0.28f;
         if (bend > 0.1f) torso.rotation = Quaternion.AngleAxis(bend, transform.right) * torso.rotation;

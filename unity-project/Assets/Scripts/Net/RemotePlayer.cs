@@ -328,7 +328,6 @@ public class RemotePlayer : MonoBehaviour
     public bool OnWheel { get; private set; }
     public bool LampShown { get { return lamp != null && lamp.gameObject.activeSelf; } }
     public float WheelErr { get; private set; }
-    private Transform seatHead;
     private void LateUpdate()
     {
         // v7.9.0: en el todoterreno la linterna va guardada; el conductor lleva las dos manos en el volante
@@ -338,6 +337,7 @@ public class RemotePlayer : MonoBehaviour
         DesertCar dcar = seated ? DesertCars.DrivenBy(playerId) : null;
         DesertCar scar = seated ? DesertCars.CarOf(playerId) : null;
         if (scar != null) SeatPose(scar);   // conductor y pasajeros
+        else SetSeatScale(false);
         if (dcar != null && model != null && model.gameObject.activeInHierarchy && !Downed && dcar.Grips(out Vector3 gl, out Vector3 gr))
         {
             float e1 = ArmIk.Solve(armU, armL, armH, gr, transform.right * 0.6f + Vector3.down);
@@ -406,13 +406,22 @@ public class RemotePlayer : MonoBehaviour
         }
     }
     // v7.9.2: sentado mirando al frente del coche y con la cabeza bajo el techo, en cualquier plaza
+    private Vector3 modelBaseScale; private bool seatScaled; private Transform seatHips;
+    public bool SeatScaled { get { return seatScaled; } }
+    private void SetSeatScale(bool on)
+    {
+        if (model == null || on == seatScaled) return;
+        if (modelBaseScale == Vector3.zero) modelBaseScale = model.localScale;
+        seatScaled = on; model.localScale = on ? modelBaseScale * SeatedLegs.SeatScale : modelBaseScale;
+    }
     private void SeatPose(DesertCar car)
     {
         if (model == null || Downed) return;
         transform.rotation = Quaternion.LookRotation(car.transform.forward, car.transform.up);
+        SetSeatScale(true);
         SeatedLegs.Apply(model, transform);
-        if (seatHead == null) seatHead = Find(model, "Head");
-        if (seatHead != null) { float dy = Vector3.Dot(transform.position + car.transform.up * DesertCar.SeatHeadY - seatHead.position, car.transform.up); model.position += car.transform.up * Mathf.Clamp(dy, -0.6f, 0.6f); }
+        if (seatHips == null) seatHips = Find(model, "Hips");
+        SeatedLegs.SitOnSeat(seatHips, transform.position, car.transform.up, model);
     }
 
     private void UpdateLamp(float pitch, float dt)

@@ -237,6 +237,14 @@ public static class V790Checks
             if (dw != null) foreach (MeshRenderer mr in dw.GetComponentsInChildren<MeshRenderer>(true)) if (mr.sharedMaterial == dw.SandMat) { sr++; if (mr.reflectionProbeUsage != UnityEngine.Rendering.ReflectionProbeUsage.Off) sp++; }
             r.Check(dw != null && sr > 0 && sp == 0 && !DesertWorld.DebugOldSandProbe, T + "la arena no usa la sonda de reflejos del coche (" + sr + " trozos de duna, " + sp + " con sonda); color medido en V792Sand");
         }
+        {   // v7.9.3 (t461u): el mismo traje, sentado en el cojín (no hundido hasta el suelo) y con la capucha bajo el techo
+            PlayerBody pbs = p.GetComponentInChildren<PlayerBody>();
+            float hipY = pbs != null && pbs.Hips != null ? car.transform.InverseTransformPoint(pbs.Hips.position).y - car.SeatLocal(0).y : -9f;
+            float top = -9f; int smr = 0;
+            if (pbs != null) foreach (SkinnedMeshRenderer sr in pbs.GetComponentsInChildren<SkinnedMeshRenderer>()) { smr++; top = Mathf.Max(top, car.transform.InverseTransformPoint(sr.bounds.max).y); }
+            bool sameModel = pbs != null && pbs.transform.Find("Model") != null && smr >= 2;
+            r.Check(sameModel && pbs.SeatScaled && hipY > 0.42f && hipY < 0.8f && top < car.ModelHeight - 0.08f, T + "C (por detrás): el conductor es el traje del jugador (" + smr + " mallas), sentado en el cojín (cadera a " + hipY.ToString("F2") + " m del asiento) y la capucha bajo el techo (" + top.ToString("F2") + " / " + car.ModelHeight.ToString("F2") + " m)");
+        }
         DesertCars.DbgCamCycle = true; yield return 0.3f;
         { Vector3 lastH = Vector3.one * 99f; IEnumerator wf = WaitFor(() => { Vector3 h = car.transform.InverseTransformPoint(cam.position); bool st = (h - lastH).magnitude < 0.01f && h.z > 0.9f; lastH = h; return st; }, 4f); while (wf.MoveNext()) yield return wf.Current; }   // la cámara se desliza: esperar a que llegue (con fotogramas lentos tarda más)
         Vector3 hood = car.transform.InverseTransformPoint(cam.position);
@@ -269,7 +277,7 @@ public static class V790Checks
     {
         string T = "[v7.9.0] ";
         EditMore(r, T);
-        r.Check(GameVersion.Current == "7.9.2" && NetSession.Protocol == "BackroomsEscape-MP-12", T + "versión " + GameVersion.Current + ", protocolo " + NetSession.Protocol);
+        r.Check(GameVersion.Current == "7.9.3" && NetSession.Protocol == "BackroomsEscape-MP-12", T + "versión " + GameVersion.Current + ", protocolo " + NetSession.Protocol);
         // ruidos
         string bad = ""; float worst = 0f;
         for (int k = 0; k < Level0Events.NoiseNames.Length; k++)
