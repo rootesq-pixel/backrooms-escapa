@@ -273,7 +273,8 @@ public static class V7102Look
             Transform F = w.FrameOf(ji);
             System.Func<int, float, float, float, Vector3> LF = (run, x, y, z) => w.FrameOf(run).TransformPoint(new Vector3(w.CenterX + x, y, z));
             p.Teleport(LF(ji, 0f, 0.1f, (jr - 2.5f) * cs), 0f); yield return 2.5f;
-            Shot("cruce_pasillo", false, LF(ji, 0.35f, 1.6f, (jr - 1.6f) * cs), LF(ji, 0f, 1.35f, (jr + 3f) * cs), 1920, 1080, 75f);
+            Shot("cruce_pasillo", false, LF(ji, -0.95f, 1.6f, (jr - 1.3f) * cs), LF(ji, 7.5f, 1.25f, (jr + 0.5f) * cs), 1920, 1080, 78f);
+            Shot("cruce_pasillo_eje", false, LF(ji, 0f, 1.6f, (jr - 2.2f) * cs), LF(ji, 0f, 1.35f, (jr + 4f) * cs), 1920, 1080, 75f);
             // de pie dentro del transversal izquierdo (o derecho), mirando a través del cruce
             int sideCross = plan.runs[ji].doors[0, jr] == CorridorPlan.Door.Link ? 0 : 1;
             Vector3 inCross = w.DoorWorld(ji, sideCross, jr, -3.2f), across = w.DoorWorld(ji, 1 - sideCross, jr, -9f);
