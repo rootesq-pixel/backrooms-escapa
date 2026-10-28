@@ -1132,6 +1132,7 @@ public static class SmokeTest
         V771Checks.Edit(r);                // v7.7.1: rocas cerradas, objetos modelados, cordura
         V780Checks.Edit(r);                // v7.8.0: todoterreno, viento, huellas
         V7460Checks.Edit(r);               // Nivel 7460 (pasillo de puertas)
+        V7460Checks.ManySeeds(r, 20);      // v7.10.2: laberinto: inicio → llave → salida en 20 semillas generadas
         V790Checks.Edit(r);                // v7.9.0: nivel 0 (ruidos, apagones rojos) y latido
     }
 

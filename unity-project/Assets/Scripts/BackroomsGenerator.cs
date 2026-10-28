@@ -1782,7 +1782,7 @@ public class BackroomsGenerator : MonoBehaviour
         TextureLibrary.ReleaseAllExcept(new HashSet<string>());
         WallSegmentCount = 0; PillarCount = 0;
         CorridorWorld cw = CorridorWorld.Build(this, cfg, levelRoot, Corridor, o => Track(o));
-        FixtureCount = cw.plan.rows; LiveFixtureCount = cw.plan.rows;   // un plafón por módulo (emisivo; sin luces en tiempo real)
+        FixtureCount = cw.TotalModules; LiveFixtureCount = cw.TotalModules;   // un plafón por módulo (emisivo; sin luces en tiempo real)
         exitCell = Corridor.ExitCell;
         PlayerStart = levelRoot.TransformPoint(cw.StartLocal + new Vector3(0f, 0.1f, 1.2f)); PlayerStartYaw = 0f;
         MonsterSpawns = new List<Vector3>();

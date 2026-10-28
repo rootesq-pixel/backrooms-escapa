@@ -81,24 +81,26 @@ public class CorridorEvents : MonoBehaviour
         Vector3 p = listener.position + dir * dist;
         CorridorWorld cw = CorridorWorld.Active;
         if (cw != null)
-        {
-            Vector3 lp0 = cw.levelRoot.InverseTransformPoint(listener.position), l = cw.levelRoot.InverseTransformPoint(p);
+        {   // v7.10.2: en el pasillo (largo o transversal) en el que estás, con su marco y su largo
+            Vector3 dummy; int ri = cw.RunAt(listener.position, out dummy); if (ri < 0) ri = cw.CurrentRun;
+            Transform F = cw.FrameOf(ri); float len = cw.Runs.Count > 0 ? cw.Runs[ri].Length : cw.Length;
+            Vector3 lp0 = F.InverseTransformPoint(listener.position), l = F.InverseTransformPoint(p);
             bool inRoom = Mathf.Abs(lp0.x - cw.CenterX) > CorridorWorld.HW;
             if (!inRoom)
             {   // a lo largo del pasillo: el que esté a tu espalda (si miras de lado, el extremo más cercano a «detrás»)
-                Vector3 bl = cw.levelRoot.InverseTransformDirection(back);
+                Vector3 bl = F.InverseTransformDirection(back);
                 if (Mathf.Abs(bl.z) < 0.6f)
                 {   // mirando a una pared: el ruido sale de la puerta que tienes justo a la espalda (dentro de su cuarto)
                     float zc = (Mathf.Floor(lp0.z / CorridorWorld.CS) + 0.5f) * CorridorWorld.CS;
-                    l = new Vector3(cw.CenterX + Mathf.Sign(bl.x) * (CorridorWorld.XR + CorridorWorld.RD * 0.75f), l.y, Mathf.Clamp(zc, 0.6f, cw.Length - 0.6f));
-                    return cw.levelRoot.TransformPoint(l);
+                    l = new Vector3(cw.CenterX + Mathf.Sign(bl.x) * (CorridorWorld.XR + CorridorWorld.RD * 0.75f), l.y, Mathf.Clamp(zc, 0.6f, len - 0.6f));
+                    return F.TransformPoint(l);
                 }
-                float sz = Mathf.Abs(bl.z) > 0.2f ? Mathf.Sign(bl.z) : (lp0.z > cw.Length * 0.5f ? -1f : 1f);
+                float sz = Mathf.Abs(bl.z) > 0.2f ? Mathf.Sign(bl.z) : (lp0.z > len * 0.5f ? -1f : 1f);
                 l.z = lp0.z + sz * Mathf.Max(dist * Mathf.Max(0.5f, Mathf.Abs(bl.z)), DistMin);
                 l.x = cw.CenterX + Mathf.Clamp(l.x - cw.CenterX, -(CorridorWorld.HW - 0.3f), CorridorWorld.HW - 0.3f);
             }
-            l.z = Mathf.Clamp(l.z, 0.6f, cw.Length - 0.6f);
-            p = cw.levelRoot.TransformPoint(l);
+            l.z = Mathf.Clamp(l.z, 0.6f, len - 0.6f);
+            p = F.TransformPoint(l);
         }
         return p;
     }

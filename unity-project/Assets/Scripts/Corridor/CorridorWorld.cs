@@ -43,6 +43,7 @@ public class CorridorWorld : MonoBehaviour
     public int Rattles { get; private set; }
     public int ChunkCount { get; private set; }
     public int RoomCount { get; private set; }
+    public int LinkCount { get; private set; }
     public float Length { get { return plan.rows * CS; } }
     public float CenterX { get { return (plan.Col + 0.5f) * CS; } }
     public ReflectionProbe Probe { get; private set; }
@@ -166,7 +167,7 @@ public class CorridorWorld : MonoBehaviour
 
     BoxCollider Box(string name, Vector3 center, Vector3 size)
     {
-        GameObject g = new GameObject(name); g.transform.SetParent(transform, false); g.transform.localPosition = center;
+        GameObject g = new GameObject(name); g.transform.SetParent(cur != null ? cur : transform, false); g.transform.localPosition = center;
         BoxCollider b = g.AddComponent<BoxCollider>(); b.size = size; return b;
     }
 
@@ -218,12 +219,88 @@ public class CorridorWorld : MonoBehaviour
         Material endTrim = Baked("C7460Trim", flat, BakeExposure, 1f, 0f, white);
         glowMat = ProceduralAssets.CreateMaterial(Color.white, null, Vector2.one, 0f); ProceduralAssets.SetEmission(glowMat, new Color(1f, 0.98f, 0.94f) * 1.9f); glowMat.name = "C7460_ExitGlow"; track(glowMat);
 
-        Loaded mod = Load("C7460/C7460Module"), leaf = Load("C7460/C7460Leaf"), room = Load("C7460/C7460Room");
-        Vector3 hinge = new Vector3(XB, 0f, -DW * 0.5f + Gap);
-        float cx = CenterX; int rows = plan.rows;
+        mod = Load("C7460/C7460Module"); Loaded leaf = Load("C7460/C7460Leaf"), room = Load("C7460/C7460Room");
+        leafL = leaf; hinge = new Vector3(XB, 0f, -DW * 0.5f + Gap);
+        float cx = CenterX;
 
+        // --- hojas que se mueven (enlaces, tapiadas, salida) ---
+        Combiner lc = new Combiner(); lc.Add(leaf, Vector3.zero, false, 0f);
+        leafMesh = lc.Build("C7460Leaf", out List<int> leafIds); track(leafMesh);
+        // v3: la cara de la hoja que da a la habitación se horneó a oscuras (puerta cerrada): mínimo de irradiancia propio, como la luz que entra del pasillo
+        Material leafDoor = new Material(modMats[4]) { name = "C7460_LeafDoor" }; leafDoor.SetFloat("_LMMin", LeafMinLM); track(leafDoor);
+        Material leafTrim = new Material(modMats[3]) { name = "C7460_LeafTrim" }; leafTrim.SetFloat("_LMMin", LeafMinLM); track(leafTrim);
+        leafMats = MatsFor(leafIds, new[] { modMats[0], modMats[1], modMats[2], leafTrim, leafDoor });
+        Combiner rc = new Combiner(); rc.Add(room, Vector3.zero, false, 0f);
+        roomMesh = rc.Build("C7460Room", out List<int> roomIds); track(roomMesh);
+        rMats = MatsFor(roomIds, roomMats);
+        this.nicheTrim = nicheTrim; this.endTrim = endTrim;
+
+        // v7.10.2 (t500u): un laberinto: cada pasillo (largo o transversal) se construye en su propio marco, donde corre a lo
+        // largo de +z en x = CenterX (el pasillo 0 coincide con el marco del nivel, como antes)
+        foreach (CorridorPlan.Run def in plan.runs)
+        {
+            RunView rv = new RunView { def = def };
+            rv.F = new GameObject((def.cross ? "Cross" : "Main") + def.id).transform; rv.F.SetParent(transform, false);
+            if (!def.cross) rv.F.localPosition = new Vector3(def.main * Spacing, 0f, 0f);
+            else
+            {
+                rv.F.localPosition = new Vector3(def.a * Spacing + cx + CrossStart, 0f, (def.row + 0.5f) * CS + cx);
+                rv.F.localRotation = Quaternion.Euler(0f, 90f, 0f);
+            }
+            Runs.Add(rv);
+        }
+        foreach (RunView rv in Runs) BuildRun(rv);
+        cur = transform;
+        // enlaces: hojas de cada transversal en sus dos extremos (para la visibilidad por portales)
+        foreach (RunView rv in Runs)
+        {
+            if (!rv.def.cross) continue;
+            rv.leafA = LeafAt(rv.def.a, CorridorPlan.Right, rv.def.row); rv.leafB = LeafAt(rv.def.b, CorridorPlan.Left, rv.def.row);
+            Runs[rv.def.a].links.Add(rv); if (!rv.def.deadEnd) Runs[rv.def.b].links.Add(rv);
+        }
+        foreach (RunView rv in Runs)
+        {
+            foreach (Renderer rr in rv.F.GetComponentsInChildren<Renderer>(true)) if (rr.GetComponentInParent<ExitDoorCue>() == null) rv.rends.Add(rr);
+        }
+
+        // --- sonido de las manillas ---
+        GameObject ra = new GameObject("HandleRattle"); ra.transform.SetParent(transform, false);
+        rattleSrc = ra.AddComponent<AudioSource>(); rattleSrc.playOnAwake = false; rattleSrc.spatialBlend = 1f; rattleSrc.minDistance = 1.2f; rattleSrc.maxDistance = 14f; rattleSrc.rolloffMode = AudioRolloffMode.Linear; rattleSrc.dopplerLevel = 0f;
+        rattleClip = ProceduralAudio.CreateLockRattle();
+
+        StartLocal = new Vector3(cx, 0f, 0f);
+        PickSpots();
+        if (SystemInfo.graphicsDeviceType != GraphicsDeviceType.Null) SetupReflections();
+    }
+
+    // ---------------- v7.10.2: pasillos del laberinto ----------------
+    public const float Spacing = CorridorPlan.Spacing * CS;                          // 28,8 m entre pasillos largos
+    public const float CrossStart = (CorridorPlan.Spacing - CorridorPlan.CrossModules) * CS * 0.5f;   // 2,4 m: del eje del pasillo al arranque del transversal
+    public class RunView
+    {
+        public CorridorPlan.Run def; public Transform F;
+        public readonly List<Renderer> rends = new List<Renderer>();
+        public readonly List<RunView> links = new List<RunView>();   // transversales que salen de este pasillo largo
+        public HotelDoorLeaf leafA, leafB;                             // transversal: hoja en el pasillo a (derecha) y en el b (izquierda)
+        public bool visible = true, shown = true;
+        public float Length { get { return def.rows * CS; } }
+    }
+    public readonly List<RunView> Runs = new List<RunView>();
+    public int CurrentRun { get; private set; }
+    public int VisibleRuns { get; private set; }
+    public int TotalModules { get { int n = 0; foreach (CorridorPlan.Run r in plan.runs) n += r.rows; return n; } }
+    public static bool CullForTests = true;
+    private Loaded mod, leafL; private Vector3 hinge; private Mesh leafMesh, roomMesh; private Material[] leafMats, rMats; private Material nicheTrim, endTrim;
+    private Transform cur;
+    private readonly Dictionary<long, HotelDoorLeaf> leafAt = new Dictionary<long, HotelDoorLeaf>();
+    HotelDoorLeaf LeafAt(int run, int side, int row) { HotelDoorLeaf l; return leafAt.TryGetValue(((long)run * 4 + side) * 100000 + row, out l) ? l : null; }
+
+    void BuildRun(RunView rv)
+    {
+        CorridorPlan.Run def = rv.def; cur = rv.F;
+        float cx = CenterX; int rows = def.rows; float L = rows * CS;
         // --- tramos de 10 módulos (las hojas cerradas con llave van dentro de la malla del tramo) ---
-        Transform vis = new GameObject("Visual").transform; vis.SetParent(transform, false);
+        Transform vis = new GameObject("Visual").transform; vis.SetParent(rv.F, false);
         for (int c0 = 0; c0 < rows; c0 += ChunkModules)
         {
             Combiner cb = new Combiner();
@@ -234,60 +311,46 @@ public class CorridorWorld : MonoBehaviour
                 Vector3 off = new Vector3(0f, 0f, zc - zc0);
                 cb.Add(mod, off, false, k * CS);
                 for (int s = 0; s < 2; s++)
-                    if (plan.doors[s, k] == CorridorPlan.Door.Locked) cb.Add(leaf, off, s == CorridorPlan.Left, 0f, hinge);
+                    if (def.doors[s, k] == CorridorPlan.Door.Locked) cb.Add(leafL, off, s == CorridorPlan.Left, 0f, hinge);
             }
-            Mesh m = cb.Build("C7460Chunk" + c0, out List<int> ids); track(m);
+            Mesh m = cb.Build("C7460Chunk" + def.id + "_" + c0, out List<int> ids); track(m);
             MeshObj("Chunk" + c0, vis, m, MatsFor(ids, modMats), new Vector3(cx, 0f, zc0), Vector3.one);
             ChunkCount++;
         }
-
-        // --- hojas que se mueven (habitaciones, tapiadas, salida) y lo que hay detrás ---
-        Combiner lc = new Combiner(); lc.Add(leaf, Vector3.zero, false, 0f);
-        Mesh leafMesh = lc.Build("C7460Leaf", out List<int> leafIds); track(leafMesh);
-        // v3: la cara de la hoja que da a la habitación se horneó a oscuras (puerta cerrada): mínimo de irradiancia propio, como la luz que entra del pasillo
-        Material leafDoor = new Material(modMats[4]) { name = "C7460_LeafDoor" }; leafDoor.SetFloat("_LMMin", LeafMinLM); track(leafDoor);
-        Material leafTrim = new Material(modMats[3]) { name = "C7460_LeafTrim" }; leafTrim.SetFloat("_LMMin", LeafMinLM); track(leafTrim);
-        Material[] leafMats = MatsFor(leafIds, new[] { modMats[0], modMats[1], modMats[2], leafTrim, leafDoor });
-        Combiner rc = new Combiner(); rc.Add(room, Vector3.zero, false, 0f);
-        Mesh roomMesh = rc.Build("C7460Room", out List<int> roomIds); track(roomMesh);
-        Material[] rMats = MatsFor(roomIds, roomMats);
-        Transform doorsRoot = new GameObject("Doors").transform; doorsRoot.SetParent(transform, false);
+        Transform doorsRoot = new GameObject("Doors").transform; doorsRoot.SetParent(rv.F, false);
         for (int k = 0; k < rows; k++)
             for (int s = 0; s < 2; s++)
             {
-                CorridorPlan.Door d = plan.doors[s, k];
+                CorridorPlan.Door d = def.doors[s, k];
                 float zc = (k + 0.5f) * CS, sg = s == CorridorPlan.Left ? -1f : 1f;
                 if (d == CorridorPlan.Door.Locked)
-                {   // v7.10.1 (t497u): las puertas cerradas (casi todas, parte del módulo horneado) no tenían colisión: el muro deja
-                    // un hueco de DW en cada puerta y solo las de habitación, tapiadas y salida llevaban su bloque. Ahora son sólidas.
-                    Box("DoorLocked_" + s + "_" + k, new Vector3(cx + sg * (HW + 0.25f), DH * 0.5f, zc), new Vector3(0.5f, DH + 0.02f, DW + 0.04f));   // tan gruesa como el muro
+                {   // v7.10.1 (t497u): las puertas cerradas son sólidas (tan gruesas como el muro)
+                    Box("DoorLocked_" + s + "_" + k, new Vector3(cx + sg * (HW + 0.25f), DH * 0.5f, zc), new Vector3(0.5f, DH + 0.02f, DW + 0.04f));
                     LockedBlocks++;
                     continue;
                 }
-                Transform side = new GameObject((d == CorridorPlan.Door.Exit ? "ExitDoorLeaf" : d == CorridorPlan.Door.Room ? "RoomDoor" : "BrickDoor") + "_" + s + "_" + k).transform;
+                Transform side = new GameObject((d == CorridorPlan.Door.Exit ? "ExitDoorLeaf" : d == CorridorPlan.Door.Link ? "LinkDoor" : d == CorridorPlan.Door.Room ? "RoomDoor" : "BrickDoor") + "_" + s + "_" + k).transform;
                 side.SetParent(doorsRoot, false); side.localPosition = new Vector3(cx, 0f, zc); side.localScale = new Vector3(sg, 1f, 1f);
                 Transform piv = new GameObject("Pivot").transform; piv.SetParent(side, false); piv.localPosition = hinge;
                 MeshObj("Leaf", piv, leafMesh, leafMats, Vector3.zero, Vector3.one);
-                // hueco detrás (colisión en espacio sin espejo)
                 float xw = cx + sg * (HW + JT * 0.5f);
                 BoxCollider block = Box("DoorBlock_" + s + "_" + k, new Vector3(xw, DH * 0.5f, zc), new Vector3(JT, DH, DW));
-                if (d == CorridorPlan.Door.Room)
-                {
-                    MeshObj("Room", side, roomMesh, rMats, Vector3.zero, Vector3.one);
+                if (d == CorridorPlan.Door.Link)
+                {   // v7.10.2: la puerta se abre al acercarte y da a un pasillo transversal largo (un paso por el grueso del muro)
+                    float nd = CrossStart - XR;
+                    Transform tu = new GameObject("Tunnel").transform; tu.SetParent(side, false);
+                    ProceduralAssets.CreatePrimitive(PrimitiveType.Quad, "TunnelS", tu, new Vector3(XR + nd * 0.5f, DH * 0.5f, -DW * 0.5f), new Vector3(nd, DH, 1f), nicheTrim, false).transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
+                    ProceduralAssets.CreatePrimitive(PrimitiveType.Quad, "TunnelN", tu, new Vector3(XR + nd * 0.5f, DH * 0.5f, DW * 0.5f), new Vector3(nd, DH, 1f), nicheTrim, false).transform.localRotation = Quaternion.Euler(0f, 0f, 0f);
+                    ProceduralAssets.CreatePrimitive(PrimitiveType.Quad, "TunnelTop", tu, new Vector3(XR + nd * 0.5f, DH, 0f), new Vector3(nd, DW, 1f), nicheTrim, false).transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
+                    ProceduralAssets.CreatePrimitive(PrimitiveType.Quad, "TunnelFloor", tu, new Vector3(XR + nd * 0.5f, 0.003f, 0f), new Vector3(nd, DW, 1f), nicheTrim, false).transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
                     HotelDoorLeaf hl = piv.gameObject.AddComponent<HotelDoorLeaf>();
-                    hl.center = levelRoot.TransformPoint(new Vector3(cx + sg * (HW + JT * 0.5f), 0f, zc)); hl.openAngle = 98f; hl.radius = 1.7f; hl.holdTime = 4f; hl.blocker = block;
-                    OpenableDoors.Add(hl);
-                    float rx0 = cx + sg * XR, rx1 = cx + sg * (XR + RD), rcx = (rx0 + rx1) * 0.5f;
-                    Box("RoomBack_" + s + "_" + k, new Vector3(cx + sg * (XR + RD + 0.1f), RH * 0.5f, zc), new Vector3(0.2f, RH, RW + 0.4f));
-                    Box("RoomS_" + s + "_" + k, new Vector3(rcx, RH * 0.5f, zc - RW * 0.5f - 0.1f), new Vector3(RD + 0.4f, RH, 0.2f));
-                    Box("RoomN_" + s + "_" + k, new Vector3(rcx, RH * 0.5f, zc + RW * 0.5f + 0.1f), new Vector3(RD + 0.4f, RH, 0.2f));
-                    Box("RoomCeil_" + s + "_" + k, new Vector3(rcx, RH + 0.1f, zc), new Vector3(RD + 0.4f, 0.2f, RW + 0.4f));
-                    foreach (Vector4 fb in Furn)   // muebles (mismas medidas que build_corridor.py: x0, x1, y0, y1 y alto en FurnH)
-                    {
-                        int fi = System.Array.IndexOf(Furn, fb);
-                        Box("RoomFurn_" + s + "_" + k + "_" + fi, new Vector3(cx + sg * (fb.x + fb.y) * 0.5f, FurnH[fi] * 0.5f, zc + (fb.z + fb.w) * 0.5f), new Vector3(fb.y - fb.x, FurnH[fi], fb.w - fb.z));
-                    }
-                    RoomCount++;
+                    hl.center = rv.F.TransformPoint(new Vector3(cx + sg * (HW + JT * 0.5f), 0f, zc)); hl.openAngle = 98f; hl.radius = 1.9f; hl.holdTime = 4f; hl.blocker = block;
+                    OpenableDoors.Add(hl); leafAt[((long)def.id * 4 + s) * 100000 + k] = hl;
+                    float tx = cx + sg * (HW + 0.5f + (CrossStart - HW - 0.5f) * 0.5f), tl = CrossStart - HW - 0.5f + 0.15f;
+                    Box("TunnelWS_" + s + "_" + k, new Vector3(tx, H * 0.5f, zc - DW * 0.5f - 0.15f), new Vector3(tl, H, 0.3f));
+                    Box("TunnelWN_" + s + "_" + k, new Vector3(tx, H * 0.5f, zc + DW * 0.5f + 0.15f), new Vector3(tl, H, 0.3f));
+                    Box("TunnelTop_" + s + "_" + k, new Vector3(tx, (DH + H) * 0.5f, zc), new Vector3(tl, H - DH, DW));
+                    LinkCount++;
                 }
                 else if (d == CorridorPlan.Door.Bricked)
                 {   // un metro de hueco y un muro de ladrillo pintado (la puerta no lleva a ninguna parte)
@@ -299,19 +362,19 @@ public class CorridorWorld : MonoBehaviour
                     ProceduralAssets.CreatePrimitive(PrimitiveType.Quad, "NicheTop", ni, new Vector3(XR + nd * 0.5f, DH, 0f), new Vector3(nd, DW, 1f), nicheTrim, false).transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
                     ProceduralAssets.CreatePrimitive(PrimitiveType.Quad, "NicheFloor", ni, new Vector3(XR + nd * 0.5f, 0.003f, 0f), new Vector3(nd, DW, 1f), nicheTrim, false).transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
                     HotelDoorLeaf hl = piv.gameObject.AddComponent<HotelDoorLeaf>();
-                    hl.center = levelRoot.TransformPoint(new Vector3(cx + sg * (HW + JT * 0.5f), 0f, zc)); hl.openAngle = 62f; hl.radius = 1.4f; hl.holdTime = 2.5f; hl.blocker = null;
+                    hl.center = rv.F.TransformPoint(new Vector3(cx + sg * (HW + JT * 0.5f), 0f, zc)); hl.openAngle = 62f; hl.radius = 1.4f; hl.holdTime = 2.5f; hl.blocker = null;
                     OpenableDoors.Add(hl);
                     Box("Bricks_" + s + "_" + k, new Vector3(cx + sg * (XR + nd + 0.1f), DH * 0.5f, zc), new Vector3(0.2f, DH, DW));
                     block.center = Vector3.zero; block.size = new Vector3(JT, DH, DW);
                     block.transform.localPosition = new Vector3(cx + sg * (XR + nd + 0.25f), DH * 0.5f, zc);
                 }
-                else
+                else if (d == CorridorPlan.Door.Exit)
                 {   // salida: detrás, luz blanca intensa (la puerta se abre cuando la llave buena la abre)
                     ExitLeaf = piv;
                     exitBlock = block;   // v7.10.1: sólida (detrás solo hay luz); con la llave buena el nivel termina en el punto de salida
                     ProceduralAssets.CreatePrimitive(PrimitiveType.Quad, "ExitLight", side, new Vector3(XR + 0.6f, DH * 0.5f, 0f), new Vector3(DW + 0.3f, DH + 0.3f, 1f), glowMat, false).transform.localRotation = Quaternion.Euler(0f, 90f, 0f);
                     GameObject ex = new GameObject("ExitDoor");
-                    ex.transform.SetParent(levelRoot, false);
+                    ex.transform.SetParent(rv.F, false);
                     ex.transform.localPosition = new Vector3(cx + sg * (HW - 0.05f), 0f, zc);
                     ex.transform.localRotation = Quaternion.Euler(0f, s == CorridorPlan.Left ? 90f : -90f, 0f);
                     // el punto de salida lógico queda 0,42 m dentro del pasillo (en la columna lógica del pasillo de la rejilla)
@@ -321,32 +384,57 @@ public class CorridorWorld : MonoBehaviour
                 }
             }
 
-        // --- extremos: el ascensor al sur (z = 0) y un muro con una última puerta cerrada al norte, perdido en la niebla ---
-        float L = Length;
-        Transform ends = new GameObject("Ends").transform; ends.SetParent(transform, false);
+        Transform ends = new GameObject("Ends").transform; ends.SetParent(rv.F, false);
         const float EW = 2.72f, EH = 2.56f;
-        Quad(ends, "EndS_L", new Vector3(cx - (HW + EW * 0.5f) * 0.5f, H * 0.5f, 0f), new Vector2(HW - EW * 0.5f, H), 0f, endMat, CS * 0.2f);
-        Quad(ends, "EndS_R", new Vector3(cx + (HW + EW * 0.5f) * 0.5f, H * 0.5f, 0f), new Vector2(HW - EW * 0.5f, H), 0f, endMat, CS * 0.2f);
-        Quad(ends, "EndS_T", new Vector3(cx, (H + EH) * 0.5f, 0f), new Vector2(EW, H - EH), 0f, endMat, 0f);
-        foreach (float sx in new[] { -1f, 1f })
-            ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "LiftCasing", ends, new Vector3(cx + sx * (EW * 0.5f + 0.04f), EH * 0.5f, 0.01f), new Vector3(0.08f, EH, 0.03f), endTrim, false);
-        ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "LiftCasingTop", ends, new Vector3(cx, EH + 0.04f, 0.01f), new Vector3(EW + 0.16f, 0.08f, 0.03f), endTrim, false);
-        Quad(ends, "EndN", new Vector3(cx, H * 0.5f, L), new Vector2(2f * HW, H), 180f, endMat, 0f);
-        Transform nd2 = new GameObject("EndDoor").transform; nd2.SetParent(ends, false);
-        nd2.localPosition = new Vector3(cx + DW * 0.5f - Gap, 0f, L + 0.03f); nd2.localRotation = Quaternion.Euler(0f, -90f, 0f);
-        MeshObj("Leaf", nd2, leafMesh, leafMats, Vector3.zero, Vector3.one);
-        foreach (float sx in new[] { -1f, 1f })
-            ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "EndCasing", ends, new Vector3(cx + sx * (DW * 0.5f + 0.04f), (DH + 0.04f) * 0.5f, L - 0.012f), new Vector3(0.075f, DH + 0.04f, 0.024f), endTrim, false);
-        ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "EndCasingTop", ends, new Vector3(cx, DH + 0.04f, L - 0.012f), new Vector3(DW + 0.155f, 0.075f, 0.024f), endTrim, false);
+        if (def.cross)
+        {   // los dos extremos: muro con el hueco de la puerta del pasillo largo (la hoja es la del pasillo largo)
+            for (int e = 0; e < 2; e++)
+            {
+                if (e == 1 && def.deadEnd)
+                {   // sin salida: un muro con una última puerta cerrada (como el fondo de los pasillos largos)
+                    EndDoorWall(ends, L, 180f, cx);
+                    Box("EndN", new Vector3(cx, H * 0.5f, L + 0.1f), new Vector3(2f * HW + 0.4f, H, 0.2f));
+                    continue;
+                }
+                float z = e == 0 ? 0f : L, yaw = e == 0 ? 180f : 0f, zb = e == 0 ? -0.1f : L + 0.1f, zt = e == 0 ? 0.012f : L - 0.012f;
+                Quad(ends, "End" + e + "_L", new Vector3(cx - (HW + DW * 0.5f) * 0.5f, H * 0.5f, z), new Vector2(HW - DW * 0.5f, H), yaw, endMat, 0f);
+                Quad(ends, "End" + e + "_R", new Vector3(cx + (HW + DW * 0.5f) * 0.5f, H * 0.5f, z), new Vector2(HW - DW * 0.5f, H), yaw, endMat, 0f);
+                Quad(ends, "End" + e + "_T", new Vector3(cx, (H + DH) * 0.5f, z), new Vector2(DW, H - DH), yaw, endMat, 0f);
+                foreach (float sx in new[] { -1f, 1f })
+                    ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "EndCasing" + e, ends, new Vector3(cx + sx * (DW * 0.5f + 0.04f), (DH + 0.04f) * 0.5f, zt), new Vector3(0.075f, DH + 0.04f, 0.024f), endTrim, false);
+                ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "EndCasingTop" + e, ends, new Vector3(cx, DH + 0.04f, zt), new Vector3(DW + 0.155f, 0.075f, 0.024f), endTrim, false);
+                Box("End" + e + "_L", new Vector3(cx - (HW + DW * 0.5f) * 0.5f - 0.2f, H * 0.5f, zb), new Vector3(HW - DW * 0.5f + 0.4f, H, 0.2f));
+                Box("End" + e + "_R", new Vector3(cx + (HW + DW * 0.5f) * 0.5f + 0.2f, H * 0.5f, zb), new Vector3(HW - DW * 0.5f + 0.4f, H, 0.2f));
+                Box("End" + e + "_T", new Vector3(cx, (H + DH) * 0.5f, zb), new Vector3(DW, H - DH, 0.2f));
+            }
+        }
+        else
+        {
+            if (def.main == 0)
+            {   // el ascensor al sur (z = 0)
+                Quad(ends, "EndS_L", new Vector3(cx - (HW + EW * 0.5f) * 0.5f, H * 0.5f, 0f), new Vector2(HW - EW * 0.5f, H), 0f, endMat, CS * 0.2f);
+                Quad(ends, "EndS_R", new Vector3(cx + (HW + EW * 0.5f) * 0.5f, H * 0.5f, 0f), new Vector2(HW - EW * 0.5f, H), 0f, endMat, CS * 0.2f);
+                Quad(ends, "EndS_T", new Vector3(cx, (H + EH) * 0.5f, 0f), new Vector2(EW, H - EH), 0f, endMat, 0f);
+                foreach (float sx in new[] { -1f, 1f })
+                    ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "LiftCasing", ends, new Vector3(cx + sx * (EW * 0.5f + 0.04f), EH * 0.5f, 0.01f), new Vector3(0.08f, EH, 0.03f), endTrim, false);
+                ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "LiftCasingTop", ends, new Vector3(cx, EH + 0.04f, 0.01f), new Vector3(EW + 0.16f, 0.08f, 0.03f), endTrim, false);
+                Box("EndS_L", new Vector3(cx - (HW + EW * 0.5f) * 0.5f - 0.2f, H * 0.5f, -0.1f), new Vector3(HW - EW * 0.5f + 0.4f, H, 0.2f));
+                Box("EndS_R", new Vector3(cx + (HW + EW * 0.5f) * 0.5f + 0.2f, H * 0.5f, -0.1f), new Vector3(HW - EW * 0.5f + 0.4f, H, 0.2f));
+                Box("EndS_T", new Vector3(cx, (H + EH) * 0.5f, -0.1f), new Vector3(EW, H - EH, 0.2f));
+            }
+            else
+            {   // los otros pasillos largos: al sur, también una última puerta cerrada
+                EndDoorWall(ends, 0f, 0f, cx);
+                Box("EndS", new Vector3(cx, H * 0.5f, -0.1f), new Vector3(2f * HW + 0.4f, H, 0.2f));
+            }
+            EndDoorWall(ends, L, 180f, cx);   // al norte, un muro con una última puerta cerrada, perdido en la niebla
+            Box("EndN", new Vector3(cx, H * 0.5f, L + 0.1f), new Vector3(2f * HW + 0.4f, H, 0.2f));
+        }
 
         // --- colisión ---
-        float big = 3f * CS + 4f;
-        Box("Floor", new Vector3(cx, -0.1f, L * 0.5f), new Vector3(big, 0.2f, L + 4f));
-        Box("Ceiling", new Vector3(cx, H + 0.1f, L * 0.5f), new Vector3(2f * HW + 0.4f, 0.2f, L + 4f));
-        Box("EndS_L", new Vector3(cx - (HW + EW * 0.5f) * 0.5f - 0.2f, H * 0.5f, -0.1f), new Vector3(HW - EW * 0.5f + 0.4f, H, 0.2f));
-        Box("EndS_R", new Vector3(cx + (HW + EW * 0.5f) * 0.5f + 0.2f, H * 0.5f, -0.1f), new Vector3(HW - EW * 0.5f + 0.4f, H, 0.2f));
-        Box("EndS_T", new Vector3(cx, (H + EH) * 0.5f, -0.1f), new Vector3(EW, H - EH, 0.2f));
-        Box("EndN", new Vector3(cx, H * 0.5f, L + 0.1f), new Vector3(2f * HW + 0.4f, H, 0.2f));
+        float big = def.cross ? 2f * HW + 1.2f : 3f * CS + 4f;
+        Box("Floor", new Vector3(cx, -0.1f, L * 0.5f), new Vector3(big, 0.2f, L + (def.cross ? 1.0f : 4f)));
+        Box("Ceiling", new Vector3(cx, H + 0.1f, L * 0.5f), new Vector3(2f * HW + 0.4f, 0.2f, L + (def.cross ? 0.4f : 4f)));
         for (int s = 0; s < 2; s++)
         {
             float sg = s == CorridorPlan.Left ? -1f : 1f, xw = cx + sg * (HW + 0.25f);
@@ -359,15 +447,18 @@ public class CorridorWorld : MonoBehaviour
                 z0 = (k + 0.5f) * CS + DW * 0.5f;
             }
         }
+    }
 
-        // --- sonido de las manillas ---
-        GameObject ra = new GameObject("HandleRattle"); ra.transform.SetParent(transform, false);
-        rattleSrc = ra.AddComponent<AudioSource>(); rattleSrc.playOnAwake = false; rattleSrc.spatialBlend = 1f; rattleSrc.minDistance = 1.2f; rattleSrc.maxDistance = 14f; rattleSrc.rolloffMode = AudioRolloffMode.Linear; rattleSrc.dopplerLevel = 0f;
-        rattleClip = ProceduralAudio.CreateLockRattle();
-
-        StartLocal = new Vector3(cx, 0f, 0f);
-        PickSpots();
-        if (SystemInfo.graphicsDeviceType != GraphicsDeviceType.Null) SetupReflections();
+    void EndDoorWall(Transform ends, float z, float yaw, float cx)
+    {
+        float dz = yaw == 0f ? 1f : -1f;
+        Quad(ends, "EndWall" + z, new Vector3(cx, H * 0.5f, z), new Vector2(2f * HW, H), yaw + 180f, endMat, 0f);   // v7.10.2: el Quad se ve desde -forward: así se ve desde dentro del pasillo
+        Transform nd2 = new GameObject("EndDoor").transform; nd2.SetParent(ends, false);
+        nd2.localPosition = new Vector3(cx - dz * (DW * 0.5f - Gap), 0f, z - dz * 0.03f); nd2.localRotation = Quaternion.Euler(0f, yaw + 90f, 0f);
+        MeshObj("Leaf", nd2, leafMesh, leafMats, Vector3.zero, Vector3.one);
+        foreach (float sx in new[] { -1f, 1f })
+            ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "EndCasing", ends, new Vector3(cx + sx * (DW * 0.5f + 0.04f), (DH + 0.04f) * 0.5f, z + dz * 0.012f), new Vector3(0.075f, DH + 0.04f, 0.024f), endTrim, false);
+        ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "EndCasingTop", ends, new Vector3(cx, DH + 0.04f, z + dz * 0.012f), new Vector3(DW + 0.155f, 0.075f, 0.024f), endTrim, false);
     }
 
     void Quad(Transform parent, string name, Vector3 pos, Vector2 size, float yaw, Material m, float uShift)
@@ -389,28 +480,102 @@ public class CorridorWorld : MonoBehaviour
 
     // puntos de objetos: llaves, notas y la mayoría de pilas dentro de las habitaciones; el resto, junto a los zócalos del pasillo
     void PickSpots()
-    {
+    {   // v7.10.2: sin habitaciones: todo junto a los zócalos de los pasillos; las 5 llaves, lejos del ascensor por el camino
         System.Random r = new System.Random(gen.UsedSeed * 389 + 7460);
-        List<Vector2Int> rooms = new List<Vector2Int>(plan.rooms);
-        for (int i = rooms.Count - 1; i > 0; i--) { int j = r.Next(i + 1); Vector2Int t = rooms[i]; rooms[i] = rooms[j]; rooms[j] = t; }
-        int ri = 0;
-        System.Func<Vector3> roomSpot = () =>
+        int maxD = 1; for (int x = 0; x < plan.Dist.GetLength(0); x++) for (int z = 0; z < plan.Dist.GetLength(1); z++) maxD = Mathf.Max(maxD, plan.Dist[x, z]);
+        System.Func<float, float, int, Vector3> spot = (minF, maxF, avoidRun) =>
         {
-            Vector2Int rm = rooms[ri++ % rooms.Count];
-            float sg = rm.x == CorridorPlan.Left ? -1f : 1f;
-            float x = CenterX + sg * (XR + 0.7f + (float)r.NextDouble() * 0.7f), z = (rm.y + 0.5f) * CS - 0.3f + (float)r.NextDouble() * 0.8f;   // v3: delante de los muebles y fuera del barrido de la hoja
-            return levelRoot.TransformPoint(new Vector3(x, 0.1f, z));
+            for (int t = 0; t < 400; t++)
+            {
+                RunView rv = Runs[r.Next(Runs.Count)];
+                if (rv.def.id == avoidRun) continue;
+                int row = rv.def.cross ? 1 + r.Next(rv.def.rows - 2) : 3 + r.Next(rv.def.rows - 5);
+                int d = DistOf(rv.def, row);
+                if (d < minF * maxD || d > maxF * maxD) continue;
+                float sg = r.Next(2) == 0 ? -1f : 1f;
+                float dz = (DW * 0.5f + 0.35f + (float)r.NextDouble() * (CS * 0.5f - DW * 0.5f - 0.6f)) * (r.Next(2) == 0 ? -1f : 1f);
+                lastSpotRun = rv.def.id;
+                return rv.F.TransformPoint(new Vector3(CenterX + sg * Mathf.Min(HW - 0.32f, CS * 0.5f - 0.1f), 0.1f, (row + 0.5f) * CS + dz));
+            }
+            lastSpotRun = 0;
+            return Runs[0].F.TransformPoint(new Vector3(CenterX, 0.1f, 6f));
         };
-        System.Func<Vector3> hallSpot = () =>
-        {
-            int row = 3 + r.Next(plan.rows - 5); float sg = r.Next(2) == 0 ? -1f : 1f;
-            float dz = (DW * 0.5f + 0.35f + (float)r.NextDouble() * (CS * 0.5f - DW * 0.5f - 0.6f)) * (r.Next(2) == 0 ? -1f : 1f);
-            return levelRoot.TransformPoint(new Vector3(CenterX + sg * Mathf.Min(HW - 0.32f, CS * 0.5f - 0.1f), 0.1f, (row + 0.5f) * CS + dz));
-        };
-        for (int i = 0; i < ExitLock.KeyCount; i++) KeySpots.Add(roomSpot());
+        int prev = -1;
+        for (int i = 0; i < ExitLock.KeyCount; i++) { KeySpots.Add(spot(0.55f, 1.01f, prev)); KeyRuns.Add(lastSpotRun); prev = lastSpotRun; }
         int extra = Mathf.Max(1, cfg.extraSpots);
-        for (int i = 0; i < extra; i++) ExtraSpots.Add(i < 3 ? roomSpot() : hallSpot());   // las 3 primeras son las notas
-        for (int i = 0; i < cfg.batteries; i++) BatterySpots.Add(i % 2 == 0 ? roomSpot() : hallSpot());
+        for (int i = 0; i < extra; i++) ExtraSpots.Add(spot(0.04f, 1.01f, -1));
+        for (int i = 0; i < cfg.batteries; i++) BatterySpots.Add(spot(0.1f, 1.01f, -1));
+    }
+    private int lastSpotRun;
+    public readonly List<int> KeyRuns = new List<int>();
+    // distancia lógica (celdas) desde el ascensor a un módulo de un pasillo
+    public int DistOf(CorridorPlan.Run d, int row)
+    {
+        int x = d.cross ? plan.ColOf(d.a) + Mathf.Clamp(row + 2, 1, CorridorPlan.Spacing - 1) : plan.ColOf(d.main), z = d.cross ? d.row : row;
+        if (x < 0 || z < 0 || x >= plan.Dist.GetLength(0) || z >= plan.Dist.GetLength(1)) return 0;
+        return Mathf.Max(0, plan.Dist[x, z]);
+    }
+    // pasillo en el que está un punto (local de ese pasillo); -1 si está en el grueso de un muro o fuera
+    public int RunAt(Vector3 world, out Vector3 local)
+    {
+        local = Vector3.zero;
+        for (int pass = 0; pass < 2; pass++)
+            for (int i = 0; i < Runs.Count; i++)
+            {
+                if (pass == 0 && i != CurrentRun) continue;
+                RunView rv = Runs[i]; Vector3 l = rv.F.InverseTransformPoint(world);
+                if (l.z >= -0.3f && l.z <= rv.Length + 0.3f && Mathf.Abs(l.x - CenterX) <= HW + 0.05f) { local = l; return i; }
+            }
+        return -1;
+    }
+    public Transform FrameOf(int run) { return Runs[Mathf.Clamp(run, 0, Runs.Count - 1)].F; }
+    public Vector3 DoorWorld(int run, int side, int row, float inward)
+    {
+        float sg = side == CorridorPlan.Left ? -1f : 1f;
+        return FrameOf(run).TransformPoint(new Vector3(CenterX + sg * (HW - inward), 0f, (row + 0.5f) * CS));
+    }
+    public Vector3 ExitDoorWorld(float inward) { return DoorWorld(plan.exitRun, plan.exitSide, plan.exitRow, inward); }
+    public float ExitYaw { get { return Runs[plan.exitRun].F.eulerAngles.y + (plan.exitSide == CorridorPlan.Left ? 270f : 90f); } }
+    // centro de una celda lógica (mundo)
+    public Vector3 CellWorld(int x, int z) { return levelRoot.TransformPoint(new Vector3((x + 0.5f) * CS, 0f, (z + 0.5f) * CS)); }
+
+    // visibilidad por portales: el pasillo en el que estás, y los transversales cuya puerta a tu pasillo está abierta (y, a
+    // través de ellos, el pasillo largo del otro lado si su puerta también lo está). Lo demás no se dibuja (detrás de muros).
+    void UpdateVisibility(Vector3 camPos)
+    {
+        Vector3 l; int ri = RunAt(camPos, out l);
+        if (ri >= 0) CurrentRun = ri;
+        bool cull = CullForTests;
+        foreach (RunView rv in Runs) rv.visible = !cull;
+        if (cull)
+        {
+            RunView c = Runs[CurrentRun];
+            c.visible = true;
+            if (c.def.cross) { Runs[c.def.a].visible = true; Runs[c.def.b].visible = !c.def.deadEnd; foreach (RunView o in Runs[c.def.a].links) if (Near(o, camPos)) o.visible = true; foreach (RunView o in Runs[c.def.b].links) if (Near(o, camPos)) o.visible = true; }
+            else
+                foreach (RunView x in c.links)
+                {
+                    HotelDoorLeaf mine = x.def.a == c.def.id ? x.leafA : x.leafB, other = x.def.a == c.def.id ? x.leafB : x.leafA;
+                    bool open = (mine != null && Mathf.Abs(mine.Angle) > 1f) || Near(x, camPos);
+                    if (!open) continue;
+                    x.visible = true;
+                    if (other != null && Mathf.Abs(other.Angle) > 1f && !x.def.deadEnd) Runs[x.def.a == c.def.id ? x.def.b : x.def.a].visible = true;
+                }
+        }
+        int n = 0;
+        foreach (RunView rv in Runs)
+        {
+            if (rv.visible) n++;
+            if (rv.shown == rv.visible) continue;
+            rv.shown = rv.visible;
+            foreach (Renderer rr in rv.rends) if (rr != null) rr.forceRenderingOff = !rv.visible;
+        }
+        VisibleRuns = n;
+    }
+    bool Near(RunView cross, Vector3 p)
+    {   // a menos de 4 m de una de las dos bocas del transversal (dentro del paso del muro)
+        Vector3 a = cross.F.TransformPoint(new Vector3(CenterX, 0f, 0f)), b = cross.F.TransformPoint(new Vector3(CenterX, 0f, cross.Length));
+        a.y = b.y = p.y; return Vector3.Distance(a, p) < 4f || Vector3.Distance(b, p) < 4f;
     }
 
     // ---------------- reflejos ----------------
@@ -427,7 +592,7 @@ public class CorridorWorld : MonoBehaviour
         CorridorPlanar.Ensure(gameObject, levelRoot.TransformPoint(Vector3.zero).y);
         probeDirty = 2;
     }
-    private int probeDirty;
+    private int probeDirty, probeRun;
     public void RefreshProbe() { if (probeDirty <= 0) probeDirty = 2; }   // v7.10.1: luz roja
     private RenderTexture probeCube; private Camera probeCam;
     // v3: la captura de la sonda se hace a mano (RenderToCubemap) y se le da como cubemap propio: funciona igual en el juego normal,
@@ -455,11 +620,16 @@ public class CorridorWorld : MonoBehaviour
     private void LateUpdate()
     {
         Camera cam = Camera.main;
+        if (cam != null) UpdateVisibility(cam.transform.position);
         if (Probe != null && cam != null)
-        {   // el pasillo es periódico: la sonda salta de módulo en módulo y la misma captura vale (la del centro del pasillo)
-            Vector3 lp = levelRoot.InverseTransformPoint(cam.transform.position);
-            float row = Mathf.Clamp(Mathf.Floor(lp.z / CS), 8f, plan.rows - 9f);
-            Probe.transform.localPosition = new Vector3(CenterX, 1.6f, (row + 0.5f) * CS);
+        {   // el pasillo es periódico: la sonda salta de módulo en módulo y la misma captura vale (la del centro del pasillo);
+            // v7.10.2: en un transversal la caja de la sonda gira con él (y se vuelve a capturar al cambiar de pasillo)
+            RunView rv = Runs[CurrentRun];
+            Vector3 lp = rv.F.InverseTransformPoint(cam.transform.position);
+            float row = rv.def.cross ? Mathf.Floor(rv.def.rows * 0.5f) : Mathf.Clamp(Mathf.Floor(lp.z / CS), 8f, rv.def.rows - 9f);
+            Probe.transform.position = rv.F.TransformPoint(new Vector3(CenterX, 1.6f, (row + 0.5f) * CS));
+            Probe.size = rv.def.cross ? new Vector3(rv.Length, H, 2f * HW) : new Vector3(2f * HW, H, 60f);
+            if (probeRun != CurrentRun) { probeRun = CurrentRun; if (probeDirty <= 0) probeDirty = 2; }
             if (probeDirty > 0 && --probeDirty == 0) RenderProbeCube();
         }
         // puerta de salida: se abre cuando la llave buena la abre
@@ -482,21 +652,23 @@ public class CorridorWorld : MonoBehaviour
         if (p == null || rattleCd > 0f) return;
         GameManager gm = GameManager.Instance;
         if (gm != null && gm.State != GameManager.GameState.Playing) return;
-        Vector3 lp = levelRoot.InverseTransformPoint(p.transform.position);
-        int row = Mathf.FloorToInt(lp.z / CS); if (row < 0 || row >= plan.rows) return;
+        Vector3 lp; int ri = RunAt(p.transform.position, out lp); if (ri < 0) return;
+        RunView rv = Runs[ri];
+        int row = Mathf.FloorToInt(lp.z / CS); if (row < 0 || row >= rv.def.rows) return;
         float dz = lp.z - (row + 0.5f) * CS; if (Mathf.Abs(dz) > DW * 0.5f + 0.15f) return;
         float dx = lp.x - CenterX; int side = dx < 0f ? CorridorPlan.Left : CorridorPlan.Right;
         if (HW - Mathf.Abs(dx) > 0.75f) return;
-        if (plan.doors[side, row] != CorridorPlan.Door.Locked) return;
-        Vector3 fwd = levelRoot.InverseTransformDirection(p.transform.forward); if (fwd.x * Mathf.Sign(dx) < 0.45f) return;
-        Rattle(side, row);
+        if (rv.def.doors[side, row] != CorridorPlan.Door.Locked) return;
+        Vector3 fwd = rv.F.InverseTransformDirection(p.transform.forward); if (fwd.x * Mathf.Sign(dx) < 0.45f) return;
+        Rattle(ri, side, row);
         if (toastCd <= 0f && toasts < 3 && gm != null) { gm.ShowToast(toasts == 0 ? "La manilla baja, pero la puerta no se abre." : "Cerrada."); toasts++; toastCd = 15f; }
     }
 
-    public void Rattle(int side, int row)
+    public void Rattle(int side, int row) { Rattle(0, side, row); }
+    public void Rattle(int run, int side, int row)
     {
         float sg = side == CorridorPlan.Left ? -1f : 1f;
-        rattleSrc.transform.position = levelRoot.TransformPoint(new Vector3(CenterX + sg * XF, HandleY, (row + 0.5f) * CS + HandleZ));
+        rattleSrc.transform.position = FrameOf(run).TransformPoint(new Vector3(CenterX + sg * XF, HandleY, (row + 0.5f) * CS + HandleZ));
         rattleSrc.pitch = 1.05f + (row % 5) * 0.03f;
         rattleSrc.PlayOneShot(rattleClip, AudioMix.Event(0.55f));
         Rattles++; rattleCd = 2.2f; AudioEventLog.Note("C7460_Manilla");

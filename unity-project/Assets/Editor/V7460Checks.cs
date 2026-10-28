@@ -24,21 +24,40 @@ public static class V7460Checks
             r.Check(Resources.Load<Texture2D>("Textures/C7460/" + n + "_a") != null && Resources.Load<Texture2D>("Textures/C7460/" + n + "_n") != null && Resources.Load<Texture2D>("Textures/C7460/" + n + "_m") != null, T + "texturas PBR " + n + " (albedo, normal, máscara)");
         r.Check(LoreNotes.Valid(LoreNotes.IdFor(Lv, 2)) && LoreNotes.Get(LoreNotes.IdFor(Lv, 0)).text.Contains("puertas"), T + "3 notas de ambiente del nivel");
 
-        // plano por semilla: determinista, una salida, habitaciones y tapiadas
-        bool det = true, okExit = true, differ = false; string ex = ""; int N = c.gridH;
-        foreach (int seed in new[] { 1, 7, 12345, 144139097, 99 })
+        // v7.10.2 (t500u): plano por semilla: un laberinto de pasillos largos unidos por transversales; determinista, una
+        // salida, alcanzable y al menos 3 veces más camino que la v7.10.1 (salida en el 45–88 % de un único pasillo)
+        bool det = true, okExit = true, differ = false, reach = true, longer = true, links = true; string ex = ""; int N = c.gridH, W = c.gridW;
+        r.Check(W == CorridorPlan.GridWidthFor(5) && N == 140, T + "rejilla " + W + "×" + N + " (5 pasillos largos de 140 módulos)");
+        int pmin = int.MaxValue; long psum = 0; int ns = 0;
+        for (int seed = 1; seed <= 120; seed++)
         {
-            CorridorPlan a = CorridorPlan.Make(seed, 5, N, new bool[6, N], new bool[5, N + 1]);
-            CorridorPlan b = CorridorPlan.Make(seed, 5, N, new bool[6, N], new bool[5, N + 1]);
-            int exits = 0;
-            for (int s = 0; s < 2; s++) for (int j = 0; j < N; j++) { if (a.doors[s, j] != b.doors[s, j]) det = false; if (a.doors[s, j] == CorridorPlan.Door.Exit) exits++; }
-            if (exits != 1 || a.exitRow < N * 0.4f || a.exitRow > N * 0.92f || a.Count(CorridorPlan.Door.Room) < 10) okExit = false;
-            CorridorPlan o = CorridorPlan.Make(seed + 1, 5, N, new bool[6, N], new bool[5, N + 1]);
-            if (o.exitRow != a.exitRow || o.exitSide != a.exitSide) differ = true;
-            ex += " " + a.exitRow + (a.exitSide == 0 ? "I" : "D") + "/" + a.Count(CorridorPlan.Door.Room) + "h/" + a.Count(CorridorPlan.Door.Bricked) + "t";
+            int sd = seed == 1 ? 12345 : seed * 7919 + 1;
+            bool[,] wv = new bool[W + 1, N], wh = new bool[W, N + 1];
+            for (int x = 0; x <= W; x++) for (int z = 0; z < N; z++) wv[x, z] = true; for (int x = 0; x < W; x++) for (int z = 0; z <= N; z++) wh[x, z] = true;
+            CorridorPlan a = CorridorPlan.Make(sd, W, N, wv, wh);
+            if (seed <= 6)
+            {
+                CorridorPlan b = CorridorPlan.Make(sd, W, N, new bool[W + 1, N], new bool[W, N + 1]);
+                if (a.runs.Count != b.runs.Count || a.exitRun != b.exitRun || a.exitRow != b.exitRow) det = false;
+                else for (int q = 0; q < a.runs.Count; q++) for (int s = 0; s < 2; s++) for (int k = 0; k < a.runs[q].rows; k++) if (a.runs[q].doors[s, k] != b.runs[q].doors[s, k]) det = false;
+                CorridorPlan o = CorridorPlan.Make(sd + 1, W, N, new bool[W + 1, N], new bool[W, N + 1]);
+                if (o.exitRow != a.exitRow || o.exitRun != a.exitRun || o.CrossCount != a.CrossCount) differ = true;
+                ex += " " + a.exitRun + "/" + a.exitRow + ":" + a.PathCells + "c/" + a.CrossCount + "x";
+            }
+            if (a.Count(CorridorPlan.Door.Exit) != 1) okExit = false;
+            int[,] d = CorridorPlan.Bfs(wv, wh, W, N, new Vector2Int(a.Col, 0));
+            Vector2Int ec = a.ExitCell;
+            if (d[ec.x, ec.y] <= 0 || d[ec.x, ec.y] != a.PathCells) reach = false;
+            for (int i = 0; i < a.Mains; i++) for (int k = 0; k < N; k++) if (d[a.ColOf(i), k] < 0) reach = false;   // todo el laberinto conectado
+            if (a.PathCells < 3 * CorridorPlan.OldAvgPathCells) longer = false;
+            // cada puerta que se abre (enlace) tiene su transversal y su pareja en el pasillo vecino
+            int lk = a.Count(CorridorPlan.Door.Link); if (lk != 2 * a.CrossCount - a.DeadEnds || a.CrossCount - a.DeadEnds < 4 * 5 || a.DeadEnds < 4) links = false;
+            pmin = Mathf.Min(pmin, a.PathCells); psum += a.PathCells; ns++;
         }
-        r.Check(det && differ, T + "plano sale de la semilla (igual en todos los equipos, distinto en cada partida)");
-        r.Check(okExit, T + "una sola puerta de salida, lejos de la entrada, y ≥10 habitaciones (" + ex.Trim() + ")");
+        r.Check(det && differ, T + "plano sale de la semilla (igual en todos los equipos, distinto en cada partida):" + ex);
+        r.Check(okExit && reach, T + "120 semillas: una sola salida y todo el laberinto alcanzable desde el ascensor");
+        r.Check(longer, T + "camino ascensor→salida ≥ 3× el de la v7.10.1 (mín " + pmin + " celdas, media " + (psum / (float)ns).ToString("F0") + " frente a ~" + CorridorPlan.OldAvgPathCells + ")");
+        r.Check(links, T + "cada puerta que se abre da a un pasillo transversal que se une al pasillo vecino (≥ 5 por hueco) o, en los cruces y señuelos, acaba en una puerta cerrada (sin salida)");
 
         // ruidos a la espalda: graves, sin siseo ni crujidos
         string bad = ""; float worst = 0f;
@@ -61,6 +80,46 @@ public static class V7460Checks
         r.Check(CorridorEvents.GapMin >= 15f && CorridorEvents.GapMax <= 60f && CorridorEvents.DistMin >= 5f, T + "[Ruidos] cada " + CorridorEvents.GapMin + "–" + CorridorEvents.GapMax + " s, a " + CorridorEvents.DistMin + "–" + CorridorEvents.DistMax + " m a tu espalda");
     }
 
+    // v7.10.2 (t500u): muchas semillas con el nivel generado de verdad: inicio → cada llave → salida por el laberinto
+    public static void ManySeeds(SmokeTest.Report r, int count)
+    {
+        string T = "[7460 semillas] ";
+        LevelConfig c = LevelConfig.Get(Lv);
+        int ok = 0, farOk = 0, minPath = int.MaxValue, maxPath = 0; long sumPath = 0; string bad = "";
+        System.Diagnostics.Stopwatch sw = System.Diagnostics.Stopwatch.StartNew();
+        for (int i = 0; i < count; i++)
+        {
+            int seed = i == 0 ? 7460 : 1000003 * i + 17;
+            GameObject go = new GameObject("SeedGen7460");
+            BackroomsGenerator gen = go.AddComponent<BackroomsGenerator>();
+            gen.config = c; gen.useRandomSeed = false; gen.seed = seed;
+            gen.Generate();
+            CorridorWorld w = go.GetComponentInChildren<CorridorWorld>(true);
+            CorridorPlan P = gen.Corridor;
+            bool good = w != null && P != null && gen.KeySpots.Count == ExitLock.KeyCount;
+            int W = P != null ? P.Dist.GetLength(0) : 0, worst = int.MaxValue, maxD = 0;
+            if (good)
+            {
+                for (int x = 0; x < W; x++) for (int z = 0; z < P.rows; z++) maxD = Mathf.Max(maxD, P.Dist[x, z]);
+                Vector2Int st = new Vector2Int(P.Col, 0);
+                foreach (Vector3 k in gen.KeySpots)
+                {
+                    Vector2Int kc = V7102Look.OpenNear(P, W, V7102Look.CellOf(w, k));
+                    List<Vector2Int> a = V7102Look.Path(P, W, st, kc), b = V7102Look.Path(P, W, kc, P.ExitCell);
+                    if (a.Count < 2 || b.Count < 2) { good = false; break; }
+                    int tot = a.Count + b.Count - 2; worst = Mathf.Min(worst, tot);
+                    if (P.Dist[kc.x, kc.y] < 0.5f * maxD) good = false;
+                }
+            }
+            if (good) { ok++; if (worst >= 3 * CorridorPlan.OldAvgPathCells) farOk++; minPath = Mathf.Min(minPath, worst); maxPath = Mathf.Max(maxPath, worst); sumPath += worst; }
+            else bad += " " + seed;
+            gen.Clear(); Object.DestroyImmediate(go);
+            if (i % 5 == 4) { UnityEditor.EditorUtility.UnloadUnusedAssetsImmediate(); System.GC.Collect(); }
+        }
+        r.Check(ok == count, T + count + " semillas generadas: desde el ascensor se llega a las 5 llaves y desde cada llave a la salida (" + ok + "/" + count + ")" + (bad != "" ? " fallan:" + bad : ""));
+        r.Check(farOk == ok && ok > 0, T + "inicio → llave → salida, el más corto: " + minPath + "–" + maxPath + " celdas (media " + (ok > 0 ? (sumPath / (float)ok).ToString("F0") : "-") + "; ≥ 3× las ~" + CorridorPlan.OldAvgPathCells + " de la v7.10.1); " + (sw.ElapsedMilliseconds / 1000f).ToString("F0") + " s");
+    }
+
     // geometría generada (en edición, tras gen.Generate())
     public static void Geometry(SmokeTest.Report r, string tag, BackroomsGenerator gen)
     {
@@ -68,42 +127,65 @@ public static class V7460Checks
         CorridorWorld w = gen.Root.GetComponentInChildren<CorridorWorld>(true);
         r.Check(w != null && gen.Corridor != null, T + "pasillo construido por CorridorWorld");
         if (w == null) return;
-        r.Check(w.ChunkCount == (gen.Corridor.rows + CorridorWorld.ChunkModules - 1) / CorridorWorld.ChunkModules && w.RoomCount == gen.Corridor.Count(CorridorPlan.Door.Room), T + w.ChunkCount + " tramos de 10 módulos y " + w.RoomCount + " habitaciones");
-        r.Check(w.Length > 300f && gen.FixtureCount == gen.Corridor.rows, T + "pasillo de " + w.Length.ToString("F0") + " m con " + gen.FixtureCount + " plafones");
+        CorridorPlan P = gen.Corridor; int chunks = 0; foreach (CorridorPlan.Run ru in P.runs) chunks += (ru.rows + CorridorWorld.ChunkModules - 1) / CorridorWorld.ChunkModules;
+        r.Check(w.ChunkCount == chunks && w.Runs.Count == P.runs.Count && w.RoomCount == 0 && w.LinkCount == P.Count(CorridorPlan.Door.Link), T + w.Runs.Count + " pasillos (" + P.Mains + " largos + " + P.CrossCount + " transversales, " + P.DeadEnds + " sin salida), " + w.ChunkCount + " tramos de 10 módulos, " + w.LinkCount + " puertas que se abren, sin habitaciones");
+        r.Check(w.Length > 300f && gen.FixtureCount == w.TotalModules && w.TotalModules * CorridorWorld.CS > 2000f, T + "pasillos largos de " + w.Length.ToString("F0") + " m; " + (w.TotalModules * CorridorWorld.CS / 1000f).ToString("F2") + " km de pasillo con " + gen.FixtureCount + " plafones");
         r.Check(gen.KeySpots.Count == ExitLock.KeyCount, T + "5 sitios de llave");
-        int inRooms = 0; foreach (Vector3 k in gen.KeySpots) { Vector3 l = w.levelRoot.InverseTransformPoint(k); if (Mathf.Abs(l.x - w.CenterX) > CorridorWorld.HW + 0.2f) inRooms++; }
-        r.Check(inRooms == gen.KeySpots.Count, T + "las llaves están dentro de las habitaciones (" + inRooms + "/" + gen.KeySpots.Count + ")");
-        // recorrido a pie por el centro del pasillo sin chocar
+        {   // llaves: en un pasillo (dentro de los muros) y lejos del ascensor por el camino (≥ 55 % del más lejano)
+            int maxD = 0; for (int x = 0; x < P.Dist.GetLength(0); x++) for (int z = 0; z < P.Dist.GetLength(1); z++) maxD = Mathf.Max(maxD, P.Dist[x, z]);
+            int inRun = 0, far = 0; string kd = "";
+            foreach (Vector3 k in gen.KeySpots)
+            {
+                Vector3 l; int ri = w.RunAt(k, out l); if (ri >= 0 && Mathf.Abs(l.x - w.CenterX) < CorridorWorld.HW - 0.1f) inRun++;
+                Vector2Int kc = V7102Look.OpenNear(P, gen.Corridor.Dist.GetLength(0), V7102Look.CellOf(w, k)); int dk = P.Dist[kc.x, kc.y];
+                kd += " " + dk; if (dk >= 0.5f * maxD) far++;
+            }
+            r.Check(inRun == gen.KeySpots.Count && far == gen.KeySpots.Count, T + "las 5 llaves, junto a los zócalos y lejos del ascensor (a" + kd + " celdas; el punto más lejano a " + maxD + ")");
+        }
+        // recorrido a pie por el centro de cada pasillo sin chocar; paredes cerradas (un rayo lateral entre puertas da en pared)
         Physics.SyncTransforms();
-        Vector3 a = w.levelRoot.TransformPoint(new Vector3(w.CenterX, 0.95f, 1.0f)), b = w.levelRoot.TransformPoint(new Vector3(w.CenterX, 0.95f, w.Length - 1.0f));
-        bool free = true; foreach (RaycastHit h in Physics.SphereCastAll(a, 0.34f, (b - a).normalized, (b - a).magnitude)) { free = false; r.Info(T + "choque en el pasillo: " + h.collider.name + " " + h.point); break; }
-        r.Check(free, T + "se recorre el pasillo entero sin chocar (" + (b - a).magnitude.ToString("F0") + " m)");
-        // paredes cerradas: un rayo lateral a mitad de cada módulo da en pared o puerta
-        int holes = 0;
-        for (int j = 0; j < gen.Corridor.rows; j++) for (int s = -1; s <= 1; s += 2)
+        int blocked = 0, holes = 0; string firstHit = "";
+        foreach (CorridorWorld.RunView rv in w.Runs)
         {
-            Vector3 o = w.levelRoot.TransformPoint(new Vector3(w.CenterX, 1.2f, (j + 0.5f) * CorridorWorld.CS + 1.0f));
-            if (!Physics.Raycast(o, w.levelRoot.TransformDirection(new Vector3(s, 0, 0)), CorridorWorld.HW + 0.6f)) holes++;
+            Vector3 a = rv.F.TransformPoint(new Vector3(w.CenterX, 0.95f, 0.6f)), b = rv.F.TransformPoint(new Vector3(w.CenterX, 0.95f, rv.Length - 0.6f));
+            foreach (RaycastHit h in Physics.SphereCastAll(a, 0.34f, (b - a).normalized, (b - a).magnitude)) { blocked++; if (firstHit == "") firstHit = rv.F.name + ": " + h.collider.name + " " + h.point; break; }
+            for (int j = 0; j < rv.def.rows; j++) for (int s = -1; s <= 1; s += 2)
+            {
+                Vector3 o = rv.F.TransformPoint(new Vector3(w.CenterX, 1.2f, (j + 0.5f) * CorridorWorld.CS + 1.0f));
+                if (!Physics.Raycast(o, rv.F.TransformDirection(new Vector3(s, 0, 0)), CorridorWorld.HW + 0.6f)) holes++;
+            }
         }
+        r.Check(blocked == 0, T + "se recorre cada pasillo entero por el centro sin chocar (" + w.Runs.Count + " pasillos) " + firstHit);
         r.Check(holes == 0, T + "paredes sin huecos (" + holes + " rayos que se escapan)");
-        // en cada habitación cabe una persona y está cerrada
-        int badRooms = 0;
-        for (int s = 0; s < 2; s++) for (int j = 0; j < gen.Corridor.rows; j++) if (gen.Corridor.doors[s, j] == CorridorPlan.Door.Room)
-        {
-            Vector3 c = w.RoomCenterWorld(s, j) + Vector3.up * 0.95f + w.levelRoot.TransformDirection(new Vector3(s == CorridorPlan.Left ? 0.4f : -0.4f, 0f, 0f));   // v3: la zona libre entre la puerta y los muebles
-            if (Physics.CheckSphere(c, 0.34f)) badRooms++;
-            foreach (Vector3 dir in new[] { Vector3.forward, Vector3.back }) if (!Physics.Raycast(c, w.levelRoot.TransformDirection(dir), CorridorWorld.RW)) badRooms++;
+        {   // cada transversal: por sus dos bocas se pasa (con la hoja abierta) del pasillo largo al transversal; cerrada, no
+            int bad = 0; string bs = "";
+            foreach (CorridorWorld.RunView rv in w.Runs)
+            {
+                if (!rv.def.cross) continue;
+                foreach (int e in new[] { 0, 1 })
+                {
+                    if (e == 1 && rv.def.deadEnd) continue;
+                    int main = e == 0 ? rv.def.a : rv.def.b, side = e == 0 ? CorridorPlan.Right : CorridorPlan.Left;
+                    Vector3 from = w.DoorWorld(main, side, rv.def.row, 0.8f) + Vector3.up * 1.0f, to = rv.F.TransformPoint(new Vector3(w.CenterX, 1.0f, e == 0 ? 1.5f : rv.Length - 1.5f));
+                    HotelDoorLeaf leaf = e == 0 ? rv.leafA : rv.leafB;
+                    bool closedBlocks = leaf != null && leaf.blocker != null && leaf.blocker.enabled && Physics.Linecast(from, to);
+                    if (leaf != null && leaf.blocker != null) leaf.blocker.enabled = false;
+                    RaycastHit hh; bool free = !Physics.SphereCast(from, 0.3f, (to - from).normalized, out hh, (to - from).magnitude);
+                    if (leaf != null && leaf.blocker != null) leaf.blocker.enabled = true;
+                    if (!free || !closedBlocks) { bad++; if (bs == "") bs = " " + rv.F.name + "/" + e + (free ? "" : " choca con " + hh.collider.name) + (closedBlocks ? "" : " (cerrada no bloquea)"); }
+                }
+            }
+            r.Check(bad == 0, T + "las " + (2 * P.CrossCount - P.DeadEnds) + " bocas de los transversales: abiertas se pasa, cerradas no (" + bad + " fallos)" + bs);
         }
-        r.Check(badRooms == 0, T + "habitaciones libres por dentro y cerradas por los lados (" + badRooms + " fallos)");
         // salida: de pie delante, se llega a < 1,6 m
-        Vector3 st = w.DoorWorld(gen.Corridor.exitSide, gen.Corridor.exitRow, 0.75f);
-        r.Check(!Physics.CheckSphere(st + Vector3.up * 0.95f, 0.34f) && Vector3.Distance(Flat(st), Flat(gen.ExitPosition)) < 1.6f, T + "delante de la salida hay sitio y queda a <1,6 m");
+        Vector3 st = w.ExitDoorWorld(0.75f);
+        r.Check(!Physics.CheckSphere(st + Vector3.up * 0.95f, 0.34f) && Vector3.Distance(Flat(st), Flat(gen.ExitPosition)) < 1.6f, T + "delante de la salida hay sitio y queda a <1,6 m (pasillo " + P.exitRun + ", módulo " + P.exitRow + ")");
         ExitDoorCue cue = gen.Root.GetComponentInChildren<ExitDoorCue>(true);
         r.Check(cue != null && cue.visibleDistance <= 8.01f && !cue.ledRenderer.enabled && !cue.glow.enabled, T + "pista de la salida apagada y solo a < 8 m");
         // presupuesto
         int tris = 0, rends = 0; foreach (MeshFilter mf in gen.Root.GetComponentsInChildren<MeshFilter>(true)) if (mf.sharedMesh != null) { tris += mf.sharedMesh.triangles.Length / 3; rends++; }
         r.Info(T + "triángulos " + tris + ", mallas " + rends);
-        r.Check(tris < 3000000 && rends < 900, T + "presupuesto: " + tris + " triángulos en " + rends + " mallas");
+        r.Check(tris < 4500000 && rends < 2400, T + "presupuesto: " + tris + " triángulos en " + rends + " mallas en todo el laberinto (v7.10.2: solo se dibuja el pasillo en el que estás y los que se ven por puertas abiertas)");
     }
 
     static Vector3 Flat(Vector3 v) { v.y = 0f; return v; }
@@ -242,18 +324,40 @@ public static class V7460Checks
             p.Teleport(dp, ls == CorridorPlan.Left ? 270f : 90f); yield return 0.8f;
             r.Check(w.Rattles > r0, T + "una puerta cerrada: la manilla baja pero no abre (" + (w.Rattles - r0) + " intentos)");
         }
-        // habitación: la puerta se abre al acercarte y se puede entrar
-        int rr = -1, rs = 0;
-        for (int j = 0; j < w.plan.rows && rr < 0; j++) for (int s = 0; s < 2; s++) if (w.plan.doors[s, j] == CorridorPlan.Door.Room) { rr = j; rs = s; break; }
-        if (rr >= 0)
+        // v7.10.2: una puerta que se abre: se abre al acercarte y da a un pasillo transversal; por él se llega al pasillo vecino
         {
-            HotelDoorLeaf leaf = null; float best = 9f; Vector3 dp = w.DoorWorld(rs, rr, 0.6f);
-            foreach (HotelDoorLeaf l in w.OpenableDoors) { float dd = Vector3.Distance(Flat(l.center), Flat(dp)); if (dd < best) { best = dd; leaf = l; } }
-            p.Teleport(dp, rs == CorridorPlan.Left ? 270f : 90f); yield return 1.2f;
-            r.Check(leaf != null && leaf.IsOpen, T + "la puerta de una habitación se abre al acercarte");
-            Vector3 rc = w.RoomCenterWorld(rs, rr);
-            p.Teleport(rc + Vector3.up * 0.1f, 0f); yield return 0.5f;
-            r.Check(Vector3.Distance(Flat(p.transform.position), Flat(rc)) < 0.5f && p.transform.position.y > -0.3f, T + "dentro de la habitación (suelo firme)");
+            CorridorWorld.RunView cr = null; foreach (CorridorWorld.RunView rv in w.Runs) if (rv.def.cross && rv.def.a == 0 && !rv.def.deadEnd) { cr = rv; break; }
+            r.Check(cr != null, T + "[Laberinto] el pasillo del ascensor tiene transversales");
+            if (cr != null)
+            {
+                CorridorEvents.DisableForTests = true;
+                Vector3 dp = w.DoorWorld(0, CorridorPlan.Right, cr.def.row, 0.6f);
+                p.Teleport(dp, 90f); yield return 1.2f;
+                r.Check(cr.leafA != null && cr.leafA.IsOpen, T + "[Laberinto] la puerta se abre al acercarte (" + (cr.leafA != null ? cr.leafA.Angle.ToString("F0") : "-") + "°)");
+                r.Check(cr.visible && w.VisibleRuns >= 2, T + "[Laberinto] con la puerta abierta se dibuja el transversal (" + w.VisibleRuns + " de " + w.Runs.Count + " pasillos)");
+                // cruzar a pie (corriendo) todo el transversal hasta el pasillo 1
+                List<Vector2Int> path = V7102Look.Path(w.plan, w.plan.Dist.GetLength(0), new Vector2Int(w.plan.ColOf(0), cr.def.row), new Vector2Int(w.plan.ColOf(1), cr.def.row + 1));
+                float[] res = new float[3]; float ts = Time.timeScale; Time.timeScale = 1.5f;
+                { IEnumerator wi = V7102Look.Walk(p, w, path, res, 40f); while (wi.MoveNext()) yield return wi.Current; }
+                Time.timeScale = ts;
+                Vector3 lp; int ri = w.RunAt(p.transform.position, out lp);
+                r.Check(res[0] > 0f && ri == 1 && w.CurrentRun == 1, T + "[Laberinto] a pie por el transversal (" + res[1].ToString("F0") + " m) se llega al pasillo largo vecino (pasillo " + ri + ")");
+                // en el transversal: reflejo (la sonda va con él), ruidos a la espalda dentro de él y luz roja
+                p.Teleport(cr.F.TransformPoint(new Vector3(w.CenterX, 0.1f, cr.Length * 0.5f)), cr.F.eulerAngles.y); yield return 0.6f;
+                r.Check(w.CurrentRun == cr.def.id, T + "[Laberinto] dentro del transversal, es el pasillo actual (" + w.CurrentRun + ")");
+                if (w.Probe != null)
+                {
+                    Vector3 pl = cr.F.InverseTransformPoint(w.Probe.transform.position);
+                    r.Check(Mathf.Abs(pl.x - w.CenterX) < 0.1f && pl.z > 0f && pl.z < cr.Length && w.Probe.size.x > 20f, T + "[Reflejo] la sonda del suelo se va al transversal y gira con él (tamaño " + w.Probe.size + ")");
+                }
+                int bin = 0; string bs = "";
+                for (int k = 0; k < 4; k++) { ev.Play(k); yield return 0.1f; Vector3 lb; int rb = w.RunAt(ev.Source.transform.position, out lb); if (rb == cr.def.id && ev.LastBehindDot < -0.8f) bin++; bs += " " + ev.LastBehindDot.ToString("F2"); yield return 0.3f; }
+                r.Check(bin == 4, T + "[Ruidos] en el transversal también suenan a tu espalda, dentro del pasillo (" + bin + "/4:" + bs + ")");
+                CorridorRed.ForceRed = 1f; yield return 0.6f;
+                r.Check(Shader.GetGlobalFloat(CorridorRed.RedId) > 0.99f && RenderSettings.fogColor.r > RenderSettings.fogColor.g * 4f, T + "[Rojo] la luz roja también tiñe los transversales (es global)");
+                CorridorRed.ForceRed = -1f; yield return 0.3f;
+                CorridorEvents.DisableForTests = false;
+            }
         }
 
         // v7.10.1 (t497u): las puertas cerradas son sólidas: andando y corriendo contra cada tipo no se atraviesa ninguna
@@ -264,28 +368,29 @@ public static class V7460Checks
             r.Check(w.LockedBlocks == w.plan.Count(CorridorPlan.Door.Locked) && w.LockedBlocks > 20, T + "[Puertas] cada puerta cerrada lleva colisión (" + w.LockedBlocks + " de " + w.plan.Count(CorridorPlan.Door.Locked) + ")");
             r.Check(w.ExitBlock != null && w.ExitBlock.enabled, T + "[Puertas] la salida lleva colisión");
             string res = ""; bool okAll = true; int tested = 0;
-            CorridorPlan.Door[] kinds = { CorridorPlan.Door.Locked, CorridorPlan.Door.Bricked, CorridorPlan.Door.Exit, CorridorPlan.Door.Room };
+            CorridorPlan.Door[] kinds = { CorridorPlan.Door.Locked, CorridorPlan.Door.Bricked, CorridorPlan.Door.Exit, CorridorPlan.Door.Link };
             foreach (CorridorPlan.Door kind in kinds)
             {
-                int jr = -1, js = 0;
-                for (int j = 4; j < w.plan.rows - 2 && jr < 0; j++) for (int sd = 0; sd < 2; sd++) if (w.plan.doors[sd, j] == kind) { jr = j; js = sd; break; }
+                int jr = -1, js = 0, jrun = 0;
+                for (int q = 0; q < w.plan.Mains && jr < 0; q++)
+                    for (int j = 4; j < w.plan.rows - 2 && jr < 0; j++) for (int sd = 0; sd < 2; sd++) if (w.plan.runs[q].doors[sd, j] == kind) { jr = j; js = sd; jrun = q; break; }
                 if (jr < 0) { res += " " + kind + ":-"; continue; }
                 float limit = kind == CorridorPlan.Door.Bricked ? CorridorWorld.XR + 1.0f : CorridorWorld.HW + 0.02f;   // tapiada: nicho de 1 m y ladrillo
                 for (int sp = 0; sp < 2; sp++)
                 {
                     p.SetStaminaForTests(p.maxStamina);
-                    p.Teleport(w.DoorWorld(js, jr, 1.2f) + Vector3.up * 0.05f, js == CorridorPlan.Left ? 270f : 90f); yield return 0.3f;
+                    p.Teleport(w.DoorWorld(jrun, js, jr, 1.2f) + Vector3.up * 0.05f, w.FrameOf(jrun).eulerAngles.y + (js == CorridorPlan.Left ? 270f : 90f)); yield return 0.3f;
                     p.debugInput = true; p.debugMove = new Vector2(0f, 1f); p.debugSprint = sp == 1;
                     float lat = 0f, tw = 0f; bool sprinted = false;
-                    while (tw < 2.5f) { yield return 0.05f; tw += 0.05f; lat = Mathf.Max(lat, Lateral(w, p.transform.position)); if (p.IsSprinting) sprinted = true; }
+                    while (tw < 2.5f) { yield return 0.05f; tw += 0.05f; lat = Mathf.Max(lat, Mathf.Abs(w.FrameOf(jrun).InverseTransformPoint(p.transform.position).x - w.CenterX)); if (p.IsSprinting) sprinted = true; }
                     p.debugInput = false; p.debugSprint = false; p.debugMove = Vector2.zero;
-                    bool ok = kind == CorridorPlan.Door.Room ? lat > CorridorWorld.XR + 0.3f : lat < limit && gm.State == GameManager.GameState.Playing;
+                    bool ok = kind == CorridorPlan.Door.Link ? lat > CorridorWorld.XR + 0.3f : lat < limit && gm.State == GameManager.GameState.Playing;
                     if (sp == 1 && !sprinted) ok = false;
                     okAll &= ok; tested++;
                     res += " " + kind + (sp == 1 ? "/correr " : "/andar ") + lat.ToString("F2") + (ok ? "" : "!");
                 }
             }
-            r.Check(okAll && tested >= 8, T + "[Puertas] contra cerrada, tapiada y salida sin llave no se pasa; la habitación abierta sí (distancia lateral máx. al centro, muro " + CorridorWorld.HW + " m):" + res);
+            r.Check(okAll && tested >= 8, T + "[Puertas] contra cerrada, tapiada y salida sin llave no se pasa; la que se abre (al transversal) sí (distancia lateral máx. al centro, muro " + CorridorWorld.HW + " m):" + res);
             CorridorEvents.DisableForTests = false;
         }
 
@@ -293,13 +398,13 @@ public static class V7460Checks
         ExitLock.AutoKeyForTests = false;
         foreach (ItemType k in ItemDefs.Keys) { int guard = 20; while (Inventory.Instance.HasKey(k) && guard-- > 0) Inventory.Instance.RemoveOne(k); }
         ExitLock.Active.ResetCooldownForTests();
-        Vector3 st = w.DoorWorld(w.plan.exitSide, w.plan.exitRow, 0.75f);
-        p.Teleport(st + Vector3.up * 0.1f, w.plan.exitSide == CorridorPlan.Left ? 270f : 90f); yield return 0.8f;
+        Vector3 st = w.ExitDoorWorld(0.75f);
+        p.Teleport(st + Vector3.up * 0.1f, w.ExitYaw); yield return 0.8f;
         r.Check(gm.State == GameManager.GameState.Playing && !ExitLock.Active.Unlocked && ExitLock.Active.LockedNotices > 0, T + "la salida está cerrada con llave");
         p.Teleport(mid, 0f); yield return 0.3f;
         Inventory.Instance.Add(ExitLock.Active.CorrectKey, 1);
         ExitLock.Active.ResetCooldownForTests();
-        p.Teleport(st + Vector3.up * 0.1f, w.plan.exitSide == CorridorPlan.Left ? 270f : 90f);
+        p.Teleport(st + Vector3.up * 0.1f, w.ExitYaw);
         float t0 = Time.realtimeSinceStartup;
         while (gm.State == GameManager.GameState.Playing && Time.realtimeSinceStartup - t0 < 5f) yield return 0.1f;
         r.Check(ExitLock.Active == null || ExitLock.Active.Unlocked, T + "la llave buena abre la salida");

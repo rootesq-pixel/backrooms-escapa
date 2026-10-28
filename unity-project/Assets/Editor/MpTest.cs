@@ -722,7 +722,7 @@ public static class MpPlayRunner
             yield return Wait(() => cab9 == null || cab9.Released, 40, "puertas del ascensor abiertas (pasillo)");
             r.Check(cab9 == null || cab9.Released, "[Pasillo MP] llegada en ascensor como en los demás niveles");
             FirstPersonController hp = GameManager.Instance.player;
-            File.WriteAllText(MpTest.Dir + "/host_corridor.txt", gb.Generator.UsedSeed + ";" + cw.plan.exitRow + ";" + cw.plan.exitSide + ";" + cw.plan.Count(CorridorPlan.Door.Room) + ";" + cw.RoomCount);
+            File.WriteAllText(MpTest.Dir + "/host_corridor.txt", gb.Generator.UsedSeed + ";" + cw.plan.exitRow + ";" + cw.plan.exitSide + ";" + cw.plan.exitRun + ";" + cw.LinkCount + ";" + cw.plan.CrossCount);
             Mark("host_level9");
             r.Check(CorridorEvents.Active != null, "[Pasillo MP] ruidos a la espalda del anfitrión (locales, no viajan por la red)");
             {   // v7.10.1: luz roja del 7460 a la vez para todos (reloj del anfitrión en el snapshot)
@@ -740,9 +740,9 @@ public static class MpPlayRunner
                 yield return WaitMark("client_c_red_off", 60);
                 if (cr != null) cr.DebugSetClock(3f);
             }
-            // una habitación: el anfitrión se acerca y el cliente debe ver la hoja abierta
+            // una puerta al transversal: el anfitrión se acerca y el cliente debe ver la hoja abierta
             int rr = -1, rs = 0;
-            for (int j = 0; j < cw.plan.rows && rr < 0; j++) for (int sd = 0; sd < 2; sd++) if (cw.plan.doors[sd, j] == CorridorPlan.Door.Room) { rr = j; rs = sd; break; }
+            for (int j = 0; j < cw.plan.rows && rr < 0; j++) for (int sd = 0; sd < 2; sd++) if (cw.plan.doors[sd, j] == CorridorPlan.Door.Link) { rr = j; rs = sd; break; }
             yield return WaitMark("client_c_ready", 60);
             if (rr >= 0)
             {
@@ -753,9 +753,9 @@ public static class MpPlayRunner
             }
             // salida en grupo (la llave la prueba el bloque «Llaves»; aquí AutoKeyForTests)
             yield return WaitMark("client_c_atexit", 90);
-            Vector3 st = cw.DoorWorld(cw.plan.exitSide, cw.plan.exitRow, 0.75f);
-            Vector3 along = cw.levelRoot.TransformDirection(Vector3.forward);
-            hp.Teleport(st + along * 0.35f + Vector3.up * 0.1f, cw.plan.exitSide == CorridorPlan.Left ? 270f : 90f);
+            Vector3 st = cw.ExitDoorWorld(0.75f);
+            Vector3 along = cw.FrameOf(cw.plan.exitRun).forward;
+            hp.Teleport(st + along * 0.35f + Vector3.up * 0.1f, cw.ExitYaw);
             yield return Wait(() => GameManager.Instance.State == GameManager.GameState.Won, 25, "victoria (anfitrión)");
             r.Check(ExitLock.Active == null || ExitLock.Active.Unlocked, "[Pasillo MP] la salida queda abierta para los dos");
             r.Check(GameManager.Instance.State == GameManager.GameState.Won, "[Pasillo MP] los dos en la salida del pasillo: victoria final (10 niveles)");
@@ -1389,8 +1389,8 @@ public static class MpPlayRunner
             gm = GameManager.Instance; FirstPersonController pc = gm.player;
             CorridorWorld cw = CorridorWorld.Active;
             string[] hc = File.ReadAllText(MpTest.Dir + "/host_corridor.txt").Split(';');
-            r.Check(cw != null && hc.Length >= 5 && gb.Generator.UsedSeed == int.Parse(hc[0]) && cw.plan.exitRow == int.Parse(hc[1]) && cw.plan.exitSide == int.Parse(hc[2]) && cw.RoomCount == int.Parse(hc[4]),
-                "[Pasillo MP] el cliente tiene el mismo pasillo (semilla, puerta de salida en el módulo " + (cw != null ? cw.plan.exitRow : -1) + ", " + (cw != null ? cw.RoomCount : 0) + " habitaciones)");
+            r.Check(cw != null && hc.Length >= 5 && gb.Generator.UsedSeed == int.Parse(hc[0]) && cw.plan.exitRow == int.Parse(hc[1]) && cw.plan.exitSide == int.Parse(hc[2]) && cw.plan.exitRun == int.Parse(hc[3]) && cw.LinkCount == int.Parse(hc[4]) && hc.Length >= 6 && cw.plan.CrossCount == int.Parse(hc[5]),
+                "[Pasillo MP] el cliente tiene el mismo laberinto (semilla, salida en el pasillo " + (cw != null ? cw.plan.exitRun : -1) + " módulo " + (cw != null ? cw.plan.exitRow : -1) + ", " + (cw != null ? cw.plan.CrossCount : 0) + " transversales, " + (cw != null ? cw.LinkCount : 0) + " puertas que se abren)");
             r.Check(MonsterAI.Instances.Count == 0 && CorridorEvents.Active != null && ExitLock.Active != null, "[Pasillo MP] el cliente: sin entidades, con sus propios ruidos a la espalda y la misma cerradura");
             r.Check(gm.healthFill != null && gm.healthFill.gameObject.activeInHierarchy, "[Pasillo MP] VIDA en el HUD del cliente");
             {   // v7.10.1: la luz roja empieza y acaba a la vez que en el anfitrión; la cordura del cliente no baja
@@ -1421,13 +1421,13 @@ public static class MpPlayRunner
                 Vector3 dp = cw.DoorWorld(int.Parse(dd[0]), int.Parse(dd[1]), 0.6f); dp.y = 0f;
                 HotelDoorLeaf leaf = null; float best = 9f;
                 foreach (HotelDoorLeaf l in cw.OpenableDoors) { Vector3 c = l.center; c.y = 0f; float d = Vector3.Distance(c, dp); if (d < best) { best = d; leaf = l; } }
-                yield return Wait(() => leaf != null && leaf.IsOpen, 8, "la puerta de la habitación se abre al llegar el anfitrión (cliente)");
-                r.Check(leaf != null && leaf.IsOpen, "[Pasillo MP] el cliente ve abrirse la puerta de la habitación cuando llega el anfitrión");
+                yield return Wait(() => leaf != null && leaf.IsOpen, 8, "la puerta al transversal se abre al llegar el anfitrión (cliente)");
+                r.Check(leaf != null && leaf.IsOpen, "[Pasillo MP] el cliente ve abrirse la puerta del transversal cuando llega el anfitrión");
                 Mark("client_c_door_seen");
             }
-            Vector3 st = cw.DoorWorld(cw.plan.exitSide, cw.plan.exitRow, 0.75f);
-            Vector3 along = cw.levelRoot.TransformDirection(Vector3.forward);
-            pc.Teleport(st - along * 0.35f + Vector3.up * 0.1f, cw.plan.exitSide == CorridorPlan.Left ? 270f : 90f);
+            Vector3 st = cw.ExitDoorWorld(0.75f);
+            Vector3 along = cw.FrameOf(cw.plan.exitRun).forward;
+            pc.Teleport(st - along * 0.35f + Vector3.up * 0.1f, cw.ExitYaw);
             yield return Wait(() => NetSession.LocalAtExit || gm.State == GameManager.GameState.Won, 6, "cliente en la salida del pasillo");
             r.Check(NetSession.LocalAtExit || gm.State == GameManager.GameState.Won, "[Pasillo MP] el cliente en la puerta de salida cuenta como en la salida");
             Mark("client_c_atexit");

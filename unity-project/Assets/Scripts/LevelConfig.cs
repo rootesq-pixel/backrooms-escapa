@@ -474,14 +474,16 @@ public class LevelConfig
     // puertas blancas idénticas a los dos lados y plafones blancos en fila hasta el punto de fuga. Casi todas las puertas están
     // cerradas; algunas dan a habitaciones vacías iguales, otras a un muro de ladrillo y una sola es la salida (con llave).
     // No hay entidades... pero algo camina detrás de ti (ruidos a tu espalda, CorridorEvents).
+    // v7.10.2 (t500u): un laberinto: 5 pasillos largos paralelos unidos por transversales tras las puertas que se abren.
     private static LevelConfig Level9()
     {
         LevelConfig c = new LevelConfig();
         c.index = 9; c.wikiNumber = 7460;
         c.name = "El pasillo de las puertas";
-        c.subtitle = "Un pasillo gris que no termina y cientos de puertas blancas iguales. Casi todas están cerradas. A tu espalda, alguien camina cuando tú caminas.";
+        c.subtitle = "Pasillos grises que no terminan y miles de puertas blancas iguales. Casi todas están cerradas; las pocas que se abren llevan a otro pasillo. A tu espalda, alguien camina cuando tú caminas.";
         c.layout = LayoutKind.Corridor;
-        c.gridW = 5; c.gridH = 140; c.cellSize = 2.4f; c.wallHeight = 3.0f;   // 140 módulos de 2,4 m = 336 m (una puerta a cada lado de cada módulo)
+        c.gridW = CorridorPlan.GridWidthFor(5); c.gridH = 140; c.cellSize = 2.4f;   // v7.10.2: 5 pasillos largos paralelos unidos por transversales (laberinto)
+        c.wallHeight = 3.0f;   // 140 módulos de 2,4 m = 336 m (una puerta a cada lado de cada módulo)
         c.loopChance = 0f; c.roomCount = 0;
         c.wallStyle = SurfaceStyle.ConcreteWall; c.floorStyle = SurfaceStyle.ConcreteFloor; c.ceilingStyle = SurfaceStyle.ConcreteCeiling;
         c.ambient = new Color(0.62f, 0.63f, 0.66f);      // solo para objetos y cuerpos (el pasillo trae su luz horneada)
@@ -493,7 +495,7 @@ public class LevelConfig
         c.lightColor = new Color(1f, 0.985f, 0.96f); c.emissionColor = Color.white;
         c.lightIntensity = 1f; c.lightRange = 0f; c.maxRealtimeLights = 2; c.buzzChance = 0f;
         c.postExposure = 0.92f; c.postBloom = 0.03f; c.postThreshold = 2.6f;   // v3: plafones nítidos, sin halo (como la foto)
-        c.flashlightDrain = 0.25f; c.flashlightRecharge = 0.3f; c.batteries = 3; c.batteryAmount = 35f; c.flashlightIntensity = 2.0f;
+        c.flashlightDrain = 0.25f; c.flashlightRecharge = 0.3f; c.batteries = 5; c.batteryAmount = 35f; c.flashlightIntensity = 2.0f;   // v7.10.2: 5 pilas (el laberinto es mucho más largo)
         c.monsterCount = 0; c.killDistance = 1.3f;
         c.droneHz = 58f; c.droneNoise = 0.02f; c.droneVolume = 0.10f; c.ambientEvent = AmbientEvent.None;   // zumbido muy bajo de los plafones
         c.eventInterval = new Vector2(18f, 42f);

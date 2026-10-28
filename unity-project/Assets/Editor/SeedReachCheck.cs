@@ -322,8 +322,8 @@ public static class SeedReachCheck
                 pw.debugMove = Vector2.zero; pw.debugSprint = false; yield return 0.2f;
                 Vector3 l2 = R.InverseTransformPoint(pw.transform.position);
                 Check(l2.z - r0 * cs > 12f && l2.y > -0.2f, T9 + "corriendo por el pasillo se avanza (" + (l2.z - r0 * cs).ToString("F1") + " m en 6 s)");
-                // 3) entrar en una habitación por su puerta (se abre al acercarse)
-                int rr = -1, rs = 0; for (int j = 2; j < cw.plan.rows && rr < 0; j++) for (int sd = 0; sd < 2; sd++) if (cw.plan.doors[sd, j] == CorridorPlan.Door.Room) { rr = j; rs = sd; break; }
+                // 3) v7.10.2: entrar en un transversal por su puerta (se abre al acercarse)
+                int rr = -1, rs = 0; for (int j = 2; j < cw.plan.rows && rr < 0; j++) for (int sd = 0; sd < 2; sd++) if (cw.plan.doors[sd, j] == CorridorPlan.Door.Link) { rr = j; rs = sd; break; }
                 if (rr >= 0)
                 {
                     float sg = rs == CorridorPlan.Left ? -1f : 1f;
@@ -332,12 +332,11 @@ public static class SeedReachCheck
                     tg = EditorApplication.timeSinceStartup; while (EditorApplication.timeSinceStartup - tg < 4.0) yield return 0.1f;
                     pw.debugMove = Vector2.zero; yield return 0.2f;
                     Vector3 l3 = R.InverseTransformPoint(pw.transform.position);
-                    Check(sg * (l3.x - cw.CenterX) > CorridorWorld.XR + 0.4f, T9 + "se entra andando en una habitación (x " + (l3.x - cw.CenterX).ToString("F2") + " m del centro; z " + (l3.z - (rr + 0.5f) * cs).ToString("F2") + ", yaw " + pw.transform.eulerAngles.y.ToString("F0") + ", ui " + (UIManager.Instance != null ? UIManager.Instance.Current.ToString() : "-") + ", estado " + gm9.State + ")");
+                    Check(sg * (l3.x - cw.CenterX) > CorridorWorld.XR + 0.4f, T9 + "se entra andando en un pasillo transversal por su puerta (x " + (l3.x - cw.CenterX).ToString("F2") + " m del centro; z " + (l3.z - (rr + 0.5f) * cs).ToString("F2") + ", yaw " + pw.transform.eulerAngles.y.ToString("F0") + ", ui " + (UIManager.Instance != null ? UIManager.Instance.Current.ToString() : "-") + ", estado " + gm9.State + ")");
                 }
                 // 4) salida: la llave buena y andar hacia la puerta
                 Inventory.Instance.Add(ExitLock.Active.CorrectKey, 1); ExitLock.Active.ResetCooldownForTests();
-                float eg = cw.plan.exitSide == CorridorPlan.Left ? -1f : 1f;
-                pw.Teleport(R.TransformPoint(new Vector3(cw.CenterX - eg * 0.7f, 0.1f, (cw.plan.exitRow + 0.5f) * cs)), cw.plan.exitSide == CorridorPlan.Left ? 270f : 90f); yield return 0.3f;
+                pw.Teleport(cw.ExitDoorWorld(0.7f) + Vector3.up * 0.1f, cw.ExitYaw); yield return 0.3f;   // v7.10.2: la salida puede estar en otro pasillo largo
                 pw.debugMove = new Vector2(0f, 1f);
                 tg = EditorApplication.timeSinceStartup; while (gm9.State == GameManager.GameState.Playing && EditorApplication.timeSinceStartup - tg < 10) yield return 0.1f;
                 pw.debugInput = false; pw.debugMove = Vector2.zero;

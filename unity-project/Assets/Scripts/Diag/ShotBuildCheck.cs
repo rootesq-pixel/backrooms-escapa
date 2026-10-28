@@ -1168,7 +1168,7 @@ public class ShotBuildCheck : MonoBehaviour
         foreach (Renderer rr0 in pw.GetComponentsInChildren<Renderer>(true)) rr0.enabled = false;
         System.Func<float, float, float, Vector3> L = (x, y, z) => w.levelRoot.TransformPoint(new Vector3(w.CenterX + x, y, z));
         { ReflectionProbe pb = w.Probe; Info("sonda: renders " + w.ProbeRenders + ", modo " + (pb != null ? pb.mode.ToString() : "-") + ", textura " + (pb != null && pb.texture != null ? pb.texture.name + " " + pb.texture.width : "null") + ", custom " + (pb != null && pb.customBakedTexture != null) + ", bounds " + (pb != null ? pb.bounds.ToString() : "-") + ", reflejo por defecto " + RenderSettings.defaultReflectionMode + ", batch " + Application.isBatchMode); }
-        Info("pasillo: " + w.plan.rows + " módulos, salida en " + w.plan.exitRow + ", habitaciones " + w.RoomCount + ", fov " + fov.ToString("F0"));
+        Info("pasillo: " + w.plan.Mains + "×" + w.plan.rows + " módulos + " + w.plan.CrossCount + " transversales, salida en " + w.plan.exitRun + "/" + w.plan.exitRow + ", habitaciones " + w.RoomCount + ", fov " + fov.ToString("F0"));
         Vector3 st = L(0f, 0.1f, 20f * cs);
         yield return View(pw, mc, "c_03_pasillo_centro", L(0f, 1.55f, 20.5f * cs), L(0f, 1.45f, 60f * cs), fov, st);
         { ReflectionProbe pb = w.Probe; Info("sonda tras la 1.ª vista: renders " + w.ProbeRenders + ", modo " + pb.mode + ", textura " + (pb.texture != null ? pb.texture.name : "null") + ", pos " + pb.transform.position + ", bounds " + pb.bounds); }
@@ -1201,10 +1201,12 @@ public class ShotBuildCheck : MonoBehaviour
             CorridorRed.ForceRed = 0f; tr = Time.realtimeSinceStartup; while (Time.realtimeSinceStartup - tr < 0.6f) yield return null;
         }
         float eg = w.plan.exitSide == CorridorPlan.Left ? -1f : 1f; float ez = (w.plan.exitRow + 0.5f) * cs;
+        { Transform EF = w.FrameOf(w.plan.exitRun); L = (x, y, z) => EF.TransformPoint(new Vector3(w.CenterX + x, y, z)); }   // v7.10.2: la salida puede estar en otro pasillo largo
         yield return View(pw, mc, "c_11_salida_cerrada", L(-eg * 0.5f, 1.55f, ez - 4.5f), L(eg * 1.7f, 1.0f, ez), fov, L(-eg * 0.4f, 0.1f, ez - 4f));
         ExitLock.Active.Unlock(true, "prueba");
         float t0 = Time.realtimeSinceStartup; while (Time.realtimeSinceStartup - t0 < 3f) yield return null;
         yield return View(pw, mc, "c_12_salida_abierta", L(-eg * 0.5f, 1.55f, ez - 3.0f), L(eg * 2.2f, 1.0f, ez), fov, L(-eg * 0.4f, 0.1f, ez - 4.5f));
+        L = (x, y, z) => w.levelRoot.TransformPoint(new Vector3(w.CenterX + x, y, z));
         if (System.Array.IndexOf(System.Environment.GetCommandLineArgs(), "-perf") >= 0)
         {
             yield return Perf(pw, mc, "pasillo", L(0f, 1.55f, 20.5f * cs), L(0f, 1.45f, 60f * cs), fov, st);
