@@ -1164,7 +1164,7 @@ public class ShotBuildCheck : MonoBehaviour
     {
         CorridorWorld w = CorridorWorld.Active; float cs = CorridorWorld.CS, fov = mc.fieldOfView;
         VhsEffect vx = mc.GetComponent<VhsEffect>(); if (vx != null) vx.intensityOverride = 0f;
-        Health.DisableForTests = true; CorridorEvents.DisableForTests = true;
+        Health.DisableForTests = true; CorridorEvents.DisableForTests = true; CorridorRed.ForceRed = 0f;   // v7.10.1: luz normal salvo en las capturas rojas
         foreach (Renderer rr0 in pw.GetComponentsInChildren<Renderer>(true)) rr0.enabled = false;
         System.Func<float, float, float, Vector3> L = (x, y, z) => w.levelRoot.TransformPoint(new Vector3(w.CenterX + x, y, z));
         { ReflectionProbe pb = w.Probe; Info("sonda: renders " + w.ProbeRenders + ", modo " + (pb != null ? pb.mode.ToString() : "-") + ", textura " + (pb != null && pb.texture != null ? pb.texture.name + " " + pb.texture.width : "null") + ", custom " + (pb != null && pb.customBakedTexture != null) + ", bounds " + (pb != null ? pb.bounds.ToString() : "-") + ", reflejo por defecto " + RenderSettings.defaultReflectionMode + ", batch " + Application.isBatchMode); }
@@ -1192,6 +1192,14 @@ public class ShotBuildCheck : MonoBehaviour
         }
         int br = -1, bs = 0; for (int j = 0; j < w.plan.rows && br < 0; j++) for (int s = 0; s < 2; s++) if (w.plan.doors[s, j] == CorridorPlan.Door.Bricked) { br = j; bs = s; break; }
         if (br >= 0) { float bg = bs == CorridorPlan.Left ? -1f : 1f; yield return View(pw, mc, "c_10_puerta_tapiada", L(-bg * 0.9f, 1.55f, (br + 0.5f) * cs - 1.0f), L(bg * 2.6f, 1.1f, (br + 0.5f) * cs), fov, w.DoorWorld(bs, br, 0.7f)); }
+        if (CorridorRed.Active != null)
+        {   // v7.10.1: luz roja de emergencia (todo el pasillo y la habitación en rojo)
+            CorridorRed.ForceRed = 1f; float tr = Time.realtimeSinceStartup; while (Time.realtimeSinceStartup - tr < 0.6f) yield return null;
+            yield return View(pw, mc, "c_13_rojo_pasillo", L(0f, 1.55f, 20.5f * cs), L(0f, 1.45f, 60f * cs), fov, st);
+            if (rr >= 0) { float rg = rs == CorridorPlan.Left ? -1f : 1f; Vector3 rc = w.RoomCenterWorld(rs, rr);
+                yield return View(pw, mc, "c_14_rojo_habitacion", rc + w.levelRoot.TransformVector(new Vector3(-rg * 1.1f, 1.55f, 0.8f)), rc + w.levelRoot.TransformVector(new Vector3(rg * 1.3f, 0.75f, -0.45f)), fov, rc + w.levelRoot.TransformVector(new Vector3(-rg * 1.1f, 0.1f, -0.3f))); }
+            CorridorRed.ForceRed = 0f; tr = Time.realtimeSinceStartup; while (Time.realtimeSinceStartup - tr < 0.6f) yield return null;
+        }
         float eg = w.plan.exitSide == CorridorPlan.Left ? -1f : 1f; float ez = (w.plan.exitRow + 0.5f) * cs;
         yield return View(pw, mc, "c_11_salida_cerrada", L(-eg * 0.5f, 1.55f, ez - 4.5f), L(eg * 1.7f, 1.0f, ez), fov, L(-eg * 0.4f, 0.1f, ez - 4f));
         ExitLock.Active.Unlock(true, "prueba");
@@ -1202,7 +1210,7 @@ public class ShotBuildCheck : MonoBehaviour
             yield return Perf(pw, mc, "pasillo", L(0f, 1.55f, 20.5f * cs), L(0f, 1.45f, 60f * cs), fov, st);
             yield return Perf(pw, mc, "pasillo_hacia_atras", L(0f, 1.55f, 30.2f * cs), L(0f, 1.45f, 0f), fov, L(0f, 0.1f, 30f * cs));
         }
-        Health.DisableForTests = false; CorridorEvents.DisableForTests = false;
+        Health.DisableForTests = false; CorridorEvents.DisableForTests = false; CorridorRed.ForceRed = -1f;
     }
 
     bool hero;

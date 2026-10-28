@@ -663,7 +663,8 @@ public class NetSession : MonoBehaviour
             w.Float(DesertSky.Active.Clock);   // v7.7.0: reloj del desierto (hora y clima iguales para todos)
             if (DesertCars.Active != null) DesertCars.Active.WriteNet(w); else w.Byte(0);   // v7.8.0: todoterrenos
         }
-        else if (Level0Events.Active != null) w.Float(Level0Events.Active.Clock);   // v7.9.0: reloj del nivel 0 (apagones rojos)
+        else if (Level0Events.Active != null) w.Float(Level0Events.Active.Clock);
+        else if (CorridorRed.Active != null) w.Float(CorridorRed.Active.Clock);   // v7.10.1: reloj del 7460 (luz roja), mismo hueco opcional (MP-13)   // v7.9.0: reloj del nivel 0 (apagones rojos)
         Broadcast(w.ToArray());
     }
 
@@ -961,6 +962,10 @@ public class NetSession : MonoBehaviour
         else if (valid && Level0Events.Active != null && !r.End)
         {
             try { Level0Events.Active.NetClock(r.Float()); } catch (Exception e) { Debug.LogWarning("[NetSession] reloj del nivel 0 no válido: " + e.Message); }
+        }
+        else if (valid && CorridorRed.Active != null && !r.End)
+        {
+            try { CorridorRed.Active.NetClock(r.Float()); } catch (Exception e) { Debug.LogWarning("[NetSession] reloj del 7460 no válido: " + e.Message); }
         }
     }
     public int DesertSnapshots, CarReqsReceived, CarEventsReceived;

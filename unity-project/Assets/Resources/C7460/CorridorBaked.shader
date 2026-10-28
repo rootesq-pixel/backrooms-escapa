@@ -27,6 +27,7 @@ Shader "Backrooms/CorridorBaked"
         #pragma target 3.0
         sampler2D _MainTex, _BumpMap, _MaskMap, _LightMap;
         sampler2D _C7460PlanarTex; float _C7460PlanarOn; float4 _C7460PlanarP; float _C7460Streak;   // v3: estela vertical (resina brillante, no espejo)   // x fuerza, y F0, z distorsión, w mip por rugosidad
+        float _C7460Red; float4 _C7460RedCol;   // v7.10.1: luz roja de emergencia (CorridorRed); 0 = luz de siempre
         fixed4 _Color; half _Glossiness, _LMScale, _LMMin, _BumpScale, _PlanarK, _ProbeK;
         struct Input { float2 uv_MainTex; float2 lmuv; float4 screenPos; float3 worldPos; float wny; };
         void vert(inout appdata_full v, out Input o) { UNITY_INITIALIZE_OUTPUT(Input, o); o.lmuv = v.texcoord1.xy; o.wny = UnityObjectToWorldNormal(v.normal).y; }
@@ -35,6 +36,7 @@ Shader "Backrooms/CorridorBaked"
             fixed4 c = tex2D(_MainTex, IN.uv_MainTex) * _Color;
             fixed4 m = tex2D(_MaskMap, IN.uv_MainTex);
             half3 lm = max(tex2D(_LightMap, IN.lmuv).rgb, _LMMin) * _LMScale;   // _LMMin: jambas que en el horneado quedaron tras la hoja cerrada
+            lm = lerp(lm, dot(lm, half3(0.30, 0.59, 0.11)) * _C7460RedCol.rgb, saturate(_C7460Red));   // toda la sala en rojo (pared, techo, suelo)
             float3 tn = UnpackScaleNormal(tex2D(_BumpMap, IN.uv_MainTex), _BumpScale);
             o.Albedo = c.rgb;
             o.Normal = tn;

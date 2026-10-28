@@ -32,7 +32,10 @@ public class Sanity : MonoBehaviour
     public void Commit() { Carry = value; }
     public void Revert() { Carry = startOfLevel; }
     public static void ResetAll() { Carry = 100f; }
-    public static bool NoDrainLevel { get { return DesertWorld.Active != null; } }
+    // v7.7.1: Nivel 114 (desierto). v7.10.1 (t498u): también el Nivel 7460 (pasillo): la cordura no baja nunca (ni oscuridad,
+    // ni linterna apagada, ni los ruidos, que solo suben el latido); en multijugador cada jugador lo calcula igual en su equipo
+    public static bool NoDrainLevel { get { return DesertWorld.Active != null || CorridorWorld.Active != null || CorridorLayout; } }
+    static bool CorridorLayout { get { GameManager gm = GameManager.Instance; return gm != null && gm.config != null && gm.config.layout == LayoutKind.Corridor; } }
 
     // v7.0.2: miedo por cercanía. Empieza a ~15 m, es máximo a ≤5 m y se dobla si lo estás mirando (con línea de visión).
     //   El mímico disfrazado inquieta poco; revelado, como un monstruo. La aparición de El Vigía en el horizonte resta un poco.

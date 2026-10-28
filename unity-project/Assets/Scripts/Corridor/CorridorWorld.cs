@@ -36,6 +36,9 @@ public class CorridorWorld : MonoBehaviour
     public readonly List<Vector3> BatterySpots = new List<Vector3>(), ExtraSpots = new List<Vector3>(), KeySpots = new List<Vector3>();
     public readonly List<HotelDoorLeaf> OpenableDoors = new List<HotelDoorLeaf>();
     public Transform ExitLeaf { get; private set; }
+    public int LockedBlocks { get; private set; }
+    private BoxCollider exitBlock;
+    public Collider ExitBlock { get { return exitBlock; } }
     public float ExitAngle { get; private set; }
     public int Rattles { get; private set; }
     public int ChunkCount { get; private set; }
@@ -254,7 +257,13 @@ public class CorridorWorld : MonoBehaviour
             {
                 CorridorPlan.Door d = plan.doors[s, k];
                 float zc = (k + 0.5f) * CS, sg = s == CorridorPlan.Left ? -1f : 1f;
-                if (d == CorridorPlan.Door.Locked) continue;
+                if (d == CorridorPlan.Door.Locked)
+                {   // v7.10.1 (t497u): las puertas cerradas (casi todas, parte del módulo horneado) no tenían colisión: el muro deja
+                    // un hueco de DW en cada puerta y solo las de habitación, tapiadas y salida llevaban su bloque. Ahora son sólidas.
+                    Box("DoorLocked_" + s + "_" + k, new Vector3(cx + sg * (HW + 0.25f), DH * 0.5f, zc), new Vector3(0.5f, DH + 0.02f, DW + 0.04f));   // tan gruesa como el muro
+                    LockedBlocks++;
+                    continue;
+                }
                 Transform side = new GameObject((d == CorridorPlan.Door.Exit ? "ExitDoorLeaf" : d == CorridorPlan.Door.Room ? "RoomDoor" : "BrickDoor") + "_" + s + "_" + k).transform;
                 side.SetParent(doorsRoot, false); side.localPosition = new Vector3(cx, 0f, zc); side.localScale = new Vector3(sg, 1f, 1f);
                 Transform piv = new GameObject("Pivot").transform; piv.SetParent(side, false); piv.localPosition = hinge;
@@ -299,6 +308,7 @@ public class CorridorWorld : MonoBehaviour
                 else
                 {   // salida: detrás, luz blanca intensa (la puerta se abre cuando la llave buena la abre)
                     ExitLeaf = piv;
+                    exitBlock = block;   // v7.10.1: sólida (detrás solo hay luz); con la llave buena el nivel termina en el punto de salida
                     ProceduralAssets.CreatePrimitive(PrimitiveType.Quad, "ExitLight", side, new Vector3(XR + 0.6f, DH * 0.5f, 0f), new Vector3(DW + 0.3f, DH + 0.3f, 1f), glowMat, false).transform.localRotation = Quaternion.Euler(0f, 90f, 0f);
                     GameObject ex = new GameObject("ExitDoor");
                     ex.transform.SetParent(levelRoot, false);
@@ -418,6 +428,7 @@ public class CorridorWorld : MonoBehaviour
         probeDirty = 2;
     }
     private int probeDirty;
+    public void RefreshProbe() { if (probeDirty <= 0) probeDirty = 2; }   // v7.10.1: luz roja
     private RenderTexture probeCube; private Camera probeCam;
     // v3: la captura de la sonda se hace a mano (RenderToCubemap) y se le da como cubemap propio: funciona igual en el juego normal,
     // en el editor y en el ejecutable en -batchmode (allí Unity no procesa las sondas en tiempo real: manillas negras y paredes sin brillo)

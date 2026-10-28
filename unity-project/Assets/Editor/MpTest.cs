@@ -725,6 +725,21 @@ public static class MpPlayRunner
             File.WriteAllText(MpTest.Dir + "/host_corridor.txt", gb.Generator.UsedSeed + ";" + cw.plan.exitRow + ";" + cw.plan.exitSide + ";" + cw.plan.Count(CorridorPlan.Door.Room) + ";" + cw.RoomCount);
             Mark("host_level9");
             r.Check(CorridorEvents.Active != null, "[Pasillo MP] ruidos a la espalda del anfitrión (locales, no viajan por la red)");
+            {   // v7.10.1: luz roja del 7460 a la vez para todos (reloj del anfitrión en el snapshot)
+                CorridorRed cr = CorridorRed.Active; var Inv = System.Globalization.CultureInfo.InvariantCulture;
+                r.Check(cr != null && cr.Schedule.Count > 0, "[Pasillo MP] luz roja de emergencia en el anfitrión");
+                float rs0 = cr != null && cr.Schedule.Count > 0 ? cr.Schedule[0].start : 0f, rd0 = cr != null && cr.Schedule.Count > 0 ? cr.Schedule[0].dur : 0f;
+                File.WriteAllText(MpTest.Dir + "/host_c_red.txt", rs0.ToString("R", Inv) + " " + rd0.ToString("R", Inv));
+                if (cr != null) cr.DebugSetClock(rs0 + rd0 * 0.5f);
+                Mark("host_c_red_on");
+                yield return 0.5f;
+                r.Check(cr != null && cr.RedOn, "[Pasillo MP] rojo en el anfitrión");
+                yield return WaitMark("client_c_red_seen", 60);
+                if (cr != null) cr.DebugSetClock(rs0 + rd0 + 2f);
+                Mark("host_c_red_off");
+                yield return WaitMark("client_c_red_off", 60);
+                if (cr != null) cr.DebugSetClock(3f);
+            }
             // una habitación: el anfitrión se acerca y el cliente debe ver la hoja abierta
             int rr = -1, rs = 0;
             for (int j = 0; j < cw.plan.rows && rr < 0; j++) for (int sd = 0; sd < 2; sd++) if (cw.plan.doors[sd, j] == CorridorPlan.Door.Room) { rr = j; rs = sd; break; }
@@ -1378,6 +1393,26 @@ public static class MpPlayRunner
                 "[Pasillo MP] el cliente tiene el mismo pasillo (semilla, puerta de salida en el módulo " + (cw != null ? cw.plan.exitRow : -1) + ", " + (cw != null ? cw.RoomCount : 0) + " habitaciones)");
             r.Check(MonsterAI.Instances.Count == 0 && CorridorEvents.Active != null && ExitLock.Active != null, "[Pasillo MP] el cliente: sin entidades, con sus propios ruidos a la espalda y la misma cerradura");
             r.Check(gm.healthFill != null && gm.healthFill.gameObject.activeInHierarchy, "[Pasillo MP] VIDA en el HUD del cliente");
+            {   // v7.10.1: la luz roja empieza y acaba a la vez que en el anfitrión; la cordura del cliente no baja
+                CorridorRed cr = CorridorRed.Active; var Inv = System.Globalization.CultureInfo.InvariantCulture;
+                Sanity sn = Sanity.Instance; Flashlight fl = pc.GetComponentInChildren<Flashlight>();
+                if (fl != null) fl.SetOn(false);
+                if (sn != null) sn.value = 70f;
+                float sMin = 100f;
+                yield return WaitMark("host_c_red_on", 120);
+                string[] hr = File.ReadAllText(MpTest.Dir + "/host_c_red.txt").Trim().Split(' ');
+                float hs = float.Parse(hr[0], Inv), hd = float.Parse(hr[1], Inv);
+                float tw = 0f; while (tw < 10f && !(cr != null && cr.RedOn)) { yield return 0.1f; tw += 0.1f; if (sn != null) sMin = Mathf.Min(sMin, sn.value); }
+                r.Check(cr != null && cr.RedOn && cr.Schedule.Count > 0 && Mathf.Abs(cr.Schedule[0].start - hs) < 1e-3f && Mathf.Abs(cr.Schedule[0].dur - hd) < 1e-3f && cr.NetClocks > 0,
+                    "[Pasillo MP] el cliente ve la luz roja a la vez (mismo calendario " + hs.ToString("F1") + " s + " + hd.ToString("F1") + " s; " + (cr != null ? cr.NetClocks : 0) + " relojes del anfitrión)");
+                Mark("client_c_red_seen");
+                yield return WaitMark("host_c_red_off", 60);
+                tw = 0f; while (tw < 10f && cr != null && cr.RedOn) { yield return 0.1f; tw += 0.1f; if (sn != null) sMin = Mathf.Min(sMin, sn.value); }
+                r.Check(cr != null && !cr.RedOn, "[Pasillo MP] la luz roja acaba también en el cliente");
+                r.Check(sn != null && Sanity.NoDrainLevel && sMin >= 70f - 0.001f && sn.value >= 70f - 0.001f, "[Pasillo MP] la cordura del cliente no baja (linterna apagada, rojo; mín " + sMin.ToString("F2") + ")");
+                if (fl != null) fl.SetOn(true);
+                Mark("client_c_red_off");
+            }
             pc.Teleport(cw.levelRoot.TransformPoint(new Vector3(cw.CenterX, 0.1f, 2f)), 0f);
             Mark("client_c_ready");
             yield return WaitMark("host_c_door", 60);

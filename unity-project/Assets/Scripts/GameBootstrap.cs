@@ -619,7 +619,8 @@ public class GameBootstrap : MonoBehaviour
         amb.Setup(cfg, player.transform);
         if (cfg.index == 0 && cfg.layout == LayoutKind.Maze && !LevelConfig.OldL0) Level0Events.Create(worldRoot.transform, generator, cfg, player.transform, cam);   // v7.9.0: ruidos y apagones rojos
         if (generator.Halls.Count > 0) PlayparkAudio.Create(worldRoot.transform, player.transform);
-        if (cfg.layout == LayoutKind.Corridor) CorridorEvents.Create(worldRoot.transform, generator, cfg, player.transform, cam);   // Nivel 7460: ruidos a tu espalda   // v7.1.0: caja de música y risas lejanas
+        if (cfg.layout == LayoutKind.Corridor) CorridorEvents.Create(worldRoot.transform, generator, cfg, player.transform, cam);
+        if (cfg.layout == LayoutKind.Corridor && CorridorWorld.Active != null) CorridorRed.Create(worldRoot.transform, generator, cfg, cam);   // v7.10.1: luz roja de emergencia   // Nivel 7460: ruidos a tu espalda   // v7.1.0: caja de música y risas lejanas
         return player;
     }
 

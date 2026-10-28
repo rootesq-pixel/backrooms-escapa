@@ -109,6 +109,20 @@ public static class V7460Checks
     static Vector3 Flat(Vector3 v) { v.y = 0f; return v; }
 
     // recorrido en juego. Termina en la puerta de salida abierta (el llamador sigue en OceanExit)
+    static float Lateral(CorridorWorld w, Vector3 pos) { return Mathf.Abs(w.levelRoot.InverseTransformPoint(pos).x - w.CenterX); }
+    // media RGB de lo que ve la cámara (64×36)
+    static Vector3 MeanRgb(Camera cam)
+    {
+        if (cam == null || SystemInfo.graphicsDeviceType == UnityEngine.Rendering.GraphicsDeviceType.Null) return Vector3.zero;
+        RenderTexture rt = RenderTexture.GetTemporary(256, 144, 24, RenderTextureFormat.ARGB32); RenderTexture o = cam.targetTexture;
+        cam.targetTexture = rt; if (CorridorPlanar.Instance != null) CorridorPlanar.Instance.Refresh(cam); cam.Render(); cam.targetTexture = o;
+        RenderTexture prev = RenderTexture.active; RenderTexture.active = rt;
+        Texture2D tx = new Texture2D(256, 144, TextureFormat.RGB24, false); tx.ReadPixels(new Rect(0, 0, 256, 144), 0, 0); tx.Apply();
+        RenderTexture.active = prev; RenderTexture.ReleaseTemporary(rt);
+        Vector3 m = Vector3.zero; Color[] px = tx.GetPixels(); foreach (Color c in px) m += new Vector3(c.r, c.g, c.b); Object.DestroyImmediate(tx);
+        return m / Mathf.Max(1, px.Length);
+    }
+
     public static IEnumerator Play(SmokeTest.Report r, string tag, GameManager gm)
     {
         string T = tag + "[7460] ";
@@ -158,6 +172,65 @@ public static class V7460Checks
             float bpm1 = ad != null ? ad.Bpm : 0f;
             r.Check(bpm1 > bpm0 + 8f, T + "[Latido] un susurro a la espalda acelera el corazón (" + bpm0.ToString("F0") + " → " + bpm1.ToString("F0") + " ppm)");
         }
+
+        // v7.10.1 (t498u): la cordura NO baja nunca en el 7460: linterna apagada, ruidos a la espalda y luz roja; el latido sí sube
+        {
+            Sanity sn = Sanity.Instance; Flashlight fl = p.GetComponentInChildren<Flashlight>();
+            r.Check(sn != null && Sanity.NoDrainLevel, T + "[Cordura] el 7460 es nivel sin drenaje");
+            if (sn != null)
+            {
+                if (fl != null) fl.SetOn(false);
+                float v0 = 70f; sn.value = v0; float sMin = v0, rateMin = 0f; int plays = 0; float bmax = 0f;
+                CorridorRed cr = CorridorRed.Active;
+                for (int i = 0; i < 60; i++)
+                {
+                    if (i % 8 == 0) { ev.Play((i / 8) % 4); plays++; }
+                    if (cr != null && i == 20) CorridorRed.ForceRed = 1f;
+                    if (cr != null && i == 40) CorridorRed.ForceRed = -1f;
+                    yield return 0.25f;
+                    sMin = Mathf.Min(sMin, sn.value); rateMin = Mathf.Min(rateMin, sn.DrainRate); bmax = Mathf.Max(bmax, Adrenaline.ScareThreat);
+                }
+                r.Check(sMin >= v0 - 0.001f && rateMin >= 0f && sn.value >= v0 - 0.001f && plays >= 7 && bmax > 0.3f,
+                    T + "[Cordura] 15 s a oscuras con " + plays + " ruidos y luz roja: la cordura nunca baja (70 → mín " + sMin.ToString("F2") + ", ahora " + sn.value.ToString("F2") + "; tasa mín " + rateMin.ToString("F2") + "/s) y el latido sí sube (" + bmax.ToString("F2") + ")");
+                if (fl != null) fl.SetOn(true);
+                sn.value = 100f;
+            }
+        }
+
+        // v7.10.1 (t499u): luz roja de emergencia (como el Nivel 0): calendario por semilla, todo el pasillo rojo, sirena, y vuelve
+        {
+            CorridorRed cr = CorridorRed.Active;
+            r.Check(cr != null && cr.Schedule.Count > 10, T + "[Rojo] sucesos de luz roja en el pasillo");
+            if (cr != null)
+            {
+                var s2 = new System.Collections.Generic.List<Level0Events.RedEvent>(); CorridorRed.BuildSchedule(cr.Seed, s2);
+                bool same = s2.Count == cr.Schedule.Count; bool durOk = true;
+                for (int i = 0; i < s2.Count && same; i++) same = s2[i].start == cr.Schedule[i].start && s2[i].dur == cr.Schedule[i].dur;
+                foreach (Level0Events.RedEvent e in cr.Schedule) if (e.dur < CorridorRed.RedMin - 1e-3f || e.dur > CorridorRed.RedMax + 1e-3f) durOk = false;
+                r.Check(same && durOk && cr.Schedule[0].start >= CorridorRed.FirstMin && cr.Schedule[0].start <= CorridorRed.FirstMax,
+                    T + "[Rojo] calendario determinista por semilla (1.º a " + cr.Schedule[0].start.ToString("F0") + " s, " + CorridorRed.RedMin + "–" + CorridorRed.RedMax + " s cada uno; el anfitrión manda el reloj)");
+                CorridorRed.ForceRed = -1f;
+                Vector3 eye = mid + Vector3.up * 1.5f;
+                p.Teleport(mid, 0f); cr.DebugSetClock(1f); yield return 0.6f;
+                float rN = Shader.GetGlobalFloat(CorridorRed.RedId); Color fogN = RenderSettings.fogColor; Vector3 pixN = MeanRgb(cam);
+                Level0Events.RedEvent e0 = cr.Schedule[0];
+                cr.DebugSetClock(e0.start + e0.dur * 0.5f); yield return 0.6f;
+                float rR = Shader.GetGlobalFloat(CorridorRed.RedId); Color fogR = RenderSettings.fogColor; Vector3 pixR = MeanRgb(cam);
+                AudioSource al = cr.AlarmSource;
+                bool alarm = al != null && al.isPlaying && al.volume > 0.05f && al.clip != null && al.clip.name == "C7460_Alarma";
+                r.Check(cr.RedOn && rR > 0.99f && rN < 0.001f && fogR.r > fogR.g * 4f && fogN.g > fogN.r * 0.8f, T + "[Rojo] durante el suceso el shader horneado y la niebla pasan a rojo (_C7460Red " + rN.ToString("F2") + " → " + rR.ToString("F2") + ")");
+                if (SystemInfo.graphicsDeviceType != UnityEngine.Rendering.GraphicsDeviceType.Null && pixN.x > 0.01f)
+                    r.Check(pixR.x > pixR.y * 3f && pixR.x > pixR.z * 3f && pixN.x < pixN.y * 1.6f, T + "[Rojo] la imagen entera es roja (media RGB normal " + pixN.ToString("F3") + " → rojo " + pixR.ToString("F3") + ")");
+                r.Check(alarm, T + "[Rojo] suena la sirena (la del Nivel 0 v7.9.4, 440–660 Hz; vol " + (al != null ? al.volume.ToString("F2") : "-") + ")");
+                r.Check(Sanity.Instance == null || Sanity.Instance.DrainRate >= 0f, T + "[Rojo] el rojo no baja la cordura");
+                cr.DebugSetClock(e0.End + 1f); yield return 0.6f;
+                r.Check(!cr.RedOn && Shader.GetGlobalFloat(CorridorRed.RedId) < 0.001f && (al == null || !al.isPlaying) && Mathf.Abs(RenderSettings.fogColor.r - fogN.r) < 0.01f, T + "[Rojo] al acabar vuelve la luz de siempre y calla la sirena");
+                cr.NetClock(e0.start + 1.5f); yield return 0.3f;
+                r.Check(cr.RedOn && cr.NetClocks > 0, T + "[Rojo] con el reloj del anfitrión (red) el cliente entra en rojo a la vez");
+                cr.DebugSetClock(1f); yield return 0.3f;
+                r.Check(Level0Events.Active == null, T + "[Rojo] el Nivel 0 no se toca (sus sucesos no existen aquí)");
+            }
+        }
         CorridorEvents.DisableForTests = false;
 
         // manilla de una puerta cerrada
@@ -181,6 +254,39 @@ public static class V7460Checks
             Vector3 rc = w.RoomCenterWorld(rs, rr);
             p.Teleport(rc + Vector3.up * 0.1f, 0f); yield return 0.5f;
             r.Check(Vector3.Distance(Flat(p.transform.position), Flat(rc)) < 0.5f && p.transform.position.y > -0.3f, T + "dentro de la habitación (suelo firme)");
+        }
+
+        // v7.10.1 (t497u): las puertas cerradas son sólidas: andando y corriendo contra cada tipo no se atraviesa ninguna
+        {
+            CorridorEvents.DisableForTests = true;
+            ExitLock.AutoKeyForTests = false;
+            foreach (ItemType kk in ItemDefs.Keys) { int guard = 20; while (Inventory.Instance.HasKey(kk) && guard-- > 0) Inventory.Instance.RemoveOne(kk); }
+            r.Check(w.LockedBlocks == w.plan.Count(CorridorPlan.Door.Locked) && w.LockedBlocks > 20, T + "[Puertas] cada puerta cerrada lleva colisión (" + w.LockedBlocks + " de " + w.plan.Count(CorridorPlan.Door.Locked) + ")");
+            r.Check(w.ExitBlock != null && w.ExitBlock.enabled, T + "[Puertas] la salida lleva colisión");
+            string res = ""; bool okAll = true; int tested = 0;
+            CorridorPlan.Door[] kinds = { CorridorPlan.Door.Locked, CorridorPlan.Door.Bricked, CorridorPlan.Door.Exit, CorridorPlan.Door.Room };
+            foreach (CorridorPlan.Door kind in kinds)
+            {
+                int jr = -1, js = 0;
+                for (int j = 4; j < w.plan.rows - 2 && jr < 0; j++) for (int sd = 0; sd < 2; sd++) if (w.plan.doors[sd, j] == kind) { jr = j; js = sd; break; }
+                if (jr < 0) { res += " " + kind + ":-"; continue; }
+                float limit = kind == CorridorPlan.Door.Bricked ? CorridorWorld.XR + 1.0f : CorridorWorld.HW + 0.02f;   // tapiada: nicho de 1 m y ladrillo
+                for (int sp = 0; sp < 2; sp++)
+                {
+                    p.SetStaminaForTests(p.maxStamina);
+                    p.Teleport(w.DoorWorld(js, jr, 1.2f) + Vector3.up * 0.05f, js == CorridorPlan.Left ? 270f : 90f); yield return 0.3f;
+                    p.debugInput = true; p.debugMove = new Vector2(0f, 1f); p.debugSprint = sp == 1;
+                    float lat = 0f, tw = 0f; bool sprinted = false;
+                    while (tw < 2.5f) { yield return 0.05f; tw += 0.05f; lat = Mathf.Max(lat, Lateral(w, p.transform.position)); if (p.IsSprinting) sprinted = true; }
+                    p.debugInput = false; p.debugSprint = false; p.debugMove = Vector2.zero;
+                    bool ok = kind == CorridorPlan.Door.Room ? lat > CorridorWorld.XR + 0.3f : lat < limit && gm.State == GameManager.GameState.Playing;
+                    if (sp == 1 && !sprinted) ok = false;
+                    okAll &= ok; tested++;
+                    res += " " + kind + (sp == 1 ? "/correr " : "/andar ") + lat.ToString("F2") + (ok ? "" : "!");
+                }
+            }
+            r.Check(okAll && tested >= 8, T + "[Puertas] contra cerrada, tapiada y salida sin llave no se pasa; la habitación abierta sí (distancia lateral máx. al centro, muro " + CorridorWorld.HW + " m):" + res);
+            CorridorEvents.DisableForTests = false;
         }
 
         // salida: sin llave no abre, con la llave buena sí
