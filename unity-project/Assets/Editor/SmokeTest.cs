@@ -959,18 +959,42 @@ public static class SmokeTest
     }
 
 
+    // v7.10.3: sonoridad de una pisada = RMS máximo en una ventana de 100 ms (dBFS)
+    public static float StepLoud(AudioClip c)
+    {
+        float[] d = new float[c.samples * c.channels]; c.GetData(d, 0);
+        int w = Mathf.Max(1, c.frequency / 10); double acc = 0, best = 0;
+        for (int i = 0; i < d.Length + w; i++)
+        {
+            float a = i < d.Length ? d[i] : 0f; acc += a * a;
+            if (i >= w) { float b = d[i - w]; acc -= b * b; }
+            if (acc > best) best = acc;
+        }
+        return AudioMix.Db(Mathf.Sqrt((float)(best / w)));
+    }
+
     // ---- mezcla de audio: niveles de los sonidos de «ruido / aire», grupos de volumen ----
     private static void TestAudioMix(Report r)
     {
         GameSettings.ResetDefaults();
         float stepDb = -99f;
-        foreach (StepKind k in new[] { StepKind.Carpet, StepKind.Concrete, StepKind.Water, StepKind.Metal })
+        // v7.10.3: pasos reales (5 tomas por superficie, StepBank). Se miden por SONORIDAD por pisada (máximo de la ventana de
+        // 100 ms), no por pico: una pisada grabada tiene un golpe corto con más pico que el soplo procedural de antes. Ninguna
+        // toma puede sonar más fuerte que el paso de antes de su superficie (+1 dB de margen) ni tener siseo (> 7 kHz).
+        foreach (StepKind k in new[] { StepKind.Carpet, StepKind.Concrete, StepKind.Water, StepKind.Metal, StepKind.Grass, StepKind.Sand })
         {
-            AudioClip c = ProceduralAudio.CreateFootstep(k);
-            AudioAudit.Stat st = AudioAudit.Measure(c);
-            stepDb = Mathf.Max(stepDb, AudioMix.Db(st.rms * 0.45f * AudioMix.StepMaster));    // volumen base de FootstepAudio × StepMaster
-            r.Check(st.peak <= 0.65f && st.rms <= 0.12f, "[Audio] paso " + k + ": pico " + st.peak.ToString("F2") + " / rms " + st.rms.ToString("F3"));
-            UnityEngine.Object.DestroyImmediate(c);
+            AudioClip old = ProceduralAudio.CreateFootstep(k); float oldL = StepLoud(old); UnityEngine.Object.DestroyImmediate(old);
+            float worst = -99f, pk = 0f, hi7 = 0f; int n = StepBank.Count(k), loaded = 0;
+            for (int i = 0; i < n; i++)
+            {
+                AudioClip c = StepBank.Get(k, i); if (c == null) continue; loaded++;
+                float[] d = new float[c.samples]; c.GetData(d, 0);
+                worst = Mathf.Max(worst, StepLoud(c)); foreach (float v in d) pk = Mathf.Max(pk, Mathf.Abs(v));
+                hi7 = Mathf.Max(hi7, V790Checks.HighRatioPublic(d, c.frequency, 7000f));
+            }
+            stepDb = Mathf.Max(stepDb, worst + AudioMix.Db(0.45f * AudioMix.StepMaster));    // volumen base de FootstepAudio × StepMaster
+            r.Check(loaded == 5 && worst <= oldL + 1f && worst > oldL - 8f && pk <= 0.92f && hi7 < 0.01f,
+                "[Audio] paso " + k + ": " + loaded + " tomas reales, sonoridad por pisada " + worst.ToString("F1") + " dB (antes " + oldL.ToString("F1") + " dB; no más fuerte), pico " + pk.ToString("F2") + ", " + (hi7 * 100f).ToString("F2") + " % por encima de 7 kHz (sin siseo)");
         }
         // respiración: suave, sin agudos, muy por debajo de los pasos
         foreach (bool inhale in new[] { true, false })
@@ -2380,6 +2404,11 @@ public static class SmokePlayRunner
         bool allCredited = credBody != null && credBody.text.Contains("Character Hazmat");
         foreach (MonsterProfile p in MonsterProfile.All) if (credBody == null || !credBody.text.Contains(p.id)) allCredited = false;
         r.Check(allCredited, "pantalla de créditos nombra todos los modelos");
+        {   // v7.10.3: atribuciones CC BY de los pasos (y CC0) en la pantalla de créditos, y el texto cabe en el recuadro
+            bool snd = credBody != null; foreach (string w in new[] { "congusbongus", "EminYILDIRIM", "swuing", "CC BY 3.0", "CC BY 4.0", "Kenney", "Fantozzi", "freesound.org", "opengameart.org" }) if (credBody == null || !credBody.text.Contains(w)) snd = false;
+            float ph = credBody != null ? credBody.preferredHeight : 9999f, rh = credBody != null ? credBody.rectTransform.rect.height : 0f;
+            r.Check(snd && ph <= rh, "créditos: atribuciones de sonido (CC BY: congusbongus, EminYILDIRIM, swuing; CC0: Kenney, Fantozzi) y el texto cabe (" + ph.ToString("F0") + " ≤ " + rh.ToString("F0") + " px)");
+        }
         ui.PressEscape();
         r.Check(ui.Current == UIManager.Screen.Main, "Esc en Créditos vuelve al menú");
 

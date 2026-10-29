@@ -740,6 +740,10 @@ public class UIManager : MonoBehaviour
     }
 
     // --- Créditos ---
+    // v7.10.3: sonido. Las pisadas de agua y el golpe de tarima son CC BY (exigen atribución): autores, obras, fuentes y licencias.
+    public const string CreditsSound =
+        "Sonido: alarma, latido, drones y efectos: código del proyecto. Pasos: Kenney «Impact Sounds» (kenney.nl) y Fantozzi «Fantozzi's Footsteps» (opengameart.org) — CC0 (dominio público).\n" +
+        "Pasos en agua y golpe de tarima: «Footsteps on different surfaces» de congusbongus (opengameart.org/content/footsteps-on-different-surfaces) — CC BY 3.0, a partir de «Water Footsteps» de EminYILDIRIM (freesound.org/s/608663) y «footstep-wood.wav» y «footstep-concrete.wav» de swuing (freesound.org/s/38876, /s/38873) — CC BY 4.0. Recortados, filtrados y mezclados. Licencias: creativecommons.org/licenses/by/3.0 y /by/4.0";
     private GameObject BuildCredits(Transform parent)
     {
         GameObject root = NewPanelRoot(parent, "Credits", new Color(0f, 0f, 0f, 0.86f));
@@ -765,8 +769,10 @@ public class UIManager : MonoBehaviour
         sb.AppendLine("Nivel 114 «El Desierto Cálido»: nivel creado por Sonicelmaspro2 y ampliado por Omaigad12 en la Backrooms Wiki (es.backrooms.fandom.com), CC BY-SA. Rocas, acantilados, plantas, muebles, cubos, tinajas y barriles: Poly Haven (namaqualand_*, sand_rocks_small_01, wild_rooibos_bush, shrub_sorrel_01, dry_branches_medium_01, dry_quiver_leaf, painted_wooden_*, wooden_*, old_bed_frame, jug_01, ceramic_pot, stone_fire_pit) — CC0; texturas: Poly Haven (sand_03, dense_sand, aerial_sand, rough_plaster_broken, clay_plaster, old_stone_wall, stacked_stone_wall, weathered_planks, brown_mud_dry, rock_face, sandstone_cracks, large_sandstone_blocks, mud_cracked_dry_03, dry_ground_rocks, worn_cracked_plaster) — CC0; casas, pozo, puerta de piedra, cielo, clima y sonidos: trabajo propio (CC0).");
         sb.AppendLine("   Reserva: «Elevator car interior» + «Elevator door pair» (Backrooms and Liminal Spaces Kit) — 3D Assets — CC0 1.0   https://3dassets.dev");
         sb.AppendLine();
+        sb.AppendLine(CreditsSound);
+        sb.AppendLine();
         sb.AppendLine("Los modelos se han convertido a FBX con Blender y retexturizado donde se indica. Detalles en CREDITS.md.");
-        Text t = Label(root.transform, sb.ToString(), 18, TextAnchor.UpperLeft, 0f, 20f, 1640f, 780f);
+        Text t = Label(root.transform, sb.ToString(), 17, TextAnchor.UpperLeft, 0f, 20f, 1640f, 780f);
         t.name = "CreditsBody";
         MakeButton(root.transform, "Volver", 0f, -440f, 400f, 64f, () => { Click(); SetScreen(Screen.Main); });
         return root;
