@@ -54,7 +54,7 @@ public class CorridorRed : MonoBehaviour
         GameObject a = new GameObject("C7460Alarm"); a.transform.SetParent(transform, false);
         alarmSrc = a.AddComponent<AudioSource>();
         alarmSrc.playOnAwake = false; alarmSrc.loop = true; alarmSrc.spatialBlend = 0f; alarmSrc.clip = alarmClip; alarmSrc.volume = 0f; alarmSrc.dopplerLevel = 0f;
-        AudioLowPassFilter alp = a.AddComponent<AudioLowPassFilter>(); alp.cutoffFrequency = 2400f;
+        AudioLowPassFilter alp = a.AddComponent<AudioLowPassFilter>(); alp.cutoffFrequency = Level0Events.AlarmCutoff;
         Shader.SetGlobalColor(RedColId, RedCol * RedGain); Shader.SetGlobalFloat(RedId, 0f);
     }
 

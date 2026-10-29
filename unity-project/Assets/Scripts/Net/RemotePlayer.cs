@@ -160,6 +160,7 @@ public class RemotePlayer : MonoBehaviour
     // v7.0: pasos de hierba y roce también para los jugadores remotos (mismo volumen relativo que los locales)
     private AudioSource rustleSrc;
     private int lastGrass = -1;
+    private int lastTake = -1;
     public float RustleLevel { get; private set; }
     public int GrassStepsPlayed { get; private set; }
     private void Rustle(float dt)
@@ -454,6 +455,8 @@ public class RemotePlayer : MonoBehaviour
         float vol = (Sprinting ? 0.6f : (Crouching ? 0.22f : 0.42f)) * AudioMix.Sfx * AudioMix.StepMaster;
         stepSrc.pitch = Random.Range(0.88f, 1.1f) * (Crouching ? 1.1f : 1f);
         AudioClip sc = stepClip;
+        AudioClip real = StepBank.Next(stepKind, ref lastTake);   // v7.10.3: pasos reales también para los compañeros
+        if (real != null) { sc = real; stepSrc.pitch = StepBank.Pitch() * (Crouching ? 1.06f : 1f); vol *= StepBank.Gain(); }
         if (stepKind == StepKind.Grass && GrassAudio.OnGrass(transform.position))
         {
             AudioClip g = GrassAudio.RandomStep(ref lastGrass);

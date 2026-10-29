@@ -182,3 +182,11 @@ El roce de la hierba, el viento, el zumbido de radio de la salida, el terreno, l
 
 ## Alarma roja del Nivel 0 (v7.9.1)
 - **Alarma roja**: la luz roja de toda la sala, su pulso y el zumbido grave de alarma están hechos por código (`Level0Events`, tono de 180 Hz con armónicos suaves, sin siseo). CC0, sin grabaciones externas.
+
+## v7.10.3 — Pasos reales (Assets/Resources/Steps)
+
+| Recurso | Uso | Autor / fuente | Licencia |
+|---|---|---|---|
+| footstep_carpet_000–004, footstep_concrete_000–004, footstep_wood_000–004, footstep_snow_000–004, impactPlate_light_000–004, impactMetal_light_000–004 («Impact Sounds» 1.0) | pisadas del jugador y de los compañeros: moqueta (`Carpet_*`), hormigón (`Concrete_*`), suelo de madera de las casas del Campo (`Grass_*`), chapa industrial (`Metal_*` = hormigón + plancha + un toque metálico) y arena (`Sand_*` = nieve apagada + moqueta) | Kenney — https://kenney.nl/assets/impact-sounds | CC0 1.0 (dominio público; licencia incluida en el paquete, «free to use in personal, educational and commercial projects») |
+
+Preparadas con `Tools/audio/prep_steps.py`: mono 22 kHz, paso alto a 45 Hz, paso bajo a 7 kHz (sin siseo), cola recortada con fundido, volumen igualado (LUFS) al de los pasos de antes y pico limitado a 0,9. La alarma (tono de evacuación «slow whoop» NEN 2575 con timbre de bocina y sala) y el latido (lub-dub) siguen siendo procedurales (código del proyecto).

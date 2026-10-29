@@ -21,7 +21,7 @@ public class Level0Events : MonoBehaviour
     public static readonly Color RedAmbient = new Color(0.34f, 0.028f, 0.020f);   // v7.9.1: la sala entera roja, también rincones y lejos de las luces
     public static readonly Color RedFog = new Color(0.30f, 0.022f, 0.016f);
     public const float PulsePeriod = 2.0f, PulseMin = 0.70f;   // pulso lento de alarma (mismo reloj → igual para todos)
-    public const float AlarmVolume = 0.22f, AlarmHz = 440f, AlarmHz2 = 660f;   // v7.9.4 (t473u): antes 0,20 × sucesos (0,75) y 180 Hz: unos −32 dB, por debajo del drone y casi inaudible en altavoces pequeños
+    public const float AlarmVolume = 0.28f, AlarmHz = 500f, AlarmHz2 = 1200f, AlarmSweep = 3.5f;   // v7.10.3: sirena real de evacuación (tono «slow whoop» NEN 2575: 500→1200 Hz en 3,5 s + 0,5 s de silencio, con timbre de bocina y sala); 0,22 → 0,28: suena ≈ 1,3 dB más fuerte que la v7.10.2 (−21,1 frente a −22,4 LUFS en el juego).   // v7.9.4 (t473u): antes 0,20 × sucesos (0,75) y 180 Hz: unos −32 dB, por debajo del drone y casi inaudible en altavoces pequeños
     public static float AlarmGain { get { return AudioMix.A(AlarmVolume); } }
     // pulso de la alarma: 1 en el pico, PulseMin en el valle (en el reloj del nivel)
     public static float PulseAt(float clock) { float s = Mathf.Sin(Mathf.PI * clock / PulsePeriod); return PulseMin + (1f - PulseMin) * s * s; }
@@ -87,7 +87,7 @@ public class Level0Events : MonoBehaviour
         relaySrc = Src("L0Relay", 3f, 30f);
         alarmClip = CreateAlarm();
         alarmSrc = Src("L0Alarm", 4f, 40f); alarmSrc.spatialBlend = 0f; alarmSrc.loop = true; alarmSrc.clip = alarmClip; alarmSrc.volume = 0f;
-        AudioLowPassFilter alp = alarmSrc.gameObject.AddComponent<AudioLowPassFilter>(); alp.cutoffFrequency = 2400f;   // v7.9.4: deja pasar la sirena (todo < 2 kHz, sin siseo)
+        AudioLowPassFilter alp = alarmSrc.gameObject.AddComponent<AudioLowPassFilter>(); alp.cutoffFrequency = AlarmCutoff;   // v7.10.3: deja pasar los armónicos de la bocina (hasta ~5 kHz; nada de ruido)
         noiseRng = new System.Random(Seed * 613 + (int)(System.DateTime.Now.Ticks & 0xffff));   // local de cada jugador
         noiseT = 20f + (float)noiseRng.NextDouble() * 25f;
     }
@@ -214,32 +214,92 @@ public class Level0Events : MonoBehaviour
         else if (alarmSrc.isPlaying) alarmSrc.Stop();
     }
     public const float AlarmLoop = 2f * PulsePeriod;
-    // v7.9.4 (t473u): sirena de alarma: en cada pulso de la luz el tono sube de 440 a 660 Hz y baja (como una sirena «whoop»),
-    // con 2.º y 3.er armónico y una octava grave para el cuerpo; todo por debajo de 2 kHz (sin siseo) y sin crujidos. El bucle
-    // (4 s = dos pulsos) va en fase con el reloj del nivel, así que sube cuando la luz roja llega a su pico. Fase integrada y
-    // ajustada a ciclos enteros: sin costura.
+    // v7.10.3 (pt522u): sirena de alarma REALISTA. Antes (v7.9.4) era un seno de 440–660 Hz con dos armónicos: sonaba a tono de
+    // prueba («rara»). Ahora es el tono de evacuación real «slow whoop» de la norma neerlandesa NEN 2575 (tabla de tonos de
+    // Eaton/Fulleon y Auer: 500 → 1200 Hz en 3,5 s y 0,5 s de silencio), que es justo el bucle de 4 s (dos pulsos de la luz).
+    // La bocina se excita con una onda casi cuadrada (armónicos impares, algo de pares) y su respuesta (pasa banda 350 Hz–5 kHz
+    // con resonancias en 1,4 y 2,9 kHz) le da el timbre metálico del altavoz (sin saturación: evitaría aliasing). Encima, reflexiones
+    // tempranas y una cola corta de sala (Schroeder: 4 peines con amortiguación + 2 pasa todo, RT60 ≈ 1,1 s) calculadas en
+    // bucle circular, así que el bucle no tiene costura. Todo tonal (sin ruido ni siseo), nada por encima de 9 kHz, sin crujidos.
+    public const float AlarmCutoff = 6500f;
     public static AudioClip CreateAlarm() { float[] d = AlarmData(); AudioClip c = AudioClip.Create("L0_Alarma", d.Length, 1, SR, false); c.SetData(d, 0); return c; }
     public static float AlarmFreq(float t)
-    {   // 0 → PulsePeriod: sube con el pulso (sin² del mismo reloj que la luz)
-        float s = Mathf.Sin(Mathf.PI * t / PulsePeriod); return AlarmHz + (AlarmHz2 - AlarmHz) * s * s;
+    {   // barrido lineal 500 → 1200 Hz en AlarmSweep s; luego se queda arriba mientras se apaga
+        float c = Mathf.Repeat(t, AlarmLoop);
+        return AlarmHz + (AlarmHz2 - AlarmHz) * Mathf.Clamp01(c / AlarmSweep);
     }
+    public static float AlarmAmp(float t)
+    {
+        float c = Mathf.Repeat(t, AlarmLoop);
+        float a = Mathf.Min(1f, c / 0.04f);                                // arranque del altavoz (40 ms, sin clic)
+        if (c > AlarmSweep) a = Mathf.Exp(-(c - AlarmSweep) / 0.06f);       // corte al final del barrido
+        return a * (0.8f + 0.2f * Mathf.Min(1f, c / AlarmSweep));
+    }
+    private static float Horn(float f)
+    {
+        float hp = 1f / (1f + Mathf.Pow(350f / f, 4f)), lp = 1f / (1f + Mathf.Pow(f / 5200f, 6f));
+        float r = 1f + 0.8f * Mathf.Exp(-Sq((f - 1400f) / 450f)) + 0.5f * Mathf.Exp(-Sq((f - 2900f) / 600f));
+        return hp * lp * r;
+    }
+    private static float Sq(float x) { return x * x; }
     public static float[] AlarmData()
     {
-        int n = Mathf.RoundToInt(AlarmLoop * SR); float[] d = new float[n];
-        double total = 0; for (int i = 0; i < n; i++) total += AlarmFreq(i / (float)SR) / SR;
-        double k = 2.0 * System.Math.Round(total * 0.5) / total;   // ciclos enteros (y pares, por la octava grave) en el bucle
-        double ph = 0; float peak = 0f;
+        int n = Mathf.RoundToInt(AlarmLoop * SR); float[] x = new float[n];
+        double ph = 0;
         for (int i = 0; i < n; i++)
         {
-            float t = i / (float)SR;
-            float env = Mathf.Sin(Mathf.PI * t / PulsePeriod); env = 0.35f + 0.65f * env * env;
-            float w = (float)(2.0 * System.Math.PI * ph);
-            float v = Mathf.Sin(w) * 0.60f + Mathf.Sin(2f * w) * 0.20f + Mathf.Sin(3f * w) * 0.05f + Mathf.Sin(0.5f * w) * 0.24f;
-            d[i] = v * env; peak = Mathf.Max(peak, Mathf.Abs(d[i]));
-            ph += AlarmFreq(t) / SR * k;
+            float t = i / (float)SR, f = AlarmFreq(t);
+            ph += f / (double)SR;
+            float s = 0f;
+            for (int h = 1; h <= 15; h++)
+            {
+                float fh = f * h; if (fh >= 9500f) break;
+                float w = ((h & 1) == 1 ? 1f / h : 0.12f / h) * Mathf.Clamp01((9500f - fh) / 2500f);   // los armónicos entran y salen sin escalón (sin clics ni aliasing)
+                s += w * Horn(fh) * (float)System.Math.Sin(2.0 * System.Math.PI * h * ph);
+            }
+            x[i] = s * AlarmAmp(t);   // sin saturación: tanh creaba armónicos por encima de 11 kHz que se doblaban (aliasing) en tonos falsos que bajaban
         }
-        float g = 0.9f / Mathf.Max(1e-4f, peak); for (int i = 0; i < n; i++) d[i] *= g;
+        float[] d = RoomLoop(x, 3);
+        float pk = 1e-4f; for (int i = 0; i < n; i++) pk = Mathf.Max(pk, Mathf.Abs(d[i]));
+        float g = 0.9f / pk; for (int i = 0; i < n; i++) d[i] *= g;
         return d;
+    }
+    // sala (bucle circular): reflexiones tempranas + 4 peines amortiguados + 2 pasa todo; «passes» vueltas para que la cola
+    // del final entre por el principio (bucle sin costura)
+    public static float[] RoomLoop(float[] x, int passes)
+    {
+        int n = x.Length;
+        float[] erD = { 0.011f, 0.019f, 0.027f, 0.041f, 0.057f }, erG = { 0.32f, 0.24f, 0.18f, 0.13f, 0.09f };
+        float[] cD = { 0.0297f, 0.0371f, 0.0411f, 0.0437f };
+        int[] ck = new int[4]; float[] cg = new float[4], clp = new float[4]; float[][] cy = new float[4][];
+        for (int c = 0; c < 4; c++) { ck[c] = (int)(cD[c] * SR); cg[c] = Mathf.Pow(10f, -3f * cD[c] / 1.1f); cy[c] = new float[n]; }
+        int k1 = (int)(0.005f * SR), k2 = (int)(0.0017f * SR); const float ag = 0.7f;
+        float[] a1i = new float[n], a1o = new float[n], a2o = new float[n], outp = new float[n];
+        for (int p = 0; p < passes; p++)
+        {
+            bool first = p == 0;
+            for (int i = 0; i < n; i++)
+            {
+                float s = 0f;
+                for (int c = 0; c < 4; c++)
+                {
+                    int j = i - ck[c]; float fb = j >= 0 ? cy[c][j] : (first ? 0f : cy[c][j + n]);
+                    clp[c] += 0.45f * (fb - clp[c]);
+                    cy[c][i] = x[i] + cg[c] * clp[c]; s += cy[c][i];
+                }
+                s *= 0.25f;
+                int q = i - k1; float xd = q >= 0 ? a1i[q] : (first ? 0f : a1i[q + n]), yd = q >= 0 ? a1o[q] : (first ? 0f : a1o[q + n]);
+                a1i[i] = s; float o1 = -ag * s + xd + ag * yd; a1o[i] = o1;
+                q = i - k2; xd = q >= 0 ? a1o[q] : (first ? 0f : a1o[q + n]); yd = q >= 0 ? a2o[q] : (first ? 0f : a2o[q + n]);
+                float o2 = -ag * o1 + xd + ag * yd; a2o[i] = o2;
+                if (p == passes - 1)
+                {
+                    float e = 0f; for (int r = 0; r < erD.Length; r++) { int jj = i - (int)(erD[r] * SR); if (jj < 0) jj += n; e += erG[r] * x[jj]; }
+                    outp[i] = x[i] + e + 0.616f * o2;
+                }
+            }
+        }
+        return outp;
     }
 
     // ---- ruidos ----

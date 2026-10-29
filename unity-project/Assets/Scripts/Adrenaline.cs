@@ -21,6 +21,7 @@ public class Adrenaline : MonoBehaviour
     public void ResetBoostCooldownForTests() { lastBoostAt = -99f; }
     private AudioSource heart;
     private AudioClip heartClip;
+    private AudioClip[] heartClips;   // v7.10.3: 4 latidos (2 en reposo, 2 rápidos) que se alternan
     // v7.9.0: latido por amenaza (todos los niveles con monstruos, no el Nivel 114): en calma no suena; con un monstruo cerca
     // empieza lento y bajo, y se acelera y sube cuanto más cerca está o si te persigue. Local de cada jugador.
     public const float HeartMinBpm = 66f, HeartMaxBpm = 150f, HeartRange = 30f;
@@ -44,7 +45,8 @@ public class Adrenaline : MonoBehaviour
         Local = this;
         if (fpc == null) fpc = GetComponent<FirstPersonController>();
         GameObject h = new GameObject("Heartbeat"); h.transform.SetParent(transform, false);
-        heartClip = CreateHeartbeat();
+        heartClips = new AudioClip[HeartVariants]; for (int k = 0; k < HeartVariants; k++) heartClips[k] = CreateHeartbeatVariant(k);
+        heartClip = heartClips[0];
         heart = h.AddComponent<AudioSource>();
         heart.playOnAwake = false;
         heart.clip = heartClip; heart.loop = false; heart.spatialBlend = 0f; heart.volume = 1f;
@@ -76,7 +78,7 @@ public class Adrenaline : MonoBehaviour
     {
         if (Local == this) Local = null;
         if (fpc != null) { fpc.staminaDrainMul = 1f; fpc.sprintMul = 1f; }
-        if (heartClip != null) ProceduralAssets.SafeDestroy(heartClip);
+        if (heartClips != null) foreach (AudioClip hc in heartClips) if (hc != null) ProceduralAssets.SafeDestroy(hc);
     }
 
     // ¿algún monstruo me persigue a MÍ? Solo / anfitrión: su objetivo soy yo. Cliente: el más cercano a él entre los vivos.
@@ -145,8 +147,10 @@ public class Adrenaline : MonoBehaviour
                 beatPhase -= Mathf.Floor(beatPhase);
                 if (HeartVolume > 0.001f)
                 {
-                    heart.pitch = Mathf.Lerp(0.96f, 1.12f, Threat01);   // casi sin cambio de timbre: el ritmo lo da el intervalo
-                    heart.PlayOneShot(heartClip, HeartVolume); Beats++;
+                    // v7.10.3: con el corazón acelerado el «dub» llega antes (variantes rápidas); se alternan dos tomas para que no suene a bucle
+                    int v = (Bpm > HeartFastBpm ? 2 : 0) + (Beats & 1);
+                    heart.pitch = Mathf.Lerp(0.98f, 1.05f, Threat01);   // casi sin cambio de timbre: el ritmo lo da el intervalo
+                    heart.PlayOneShot(heartClips != null ? heartClips[v] : heartClip, HeartVolume * (0.94f + 0.06f * Random.value)); Beats++;
                 }
             }
         }
@@ -156,29 +160,64 @@ public class Adrenaline : MonoBehaviour
     public static Color Tint(Color normal) { Adrenaline a = Local; return a == null ? normal : Color.Lerp(normal, new Color(1f, 0.42f, 0.22f), a.Level01); }
 
     // un latido (lub-dub) suelto: se dispara a su ritmo (v7.9.0; antes un bucle de 2 latidos a 72 ppm)
-    // v7.9.4 (t474u): además del golpe grave (55/68 Hz) lleva sus armónicos y un golpe corto a 160–330 Hz, que es lo que se
-    // oye en altavoces pequeños y auriculares; todo por debajo de 1 kHz, sin ruido (ni siseo)
-    public static AudioClip CreateHeartbeat()
+    // v7.10.3 (pt522u): latido REALISTA. Antes eran senos de 55/68 Hz con armónicos y un «toc» a 160–330 Hz: sonaba a
+    // sintetizador. Ahora sigue un latido real oído desde dentro (como con un fonendo o en el oído con miedo):
+    //  · «lub» (1.er ruido, cierre de mitral y tricúspide): golpe grave de 46 Hz con una caída de tono rápida (de ~78 a 46 Hz en
+    //    35 ms, el tejido se tensa y se afloja), ataque de 6 ms y caída de 50 ms, desdoblado en dos componentes a 24 ms;
+    //  · «dub» (2.º ruido, válvulas aórtica y pulmonar): más corto (34 ms), algo más agudo (60 Hz) y más flojo (0,72);
+    //  · textura de tejido: ruido muy grave (paso bajo de 2 polos a 220 Hz, nada de agudos ni siseo) con su propia envolvente,
+    //    y la resonancia de la pared del pecho (140–175 Hz) para que se oiga en altavoces pequeños y auriculares;
+    //  · saturación suave (los armónicos hasta ~400 Hz); nada por encima de 1 kHz.
+    //  El intervalo lub-dub es de 0,29 s en reposo y 0,21 s con el corazón acelerado (> 105 ppm), como en la realidad (la
+    //  diástole se acorta). Hay dos tomas de cada con pequeñas diferencias (tono y fuerza ±4 %).
+    public const int HeartVariants = 4;
+    public const float HeartFastBpm = 105f;
+    public static AudioClip CreateHeartbeat() { return CreateHeartbeatVariant(0); }
+    public static AudioClip CreateHeartbeatVariant(int k)
     {
-        const int SR = 22050; int n = Mathf.RoundToInt(SR * 0.40f);
+        const int SR = 22050;
+        float gap = k < 2 ? 0.29f : 0.21f;
+        int n = Mathf.RoundToInt(SR * (k < 2 ? 0.48f : 0.40f));
         float[] d = new float[n];
-        for (int k = 0; k < 2; k++)
+        System.Random r = new System.Random(100 + k);
+        System.Func<float> j = () => 1f + 0.04f * ((float)r.NextDouble() * 2f - 1f);
+        float[,] th = { { 0.004f, 46f * j(), 0.050f, 1.0f, 1f, 140f }, { 0.028f, 52f * j(), 0.035f, 0.45f, 2f, 150f }, { 0.004f + gap, 60f * j(), 0.034f, 0.72f * j(), 3f, 175f } };
+        for (int q = 0; q < 3; q++)
         {
-            float tk = k * 0.17f, amp = k == 0 ? 1f : 0.72f, f = k == 0 ? 55f : 68f, fb = k == 0 ? 160f : 190f;
-            int i0 = Mathf.RoundToInt(tk * SR), len = Mathf.RoundToInt(0.16f * SR);
-            for (int i = 0; i < len && i0 + i < n; i++)
-            {
-                float t = i / (float)SR, w = 2f * Mathf.PI * f * t;
-                float env = Mathf.Exp(-t * 26f) * (1f - Mathf.Exp(-t * 400f));
-                float body = Mathf.Sin(w) + 0.55f * Mathf.Sin(2f * w) + 0.30f * Mathf.Sin(3f * w);
-                float knock = Mathf.Exp(-t * 55f) * (1f - Mathf.Exp(-t * 900f)) * (0.75f * Mathf.Sin(2f * Mathf.PI * fb * t) + 0.25f * Mathf.Sin(2f * Mathf.PI * fb * 2.05f * t));
-                d[i0 + i] += amp * (env * body + knock);
-            }
+            float[] v = Thump(th[q, 1], th[q, 2], th[q, 3], (int)th[q, 4] + 10 * k, th[q, 5], 0.85f);
+            int i0 = Mathf.RoundToInt(th[q, 0] * SR);
+            for (int i = 0; i < v.Length && i0 + i < n; i++) d[i0 + i] += v[i];
         }
-        float mx = 0.001f; for (int i = 0; i < n; i++) mx = Mathf.Max(mx, Mathf.Abs(d[i]));
+        float t22 = (float)System.Math.Tanh(2.2), mx = 0.001f;
+        for (int i = 0; i < n; i++) { d[i] = (float)System.Math.Tanh(2.2f * d[i]) / t22; mx = Mathf.Max(mx, Mathf.Abs(d[i])); }
         for (int i = 0; i < n; i++) d[i] *= 0.9f / mx;
-        for (int i = n - 200; i < n; i++) d[i] *= (n - i) / 200f;   // sin chasquido al final
-        AudioClip c = AudioClip.Create("Heartbeat", n, 1, SR, false); c.SetData(d, 0);
+        for (int i = n - 300; i < n; i++) d[i] *= (n - i) / 300f;   // sin chasquido al final
+        AudioClip c = AudioClip.Create("Heartbeat_" + k, n, 1, SR, false); c.SetData(d, 0);
         return c;
+    }
+    // un golpe del corazón (ver arriba): tono grave con caída + ruido de tejido muy grave + resonancia del pecho
+    private static float[] Thump(float f0, float tau, float amp, int seed, float kf, float ka)
+    {
+        const int SR = 22050; int n = Mathf.RoundToInt(0.25f * SR);
+        float[] y = new float[n]; System.Random rng = new System.Random(seed);
+        float a = Mathf.Exp(-2f * Mathf.PI * 220f / SR), z = 0f, z2 = 0f, ym = 1e-6f;
+        for (int i = 0; i < n; i++)
+        {   // ruido gaussiano (Box-Muller) con paso bajo de 2 polos
+            double u1 = 1.0 - rng.NextDouble(), u2 = rng.NextDouble();
+            float g = (float)(System.Math.Sqrt(-2.0 * System.Math.Log(u1)) * System.Math.Cos(2.0 * System.Math.PI * u2));
+            z = (1f - a) * g + a * z; z2 = (1f - a) * z + a * z2; y[i] = z2; ym = Mathf.Max(ym, Mathf.Abs(z2));
+        }
+        float[] o = new float[n]; double ph = 0;
+        for (int i = 0; i < n; i++)
+        {
+            float t = i / (float)SR;
+            float f = f0 * (1f + 0.7f * Mathf.Exp(-t / 0.035f)); ph += f / (double)SR;
+            float env = (1f - Mathf.Exp(-t / 0.006f)) * Mathf.Exp(-t / tau);
+            float nenv = (1f - Mathf.Exp(-t / 0.003f)) * Mathf.Exp(-t / (tau * 0.5f));
+            float kenv = (1f - Mathf.Exp(-t / 0.002f)) * Mathf.Exp(-t / (tau * 0.55f));
+            float knock = ka * kenv * Mathf.Sin(2f * Mathf.PI * kf * t * (1f + 0.25f * Mathf.Exp(-t / 0.02f)));
+            o[i] = amp * (env * (float)System.Math.Sin(2.0 * System.Math.PI * ph) + 0.45f * nenv * y[i] / ym + knock);
+        }
+        return o;
     }
 }

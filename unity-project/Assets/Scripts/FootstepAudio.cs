@@ -14,6 +14,8 @@ public class FootstepAudio : MonoBehaviour
     private FirstPersonController fpc;
     private bool left;
     private int lastGrass = -1;
+    private int lastTake = -1;
+    public int RealStepsPlayed { get; private set; }   // v7.10.3: pisadas con grabación real (tests)
     private AudioSource rustleSrc;
     public float RustleLevel { get; private set; }   // v7.0: volumen actual del roce (tests)
     public int GrassStepsPlayed { get; private set; }
@@ -44,6 +46,8 @@ public class FootstepAudio : MonoBehaviour
     {
         grass = kind == StepKind.Grass && fpc != null && GrassAudio.OnGrass(fpc.transform.position);
         if (grass) { AudioClip g = GrassAudio.RandomStep(ref lastGrass); if (g != null) { GrassStepsPlayed++; return g; } grass = false; }
+        AudioClip real = StepBank.Next(kind, ref lastTake);   // v7.10.3: grabación real de la superficie (5 tomas)
+        if (real != null) { RealStepsPlayed++; return real; }
         return clip;
     }
 
@@ -77,7 +81,8 @@ public class FootstepAudio : MonoBehaviour
         if (clip == null || fpc == null || !fpc.InputEnabled) return;
         left = !left;
         source.panStereo = left ? -0.12f : 0.12f;
-        source.pitch = Random.Range(0.88f, 1.1f) * (fpc.IsCrouching ? 1.1f : 1f);
+        bool real = StepBank.Real(kind);
+        source.pitch = (real ? StepBank.Pitch() : Random.Range(0.88f, 1.1f)) * (fpc.IsCrouching ? 1.06f : 1f);
         WaterVolume wv = WaterVolume.Active;
         float depth = fpc.WaterDepth;
         bool inWater = wv != null && depth > 0.03f;
@@ -85,7 +90,7 @@ public class FootstepAudio : MonoBehaviour
         bool grassStep;
         AudioClip sc = StepClip(out grassStep);
         if (grassStep) source.pitch = Random.Range(0.92f, 1.08f) * (fpc.IsCrouching ? 1.06f : 1f);
-        source.PlayOneShot(sc, Vol * intensity * (inWater ? Mathf.Lerp(0.8f, 0.3f, Mathf.Clamp01(depth / 0.5f)) : 1f));
+        source.PlayOneShot(sc, Vol * intensity * (real && !grassStep ? StepBank.Gain() : 1f) * (inWater ? Mathf.Lerp(0.8f, 0.3f, Mathf.Clamp01(depth / 0.5f)) : 1f));
         if (inWater)
         {
             if (splash == null) splash = ProceduralAudio.CreateSplash();
@@ -103,7 +108,7 @@ public class FootstepAudio : MonoBehaviour
     private void OnLanded(float intensity)
     {
         if (clip == null) return;
-        source.pitch = 0.8f;
+        source.pitch = StepBank.Real(kind) ? 0.88f : 0.8f;
         bool grassStep;
         source.PlayOneShot(StepClip(out grassStep), Mathf.Min(1f, Vol * intensity * 1.4f));
         WaterVolume wv = WaterVolume.Active;
