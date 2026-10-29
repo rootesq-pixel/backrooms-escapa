@@ -98,7 +98,7 @@ public class FootstepAudio : MonoBehaviour
             source.PlayOneShot(splash, Vol * Mathf.Lerp(0.5f, 1f, Mathf.Clamp01(depth / 0.5f)) * intensity);
             wv.Splash(fpc.transform.position + fpc.transform.forward * 0.25f, Mathf.Clamp01(0.25f * intensity + depth * 0.5f), false);
         }
-        else if (splash != null && (fpc.IsSprinting || Random.value < 0.3f))
+        else if (splash != null && !StepBank.Real(kind) && (fpc.IsSprinting || Random.value < 0.3f))   // v7.10.3: la toma real de charco ya es la salpicadura
         {
             source.pitch = Random.Range(0.9f, 1.25f);
             source.PlayOneShot(splash, Vol * 0.55f * intensity);

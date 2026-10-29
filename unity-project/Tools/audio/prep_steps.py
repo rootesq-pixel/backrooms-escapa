@@ -1,4 +1,5 @@
 # v7.10.3: pasos reales CC0 (Kenney «Impact Sounds») -> Assets/Resources/Steps/<Tipo>_<i>.wav (mono, 22050 Hz, 16 bit)
+# v7.10.3 ronda 2: Metal, Grass y Sand de este script quedan SUSTITUIDOS por prep_steps2.py (ejecutar después); Water lo hace prep_steps2.py.
 import sys, numpy as np, soundfile as sf
 from scipy.signal import butter, sosfilt, resample_poly
 sys.path.insert(0,'/workspace/v7103'); from an import load; from lufs import lufs_active
