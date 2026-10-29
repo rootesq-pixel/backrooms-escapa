@@ -973,28 +973,55 @@ public static class SmokeTest
         return AudioMix.Db(Mathf.Sqrt((float)(best / w)));
     }
 
+    // v7.10.3: sonoridad percibida de una pisada (LUFS a corto plazo): ponderación K de la BS.1770 (estante agudo + paso alto,
+    // diseñados por transformada bilineal para la frecuencia del clip) y máximo de la ventana de 100 ms. Es lo que se usa para
+    // comparar con los pasos de antes: el RMS sin ponderar da demasiado peso a los graves (la chapa amortiguada nueva «mide»
+    // más que el soplo agudo de antes aunque suene más suave).
+    public static float StepLufs(AudioClip c)
+    {
+        float[] d = new float[c.samples * c.channels]; c.GetData(d, 0);
+        double sr = c.frequency;
+        double f0 = 1681.974450955533, G = 3.999843853973347, Q = 0.7071752369554196;
+        double K = System.Math.Tan(System.Math.PI * f0 / sr), Vh = System.Math.Pow(10, G / 20), Vb = System.Math.Pow(Vh, 0.4996667741545416), a0 = 1 + K / Q + K * K;
+        double b0 = (Vh + Vb * K / Q + K * K) / a0, b1 = 2 * (K * K - Vh) / a0, b2 = (Vh - Vb * K / Q + K * K) / a0, a1 = 2 * (K * K - 1) / a0, a2 = (1 - K / Q + K * K) / a0;
+        double f1 = 38.13547087602444, Q1 = 0.5003270373238773, K1 = System.Math.Tan(System.Math.PI * f1 / sr), n1 = 1 + K1 / Q1 + K1 * K1;
+        double c1 = 2 * (K1 * K1 - 1) / n1, c2 = (1 - K1 / Q1 + K1 * K1) / n1;
+        int w = Mathf.Max(1, c.frequency / 10); double[] y2 = new double[d.Length + w];
+        double x1 = 0, x2 = 0, y1 = 0, yy2 = 0, u1 = 0, u2 = 0, z1 = 0, z2 = 0;
+        for (int i = 0; i < y2.Length; i++)
+        {
+            double x = i < d.Length ? d[i] : 0;
+            double y = b0 * x + b1 * x1 + b2 * x2 - a1 * y1 - a2 * yy2; x2 = x1; x1 = x; yy2 = y1; y1 = y;
+            double z = y - 2 * u1 + u2 - c1 * z1 - c2 * z2; u2 = u1; u1 = y; z2 = z1; z1 = z;
+            y2[i] = z * z;
+        }
+        double acc = 0, best = 0;
+        for (int i = 0; i < y2.Length; i++) { acc += y2[i]; if (i >= w) acc -= y2[i - w]; if (acc > best) best = acc; }
+        return (float)(-0.691 + 10 * System.Math.Log10(best / w + 1e-12));
+    }
+
     // ---- mezcla de audio: niveles de los sonidos de «ruido / aire», grupos de volumen ----
     private static void TestAudioMix(Report r)
     {
         GameSettings.ResetDefaults();
         float stepDb = -99f;
-        // v7.10.3: pasos reales (5 tomas por superficie, StepBank). Se miden por SONORIDAD por pisada (máximo de la ventana de
-        // 100 ms), no por pico: una pisada grabada tiene un golpe corto con más pico que el soplo procedural de antes. Ninguna
+        // v7.10.3: pasos reales (5 tomas por superficie, StepBank). Se miden por SONORIDAD por pisada (LUFS ponderados K, máximo
+        // de la ventana de 100 ms), no por pico: una pisada grabada tiene un golpe corto con más pico que el soplo procedural de antes. Ninguna
         // toma puede sonar más fuerte que el paso de antes de su superficie (+1 dB de margen) ni tener siseo (> 7 kHz).
         foreach (StepKind k in new[] { StepKind.Carpet, StepKind.Concrete, StepKind.Water, StepKind.Metal, StepKind.Grass, StepKind.Sand })
         {
-            AudioClip old = ProceduralAudio.CreateFootstep(k); float oldL = StepLoud(old); UnityEngine.Object.DestroyImmediate(old);
-            float worst = -99f, pk = 0f, hi7 = 0f; int n = StepBank.Count(k), loaded = 0;
+            AudioClip old = ProceduralAudio.CreateFootstep(k); float oldL = StepLufs(old); UnityEngine.Object.DestroyImmediate(old);
+            float worst = -99f, worstRms = -99f, pk = 0f, hi7 = 0f; int n = StepBank.Count(k), loaded = 0;
             for (int i = 0; i < n; i++)
             {
                 AudioClip c = StepBank.Get(k, i); if (c == null) continue; loaded++;
                 float[] d = new float[c.samples]; c.GetData(d, 0);
-                worst = Mathf.Max(worst, StepLoud(c)); foreach (float v in d) pk = Mathf.Max(pk, Mathf.Abs(v));
+                worst = Mathf.Max(worst, StepLufs(c)); worstRms = Mathf.Max(worstRms, StepLoud(c)); foreach (float v in d) pk = Mathf.Max(pk, Mathf.Abs(v));
                 hi7 = Mathf.Max(hi7, V790Checks.HighRatioPublic(d, c.frequency, 7000f));
             }
-            stepDb = Mathf.Max(stepDb, worst + AudioMix.Db(0.45f * AudioMix.StepMaster));    // volumen base de FootstepAudio × StepMaster
+            stepDb = Mathf.Max(stepDb, worstRms + AudioMix.Db(0.45f * AudioMix.StepMaster));    // volumen base de FootstepAudio × StepMaster
             r.Check(loaded == 5 && worst <= oldL + 1f && worst > oldL - 8f && pk <= 0.92f && hi7 < 0.01f,
-                "[Audio] paso " + k + ": " + loaded + " tomas reales, sonoridad por pisada " + worst.ToString("F1") + " dB (antes " + oldL.ToString("F1") + " dB; no más fuerte), pico " + pk.ToString("F2") + ", " + (hi7 * 100f).ToString("F2") + " % por encima de 7 kHz (sin siseo)");
+                "[Audio] paso " + k + ": " + loaded + " tomas reales, sonoridad por pisada " + worst.ToString("F1") + " LUFS (antes " + oldL.ToString("F1") + " LUFS, ponderación K, máx. 100 ms; no más fuerte), pico " + pk.ToString("F2") + ", " + (hi7 * 100f).ToString("F2") + " % por encima de 7 kHz (sin siseo)");
         }
         // respiración: suave, sin agudos, muy por debajo de los pasos
         foreach (bool inhale in new[] { true, false })
