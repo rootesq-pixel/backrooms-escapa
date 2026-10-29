@@ -4,6 +4,7 @@ using System.IO;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.UI;
 
 // v7.10.3: capturas reales para las Novedades: pantalla de créditos (atribuciones de sonido) y el Nivel 0 con la alarma roja
 // sonando (comprueba que la fuente de la alarma suena). Uso: V7103_OUT=<dir> xvfb-run -a -s "-screen 0 1920x1080x24" Unity
@@ -76,6 +77,7 @@ public static class V7103Shots
         GameSettings.Quality = 2; yield return 0.5f;
         Log("versión " + GameVersion.Current + ", protocolo " + NetSession.Protocol + ", gráficos " + SystemInfo.graphicsDeviceType);
         UIManager.Instance.SetScreen(UIManager.Screen.Credits); yield return 0.6f;
+        foreach (Text ct in Object.FindObjectsOfType<Text>(false)) if (ct.name == "CreditsBody") Log("créditos: alto del texto " + ct.preferredHeight.ToString("F0") + " px de " + ct.rectTransform.rect.height.ToString("F0") + " (fuente " + ct.fontSize + ")");
         Shot("creditos_1920x1080", true);
         UIManager.Instance.SetScreen(UIManager.Screen.Main); yield return 0.4f;
         gb.useRandomSeed = false; gb.seed = 4242;
@@ -88,19 +90,28 @@ public static class V7103Shots
         Level0Events ev = Level0Events.Active;
         if (ev == null || ev.Schedule.Count == 0) { Log("SIN SUCESOS DEL NIVEL 0"); yield break; }
         GameManager gm = GameManager.Instance; FirstPersonController p = gm.player;
-        p.transform.rotation = Quaternion.Euler(0f, 30f, 0f);
+        FootstepAudio fa = p.GetComponent<FootstepAudio>();
+        // sale de la cabina andando (con la orientación inicial) y luego llega el apagón rojo
+        int r0 = fa != null ? fa.RealStepsPlayed : 0; p.debugInput = true; p.debugMove = new Vector2(0f, 1f);
+        yield return 3.5f; p.debugInput = false; p.debugMove = Vector2.zero;
+        if (fa != null) Log("pasos reales al andar 3,5 s: " + (fa.RealStepsPlayed - r0) + " (superficie " + fa.kind + ")");
         ev.DebugSetClock(ev.Schedule[0].start + 4f);
         yield return 3.0f;
         AudioSource al = ev.AlarmSource;
         Log("alarma: sonando " + (al != null && al.isPlaying) + ", volumen " + (al != null ? al.volume.ToString("F3") : "-") + ", clip " + (al != null && al.clip != null ? al.clip.name + " " + al.clip.length.ToString("F1") + " s" : "-"));
-        Shot("nivel0_alarma_roja_1920x1080", true);
-        FootstepAudio fa = p.GetComponent<FootstepAudio>();
-        if (fa != null)
+        // mira hacia donde la vista llega más lejos (rayos cada 10°), para que se vea la oficina en rojo y no una pared
+        Vector3 eye = Camera.main.transform.position; float bestD = 0f, bestY = 0f;
+        for (int yaw = 0; yaw < 360; yaw += 10)
         {
-            int r0 = fa.RealStepsPlayed; p.debugInput = true; p.debugMove = new Vector2(0f, 1f);
-            yield return 3f; p.debugInput = false; p.debugMove = Vector2.zero;
-            Log("pasos reales al andar 3 s: " + (fa.RealStepsPlayed - r0) + " (superficie " + fa.kind + ")");
+            Vector3 dir = Quaternion.Euler(0f, yaw, 0f) * Vector3.forward; RaycastHit hit;
+            float d = Physics.Raycast(eye, dir, out hit, 60f, ~0, QueryTriggerInteraction.Ignore) ? hit.distance : 60f;
+            if (d > bestD) { bestD = d; bestY = yaw; }
         }
+        p.transform.rotation = Quaternion.Euler(0f, bestY, 0f); yield return 0.6f;
+        Log("vista más larga: " + bestD.ToString("F1") + " m a " + bestY + "°");
+        Shot("nivel0_alarma_roja_1920x1080", true);
+        p.transform.rotation = Quaternion.Euler(0f, bestY + 25f, 0f); yield return 0.5f;
+        Shot("nivel0_alarma_roja_b_1920x1080", true);
         Health.DisableForTests = false;
     }
 }

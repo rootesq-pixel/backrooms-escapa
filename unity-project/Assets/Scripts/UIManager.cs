@@ -752,12 +752,8 @@ public class UIManager : MonoBehaviour
         sb.AppendLine("Juego y generación procedural (mallas, texturas, audio): código del proyecto.");
         sb.AppendLine();
         sb.AppendLine("Modelos de monstruos (todos con licencia CC0 / dominio público):");
-        foreach (MonsterProfile p in MonsterProfile.All)
-        {
-            sb.AppendLine();
-            sb.AppendLine(p.displayName + ": «" + p.id + "» — " + p.modelAuthor + " — " + p.licence);
-            sb.AppendLine("   " + p.modelSource);
-        }
+        foreach (MonsterProfile p in MonsterProfile.All)   // v7.10.3: una línea por monstruo (con las atribuciones de sonido ya no cabía)
+            sb.AppendLine("   " + p.displayName + ": «" + p.id + "» — " + p.modelAuthor + " — " + p.licence + "   " + p.modelSource);
         sb.AppendLine();
         sb.AppendLine("Cuerpo del jugador (traje hazmat): «Character Hazmat» — Quaternius — CC0 (Dominio público)");
         sb.AppendLine("   https://poly.pizza/m/z3TSQYx1Kn   (armas retiradas, animaciones Idle/Walk/Run/Duck; malla suavizada, guantes a escala y texturas propias horneadas en Blender)");
@@ -772,7 +768,8 @@ public class UIManager : MonoBehaviour
         sb.AppendLine(CreditsSound);
         sb.AppendLine();
         sb.AppendLine("Los modelos se han convertido a FBX con Blender y retexturizado donde se indica. Detalles en CREDITS.md.");
-        Text t = Label(root.transform, sb.ToString(), 17, TextAnchor.UpperLeft, 0f, 20f, 1640f, 780f);
+        // v7.10.3: con las atribuciones de sonido el texto ya no cabía a 17 px: 16 px, más ancho y entre el título y «Volver»
+        Text t = Label(root.transform, sb.ToString(), 16, TextAnchor.UpperLeft, 0f, -25f, 1720f, 750f);
         t.name = "CreditsBody";
         MakeButton(root.transform, "Volver", 0f, -440f, 400f, 64f, () => { Click(); SetScreen(Screen.Main); });
         return root;
