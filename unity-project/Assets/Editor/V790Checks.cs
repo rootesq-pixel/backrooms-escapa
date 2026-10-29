@@ -403,15 +403,15 @@ public static class V790Checks
         }
         Object.DestroyImmediate(hb);
         {   // v7.10.3: las 4 tomas del latido (2 en reposo, 2 rápidas): lub-dub suelto, grave, audible en altavoces pequeños, sin siseo
-            string bad = "";
+            string badH = "";
             for (int k = 0; k < Adrenaline.HeartVariants; k++)
             {
                 AudioClip hv = Adrenaline.CreateHeartbeatVariant(k); float[] hd = new float[hv.samples]; hv.GetData(hd, 0);
                 float above = 1f - Mathf.Clamp01(LowRatio(hd, hv.frequency, 120f)), hi1k = HighRatio(hd, hv.frequency, 1000f);
-                if (hv.length < 0.3f || hv.length > 0.5f || above < 0.2f || hi1k > 0.01f || Mathf.Abs(hd[hd.Length - 1]) > 0.01f) bad += " " + k;
+                if (hv.length < 0.3f || hv.length > 0.5f || above < 0.2f || hi1k > 0.01f || Mathf.Abs(hd[hd.Length - 1]) > 0.01f) badH += " " + k;
                 Object.DestroyImmediate(hv);
             }
-            r.Check(bad == "", T + "[Latido] 4 tomas (reposo / acelerado, lub-dub 0,29 / 0,21 s) graves, audibles y sin siseo" + bad);
+            r.Check(badH == "", T + "[Latido] 4 tomas (reposo / acelerado, lub-dub 0,29 / 0,21 s) graves, audibles y sin siseo" + badH);
         }
         // noche del desierto
         {
