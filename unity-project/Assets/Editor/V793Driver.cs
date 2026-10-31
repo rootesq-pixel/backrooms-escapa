@@ -73,7 +73,7 @@ public static class V793Driver
         }
         return o;
     }
-    static Transform FindDeep(Transform t, string n) { if (t.name == n) return t; for (int i = 0; i < t.childCount; i++) { Transform r = FindDeep(t.GetChild(i), n); if (r != null) return r; } return null; }
+    static Transform FindDeep(Transform t, string n) { return PlayerRig.Find(t, n); }
     static void Around(string pre, Vector3 center, Vector3 fwd, Vector3 right, float dist, float h)
     {
         Vector3 c = center;

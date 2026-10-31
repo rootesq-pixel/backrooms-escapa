@@ -1027,6 +1027,7 @@ public class OceanWorld : MonoBehaviour
         h.transform.localPosition = new Vector3(0f, 1.38f, 0.02f);
         h.transform.localScale = Vector3.one * 1.05f;
         Transform head = FindDeep(avatar, "Head");
+        if (head == null) head = PlayerRig.Find(avatar, "Head");   // v7.11.0: esqueleto CC (CC_Base_Head)
         if (head != null)
         {
             Vector3 up = avatar.up;
@@ -1041,8 +1042,9 @@ public class OceanWorld : MonoBehaviour
             {
                 sc = 1.4f;   // cúpula de ~0,56 m (la cabeza del traje mide ~0,5 m) y peto sobre los hombros
                 basePos = head.position - up * 0.18f;
-                hr.enabled = false;
-                h.AddComponent<HelmetHeadRestore>().hidden = hr;
+                // v7.11.0: la capucha CC5 (cara negra opaca) cabe dentro de la cúpula: se deja visible para que por las
+                // mirillas se vea la capucha y no el cielo a través de un casco vacío
+                if (!PlayerRig.IsCC(avatar)) { hr.enabled = false; h.AddComponent<HelmetHeadRestore>().hidden = hr; }
             }
             h.transform.position = basePos;
             h.transform.rotation = avatar.rotation;

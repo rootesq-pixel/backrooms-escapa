@@ -19,6 +19,8 @@ public class PlayerBody : MonoBehaviour
     // hacia delante del coche, y sin objeto en la mano (antes la cámara exterior ocultaba la capa del cuerpo: asiento vacío)
     public static bool ExternalView;
     public bool HeadShown { get; private set; }
+    [System.NonSerialized] public bool ShowHeadForShots;   // v7.11.0: capturas en tercera persona
+    private bool headInit; private Vector3 headBaseScale = Vector3.one; private GameObject headProxy;
     private readonly List<Renderer> headRenderers = new List<Renderer>();
 
     public FirstPersonController fpc;
@@ -42,6 +44,8 @@ public class PlayerBody : MonoBehaviour
 
     public Vector3 handLocal = new Vector3(0.30f, -0.29f, 0.50f);   // posición de la mano respecto a la cámara
     public float backOffset = 0.17f;                                // el cuerpo queda algo por detrás de la cámara (anti-clipping)
+    public static float CcFirstPersonScale = 0.9f, CcBackOffset = 0.10f, CcPitchBack = 0.12f, CcBend = 0.10f, CcMoveBack = 0.09f, CcMountDrop = 0.12f;
+    private float ccMoveBack;   // v7.11.0: cuerpo CC5 en primera persona
 
     private Transform model;
     private Transform head, neck, torso, hips, upper, lower, hand, footL, footR, mid2, mid3;
@@ -59,7 +63,7 @@ public class PlayerBody : MonoBehaviour
     private readonly List<Renderer> renderers = new List<Renderer>();
     private readonly List<Material> mats = new List<Material>();
     private readonly List<Color> matBaseColor = new List<Color>();
-    private readonly List<float> matBaseGloss = new List<float>();
+    private readonly List<float> matBaseGloss = new List<float>(), matBaseGlossMap = new List<float>();
     private readonly List<Object> owned = new List<Object>();
     private GameObject prop;
     private Material lensMat;
@@ -84,16 +88,9 @@ public class PlayerBody : MonoBehaviour
         return pb;
     }
 
-    private static Transform Find(Transform root, string name)
-    {
-        if (root.name == name) return root;
-        for (int i = 0; i < root.childCount; i++)
-        {
-            Transform r = Find(root.GetChild(i), name);
-            if (r != null) return r;
-        }
-        return null;
-    }
+    // v7.11.0: huesos por nombre del traje antiguo o su equivalente del esqueleto CC (Character Creator 5)
+    private static Transform Find(Transform root, string name) { return PlayerRig.Find(root, name); }
+    public bool IsCC { get; private set; }
 
     private void SetLayerRec(Transform t)
     {
@@ -135,11 +132,25 @@ public class PlayerBody : MonoBehaviour
         upper = Find(model, "UpperArm.R"); lower = Find(model, "LowerArm.R"); hand = Find(model, "Middle1.R");
         upperL = Find(model, "UpperArm.L"); lowerL = Find(model, "LowerArm.L"); handL = Find(model, "Middle1.L");   // v7.9.0: volante
         if (hand == null) hand = Find(model, "Index1.R");
+        IsCC = PlayerRig.IsCC(model);
+        if (IsCC)
+        {   // v7.11.0: manos de tamaño real (el traje anterior era de estilo cartoon, con manos enormes)
+            forearmScale = 1f; propScale = 1f;
+            gripZ = -0.035f; gripShift = CcGripShift; propAim = CcPropAim;
+        }
         footL = Find(model, "Foot.L"); footR = Find(model, "Foot.R");
         mid2 = Find(model, "Middle2.R"); mid3 = Find(model, "Middle3.R");
 
         // escala: la cabeza queda a la altura de los ojos del jugador
-        if (head != null)
+        if (IsCC)
+        {   // v7.11.0: altura real fija. En primera persona el cuerpo propio se ve algo más pequeño (CcFirstPersonScale) para que
+            // los hombros queden ~30 cm bajo la cámara como con el traje anterior: con la proporción real los hombros y las
+            // mangas quedaban a 15 cm de la cámara y el plano cercano las cortaba (tiras de tela al volante y al correr)
+            model.localScale = Vector3.one * (PlayerRig.CcScale * CcFirstPersonScale);
+            backOffset = CcBackOffset;
+            if (animator != null) animator.Update(0f);
+        }
+        else if (head != null)
         {
             float h = transform.InverseTransformPoint(head.position).y;
             if (h > 0.2f)
@@ -173,10 +184,28 @@ public class PlayerBody : MonoBehaviour
             {
                 mats.Add(ms[i]); owned.Add(ms[i]);
                 matBaseColor.Add(ms[i].HasProperty("_Color") ? ms[i].color : Color.white);
-                matBaseGloss.Add(ms[i].HasProperty("_Glossiness") ? ms[i].GetFloat("_Glossiness") : 0.3f);
+                matBaseGloss.Add(ms[i].HasProperty("_Glossiness") ? ms[i].GetFloat("_Glossiness") : 0.3f); matBaseGlossMap.Add(ms[i].HasProperty("_GlossMapScale") ? ms[i].GetFloat("_GlossMapScale") : 1f);
             }
         }
         RendererCount = renderers.Count;
+        if (IsCC && head != null && head.parent != null)
+        {   // v7.11.0: en 1.ª persona la capucha CC5 se «pliega» (hueso de la cabeza a escala casi 0) y se deja visible el
+            // resto de la pieza (cuello y esclavina sobre los hombros), que tapa la abertura del traje; la sombra de la cabeza
+            // la pone una esfera que solo proyecta sombra
+            headBaseScale = head.localScale;
+            headProxy = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            headProxy.name = "HeadShadowProxy";
+            Object.DestroyImmediate(headProxy.GetComponent<Collider>());
+            headProxy.layer = Layer;
+            headProxy.transform.SetParent(head.parent, false);
+            headProxy.transform.position = head.position + model.up * 0.10f * model.lossyScale.y + model.forward * 0.02f * model.lossyScale.y;
+            float ps = 1f / Mathf.Max(0.0001f, head.parent.lossyScale.x) * model.lossyScale.x;
+            headProxy.transform.localScale = new Vector3(0.27f, 0.32f, 0.29f) * ps;
+            MeshRenderer pr = headProxy.GetComponent<MeshRenderer>();
+            pr.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly;
+            if (mats.Count > 0) pr.sharedMaterial = mats[0];
+            ShadowOnlyCount++;
+        }
 
         BuildFlashlightProp();
         // la linterna no ilumina ni proyecta sombra desde/sobre el cuerpo
@@ -257,6 +286,7 @@ public class PlayerBody : MonoBehaviour
     public Vector3 propAim = new Vector3(-6f, -30f, 0f);   // ligera inclinación (arriba/izquierda) para que se vea junto al puño        // ajuste fino del centro del puño (en ejes del haz, metros)
     public float propAxisBlend = 0.75f;             // 0 = eje de agarre de la mano, 1 = exactamente la dirección del haz
     public float GripAngle { get; private set; }    // ángulo entre el eje de agarre y el haz (depuración)
+    public static Vector3 CcGripShift = new Vector3(0f, -0.01f, 0.02f), CcPropAim = new Vector3(-6f, -12f, 0f);   // v7.11.0: agarre con la mano CC
 
     private static void Strip(List<Vector3> v, List<Vector3> n, List<int> t, List<Vector2> uv, float z0, float r0, float z1, float r1, int seg)
     {
@@ -454,7 +484,9 @@ public class PlayerBody : MonoBehaviour
     private void SetSeatScale(bool on)
     {
         if (model == null || on == seatScaled) return;
-        seatScaled = on; model.localScale = on ? modelBaseScale * SeatedLegs.SeatScale : modelBaseScale;
+        seatScaled = on;
+        // v7.11.0: sentado y visto desde fuera, el CC5 con su altura real (sin la reducción de la primera persona)
+        model.localScale = on ? (IsCC ? Vector3.one * PlayerRig.CcScale : modelBaseScale) * SeatedLegs.ScaleFor(model) : modelBaseScale;
     }
     public bool SeatScaled { get { return seatScaled; } }
     public Transform Hips { get { return hips; } }
@@ -477,7 +509,15 @@ public class PlayerBody : MonoBehaviour
         SetSeatScale(false);
         float lean = fpc.Lean;
         float pitch01 = Mathf.Clamp01(fpc.Pitch / 70f);                 // mirando hacia abajo (pitch > 0)
-        transform.localPosition = new Vector3(lean * fpc.leanDistance * 0.55f, 0f, -(backOffset + 0.10f * pitch01));
+        if (IsCC)   // v7.11.0: andando/corriendo/agachado los brazos del CC5 se balancean más cerca de la cámara
+        {
+            float mb = CurrentState == "Run" ? CcMoveBack * 1.6f : CurrentState == "Walk" || CurrentState == "Duck" ? CcMoveBack : 0f;
+            ccMoveBack = Mathf.Lerp(ccMoveBack, mb, 1f - Mathf.Exp(-6f * Dt));
+        }
+        // v7.11.0: al volante en 1.ª persona el CC5 va algo más bajo: el ojo queda por encima del cuello del traje y al mirar
+        // abajo se ve el pecho por fuera (no el interior del traje por la abertura del cuello)
+        float drop = IsCC && fpc.IsMounted ? CcMountDrop : 0f;
+        transform.localPosition = new Vector3(lean * fpc.leanDistance * 0.55f, -drop, -(backOffset + ccMoveBack + (IsCC ? CcPitchBack : 0.10f) * pitch01));
         transform.localRotation = Quaternion.Euler(0f, 0f, -lean * fpc.leanDegrees * 0.35f);
         // v7.9.4 (t472u): al volante en 1.ª persona el cuerpo va con el coche (antes se quedaba derecho respecto al mundo
         // mientras el coche cabeceaba por las dunas, y los brazos se retorcían respecto al volante al arrancar)
@@ -503,12 +543,14 @@ public class PlayerBody : MonoBehaviour
             if (!Visible) ResetLightOrigin();
         }
         if (!Visible || fpc == null || cam == null) return;
-        bool hs = ExternalView && fpc.IsMounted;
-        if (hs != HeadShown)
+        bool hs = (ExternalView && fpc.IsMounted) || ShowHeadForShots;
+        if (hs != HeadShown || !headInit)
         {
-            HeadShown = hs;
-            foreach (Renderer r in headRenderers) if (r != null) r.shadowCastingMode = hs ? UnityEngine.Rendering.ShadowCastingMode.On : UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly;
+            HeadShown = hs; headInit = true;
+            foreach (Renderer r in headRenderers) if (r != null) r.shadowCastingMode = hs || IsCC ? UnityEngine.Rendering.ShadowCastingMode.On : UnityEngine.Rendering.ShadowCastingMode.ShadowsOnly;
+            if (headProxy != null) headProxy.SetActive(!hs);
         }
+        if (IsCC && head != null) head.localScale = HeadShown ? headBaseScale : headBaseScale * 0.001f;
         ExcludeFromFlashlight();
 
         PlaceBody();
@@ -609,7 +651,7 @@ public class PlayerBody : MonoBehaviour
     {
         if (torso == null || seatScaled) return;   // v7.9.3: sentado y visto desde fuera, la espalda no sigue al ratón
         pitchSmooth = Mathf.Lerp(pitchSmooth, Mathf.Max(0f, fpc.Pitch), 1f - Mathf.Exp(-10f * Dt));
-        float bend = pitchSmooth * 0.28f;
+        float bend = pitchSmooth * (IsCC ? CcBend : 0.28f);   // v7.11.0: hombros CC5 fuera del plano cercano
         if (bend > 0.1f) torso.rotation = Quaternion.AngleAxis(bend, transform.right) * torso.rotation;
     }
 
@@ -626,7 +668,7 @@ public class PlayerBody : MonoBehaviour
             Color c = matBaseColor[i];
             m.color = new Color(c.r * Mathf.Lerp(1f, 0.68f, Wet01), c.g * Mathf.Lerp(1f, 0.68f, Wet01), c.b * Mathf.Lerp(1f, 0.7f, Wet01), c.a);
             if (m.HasProperty("_Glossiness")) m.SetFloat("_Glossiness", Mathf.Lerp(matBaseGloss[i], 0.88f, Wet01));
-            if (m.IsKeywordEnabled("_METALLICGLOSSMAP")) m.SetFloat("_GlossMapScale", Mathf.Lerp(1f, 1.6f, Wet01));   // v7.3.0: traje con máscara de suavidad
+            if (m.IsKeywordEnabled("_METALLICGLOSSMAP")) m.SetFloat("_GlossMapScale", Mathf.Lerp(matBaseGlossMap[i], 1.6f, Wet01));   // v7.3.0: traje con máscara de suavidad
         }
     }
 

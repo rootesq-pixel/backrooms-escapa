@@ -10,11 +10,16 @@ public static class SeatedLegs
     // Ahora se sienta en el cojín (cadera a SeatHipY sobre los pies del asiento) y se encoge un poco (SeatScale) para que
     // hombros, brazos y casco se vean por las ventanillas y la capucha quede bajo el techo.
     public const float SeatHipY = 0.66f, SeatScale = 0.8f;   // cadera sobre el suelo de la cabina (0.48 m), casco en la ventanilla (1.35–1.91 m) con los hombros asomando
+    // v7.11.0: personaje CC5 (proporciones reales, capucha ajustada): CC_Base_Hip es la articulación de la cadera (no el «Hips»
+    // bajo del traje anterior), así que va más alta respecto al asiento, y apenas hace falta encogerlo para que quepa
+    public static float CcSeatHipY = 0.91f, CcSeatScale = 1f;
+    public static float HipYFor(Transform hips) { return hips != null && hips.name.StartsWith("CC_Base") ? CcSeatHipY : SeatHipY; }
+    public static float ScaleFor(Transform model) { return PlayerRig.IsCC(model) ? CcSeatScale : SeatScale; }
     // sube/baja el cuerpo (moviendo «move») para que la cadera quede a SeatHipY sobre el punto del asiento
     public static void SitOnSeat(Transform hips, Vector3 seatPos, Vector3 up, Transform move)
     {
         if (hips == null || move == null) return;
-        float dy = Vector3.Dot(seatPos + up * SeatHipY - hips.position, up);
+        float dy = Vector3.Dot(seatPos + up * HipYFor(hips) - hips.position, up);
         move.position += up * Mathf.Clamp(dy, -0.8f, 0.8f);
     }
     public static void Apply(Transform model, Transform basis)
@@ -37,8 +42,6 @@ public static class SeatedLegs
     }
     private static Transform Find(Transform r, string n)
     {
-        if (r.name == n) return r;
-        for (int i = 0; i < r.childCount; i++) { Transform t = Find(r.GetChild(i), n); if (t != null) return t; }
-        return null;
+        return PlayerRig.Find(r, n);   // v7.11.0: también el esqueleto CC
     }
 }

@@ -261,8 +261,9 @@ public static class V790Checks
             float top = -9f; int smr = 0;
             if (pbs != null) foreach (SkinnedMeshRenderer sr in pbs.GetComponentsInChildren<SkinnedMeshRenderer>()) { smr++; top = Mathf.Max(top, car.transform.InverseTransformPoint(sr.bounds.max).y); }
             bool sameModel = pbs != null && pbs.transform.Find("Model") != null && smr >= 2;
-            float footY = 9f; if (pbs != null) foreach (Transform tf in pbs.GetComponentsInChildren<Transform>()) if (tf.name == "Foot.L" || tf.name == "Foot.R") footY = Mathf.Min(footY, car.transform.InverseTransformPoint(tf.position).y);
-            r.Check(sameModel && pbs.SeatScaled && hipY > 0.55f && hipY < 0.8f && top < car.ModelHeight - 0.08f && footY > 0.36f, T + "C (por detrás): el conductor es el traje del jugador (" + smr + " mallas), sentado (cadera a " + hipY.ToString("F2") + " m del asiento, botas a " + footY.ToString("F2") + " m, suelo de la cabina 0.48) y la capucha bajo el techo (" + top.ToString("F2") + " / " + car.ModelHeight.ToString("F2") + " m)");
+            float footY = 9f; if (pbs != null) foreach (Transform tf in pbs.GetComponentsInChildren<Transform>()) if (PlayerRig.Is(tf, "Foot.L") || PlayerRig.Is(tf, "Foot.R")) footY = Mathf.Min(footY, car.transform.InverseTransformPoint(tf.position).y);
+            float hipWant = SeatedLegs.HipYFor(pbs != null ? pbs.Hips : null);   // v7.11.0: la altura de la cadera depende del esqueleto (CC5: articulación real)
+            r.Check(sameModel && pbs.SeatScaled && Mathf.Abs(hipY - hipWant) < 0.13f && top < car.ModelHeight - 0.08f && footY > 0.36f, T + "C (por detrás): el conductor es el traje del jugador (" + smr + " mallas), sentado (cadera a " + hipY.ToString("F2") + " m del asiento, botas a " + footY.ToString("F2") + " m, suelo de la cabina 0.48) y la capucha bajo el techo (" + top.ToString("F2") + " / " + car.ModelHeight.ToString("F2") + " m)");
         }
         {   // v7.9.4 (t470u): con la cámara por detrás, conduciendo y al cruzar el borde del desierto (el coche salta 512 m)
             // la cámara sigue pegada al coche (antes volaba por el mapa hasta él, como una cámara libre)

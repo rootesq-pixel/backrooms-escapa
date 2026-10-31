@@ -117,7 +117,8 @@ public class RemotePlayer : MonoBehaviour
                 }
             }
             Transform headT = Find(model, "Head");
-            if (headT != null)
+            if (PlayerRig.IsCC(model)) { model.localScale = Vector3.one * PlayerRig.CcScale; if (animator != null) animator.Update(0f); }   // v7.11.0: misma altura que el cuerpo propio
+            else if (headT != null)
             {
                 float h = transform.InverseTransformPoint(headT.position).y;
                 if (h > 0.2f) { model.localScale = Vector3.one * (1.6f / h); if (animator != null) animator.Update(0f); }
@@ -174,9 +175,7 @@ public class RemotePlayer : MonoBehaviour
 
     private static Transform Find(Transform root, string name)
     {
-        if (root.name == name) return root;
-        for (int i = 0; i < root.childCount; i++) { Transform r = Find(root.GetChild(i), name); if (r != null) return r; }
-        return null;
+        return PlayerRig.Find(root, name);   // v7.11.0: también el esqueleto CC
     }
 
     // Linterna en la mano derecha (aprox.): tubo oscuro con lente emisiva + foco de luz
@@ -413,7 +412,7 @@ public class RemotePlayer : MonoBehaviour
     {
         if (model == null || on == seatScaled) return;
         if (modelBaseScale == Vector3.zero) modelBaseScale = model.localScale;
-        seatScaled = on; model.localScale = on ? modelBaseScale * SeatedLegs.SeatScale : modelBaseScale;
+        seatScaled = on; model.localScale = on ? modelBaseScale * SeatedLegs.ScaleFor(model) : modelBaseScale;
     }
     private void SeatPose(DesertCar car)
     {
