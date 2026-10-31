@@ -320,12 +320,14 @@ public static class V7110Shots
         // tercera persona: el cuerpo propio con el casco que ven los demás (mismo AttachHelmetTo del juego)
         HeadVisible(pb, true); yield return 0.2f;
         GameObject lh = w.AttachHelmetTo(pm); yield return 0.3f;
-        Log("local 3.ª: " + HelmetInfo(lh, pb.transform));
+        Log("local 3.ª: " + HelmetInfo(lh, pb.transform) + " | ajuste " + OceanWorld.LastHelmetFit);
         Vector3 fwd = p.transform.forward; fwd.y = 0f; fwd.Normalize();
         Vector3 c = pb.transform.position + Vector3.up * 1.0f;
         Around("nivel7_tercera_persona", c, fwd, 2.6f, 0.3f);
         Vector3 hc = pb.transform.position + Vector3.up * 1.55f;
         Shot("nivel7_tercera_persona_casco_cerca", LookAt(hc + fwd * 1.0f + Vector3.Cross(Vector3.up, fwd) * 0.5f + Vector3.up * 0.1f, hc));
+        Shot("nivel7_tercera_persona_casco_lado_cerca", LookAt(hc + Vector3.Cross(Vector3.up, fwd) * 1.1f, hc));
+        Shot("nivel7_tercera_persona_casco_espalda_cerca", LookAt(hc - fwd * 1.1f + Vector3.up * 0.15f, hc));
         Object.Destroy(lh); yield return 0.2f;
         HeadVisible(pb, false);
 
@@ -335,7 +337,8 @@ public static class V7110Shots
         for (int k = 0; k < 8; k++) { mate.Push(mp, my, 0f, 0f, RemotePlayer.FlagFlash); yield return 0.05f; }
         GameObject mh = w.AttachHelmetTo(mate.transform); yield return 0.4f;
         for (int k = 0; k < 8; k++) { mate.Push(mp, my, 0f, 0f, RemotePlayer.FlagFlash); yield return 0.05f; }
-        Log("remoto: " + HelmetInfo(mh, mate.transform));
+        Log("remoto: " + HelmetInfo(mh, mate.transform) + " | ajuste " + OceanWorld.LastHelmetFit);
+        { string bs = ""; foreach (string bn in new[] { "CC_Base_NeckTwist01", "CC_Base_NeckTwist02", "CC_Base_Head", "CC_Base_L_Clavicle", "CC_Base_L_Upperarm", "CC_Base_R_Upperarm" }) { Transform t = null; foreach (Transform x in mate.GetComponentsInChildren<Transform>(true)) if (x.name == bn) { t = x; break; } if (t != null) bs += bn.Replace("CC_Base_", "") + " " + t.position.ToString("F3") + "; "; } Log("huesos remoto (pos " + mate.transform.position.ToString("F2") + "): " + bs); }
         Shot("nivel7_remoto_desde_jugador");
         Vector3 mf = mate.transform.forward; Vector3 mc = mate.transform.position + Vector3.up * 1.0f;
         Around("nivel7_remoto", mc, mf, 2.6f, 0.3f);

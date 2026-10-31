@@ -128,6 +128,16 @@ public class OceanHelmetRack : MonoBehaviour
     static readonly float[] ProfV = { 0.000f, 0.012f, 0.025f, 0.040f, 0.10f, 0.17f, 0.24f, 0.29f, 0.30f, 0.31f, 0.39f, 0.40f };
     const int Sides = 56, DomeSteps = 30;
     const float DomeA0 = -0.30f, DomeR = 0.2f, DomeCY = 0.2f;
+    // v7.11.1: radio exterior del latón a la altura y (casco unidad); < 0 fuera del casco. Para ajustar el casco a la capucha CC5
+    public static float OuterRadiusAt(float y)
+    {
+        if (y < ProfY[0]) return -1f;
+        for (int k = 1; k < ProfY.Length; k++)
+            if (y <= ProfY[k]) return Mathf.Lerp(ProfR[k - 1], ProfR[k], Mathf.InverseLerp(ProfY[k - 1], ProfY[k], y));
+        float dy = y - DomeCY;
+        if (dy < Mathf.Sin(DomeA0) * DomeR) return Mathf.Cos(DomeA0) * DomeR;
+        return dy >= DomeR ? -1f : Mathf.Sqrt(DomeR * DomeR - dy * dy);
+    }
 
     static Vector3 Around(float u, float r, float y) { float t = u * Mathf.PI * 2f; return new Vector3(Mathf.Sin(t) * r, y, Mathf.Cos(t) * r); }
 

@@ -1014,6 +1014,69 @@ public class OceanWorld : MonoBehaviour
         }
     }
 
+    public static string LastHelmetFit = "", LastHoodInfo = "";
+    // v7.11.1: escala del casco sobre el personaje CC5 (1 = cúpula de 0,40 m y peto de 0,54 m) y lo más que se encoge la capucha
+    public const float CcHelmetScale = 0.92f, CcHoodShrinkMin = 0.75f;
+    private static float hoodShrink = 1f;
+    // v7.11.1: casco a medida de la capucha CC5. El peto se apoya en los hombros (altura de los brazos) y se busca la
+    // escala más pequeña con la que la capucha (vértices horneados, metros del mundo) queda dentro del latón: esfera de
+    // radio DomeR·escala con centro DomeCY·escala sobre la base, y bajo el centro un cuello de ese mismo radio hasta el
+    // collar (y = 0,14·escala); lo que queda por debajo del collar va dentro del peto. Devuelve la base y la escala.
+    private static Vector3[] BakedWorld(SkinnedMeshRenderer r)
+    {
+        Mesh m = new Mesh();
+        r.BakeMesh(m, true);
+        Vector3[] v = m.vertices;
+        Matrix4x4 w = Matrix4x4.TRS(r.transform.position, r.transform.rotation, Vector3.one);
+        for (int i = 0; i < v.Length; i++) v[i] = w.MultiplyPoint3x4(v[i]);
+        Object.Destroy(m);
+        return v;
+    }
+    private static void FitHelmetToHood(SkinnedMeshRenderer hr, SkinnedMeshRenderer body, bool hoodInside, Transform avatar, out Vector3 basePos, out float scale, out float radius)
+    {
+        Vector3[] hv = BakedWorld(hr);
+        Vector3 up = avatar.up, fw = avatar.forward;
+        Bounds b = new Bounds(hv.Length > 0 ? hv[0] : avatar.position, Vector3.zero);
+        for (int i = 0; i < hv.Length; i++) b.Encapsulate(hv[i]);
+        // lo que tiene que caber en el latón: el cuello/manto del cuerpo por encima del peto y, si se ve, la capucha
+        // (del cuerpo solo cuenta lo que sube por encima del faldón del peto, y = 0,10: los hombros pasan por debajo del latón)
+        List<Vector3> fit = new List<Vector3>(); List<float> floor = new List<float>();
+        if (hoodInside) foreach (Vector3 p in hv) { fit.Add(p); floor.Add(0f); }
+        if (body != null) { float lim = Vector3.Dot(b.min, up) - 0.03f; foreach (Vector3 p in BakedWorld(body)) if (Vector3.Dot(p, up) > lim) { fit.Add(p); floor.Add(0.10f); } }
+        Vector3[] v = fit.ToArray();
+        float top = Vector3.Dot(b.max, up), bot = Vector3.Dot(b.min, up);
+        // el peto baja hasta el pie de la capucha (base del cuello, ~6 cm bajo la línea de hombros del traje) para que la
+        // máscara negra no asome por debajo del latón; los hombros quedan dentro del peto, como en un casco de verdad.
+        // Se usa la capucha y no los huesos de los brazos porque el cuerpo propio en primera persona va adelantado e inclinado
+        float sh = bot;
+        float baseY = sh - 0.03f;
+        Vector3 hz = b.center - up * Vector3.Dot(b.center, up);
+        scale = 1.25f; radius = 1f; basePos = hz + up * baseY;
+        float best = 9f; Vector3 bestHz = hz;
+        for (int d = -4; d <= 4; d++)
+        {
+            Vector3 h = hz + fw * (d * 0.01f);
+            for (float sc = 0.8f; sc <= 1.251f; sc += 0.01f)
+            {
+                // cada vértice de la capucha por encima de la base tiene que quedar 6 mm por dentro del latón a su altura
+                bool ok = true; float r = 0f;
+                for (int i = 0; i < v.Length && ok; i++)
+                {
+                    float yy = (Vector3.Dot(v[i], up) - baseY) / sc;
+                    if (yy < floor[i]) continue;
+                    Vector3 dv = v[i] - h; dv -= up * Vector3.Dot(dv, up);
+                    float R = OceanHelmetRack.OuterRadiusAt(yy) * sc - 0.006f;
+                    if (dv.magnitude > R) ok = false;
+                    r = Mathf.Max(r, dv.magnitude);
+                }
+                if (ok) { if (sc < best) { best = sc; bestHz = h; radius = r; } break; }
+            }
+        }
+        if (best < 9f) scale = best;
+        basePos = bestHz + up * baseY;
+        LastHoodInfo = "capucha caja " + b.size.ToString("F3") + " y " + bot.ToString("F2") + "–" + top.ToString("F2") + ", hombros " + sh.ToString("F2");
+    }
+
     // casco sobre un avatar (compañero remoto o maniquí de las capturas): sigue al hueso de la cabeza si el modelo lo tiene
     public GameObject AttachHelmetTo(Transform avatar)
     {
@@ -1038,19 +1101,41 @@ public class OceanWorld : MonoBehaviour
             Renderer hr = null;
             foreach (Renderer r in avatar.GetComponentsInChildren<Renderer>(true))
                 if (r is SkinnedMeshRenderer && r.enabled && r.name.EndsWith("_Head")) { hr = r; break; }
-            if (hr != null)
+            if (hr != null && PlayerRig.IsCC(avatar) && hr is SkinnedMeshRenderer)
+            {
+                SkinnedMeshRenderer body = null;
+                foreach (SkinnedMeshRenderer r in avatar.GetComponentsInChildren<SkinnedMeshRenderer>(true))
+                    if (r.enabled && r.name.EndsWith("_Body")) { body = r; break; }
+                // v7.11.1: con el personaje CC5 (cabeza de tamaño real) el casco de 1,4× era enorme. Se mide la capucha tal
+                // como está ahora (malla horneada) y el casco se escala lo justo para que la cúpula la contenga, centrada en ella
+                // 1) medida con la capucha tal cual; 2) se encoge la capucha (hueso Head) lo justo para un casco de escala
+                //    CcHelmetScale; 3) se vuelve a medir y el casco se ajusta a la capucha ya encogida
+                SkinnedMeshRenderer hood = (SkinnedMeshRenderer)hr;
+                FitHelmetToHood(hood, null, true, avatar, out basePos, out sc, out float hrad);
+                float k = 1f; Vector3 hb = head.localScale;
+                for (int it = 0; it < 4 && sc > CcHelmetScale + 0.005f && k > CcHoodShrinkMin + 0.001f; it++)
+                {
+                    k = Mathf.Clamp(k * CcHelmetScale / sc, CcHoodShrinkMin, 1f);
+                    head.localScale = hb * k;
+                    FitHelmetToHood(hood, null, true, avatar, out basePos, out sc, out hrad);
+                }
+                if (k < 0.999f) { HelmetHoodShrink hs = h.AddComponent<HelmetHoodShrink>(); hs.bone = head; hs.baseScale = hb; hs.factor = k; }
+                // el casco va atornillado al peto: cuelga del cuello (no de la cabeza encogida), la cabeza gira dentro
+                h.transform.SetParent(head.parent != null ? head.parent : head, true);
+                hoodShrink = k;
+                LastHelmetFit = LastHoodInfo + "; capucha encogida ×" + hoodShrink.ToString("F2") + ", r " + hrad.ToString("F3") + " m, escala " + sc.ToString("F2");
+            }
+            else if (hr != null)
             {
                 sc = 1.4f;   // cúpula de ~0,56 m (la cabeza del traje mide ~0,5 m) y peto sobre los hombros
                 basePos = head.position - up * 0.18f;
-                // v7.11.0: la capucha CC5 (cara negra opaca) cabe dentro de la cúpula: se deja visible para que por las
-                // mirillas se vea la capucha y no el cielo a través de un casco vacío
-                if (!PlayerRig.IsCC(avatar)) { hr.enabled = false; h.AddComponent<HelmetHeadRestore>().hidden = hr; }
+                hr.enabled = false; h.AddComponent<HelmetHeadRestore>().hidden = hr;   // traje anterior: el casco sustituye a la cabeza
             }
             h.transform.position = basePos;
             h.transform.rotation = avatar.rotation;
             HelmetReflection hrf = h.AddComponent<HelmetReflection>();
             hrf.air = OceanHelmetRack.AirCube(track); hrf.water = OceanHelmetRack.WaterCube(track);
-            float ls = Mathf.Max(0.0001f, head.lossyScale.x);
+            float ls = Mathf.Max(0.0001f, h.transform.parent.lossyScale.x);
             h.transform.localScale = Vector3.one * (sc / ls);
         }
         return h;
