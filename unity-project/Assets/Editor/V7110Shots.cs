@@ -280,6 +280,31 @@ public static class V7110Shots
         Shot(name);
         cv.renderMode = rm; cv.worldCamera = null;
     }
+    // x: lo que más sale la capucha del latón (m, > 0 = la atraviesa); y: lo mismo para el cuello del cuerpo por encima del collar
+    static string WorstBody = "";
+    static Vector2 HoodPenetration(GameObject h, Transform avatar)
+    {
+        Vector2 res = new Vector2(-1f, -1f);
+        if (h == null) return res;
+        float sc = h.transform.lossyScale.x;
+        foreach (SkinnedMeshRenderer r in avatar.GetComponentsInChildren<SkinnedMeshRenderer>())
+        {
+            bool hood = r.name.EndsWith("_Head"); if (!hood && !r.name.EndsWith("_Body")) continue;
+            if (!r.enabled) continue;
+            Mesh m = new Mesh(); r.BakeMesh(m, true);
+            Matrix4x4 w = Matrix4x4.TRS(r.transform.position, r.transform.rotation, Vector3.one);
+            foreach (Vector3 v in m.vertices)
+            {
+                Vector3 p = h.transform.InverseTransformPoint(w.MultiplyPoint3x4(v));
+                if (p.y < (hood ? 0f : 0.14f)) continue;
+                float R = OceanHelmetRack.OuterRadiusAt(p.y);
+                float d = (R < 0f ? (p.y - 0.4f) : (new Vector2(p.x, p.z).magnitude - R)) * sc;
+                if (hood) res.x = Mathf.Max(res.x, d); else if (d > res.y) { res.y = d; WorstBody = p.ToString("F3"); }
+            }
+            Object.DestroyImmediate(m);
+        }
+        return res;
+    }
     static string HelmetInfo(GameObject h, Transform avatar)
     {
         if (h == null) return "sin casco";
@@ -345,6 +370,27 @@ public static class V7110Shots
         Vector3 mhc = mate.transform.position + Vector3.up * 1.6f;
         Shot("nivel7_remoto_casco_cerca", LookAt(mhc + mf * 1.0f + mate.transform.right * 0.5f + Vector3.up * 0.1f, mhc));
         Shot("nivel7_remoto_casco_lado_cerca", LookAt(mhc + mate.transform.right * 1.1f, mhc));
+        // v7.11.1: posturas extremas (mirar muy arriba/abajo, andar, correr, agachado, nadar, derribado): la capucha no puede salir del latón
+        {
+            string[] nm = { "quieto_arriba", "quieto_abajo", "andar_abajo", "correr_arriba", "agachado_abajo", "agachado_andar_arriba", "nadar", "derribado" };
+            float[] pi = { -85f, 85f, 85f, -85f, 85f, -85f, 0f, 0f }, sp = { 0f, 0f, 2.2f, 6.5f, 0f, 1.6f, 2f, 0f };
+            int[] fl = { 0, 0, 0, RemotePlayer.FlagSprint, RemotePlayer.FlagCrouch, RemotePlayer.FlagCrouch, RemotePlayer.FlagSwim, RemotePlayer.FlagDowned };
+            float worst = -1f; string ws = "";
+            for (int q = 0; q < nm.Length; q++)
+            {
+                float mx = -1f, mb = -1f;
+                for (int k = 0; k < 60; k++)
+                {
+                    mate.Push(mp, my, pi[q], sp[q], RemotePlayer.FlagFlash | fl[q]); yield return null;
+                    if (k > 15) { Vector2 pen = HoodPenetration(mh, mate.transform); mx = Mathf.Max(mx, pen.x); mb = Mathf.Max(mb, pen.y); }
+                }
+                Log("postura " + nm[q] + ": capucha fuera del latón máx " + (mx * 1000f).ToString("F0") + " mm, cuello del traje " + (mb * 1000f).ToString("F0") + " mm (≤0 = dentro) en " + WorstBody);
+                if (mx > worst) { worst = mx; ws = nm[q]; }
+                Vector3 hq = mh.transform.position + Vector3.up * 0.2f;
+                Shot("nivel7_postura_" + nm[q], LookAt(hq + mf * 1.0f + mate.transform.right * 0.6f + Vector3.up * 0.1f, hq));
+            }
+            Log("peor postura: " + ws + " " + (worst * 1000f).ToString("F0") + " mm");
+        }
         Object.Destroy(mate.gameObject); yield return 0.3f;
 
         // bajo el agua, en el fondo, con la lámpara del casco

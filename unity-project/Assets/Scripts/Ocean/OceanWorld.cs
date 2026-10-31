@@ -1016,7 +1016,7 @@ public class OceanWorld : MonoBehaviour
 
     public static string LastHelmetFit = "", LastHoodInfo = "";
     // v7.11.1: escala del casco sobre el personaje CC5 (1 = cúpula de 0,40 m y peto de 0,54 m) y lo más que se encoge la capucha
-    public const float CcHelmetScale = 0.92f, CcHoodShrinkMin = 0.75f;
+    public const float CcHelmetScale = 0.92f, CcHoodShrinkMin = 0.72f, CcHoodMargin = 0.016f;   // margen: al correr la cabeza se mueve ~1 cm dentro del casco
     private static float hoodShrink = 1f;
     // v7.11.1: casco a medida de la capucha CC5. El peto se apoya en los hombros (altura de los brazos) y se busca la
     // escala más pequeña con la que la capucha (vértices horneados, metros del mundo) queda dentro del latón: esfera de
@@ -1058,14 +1058,14 @@ public class OceanWorld : MonoBehaviour
             Vector3 h = hz + fw * (d * 0.01f);
             for (float sc = 0.8f; sc <= 1.251f; sc += 0.01f)
             {
-                // cada vértice de la capucha por encima de la base tiene que quedar 6 mm por dentro del latón a su altura
+                // cada vértice de la capucha por encima de la base tiene que quedar CcHoodMargin (16 mm) por dentro del latón a su altura
                 bool ok = true; float r = 0f;
                 for (int i = 0; i < v.Length && ok; i++)
                 {
                     float yy = (Vector3.Dot(v[i], up) - baseY) / sc;
                     if (yy < floor[i]) continue;
                     Vector3 dv = v[i] - h; dv -= up * Vector3.Dot(dv, up);
-                    float R = OceanHelmetRack.OuterRadiusAt(yy) * sc - 0.006f;
+                    float R = OceanHelmetRack.OuterRadiusAt(yy) * sc - CcHoodMargin;
                     if (dv.magnitude > R) ok = false;
                     r = Mathf.Max(r, dv.magnitude);
                 }
