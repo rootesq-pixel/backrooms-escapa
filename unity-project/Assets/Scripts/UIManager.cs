@@ -504,7 +504,7 @@ public class UIManager : MonoBehaviour
             string a = p.modelAuthor;
             if (!authors.Contains(a)) authors.Add(a);
         }
-        return "Modelos 3D (CC0): " + string.Join(", ", authors.ToArray()) + ", Quaternius (traje hazmat)  ·  Ver «Créditos»";
+        return "Modelos 3D (CC0): " + string.Join(", ", authors.ToArray()) + ", Quaternius (animaciones del traje hazmat)  ·  Ver «Créditos»";
     }
 
     // --- Selección de nivel ---
@@ -755,8 +755,8 @@ public class UIManager : MonoBehaviour
         foreach (MonsterProfile p in MonsterProfile.All)   // v7.10.3: una línea por monstruo (con las atribuciones de sonido ya no cabía)
             sb.AppendLine("   " + p.displayName + ": «" + p.id + "» — " + p.modelAuthor + " — " + p.licence + "   " + p.modelSource);
         sb.AppendLine();
-        sb.AppendLine("Cuerpo del jugador (traje hazmat): «Character Hazmat» — Quaternius — CC0 (Dominio público)");
-        sb.AppendLine("   https://poly.pizza/m/z3TSQYx1Kn   (armas retiradas, animaciones Idle/Walk/Run/Duck; malla suavizada, guantes a escala y texturas propias horneadas en Blender)");
+        sb.AppendLine("Cuerpo del jugador (traje hazmat, v7.11.0): personaje propio hecho con Character Creator 5");   // v7.11.0
+        sb.AppendLine("   Animaciones Idle/Walk/Run/Duck adaptadas de «Character Hazmat» — Quaternius — CC0 (Dominio público)   https://poly.pizza/m/z3TSQYx1Kn");
         sb.AppendLine("Nivel 7: El Farolero (modelo, texturas y animación), cascos de buzo, muelle, sofá, barca, muebles y esculturas del fondo: trabajo propio (Blender 4.2 y texturas procedurales), CC0 (dominio público)");
         sb.AppendLine();
         sb.AppendLine("Ascensor de entrada: modelo propio (Blender 4.2), CC0. Texturas PBR del ascensor y del Nivel 1: ambientCG (Metal009, Metal038, Wood051, Rubber001, Concrete042A, Concrete031, Concrete012) — CC0 1.0");

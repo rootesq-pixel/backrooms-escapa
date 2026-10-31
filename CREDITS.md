@@ -27,7 +27,7 @@ Cada nivel usa una criatura distinta. Los modelos originales se convirtieron a F
 
 | Id (Resources/Player) | Nombre | Autor | Licencia | Fuente |
 |---|---|---|---|---|
-| PlayerHazmat | «Character Hazmat» | Quaternius | CC0 1.0 (dominio público) | https://poly.pizza/m/z3TSQYx1Kn (pack de personajes de Quaternius: https://quaternius.com) |
+| PlayerHazmat (animaciones Idle/Walk/Run/Duck; desde la v7.11.0 la malla del jugador es un personaje propio hecho con Character Creator 5) | «Character Hazmat» | Quaternius | CC0 1.0 (dominio público) | https://poly.pizza/m/z3TSQYx1Kn (pack de personajes de Quaternius: https://quaternius.com) |
 
 Licencia comprobada el 11-oct-2026 en la página de Poly Pizza (campo «Licence: CC0 1.0», «Public Domain (CC0)»). Cambios: GLB convertido a FBX con Blender; eliminadas las armas y el resto de objetos; conservadas las animaciones Idle, Walk, Run y Duck; color del traje cambiado a amarillo hazmat con guantes/botas negros (materiales de Unity). La linterna de mano, el IK del brazo, las sombras y el efecto de empapado son procedurales. **v7.3.0:** malla subdividida y desplegada (UV) en Blender 4.2 (`Tools/blender/suit_bake.py`, exportada como `HazmatHD.fbx`); texturas del traje propias, horneadas con Cycles a partir de materiales procedurales (pliegues, costuras, cremallera, cinturón, guantes de goma, botas con suela, suciedad y zona mojada abajo; albedo, normales y máscara metal/AO/suavidad). Las texturas son de dominio público (CC0); la malla sigue siendo CC0 de Quaternius. Guantes a escala realista: la malla de las manos y los huesos de los dedos se reducen hacia la muñeca (factor 0,66) en el mismo script, sin cambiar UV ni texturas.
 
