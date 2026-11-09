@@ -27,22 +27,24 @@ html.fx-webgl { background: #0b0905; }
 .fx-power-off .logo { opacity: .45; animation: none; }
 .fx-power-off .rec-dot { box-shadow: 0 0 14px 3px var(--red); }
 
-/* ---------- OSD de videocámara ---------- */
+/* ---------- OSD de videocámara (pequeño, translúcido, pegado a las esquinas) ---------- */
 .fx-osd {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 905; pointer-events: none;
   display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem;
-  padding: 0 1.1rem .9rem; font-family: var(--mono); font-size: .8rem; letter-spacing: .12em;
-  color: rgba(255,255,255,.82); text-shadow: 2px 0 rgba(255,40,80,.45), -2px 0 rgba(40,255,230,.35), 0 0 6px rgba(0,0,0,.9);
+  padding: 0 max(.6rem, env(safe-area-inset-right)) max(.45rem, env(safe-area-inset-bottom)) max(.6rem, env(safe-area-inset-left));
+  font-family: var(--mono); font-size: .62rem; line-height: 1; letter-spacing: .12em;
+  color: rgba(255,255,255,.9); opacity: .55;
+  text-shadow: 1px 0 rgba(255,40,80,.45), -1px 0 rgba(40,255,230,.35), 0 0 4px rgba(0,0,0,.95);
   text-transform: uppercase;
 }
-.fx-osd-l, .fx-osd-r { display: flex; align-items: center; gap: .7rem; padding-left: 3.2rem; }
-.fx-osd-r { padding-left: 0; padding-right: 0; }
+.fx-osd-l, .fx-osd-r { display: flex; align-items: center; gap: .55rem; white-space: nowrap; }
+.fx-osd-l { padding-left: 7.4rem; }
 .fx-play { color: #fff; }
 .fx-sp { opacity: .75; }
 .fx-ch { color: #fff3b5; }
-.fx-batt { display: inline-flex; gap: 2px; padding: 2px 3px; border: 1px solid rgba(255,255,255,.8); position: relative; }
-.fx-batt::after { content: ""; position: absolute; right: -4px; top: 3px; width: 2px; height: 5px; background: rgba(255,255,255,.8); }
-.fx-batt i { width: 4px; height: 7px; background: rgba(255,255,255,.85); }
+.fx-batt { display: inline-flex; gap: 1px; padding: 1px 2px; border: 1px solid rgba(255,255,255,.8); position: relative; }
+.fx-batt::after { content: ""; position: absolute; right: -3px; top: 2px; width: 2px; height: 4px; background: rgba(255,255,255,.8); }
+.fx-batt i { width: 3px; height: 5px; background: rgba(255,255,255,.85); }
 .fx-batt i:nth-child(3) { animation: fx-batt 1.4s steps(1) infinite; }
 @keyframes fx-batt { 50% { opacity: 0; } }
 .fx-osd-blip .fx-ch { animation: fx-blip .5s steps(5); }
@@ -53,16 +55,18 @@ html.fx-webgl { background: #0b0905; }
 
 /* ---------- Botón de zumbido ---------- */
 .fx-hum {
-  position: fixed; left: .9rem; bottom: .7rem; z-index: 910;
-  display: inline-flex; align-items: center; gap: .45rem; padding: .35rem .6rem;
-  font: 700 .72rem/1 var(--mono); letter-spacing: .1em; text-transform: uppercase;
-  color: var(--yellow); background: rgba(10,8,4,.78); border: 1px solid var(--line); border-radius: 4px; cursor: pointer;
+  position: fixed; left: max(.6rem, env(safe-area-inset-left)); bottom: max(.35rem, env(safe-area-inset-bottom)); z-index: 910;
+  display: inline-flex; align-items: center; gap: .35rem; padding: .22rem .45rem;
+  font: 700 .6rem/1 var(--mono); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--yellow); background: rgba(10,8,4,.45); border: 1px solid rgba(242,214,92,.18); border-radius: 3px; cursor: pointer;
+  opacity: .6; transition: opacity .15s;
 }
-.fx-hum:hover { border-color: var(--yellow); }
-.fx-hum-ico { width: 10px; height: 10px; border-radius: 50%; border: 2px solid currentColor; }
+.fx-hum:hover, .fx-hum:focus-visible, .fx-hum.is-on { opacity: 1; border-color: var(--yellow); }
+.fx-hum-ico { width: 8px; height: 8px; border-radius: 50%; border: 2px solid currentColor; }
 .fx-hum.is-on .fx-hum-ico { background: currentColor; box-shadow: 0 0 8px currentColor; animation: fx-hum 0.12s steps(2) infinite; }
 @keyframes fx-hum { 50% { opacity: .6; } }
-.fx-osd-l { padding-left: 9.5rem; }
+/* espacio al final para que el OSD nunca tape el pie */
+.site-footer { padding-bottom: calc(3.5rem + 2.2rem + env(safe-area-inset-bottom)); }
 
 /* ---------- Entidad ---------- */
 .fx-entity {
@@ -152,13 +156,40 @@ html.fx-webgl { background: #0b0905; }
 
 /* ---------- Móvil ---------- */
 @media (max-width: 640px) {
-  .fx-osd { font-size: .66rem; padding-bottom: .65rem; letter-spacing: .08em; }
-  .fx-osd-r #fx-date { display: none; }
-  .fx-osd-l { padding-left: 8.3rem; }
-  .fx-osd-l .fx-sp, .fx-osd-l .fx-play { display: none; }
-  .fx-hum { font-size: .64rem; padding: .3rem .5rem; }
+  .fx-osd-l, .fx-osd-r #fx-date { display: none; }   /* en móvil solo queda la batería en la esquina */
+  .fx-osd { opacity: .45; }
   .fx-entity { height: 60vh; }
   .fx-corridor { filter: none; }
+}
+
+/* ---------- Cabecera en una sola línea a cualquier ancho ---------- */
+.header-inner { width: min(1500px, 100% - 2rem); flex-wrap: nowrap; }
+.logo, .rec, .site-nav a { white-space: nowrap; }
+.rec { flex: 0 0 auto; }
+@media (min-width: 1361px) {
+  .site-nav ul { gap: 0; }
+  .site-nav a { padding: .45rem .5rem; font-size: .84rem; letter-spacing: .01em; }
+}
+@media (min-width: 1361px) and (max-width: 1500px) {
+  .logo { font-size: .95rem; letter-spacing: .05em; }
+  .site-nav a { padding: .42rem .4rem; font-size: .8rem; }
+  .rec { font-size: .78rem; }
+}
+/* por debajo de 1360 px se usa el menú desplegable (igual que en móvil) */
+@media (max-width: 1360px) and (min-width: 981px) {
+  .nav-toggle {
+    display: inline-grid; place-items: center; margin-left: .75rem; order: 3;
+    width: 44px; height: 44px; background: transparent; border: 1px solid var(--line); border-radius: 4px; cursor: pointer;
+  }
+  .nav-toggle-bars, .nav-toggle-bars::before, .nav-toggle-bars::after { display: block; width: 20px; height: 2px; background: var(--yellow); position: relative; content: ""; }
+  .nav-toggle-bars::before { position: absolute; top: -6px; }
+  .nav-toggle-bars::after { position: absolute; top: 6px; }
+  .rec { order: 2; margin-left: auto; }
+  .site-nav { position: absolute; top: 100%; left: 0; right: 0; background: #0c0a06; border-bottom: 1px solid var(--line); display: none; box-shadow: 0 20px 40px rgba(0,0,0,.6); }
+  .site-nav.is-open { display: block; }
+  .site-nav ul { flex-direction: column; padding: .6rem 1rem 1rem; max-height: calc(100vh - var(--header-h) - 1rem); overflow-y: auto; }
+  .site-nav a { padding: .7rem .6rem; font-size: 1rem; }
+  .no-js .site-nav { position: static; display: block; }
 }
 
 /* ---------- Movimiento reducido ---------- */
@@ -167,3 +198,8 @@ html.fx-webgl { background: #0b0905; }
   .fx-blackout { opacity: 0 !important; }
 }
 @media print { .fx-corridor, .fx-osd, .fx-hum, .fx-blackout, .fx-entity, .fx-veil, .fx-intro { display: none !important; } }
+
+/* evita desbordes horizontales de las tarjetas de descarga en móvil */
+.download-box > *, .mp-grid > * { min-width: 0; }
+.requirements { overflow-x: auto; }
+.download-main code { word-break: break-all; }

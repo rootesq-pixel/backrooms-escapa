@@ -563,6 +563,17 @@
      7. Bucle principal
      ==================================================================== */
   var heroEl = $('#inicio');
+  var pendingReveal = $$('.reveal'), lastRevealCheck = 0;
+  function checkReveal(now) {
+    lastRevealCheck = now || 0;
+    pendingReveal = pendingReveal.filter(function (s) {
+      if (s.classList.contains('is-visible')) return false;
+      var r = s.getBoundingClientRect();
+      if (r.top < window.innerHeight && r.bottom > 0) { s.classList.add('is-visible'); return false; }
+      return true;
+    });
+  }
+  window.addEventListener('scroll', function () { if (pendingReveal.length) checkReveal(performance.now()); }, { passive: true });
   var driftZ = 0, lastT = performance.now(), frames = 0, acc = 0, lastFrame = 0;
   function loop(now) {
     requestAnimationFrame(loop);
@@ -581,6 +592,7 @@
     S.entity.vis += (S.entity.target - S.entity.vis) * Math.min(1, dt * (S.entity.target ? 3 : 9));
 
     updateFlashlight(now);
+    if (pendingReveal.length && now - lastRevealCheck > 250) checkReveal(now);
 
     if (!webgl) return;
     var hh = heroEl ? heroEl.offsetHeight : window.innerHeight;
@@ -601,10 +613,6 @@
       if (avg > cap * 1.6 && scale > 0.16) { scale *= 0.8; resize(true); }
       else if (avg < cap * 1.05 && scale < maxScale) { scale = Math.min(maxScale, scale * 1.08); resize(false); }
     }
-  }
-
-  if (new URLSearchParams(location.search).has('fxdebug')) {
-    window.__backroomsFX = { S: S, entity: showCorridorEntity, ghost: showDomEntity, power: setPower, fail: powerFailure };
   }
 
   if (reduce) {
