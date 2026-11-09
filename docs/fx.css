@@ -1,0 +1,169 @@
+/* =========================================================
+   BACKROOMS: ESCAPA — capa de efectos (fx.js)
+   ========================================================= */
+
+/* ---------- Pasillo WebGL de fondo ---------- */
+.fx-corridor {
+  position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: -1;
+  display: block; pointer-events: none; image-rendering: auto;
+  filter: blur(.35px) contrast(1.05);
+  transition: opacity .25s linear;
+}
+html.fx-webgl { background: #0b0905; }
+.fx-webgl body { background: transparent; }
+.fx-webgl .hero-wallpaper { display: none; }
+.fx-webgl .hero-light {
+  background:
+    radial-gradient(ellipse 55% 42% at 50% 52%, rgba(8,6,2,.55), transparent 75%),
+    linear-gradient(to bottom, transparent 70%, rgba(11,9,5,.85) 100%);
+  animation: none;
+}
+.fx-webgl .hero { background: transparent; }
+.fx-webgl .section-dark { background: rgba(14, 12, 7, .9); }
+
+/* ---------- Apagón ---------- */
+.fx-blackout { position: fixed; inset: 0; background: #000; opacity: 0; pointer-events: none; z-index: 870; }
+.fx-power-off .fluo-bar { opacity: .06 !important; animation: none; box-shadow: none; }
+.fx-power-off .logo { opacity: .45; animation: none; }
+.fx-power-off .rec-dot { box-shadow: 0 0 14px 3px var(--red); }
+
+/* ---------- OSD de videocámara ---------- */
+.fx-osd {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 905; pointer-events: none;
+  display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem;
+  padding: 0 1.1rem .9rem; font-family: var(--mono); font-size: .8rem; letter-spacing: .12em;
+  color: rgba(255,255,255,.82); text-shadow: 2px 0 rgba(255,40,80,.45), -2px 0 rgba(40,255,230,.35), 0 0 6px rgba(0,0,0,.9);
+  text-transform: uppercase;
+}
+.fx-osd-l, .fx-osd-r { display: flex; align-items: center; gap: .7rem; padding-left: 3.2rem; }
+.fx-osd-r { padding-left: 0; padding-right: 0; }
+.fx-play { color: #fff; }
+.fx-sp { opacity: .75; }
+.fx-ch { color: #fff3b5; }
+.fx-batt { display: inline-flex; gap: 2px; padding: 2px 3px; border: 1px solid rgba(255,255,255,.8); position: relative; }
+.fx-batt::after { content: ""; position: absolute; right: -4px; top: 3px; width: 2px; height: 5px; background: rgba(255,255,255,.8); }
+.fx-batt i { width: 4px; height: 7px; background: rgba(255,255,255,.85); }
+.fx-batt i:nth-child(3) { animation: fx-batt 1.4s steps(1) infinite; }
+@keyframes fx-batt { 50% { opacity: 0; } }
+.fx-osd-blip .fx-ch { animation: fx-blip .5s steps(5); }
+@keyframes fx-blip {
+  0% { opacity: 0; transform: translateX(-6px); } 20% { opacity: 1; } 40% { opacity: .2; transform: translateX(4px); }
+  60% { opacity: 1; transform: none; } 100% { opacity: 1; }
+}
+
+/* ---------- Botón de zumbido ---------- */
+.fx-hum {
+  position: fixed; left: .9rem; bottom: .7rem; z-index: 910;
+  display: inline-flex; align-items: center; gap: .45rem; padding: .35rem .6rem;
+  font: 700 .72rem/1 var(--mono); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--yellow); background: rgba(10,8,4,.78); border: 1px solid var(--line); border-radius: 4px; cursor: pointer;
+}
+.fx-hum:hover { border-color: var(--yellow); }
+.fx-hum-ico { width: 10px; height: 10px; border-radius: 50%; border: 2px solid currentColor; }
+.fx-hum.is-on .fx-hum-ico { background: currentColor; box-shadow: 0 0 8px currentColor; animation: fx-hum 0.12s steps(2) infinite; }
+@keyframes fx-hum { 50% { opacity: .6; } }
+.fx-osd-l { padding-left: 9.5rem; }
+
+/* ---------- Entidad ---------- */
+.fx-entity {
+  position: fixed; bottom: 0; height: 78vh; width: auto; aspect-ratio: 60 / 300;
+  z-index: 875; pointer-events: none; opacity: 0;
+  filter: blur(1.2px) drop-shadow(0 0 14px rgba(242,214,92,.28));
+}
+.fx-entity svg { width: 100%; height: 100%; display: block; fill: #050403; }
+.fx-entity .fx-eye { fill: #fff6d0; filter: drop-shadow(0 0 3px #fff); }
+.fx-entity.is-on { opacity: .92; animation: fx-ent .9s steps(6) forwards; }
+@keyframes fx-ent {
+  0% { transform: translateX(0) scaleY(1); } 30% { transform: translateX(3px) skewX(1deg); }
+  60% { transform: translateX(-2px); opacity: .7; } 100% { transform: translateX(1px); opacity: .85; }
+}
+
+/* ---------- Titulares corruptos ---------- */
+.fx-head { position: relative; }
+.fx-decoding { color: #fff8d2 !important; text-shadow: 3px 0 rgba(255,30,70,.7), -3px 0 rgba(30,255,230,.6); }
+.fx-glitch-pulse { animation: fx-gp .4s steps(1); }
+@keyframes fx-gp {
+  0% { transform: none; text-shadow: none; }
+  10% { transform: translate(-4px, 1px) skewX(-8deg); text-shadow: 4px 0 #ff2a55, -4px 0 #2affea; clip-path: inset(10% 0 30% 0); }
+  25% { transform: translate(5px, -1px); text-shadow: -5px 0 #ff2a55, 5px 0 #2affea; clip-path: inset(50% 0 0 0); }
+  40% { transform: translate(-2px, 0) scaleY(1.15); text-shadow: 2px 0 #ff2a55, -2px 0 #2affea; clip-path: none; filter: blur(.6px); }
+  55% { transform: translate(3px, 0); text-shadow: none; opacity: .5; }
+  70% { transform: none; opacity: 1; filter: none; }
+  100% { transform: none; text-shadow: none; clip-path: none; }
+}
+.hero h1.fx-glitch-pulse { animation-duration: .4s; }
+
+/* ---------- Linterna en secciones oscuras ---------- */
+.fx-dark { --fx-x: 50%; --fx-y: 40%; --fx-r: 260px; }
+.fx-veil {
+  position: absolute; inset: 0; pointer-events: none; z-index: 3;
+  background:
+    radial-gradient(circle var(--fx-r) at var(--fx-x) var(--fx-y), rgba(255, 238, 170, .16) 0%, rgba(255,238,170,.06) 35%, rgba(4,3,1,0) 52%, rgba(4,3,1,.42) 80%, rgba(3,2,1,.55) 100%);
+  mix-blend-mode: normal;
+  mix-blend-mode: normal;
+}
+.fx-dark .monster-img img, .fx-dark img { transition: filter .2s; }
+.fx-dark .monster-card:hover .monster-img img { filter: brightness(1.2) contrast(1.15); }
+
+/* ---------- Imágenes con fallo de cinta al pasar el ratón ---------- */
+.level-card:hover img, .monster-card:hover img, .gallery-btn:hover img, .gallery-btn:focus-visible img {
+  animation: fx-img-vhs .55s steps(4) 1;
+}
+@keyframes fx-img-vhs {
+  0% { transform: none; filter: none; }
+  25% { transform: translateX(-3px) skewX(-1deg); filter: hue-rotate(-20deg) saturate(1.6) contrast(1.2) drop-shadow(4px 0 0 rgba(255,0,60,.5)); }
+  50% { transform: translateX(3px); filter: contrast(1.3) brightness(1.15) drop-shadow(-4px 0 0 rgba(0,255,230,.45)); }
+  75% { transform: translateX(-1px); filter: saturate(.7) brightness(.9); }
+  100% { transform: none; filter: none; }
+}
+
+/* ---------- Transición noclip ---------- */
+.fx-noclipping .fx-corridor { z-index: 880; opacity: 1 !important; transition: none; }
+.fx-noclipping main, .fx-noclipping .site-header { animation: fx-noclip-in .42s ease-in forwards; }
+.fx-noclip-out main, .fx-noclip-out .site-header { animation: fx-noclip-out .52s ease-out forwards; }
+@keyframes fx-noclip-in {
+  0% { filter: none; transform: none; opacity: 1; }
+  40% { filter: hue-rotate(40deg) contrast(1.6); transform: scale(1.02) skewX(-2deg); }
+  100% { filter: blur(6px) brightness(1.8); transform: scale(1.18); opacity: 0; }
+}
+@keyframes fx-noclip-out {
+  0% { filter: blur(6px) brightness(1.8); transform: scale(.9); opacity: 0; }
+  60% { filter: contrast(1.3); transform: skewX(1deg); opacity: 1; }
+  100% { filter: none; transform: none; opacity: 1; }
+}
+.fx-nogl.fx-noclipping .fx-blackout { opacity: .9 !important; }
+
+/* ---------- Intro de cinta ---------- */
+.fx-intro { position: fixed; inset: 0; z-index: 2000; pointer-events: none; font-family: var(--mono); }
+.fx-intro-blue {
+  position: absolute; inset: 0; background: #0a1ca8; color: #fff; padding: 2rem 2.2rem;
+  display: flex; gap: 1rem; font-size: clamp(1rem, 2.4vw, 1.6rem); letter-spacing: .14em;
+  text-shadow: 3px 0 rgba(255,60,90,.6), -3px 0 rgba(60,255,230,.5);
+}
+.fx-intro-blue::after { content: ""; position: absolute; inset: 0; background: repeating-linear-gradient(to bottom, rgba(0,0,0,.18) 0 2px, transparent 2px 4px); }
+.fx-intro-sp { margin-left: auto; }
+.fx-intro-title { position: absolute; left: 0; right: 0; top: 42%; text-align: center; font-size: clamp(1.6rem, 6vw, 3.6rem); font-weight: 800; line-height: 1.1; margin: 0; animation: fx-blip .6s steps(5); }
+.fx-intro-title small { font-size: .38em; letter-spacing: .3em; opacity: .85; }
+.fx-intro-track { position: absolute; left: 0; right: 0; bottom: 12%; text-align: center; font-size: .8em; margin: 0; }
+.fx-intro-static { position: absolute; inset: 0; width: 100%; height: 100%; opacity: 0; image-rendering: pixelated; }
+.fx-intro.is-static .fx-intro-static { opacity: 1; }
+.fx-intro.is-out { opacity: 0; transition: opacity .8s ease; }
+.fx-intro.is-out .fx-intro-static { opacity: .6; }
+
+/* ---------- Móvil ---------- */
+@media (max-width: 640px) {
+  .fx-osd { font-size: .66rem; padding-bottom: .65rem; letter-spacing: .08em; }
+  .fx-osd-r #fx-date { display: none; }
+  .fx-osd-l { padding-left: 8.3rem; }
+  .fx-osd-l .fx-sp, .fx-osd-l .fx-play { display: none; }
+  .fx-hum { font-size: .64rem; padding: .3rem .5rem; }
+  .fx-entity { height: 60vh; }
+  .fx-corridor { filter: none; }
+}
+
+/* ---------- Movimiento reducido ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .fx-intro, .fx-entity, .fx-veil { display: none !important; }
+  .fx-blackout { opacity: 0 !important; }
+}
+@media print { .fx-corridor, .fx-osd, .fx-hum, .fx-blackout, .fx-entity, .fx-veil, .fx-intro { display: none !important; } }
