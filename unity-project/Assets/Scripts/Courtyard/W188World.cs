@@ -706,13 +706,14 @@ public class W188World : MonoBehaviour
         Box(g, LINEN, s, uc - 0.2f, uc + 0.2f, yc - 0.55f, yc - 0.35f, 1.81f, 2.21f, 1f);
         if (k == W188Plan.Kind.Room)
         {   // escritorio estrecho y silla contra la medianera (no en el cuarto de la salida: su paso queda libre)
-            Box(g, WOOD, s, b - 0.42f, b, y0 + 0.72f, y0 + 0.76f, 2.0f, 3.0f, 1f);
-            foreach (float ld in new[] { 2.03f, 2.97f }) Box(g, WOOD, s, b - 0.4f, b - 0.36f, y0, y0 + 0.72f, ld - 0.02f, ld + 0.02f, 1f);
-            Box(g, WOOD, s, b - 0.42f, b - 0.02f, y0 + 0.5f, y0 + 0.72f, 2.6f, 2.98f, 1f);   // cajonera
-            Col(s, b - 0.42f, b, y0, y0 + 0.76f, 2.0f, 3.0f);
-            Box(g, LINEN, s, b - 0.3f, b - 0.08f, y0 + 0.76f, y0 + 0.79f, 2.2f, 2.5f, 1f);   // papeles
+            // (junto a la ventana, fuera del paso natural de la puerta al cristal)
+            Box(g, WOOD, s, b - 0.36f, b, y0 + 0.72f, y0 + 0.76f, 0.45f, 1.25f, 1f);
+            foreach (float ld in new[] { 0.48f, 1.22f }) Box(g, WOOD, s, b - 0.34f, b - 0.30f, y0, y0 + 0.72f, ld - 0.02f, ld + 0.02f, 1f);
+            Box(g, WOOD, s, b - 0.36f, b - 0.02f, y0 + 0.5f, y0 + 0.72f, 0.47f, 0.85f, 1f);   // cajonera
+            Col(s, b - 0.36f, b, y0, y0 + 0.76f, 0.45f, 1.25f);
+            Box(g, LINEN, s, b - 0.28f, b - 0.07f, y0 + 0.76f, y0 + 0.79f, 0.9f, 1.18f, 1f);   // papeles
             // silla de madera, un poco girada (sin colisión)
-            float cu = b - 0.7f, cd = 2.45f;
+            float cu = b - 0.62f, cd = 0.85f;
             Box(g, WOOD, s, cu - 0.21f, cu + 0.21f, y0 + 0.44f, y0 + 0.48f, cd - 0.21f, cd + 0.21f, 1f);
             foreach (float lu in new[] { cu - 0.18f, cu + 0.18f }) foreach (float ld in new[] { cd - 0.18f, cd + 0.18f }) Box(g, WOOD, s, lu - 0.02f, lu + 0.02f, y0, y0 + 0.44f, ld - 0.02f, ld + 0.02f, 1f);
             Box(g, WOOD, s, cu - 0.21f, cu - 0.18f, y0 + 0.48f, y0 + 0.92f, cd - 0.21f, cd + 0.21f, 1f);
