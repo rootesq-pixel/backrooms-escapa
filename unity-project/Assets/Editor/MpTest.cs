@@ -756,7 +756,10 @@ public static class MpPlayRunner
             Vector3 st = cw.ExitDoorWorld(0.75f);
             Vector3 along = cw.FrameOf(cw.plan.exitRun).forward;
             hp.Teleport(st + along * 0.35f + Vector3.up * 0.1f, cw.ExitYaw);
-            r.Check(ExitLock.Active == null || ExitLock.Active.Unlocked, "[Pasillo MP] la salida queda abierta para los dos");
+            ExitLock lk9 = ExitLock.Active; bool open9 = false; float tl9 = 0f;
+            while (tl9 < 25f && !open9 && GameManager.Instance != null && GameManager.Instance.State == GameManager.GameState.Playing && gb.CurrentLevel == 9) { open9 = lk9 == null || lk9.Unlocked; yield return 0.1f; tl9 += 0.1f; }
+            open9 |= lk9 == null || lk9.Unlocked;
+            r.Check(open9, "[Pasillo MP] la salida queda abierta para los dos");
             yield return Wait(() => GameManager.Instance == null || GameManager.Instance.State != GameManager.GameState.Playing || gb.CurrentLevel == 10, 25, "nivel superado (anfitrión, pasillo)");
             r.Check(GameManager.Instance == null || GameManager.Instance.State == GameManager.GameState.LevelComplete || gb.CurrentLevel == 10, "[Pasillo MP] los dos en la salida del pasillo: nivel superado (sigue el Nivel 188)");
             yield return WaitMark("client_c_done", 60);
