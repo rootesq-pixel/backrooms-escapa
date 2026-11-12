@@ -68,6 +68,7 @@ public class GameBootstrap : MonoBehaviour
         AudioBuildCheck.MaybeStart(gameObject);  // v7.3.0: medición del audio en el ejecutable (solo con -audiocheck)
         ThumbBuildCheck.MaybeStart(gameObject);  // v7.3.0: miniaturas de los niveles y captura del menú (solo con -thumbs)
         UpdateBuildCheck.MaybeStart(gameObject); // v7.5.0: prueba del auto-actualizador sobre una copia (solo con -updatetest)
+        W188BuildShots.MaybeStart(gameObject);   // v7.12.0: capturas del Nivel 188 en el ejecutable (solo con -w188shots)
     }
 
     // Menús (UIManager) y overlay de camcorder: persisten durante toda la sesión
