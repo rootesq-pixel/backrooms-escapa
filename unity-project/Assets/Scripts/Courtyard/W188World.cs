@@ -185,6 +185,7 @@ public class W188World : MonoBehaviour
         }
         GlassMat = g;
         FigureMat = Plain("Silhouette", new Color(0.075f, 0.066f, 0.062f), 0.55f);   // negro mate con un leve brillo: la contraluz le dibuja el borde
+        ToRim(FigureMat, 0.42f, 0.12f, 3.2f);   // piel: borde fino
         ExitViewMat = EmissiveImage("W188_ExitView", Resources.Load<Texture2D>("W188/W188ExitView"), 1.25f);
     }
 
@@ -735,8 +736,11 @@ public class W188World : MonoBehaviour
     void BuildEntityRoom(int s, int f, int i, float u0, float u1, float y0, float yc, float uc)
     {
         Box(0, GLOW, s, u0 + 0.4f, u0 + 1.4f, y0 + 0.3f, y0 + 2.1f, W188Plan.RoomEnd - 0.012f, W188Plan.RoomEnd - 0.002f, 1f);
-        Light l = MakePoint(P(s, uc - 0.6f, y0 + 1.9f, 2.6f), 4.8f, 1.15f, new Color(0.85f, 0.32f, 0.18f)); l.renderMode = LightRenderMode.ForcePixel;   // si no, con 8 lámparas de pasillo por píxel queda en vértices y el cuarto se ve negro
+        Light l = MakePoint(P(s, uc - 0.6f, y0 + 1.9f, 2.6f), 5.6f, 1.7f, new Color(0.85f, 0.34f, 0.2f)); l.renderMode = LightRenderMode.ForcePixel;   // si no, con 8 lámparas de pasillo por píxel queda en vértices y el cuarto se ve negro
         Lamps.Add(new Lamp { l = l, f0 = f, f1 = f, always = true, baseI = l.intensity });
+        // rebote tenue en el techo (v7.12: el cuarto quedaba casi negro desde la puerta; sin sombras, solo para leer paredes y suelo)
+        Light bl = MakePoint(P(s, uc + 0.3f, yc - 0.25f, 2.7f), 4.6f, 0.45f, new Color(0.62f, 0.42f, 0.34f)); bl.renderMode = LightRenderMode.ForcePixel; bl.shadows = LightShadows.None;
+        Lamps.Add(new Lamp { l = bl, f0 = f, f1 = f, always = true, baseI = bl.intensity });
         Figure fig = new Figure { f = f, s = s, i = i, phase = (f * 7 + s * 3 + i) * 0.37f };
         Transform root = new GameObject("WindowFigure").transform; root.SetParent(propRoot, false);
         root.localPosition = P(s, uc, y0, 1.05f);
@@ -809,6 +813,8 @@ public class W188World : MonoBehaviour
         {
             Material c = OceanGeo.PbrMat("W188/W188Curtain", new Color(0.13f, 0.12f, 0.115f), 0.8f, o => { }); c.name = "W188_FigureCloth";
             if (c.HasProperty("_Glossiness")) c.SetFloat("_Glossiness", 0.22f);
+            ToRim(c, 0.72f, 0.7f, 2.0f);   // camisón: borde más ancho y algo de luz que atraviesa los pliegues
+            if (c.HasProperty("_BumpScale")) c.SetFloat("_BumpScale", 1.6f);
             FigureCloth = c;
         }
         foreach (SkinnedMeshRenderer r in g.GetComponentsInChildren<SkinnedMeshRenderer>())
@@ -820,6 +826,21 @@ public class W188World : MonoBehaviour
         }
         PoseFigure(rig, beckon ? 0.3f : 0f, 0f, 0f, 0f, beckon);
         return rig;
+    }
+    static Shader rimShader; static bool rimTried;
+    // material de la Ventana con borde translúcido (fresnel) del color de la contraluz (Resources/W188/W188FigureRim.shader)
+    public static void ToRim(Material m, float strength, float trans, float power)
+    {
+        if (m == null) return;
+        if (!rimTried) { rimTried = true; rimShader = Resources.Load<Shader>("W188/W188FigureRim"); }
+        if (rimShader == null || !rimShader.isSupported) return;
+        Texture mt = m.HasProperty("_MainTex") ? m.GetTexture("_MainTex") : null, bt = m.HasProperty("_BumpMap") ? m.GetTexture("_BumpMap") : null;
+        Vector2 sc = m.HasProperty("_MainTex") ? m.mainTextureScale : Vector2.one;
+        float gl = m.HasProperty("_Glossiness") ? m.GetFloat("_Glossiness") : 0.4f; Color col = m.color;
+        m.shader = rimShader;
+        m.color = col; if (mt != null) { m.SetTexture("_MainTex", mt); m.mainTextureScale = sc; } if (bt != null) m.SetTexture("_BumpMap", bt);
+        m.SetFloat("_Glossiness", gl); m.SetFloat("_RimStrength", strength); m.SetFloat("_Trans", trans); m.SetFloat("_RimPower", power);
+        m.SetColor("_RimColor", new Color(0.62f, 0.66f, 0.74f));
     }
     static void Aim(Transform b, Transform child, Vector3 dir) { if (b == null || child == null) return; Vector3 cur = child.position - b.position; if (cur.sqrMagnitude < 1e-8f) return; b.rotation = Quaternion.FromToRotation(cur, dir) * b.rotation; }
     // pose procedural (cada frame): curl 0..1 = dedos doblados hacia la palma; k = vaivén del antebrazo; t = tiempo; ph = desfase
@@ -843,7 +864,7 @@ public class W188World : MonoBehaviour
         Vector3 foreDir = R.TransformDirection(new Vector3(0.16f * sx, 0.8f, 0.42f - 0.12f * k).normalized);   // antebrazo casi vertical: la mano junto a la cabeza, a la vista
         Aim(r.fore, r.hand, foreDir);
         // la palma hacia arriba/atrás y los dedos que se doblan hacia ella
-        Vector3 handDir = Quaternion.AngleAxis(-(20f + 25f * curl), right) * foreDir;
+        Vector3 handDir = Quaternion.AngleAxis(-(10f + 14f * curl), right) * foreDir;
         if (r.hand != null && r.fingers.Count > 1) Aim(r.hand, r.fingers[1], handDir);
         // giro de la muñeca: la palma de cara (ancho de la mano a lo largo de la derecha de la figura), para que se vea la mano entera
         if (r.hand != null && r.fingers.Count >= 4 && r.fingers[0] != null && r.fingers[3] != null)
@@ -857,11 +878,13 @@ public class W188World : MonoBehaviour
                 r.hand.rotation = Quaternion.AngleAxis(ang, hd) * r.hand.rotation;
             }
         }
+        // mano abierta con los dedos separados; el índice (q 0, junto al pulgar) es el que llama, los demás apenas se doblan
         for (int q = 0; q < r.fingers.Count; q++)
         {
-            float c = Mathf.Clamp01(curl * 1.15f - q * 0.05f);
-            if (r.fingers[q] != null) r.fingers[q].rotation = Quaternion.AngleAxis(-(15f + 80f * c), right) * r.fingers[q].rotation;
-            if (q < r.fing2.Count && r.fing2[q] != null) r.fing2[q].rotation = Quaternion.AngleAxis(-(10f + 75f * c), right) * r.fing2[q].rotation;
+            float c = Mathf.Clamp01(curl * 1.1f - q * 0.04f);
+            float a1 = q == 0 ? 6f + 72f * c : 4f + 24f * c, a2 = q == 0 ? 5f + 62f * c : 3f + 20f * c;
+            if (r.fingers[q] != null) r.fingers[q].rotation = Quaternion.AngleAxis(-a1, right) * r.fingers[q].rotation;
+            if (q < r.fing2.Count && r.fing2[q] != null) r.fing2[q].rotation = Quaternion.AngleAxis(-a2, right) * r.fing2[q].rotation;
         }
     }
     static GameObject Part(PrimitiveType t, string n, Transform parent, Vector3 pos, Vector3 scale, Material m, Vector3 euler = default(Vector3))

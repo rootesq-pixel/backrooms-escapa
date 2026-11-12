@@ -37,14 +37,14 @@ for s in (-1, 1):
     v("forearm"+L, 0.235*s, 0.01, 1.06, 0.032)
     v("wrist"+L, 0.245*s, 0.0, 0.885, 0.021, 0.016)
     v("palm"+L, 0.25*s, -0.004, 0.83, 0.038, 0.014)
-    for k, (dx, ln) in enumerate([(-0.024, 0.088), (-0.008, 0.104), (0.008, 0.098), (0.024, 0.078)]):
+    for k, (dx, ln) in enumerate([(-0.027, 0.09), (-0.009, 0.106), (0.009, 0.1), (0.027, 0.08)]):
         n0 = "f%d%s0" % (k, L); n1 = "f%d%s1" % (k, L); n2 = "f%d%s2" % (k, L)
         v(n0, 0.25*s + dx*s, -0.004, 0.79, 0.0105)
-        v(n1, 0.25*s + dx*s*1.05, -0.006, 0.79 - ln*0.55, 0.009)
-        v(n2, 0.25*s + dx*s*1.1, -0.008, 0.79 - ln, 0.0068)
+        v(n1, 0.25*s + dx*s*1.3, -0.006, 0.79 - ln*0.55, 0.009)
+        v(n2, 0.25*s + dx*s*1.65, -0.008, 0.79 - ln, 0.0068)
         e("palm"+L, n0); e(n0, n1); e(n1, n2)
-    v("thumb%s0" % L, 0.235*s, -0.02, 0.84, 0.01); v("thumb%s1" % L, 0.228*s, -0.045, 0.8, 0.008)
-    e("wrist"+L, "thumb%s0" % L); e("thumb%s0" % L, "thumb%s1" % L)
+    v("thumb%s0" % L, 0.232*s, -0.022, 0.845, 0.0115); v("thumb%s1" % L, 0.222*s, -0.055, 0.805, 0.0095); v("thumb%s2" % L, 0.218*s, -0.075, 0.772, 0.0072)
+    e("wrist"+L, "thumb%s0" % L); e("thumb%s0" % L, "thumb%s1" % L); e("thumb%s1" % L, "thumb%s2" % L)
     e("pelvis", "hip"+L); e("hip"+L, "thigh"+L); e("thigh"+L, "knee"+L); e("knee"+L, "calf"+L); e("calf"+L, "ankle"+L)
     e("ankle"+L, "heel"+L); e("ankle"+L, "toe"+L)
     e("upchest", "clav"+L); e("clav"+L, "shoulder"+L); e("shoulder"+L, "biceps"+L); e("biceps"+L, "elbow"+L)
@@ -131,7 +131,7 @@ for L in ("L", "R"):
     for k in range(4):
         bone("Finger%d.%s.1" % (k, L), "f%d%s0" % (k, L), "f%d%s1" % (k, L), "Hand."+L)
         bone("Finger%d.%s.2" % (k, L), "f%d%s1" % (k, L), "f%d%s2" % (k, L), "Finger%d.%s.1" % (k, L))
-    bone("Thumb."+L, "thumb%s0" % L, "thumb%s1" % L, "Hand."+L)
+    bone("Thumb."+L, "thumb%s0" % L, "thumb%s2" % L, "Hand."+L)
     bone("Thigh."+L, "hip"+L, "knee"+L, "Hips"); bone("Shin."+L, "knee"+L, "ankle"+L, "Thigh."+L); bone("Foot."+L, "ankle"+L, "toe"+L, "Shin."+L)
 bpy.ops.object.mode_set(mode="OBJECT")
 bpy.ops.object.select_all(action="DESELECT"); ob.select_set(True); ao.select_set(True); bpy.context.view_layer.objects.active = ao
