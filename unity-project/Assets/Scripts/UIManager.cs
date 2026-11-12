@@ -531,9 +531,10 @@ public class UIManager : MonoBehaviour
         UiStyle.Rect(root.transform, "TitleRule", 0f, 372f, 1760f, 2f, UiStyle.Border);
         // v7.3.0b: rejilla y vista previa sin solaparse (antes la vista previa tapaba la tarjeta 3)
         // v7.7.0: 9 niveles -> rejilla de 5 x 2 (antes 4 x 2) para no tapar «Volver»
-        const int cols = 5;
-        const float cw = 236f, chh = 133f, ch = 212f;
-        float[] cx = { -790f, -534f, -278f, -22f, 234f }, cy = { 160f, -100f };
+        // v7.12.0: 11 niveles -> rejilla de 6 x 2 con tarjetas algo más pequeñas (sin pisar la vista previa ni «Volver»)
+        const int cols = 6;
+        const float cw = 196f, chh = 110f, ch = 184f;
+        float[] cx = { -800f, -592f, -384f, -176f, 32f, 240f }, cy = { 150f, -90f };
         lvCards.Clear();
         for (int i = 0; i < LevelConfig.Count; i++)
         {

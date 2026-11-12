@@ -125,6 +125,11 @@ public static class LoreNotes
             "Hoja pegada con cinta|He contado 212 puertas y luego he dejado de contar. Son todas iguales: blancas, la manilla a la misma altura, el mismo arañazo en el marco. Casi todas están cerradas. Las que se abren dan a la misma habitación vacía.",
             "Tarjeta de visita en blanco|No hay nadie más aquí. Lo sé. Pero cuando camino, alguien camina detrás de mí, al mismo paso. Si me giro, se calla. Si me paro, se para. No te gires mucho: no le gusta que lo busquen.",
             "Nota doblada en cuatro|Detrás de una de estas puertas hay un muro de ladrillo. Detrás de otra, la salida: una puerta que no se abre con la manilla, sino con la llave buena. Las llaves están en las habitaciones. Solo una encaja." },
+        // Nivel 10 — Nivel 188, El Patio de las Ventanas (canon: «The Windows»)
+        new[] {
+            "Postal sin sello|Un patio con el cielo encima y cinco plantas de ventanitas alrededor. Casi todas tienen la cortina echada. En algunas hay luz detrás. Nunca he visto a nadie asomarse. Bueno: casi nunca.",
+            "Hoja de bloc de hotel|Si una ventana no tiene cortina y dentro está oscuro, y algo te hace señas desde el cristal, no vayas. Su puerta está entornada a propósito. Las otras ventanas sin cortina enseñan otros sitios, pero sus puertas no se abren.",
+            "Nota escrita a lápiz|No descorras las cortinas de las habitaciones: lo hice y ya no estaba en el cuarto, sino en un pasillo de otra planta. La salida es la ventana con sol. Su puerta está cerrada con llave. La sombra del rabillo del ojo no hace nada: no la mires y ya." },
     };
 
     public static int Total { get { return data.Length * PerLevel; } }

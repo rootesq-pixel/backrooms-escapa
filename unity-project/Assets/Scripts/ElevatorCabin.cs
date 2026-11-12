@@ -50,7 +50,8 @@ public class ElevatorCabin : MonoBehaviour
         new Color(1.00f, 0.90f, 0.78f),   // 6 parque de bolas: fluorescente cálido y desvaído
         new Color(0.62f, 0.86f, 0.92f),   // 7 talasofobia: luz fría y húmeda, verdeazulada
         new Color(1.00f, 0.88f, 0.70f),   // 8 Nivel 114 desierto: cálida, como la arena al sol
-        new Color(0.96f, 0.97f, 1.00f)    // 9 Nivel 7460 pasillo de puertas: blanco neutro de los plafones
+        new Color(0.96f, 0.97f, 1.00f),   // 9 Nivel 7460 pasillo de puertas: blanco neutro de los plafones
+        new Color(0.90f, 0.93f, 0.98f)    // 10 Nivel 188 patio de las ventanas: luz de día nublada
     };
 
     public Phase CurrentPhase { get; private set; }
@@ -173,10 +174,16 @@ public class ElevatorCabin : MonoBehaviour
             Vector3 st = CorridorWorld.Active.levelRoot.TransformPoint(CorridorWorld.Active.StartLocal);
             pos = st - Forward * (frontExtent + 0.02f); pos.y = st.y - 0.12f;
         }
+        // v7.12.0 Nivel 188: la cabina queda dentro del cuarto del ascensor (planta baja), con el frente en el hueco de la fachada
+        if (config.layout == LayoutKind.Courtyard && W188World.Active != null)
+        {
+            Vector3 st = W188World.Active.levelRoot.TransformPoint(W188World.Active.StartLocal);
+            pos = st - Forward * (frontExtent + 0.02f); pos.y = st.y - 0.12f;
+        }
         transform.SetPositionAndRotation(pos, rot);
 
         BuildModel();
-        bool openShell = config.layout == LayoutKind.Field || config.layout == LayoutKind.Ocean || config.layout == LayoutKind.Desert || config.layout == LayoutKind.Corridor;   // v7.3.0: en el mar la cabina asoma detrás de la casa inundada
+        bool openShell = config.layout == LayoutKind.Field || config.layout == LayoutKind.Ocean || config.layout == LayoutKind.Desert || config.layout == LayoutKind.Corridor || config.layout == LayoutKind.Courtyard;   // v7.3.0: en el mar la cabina asoma detrás de la casa inundada
         if (openShell) BuildFieldShell(frontExtent);
         else if (IsRealistic) BuildLanding(config);
         BuildColliders(openShell ? 0f : config.cellSize, frontExtent);

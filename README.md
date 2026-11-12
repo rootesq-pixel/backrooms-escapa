@@ -1,6 +1,6 @@
 # BACKROOMS: ESCAPA
 
-Juego de terror en primera persona para PC (Windows 64 bits) hecho con **Unity**: escapa de las Backrooms a través de **10 niveles** encadenados. Cada nivel es un laberinto (o aparcamiento abierto, campo, mar, desierto o un pasillo infinito) procedural con su propia estética, luces, dificultad y criaturas que patrullan y te persiguen (el Nivel 114, el desierto cálido, y el Nivel 7460, el pasillo de las puertas, no tienen entidades). La salida es una puerta discreta que **solo se descubre explorando**: sin cartel, sin flecha, sin indicador de distancia.
+Juego de terror en primera persona para PC (Windows 64 bits) hecho con **Unity**: escapa de las Backrooms a través de **11 niveles** encadenados. Cada nivel es un laberinto (o aparcamiento abierto, campo, mar, desierto, un pasillo infinito o un patio de ventanas) procedural con su propia estética, luces, dificultad y criaturas que patrullan y te persiguen (el Nivel 114, el desierto cálido, y el Nivel 7460, el pasillo de las puertas, no tienen entidades). La salida es una puerta discreta que **solo se descubre explorando**: sin cartel, sin flecha, sin indicador de distancia.
 
 - 🌐 **Web:** https://rootesq-pixel.github.io/backrooms-escapa/
 - ⬇️ **Descarga directa v7.3.0 (Windows, ZIP ≈ 201 MB):** [BackroomsEscape_v7_3_0_Windows.zip](https://github.com/rootesq-pixel/backrooms-escapa/releases/download/v7.3.0/BackroomsEscape_v7_3_0_Windows.zip)
@@ -27,6 +27,7 @@ Juego de terror en primera persona para PC (Windows 64 bits) hecho con **Unity**
 | 5 | Campo infinito | Hierba alta sin fin, niebla, casas abandonadas y un mundo que se repite | El Vigía |
 | 6 | Parque de bolas | Parque infantil cubierto abandonado: piscinas de bolas, toboganes, redes, sala de cumpleaños y mostrador de meriendas; fluorescentes que parpadean | El Sumergido (se esconde bajo las bolas) |
 | 7 | Talasofobia | Una casa inundada se abre a un mar gris sin fin: niebla, casas sobre pilotes, una barca, un faro enorme a lo lejos y, bajo el muelle, una fosa negra que hay que bajar en jaula con casco de buzo | Los Pálidos (peces que rondan a quien nada) y El Farolero (un rape gigante en el fondo) |
+| 10 (Nivel 188) | El Patio de las Ventanas | Patio interior con cielo gris rodeado por cinco plantas de ventanas con cortinas; pasillos en anillo, escaleras en las esquinas. Algunas ventanas muestran otros niveles; una sola da a un prado con sol: es la salida | La Ventana (siluetas que te hacen señas: no entres) y los Periféricos (solo de reojo) |
 
 La puerta de salida está **cerrada con llave**: en cada nivel hay 4-6 llaves parecidas y solo una la abre. Al cruzarla con la llave buena se carga el siguiente nivel. El nivel 7 (Talasofobia) no tiene puerta: se sale buceando por una gruta submarina hasta una poza con aire, y ahí aparece la pantalla de victoria (tiempo total e intentos fallidos). Si te atrapan, el nivel se reinicia.
 

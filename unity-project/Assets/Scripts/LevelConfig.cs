@@ -1,6 +1,6 @@
 using UnityEngine;
 
-public enum LayoutKind { Maze, OpenPillars, Field, Ocean, Desert, Corridor }   // Corridor = Nivel 7460 (CorridorWorld)   // v7.3.0: Ocean = Talasofobia (mar abierto, OceanWorld); v7.7.0: Desert = Nivel 114 (DesertWorld)
+public enum LayoutKind { Maze, OpenPillars, Field, Ocean, Desert, Corridor, Courtyard }   // Courtyard = Nivel 188 (W188World, v7.12.0)   // Corridor = Nivel 7460 (CorridorWorld)   // v7.3.0: Ocean = Talasofobia (mar abierto, OceanWorld); v7.7.0: Desert = Nivel 114 (DesertWorld)
 public enum FixtureKind { Panel, Tube, Sconce, Emergency }
 public enum AmbientEvent { None, Drip, Clank }   // v7.3.0d: sin crujido de madera (el usuario lo quitó)
 public enum StepKind { Carpet, Concrete, Water, Metal, Grass, Sand }
@@ -114,7 +114,7 @@ public class LevelConfig
     public Color doorColor = new Color(0.55f, 0.52f, 0.38f);
     public Color doorFrameColor = new Color(0.30f, 0.24f, 0.14f);
 
-    public const int Count = 10;   // nivel 9 = Nivel 7460 (El pasillo de las puertas)   // v7.3.0: nivel 7 (Talasofobia); v7.7.0: nivel 8 = Nivel 114 (El Desierto Cálido)
+    public const int Count = 11;   // v7.12.0: nivel 10 = Nivel 188 (El Patio de las Ventanas)   // nivel 9 = Nivel 7460 (El pasillo de las puertas)   // v7.3.0: nivel 7 (Talasofobia); v7.7.0: nivel 8 = Nivel 114 (El Desierto Cálido)
     private static LevelConfig[] cache;
 
     public static LevelConfig Get(int index)
@@ -128,8 +128,9 @@ public class LevelConfig
     }
 
     public const string OceanCreaturesId = "OceanCreatures";
-    public const string NoMonsterId = "None";   // v7.7.0: el Desierto Cálido es de clase 0: ninguna entidad puede entrar
-    public bool HasMonsterAI { get { return layout != LayoutKind.Ocean && layout != LayoutKind.Desert && layout != LayoutKind.Corridor; } }
+    public const string NoMonsterId = "None";
+    public const string WindowEntitiesId = "WindowEntities";   // v7.12.0: Nivel 188: la entidad Ventana y los Periféricos (W188Events, sin NavMesh)   // v7.7.0: el Desierto Cálido es de clase 0: ninguna entidad puede entrar
+    public bool HasMonsterAI { get { return layout != LayoutKind.Ocean && layout != LayoutKind.Desert && layout != LayoutKind.Corridor && layout != LayoutKind.Courtyard; } }
     public bool NoEntities { get { return layout == LayoutKind.Desert || layout == LayoutKind.Corridor; } }   // niveles sin ninguna entidad (114, 7460)   // v7.3.0
     public static int MonsterAILevels { get { int n = 0; for (int i = 0; i < Count; i++) if (Get(i).HasMonsterAI) n++; return n; } }
 
@@ -147,10 +148,11 @@ public class LevelConfig
             case 6: c = Level6(); break;
             case 7: c = Level7(); break;
             case 8: c = Level8(); break;
-            default: c = Level9(); break;
+            case 9: c = Level9(); break;
+            default: c = Level10(); break;
         }
         // un monstruo distinto por nivel; en Talasofobia no hay monstruo de NavMesh: sus criaturas (Los Pálidos y El Farolero) son procedurales
-        c.monsterModel = c.layout == LayoutKind.Ocean ? OceanCreaturesId : c.NoEntities ? NoMonsterId : MonsterProfile.ForLevel(i).id;
+        c.monsterModel = c.layout == LayoutKind.Ocean ? OceanCreaturesId : c.layout == LayoutKind.Courtyard ? WindowEntitiesId : c.NoEntities ? NoMonsterId : MonsterProfile.ForLevel(i).id;
         return c;
     }
 
@@ -502,6 +504,41 @@ public class LevelConfig
         c.step = StepKind.Concrete;
         c.extraSpots = 9;
         c.doorColor = new Color(0.92f, 0.92f, 0.90f); c.doorFrameColor = new Color(0.92f, 0.92f, 0.90f);
+        return c;
+    }
+
+    // Nivel 10 (v7.12.0): Nivel 188 de la wiki, «The Windows» / El Patio de las Ventanas (foto de @zerstoerer): un patio interior
+    // cerrado por cinco plantas de ventanitas cuadradas con cortinas. Casi todas están corridas; las pocas «abiertas» enseñan
+    // OTRO sitio y su puerta no se abre. Pasillos en anillo detrás de las habitaciones y una escalera en una esquina del patio.
+    // Entidades: la Ventana (una silueta te hace señas desde una habitación: si entras, te atrapa) y los Periféricos (solo se
+    // ven de reojo, no hacen daño). La salida es la ventana abierta que da al exterior: su puerta se abre con la llave buena.
+    // Lo construye W188World (geometría procedural con PBR CC0 de ambientCG); todo sale de la semilla (igual en todos los equipos).
+    private static LevelConfig Level10()
+    {
+        LevelConfig c = new LevelConfig();
+        c.index = 10; c.wikiNumber = 188;
+        c.name = "El Patio de las Ventanas";
+        c.subtitle = "Un patio cerrado y cinco plantas de ventanitas con cortinas. Detrás de las pocas que están abiertas se ve otro sitio. Si alguien te hace señas desde una ventana, no entres en esa habitación.";
+        c.layout = LayoutKind.Courtyard;
+        c.gridW = 11; c.gridH = 17; c.cellSize = 3.2f; c.wallHeight = 3f;   // la rejilla es la planta baja (patio 7 × 13 módulos + anillo de 2)
+        c.loopChance = 1f; c.roomCount = 0;
+        c.wallStyle = SurfaceStyle.ConcreteWall; c.floorStyle = SurfaceStyle.ConcreteFloor; c.ceilingStyle = SurfaceStyle.ConcreteCeiling;
+        c.ambient = new Color(0.098f, 0.089f, 0.078f);   // dentro (pasillos y habitaciones); en el patio la sube W188World (cielo nublado)
+        c.fog = new Color(0.46f, 0.48f, 0.51f);
+        c.fogDensity = 0.010f;
+        c.grade = 0.3f;
+        c.reflectionIntensity = 0.55f;
+        c.fixture = FixtureKind.Panel; c.lightSpacing = 99; c.deadChance = 0f; c.flickerChance = 0f;
+        c.lightColor = new Color(1f, 0.86f, 0.66f); c.emissionColor = new Color(1.3f, 1.12f, 0.84f);
+        c.lightIntensity = 1.1f; c.lightRange = 0f; c.maxRealtimeLights = 8; c.buzzChance = 0f;
+        c.postExposure = 0.9f; c.postBloom = 0.06f; c.postThreshold = 1.2f;
+        c.flashlightDrain = 0.4f; c.flashlightRecharge = 0.12f; c.batteries = 5; c.batteryAmount = 35f; c.flashlightIntensity = 2.4f;
+        c.monsterCount = 0; c.killDistance = 1.3f;
+        c.droneHz = 50f; c.droneNoise = 0.02f; c.droneVolume = 0.10f; c.ambientEvent = AmbientEvent.None;
+        c.eventInterval = new Vector2(20f, 40f);
+        c.step = StepKind.Carpet;
+        c.extraSpots = 10;
+        c.doorColor = new Color(0.86f, 0.84f, 0.80f); c.doorFrameColor = new Color(0.86f, 0.84f, 0.80f);
         return c;
     }
 }
