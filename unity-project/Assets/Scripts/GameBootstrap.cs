@@ -68,6 +68,7 @@ public class GameBootstrap : MonoBehaviour
         AudioBuildCheck.MaybeStart(gameObject);  // v7.3.0: medición del audio en el ejecutable (solo con -audiocheck)
         ThumbBuildCheck.MaybeStart(gameObject);  // v7.3.0: miniaturas de los niveles y captura del menú (solo con -thumbs)
         UpdateBuildCheck.MaybeStart(gameObject); // v7.5.0: prueba del auto-actualizador sobre una copia (solo con -updatetest)
+        W188BuildShots.MaybeStart(gameObject);   // v7.12.0: capturas del Nivel 188 en el ejecutable (solo con -w188shots)
     }
 
     // Menús (UIManager) y overlay de camcorder: persisten durante toda la sesión
@@ -522,12 +523,13 @@ public class GameBootstrap : MonoBehaviour
         RenderSettings.fogColor = cfg.fog;
         RenderSettings.fogDensity = cfg.fogDensity;
         Shader.SetGlobalFloat("_GradeAmt", cfg.grade);
-        PostStack.LevelActive = cfg.index == 2 || cfg.layout == LayoutKind.Field || cfg.layout == LayoutKind.Ocean || cfg.layout == LayoutKind.Desert || cfg.layout == LayoutKind.Corridor;   // v6.9: post-procesado tipo POOLS (Poolrooms; v7.0 también el campo)
+        PostStack.LevelActive = cfg.index == 2 || cfg.layout == LayoutKind.Field || cfg.layout == LayoutKind.Ocean || cfg.layout == LayoutKind.Desert || cfg.layout == LayoutKind.Corridor || cfg.layout == LayoutKind.Courtyard;   // v6.9: post-procesado tipo POOLS (Poolrooms; v7.0 también el campo)
         PostStack.Exposure = cfg.postExposure; PostStack.BloomInt = cfg.postBloom; PostStack.Threshold = cfg.postThreshold;   // v7.2.0: por nivel
         Shader.SetGlobalFloat("_GradeWarm", 1f);
         Shader.SetGlobalFloat("_GradeContrast", 1.4f);
         Shader.SetGlobalFloat("_GradeExposure", 0.85f);
         if (cfg.layout == LayoutKind.Field && worldRoot != null) FieldAtmosphere.Apply(cfg, worldRoot.transform, worldAssets);
+        if (cfg.layout == LayoutKind.Courtyard) W188Events.ApplySky(cfg, worldAssets);   // v7.12.0: cielo nublado sobre el patio
     }
 
     // ------------------------------------------------------------------
@@ -570,6 +572,7 @@ public class GameBootstrap : MonoBehaviour
         if (cfg.layout == LayoutKind.Desert) { cam.clearFlags = CameraClearFlags.Skybox; cam.farClipPlane = DesertWorld.FarClip; }   // v7.7.0
         if (cfg.layout == LayoutKind.Ocean) cam.farClipPlane = 330f;
         if (cfg.layout == LayoutKind.Corridor) cam.farClipPlane = CorridorWorld.FarClip;   // Nivel 7460: el punto de fuga a 340 m   // v7.3.0: el faro se intuye a ~230 m entre la niebla
+        if (cfg.layout == LayoutKind.Courtyard) { cam.clearFlags = CameraClearFlags.Skybox; cam.farClipPlane = 160f; }   // v7.12.0: el cielo sobre el patio
         camGo.AddComponent<AudioListener>();
         camGo.AddComponent<VhsEffect>();
 
@@ -620,6 +623,7 @@ public class GameBootstrap : MonoBehaviour
         if (cfg.index == 0 && cfg.layout == LayoutKind.Maze && !LevelConfig.OldL0) Level0Events.Create(worldRoot.transform, generator, cfg, player.transform, cam);   // v7.9.0: ruidos y apagones rojos
         if (generator.Halls.Count > 0) PlayparkAudio.Create(worldRoot.transform, player.transform);
         if (cfg.layout == LayoutKind.Corridor) CorridorEvents.Create(worldRoot.transform, generator, cfg, player.transform, cam);
+        if (cfg.layout == LayoutKind.Courtyard && W188World.Active != null) W188Events.Create(worldRoot.transform, generator, cfg, player.transform, cam);   // v7.12.0: la Ventana, los periféricos y las cortinas
         if (cfg.layout == LayoutKind.Corridor && CorridorWorld.Active != null) CorridorRed.Create(worldRoot.transform, generator, cfg, cam);   // v7.10.1: luz roja de emergencia   // Nivel 7460: ruidos a tu espalda   // v7.1.0: caja de música y risas lejanas
         return player;
     }

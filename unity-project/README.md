@@ -1,6 +1,6 @@
 # Backrooms Escape (esqueleto de proyecto Unity)
 
-Juego de terror en primera persona para PC: **escapa de las Backrooms** a través de **10 niveles** encadenados.
+Juego de terror en primera persona para PC: **escapa de las Backrooms** a través de **11 niveles** encadenados.
 Cada nivel es un laberinto (o aparcamiento abierto) procedural con su propia estética, luces, dificultad y
 entidades que patrullan y te persiguen. La salida es una puerta discreta que **solo se descubre explorando**
 (sin cartel, sin flecha, sin indicador de distancia).

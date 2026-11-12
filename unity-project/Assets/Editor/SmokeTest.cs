@@ -859,18 +859,18 @@ public static class SmokeTest
     private static void TestV4Assets(Report r)
     {
         // Niveles
-        r.Check(LevelConfig.Count == 10 && LevelConfig.Get(9).layout == LayoutKind.Corridor && LevelConfig.Get(9).DisplayNumber == "7460" && LevelConfig.Get(5).name == "Campo infinito" && LevelConfig.Get(5).layout == LayoutKind.Field && LevelConfig.Get(6).name == "Parque de bolas" && LevelConfig.Get(6).halls > 0 && LevelConfig.Get(7).name == "Talasofobia" && LevelConfig.Get(7).layout == LayoutKind.Ocean && LevelConfig.Get(8).layout == LayoutKind.Desert && LevelConfig.Get(8).DisplayNumber == "114", "hay 10 niveles; el 5 es el Campo infinito, el 6 el Parque de bolas, el 7 Talasofobia, el 8 el Nivel 114 (desierto) y el 9 el Nivel 7460 (pasillo de puertas) (" + LevelConfig.Count + ")");
+        r.Check(LevelConfig.Count == 11 && LevelConfig.Get(10).layout == LayoutKind.Courtyard && LevelConfig.Get(10).DisplayNumber == "188" && LevelConfig.Get(9).layout == LayoutKind.Corridor && LevelConfig.Get(9).DisplayNumber == "7460" && LevelConfig.Get(5).name == "Campo infinito" && LevelConfig.Get(5).layout == LayoutKind.Field && LevelConfig.Get(6).name == "Parque de bolas" && LevelConfig.Get(6).halls > 0 && LevelConfig.Get(7).name == "Talasofobia" && LevelConfig.Get(7).layout == LayoutKind.Ocean && LevelConfig.Get(8).layout == LayoutKind.Desert && LevelConfig.Get(8).DisplayNumber == "114", "hay 11 niveles; el 10 es el Nivel 188 (patio de las ventanas); el 5 es el Campo infinito, el 6 el Parque de bolas, el 7 Talasofobia, el 8 el Nivel 114 (desierto) y el 9 el Nivel 7460 (pasillo de puertas) (" + LevelConfig.Count + ")");
         r.Check(LevelConfig.Get(2).water && LevelConfig.Get(2).name == "Poolrooms", "nivel 2 = Poolrooms (antes «Salas inundadas»: agua realista)");
         bool onlyOneWater = true; for (int i = 0; i < LevelConfig.Count; i++) if (i != 2 && LevelConfig.Get(i).water && LevelConfig.Get(i).layout != LayoutKind.Ocean) onlyOneWater = false;   // v7.3.0: el mar abierto es aparte
         r.Check(onlyOneWater && LevelConfig.Get(3).name == "Hotel abandonado" && LevelConfig.Get(4).name == "Complejo industrial", "sin otro nivel de agua; nivel 3 = hotel, nivel 4 = industrial");
         r.Check(MonsterProfile.ForLevel(2).id == "DrownedZombie", "el Ahogado es el monstruo del nivel de agua (Poolrooms)");
         r.Check(Resources.Load<GameObject>("Poolrooms/PoolHall") == null && MonsterProfile.ById("AlienBug") == null, "el modelo PoolHall y El Reptador ya no existen");
-        r.Check(LoreNotes.Total == 30 && !LoreNotes.Valid(100) && LoreNotes.Valid(92) && LoreNotes.Valid(82) && LoreNotes.Valid(72) && LoreNotes.Valid(62) && LoreNotes.Valid(52), "30 notas de ambiente (3 por nivel, 10 niveles)");
+        r.Check(LoreNotes.Total == 33 && !LoreNotes.Valid(110) && LoreNotes.Valid(102) && LoreNotes.Valid(92) && LoreNotes.Valid(82) && LoreNotes.Valid(72) && LoreNotes.Valid(62) && LoreNotes.Valid(52), "33 notas de ambiente (3 por nivel, 11 niveles)");
         var seenMonsters = new HashSet<string>();
         for (int i = 0; i < LevelConfig.Count; i++)
         {
             LevelConfig c = LevelConfig.Get(i);
-            if (!c.HasMonsterAI) { r.Check((c.NoEntities ? c.monsterModel == LevelConfig.NoMonsterId : c.monsterModel == LevelConfig.OceanCreaturesId) && c.monsterCount == 0, "nivel " + i + " (" + c.name + "): sin monstruo de NavMesh (" + (c.NoEntities ? "nivel sin entidades" : "criaturas propias del mar") + ")"); continue; }
+            if (!c.HasMonsterAI) { r.Check((c.NoEntities ? c.monsterModel == LevelConfig.NoMonsterId : c.layout == LayoutKind.Courtyard ? c.monsterModel == LevelConfig.WindowEntitiesId : c.monsterModel == LevelConfig.OceanCreaturesId) && c.monsterCount == 0, "nivel " + i + " (" + c.name + "): sin monstruo de NavMesh (" + (c.NoEntities ? "nivel sin entidades" : c.layout == LayoutKind.Courtyard ? "la Ventana y los Periféricos, propios" : "criaturas propias del mar") + ")"); continue; }
             r.Check(MonsterProfile.ById(c.monsterModel) != null, "nivel " + i + " (" + c.name + "): perfil de monstruo '" + c.monsterModel + "'");
             seenMonsters.Add(c.monsterModel);
         }
@@ -1184,6 +1184,7 @@ public static class SmokeTest
         V780Checks.Edit(r);                // v7.8.0: todoterreno, viento, huellas
         V7460Checks.Edit(r);               // Nivel 7460 (pasillo de puertas)
         V7460Checks.ManySeeds(r, 20);      // v7.10.2: laberinto: inicio → llave → salida en 20 semillas generadas
+        V7120Checks.Edit(r);               // v7.12.0: Nivel 188 (patio de las ventanas)
         V790Checks.Edit(r);                // v7.9.0: nivel 0 (ruidos, apagones rojos) y latido
     }
 
@@ -1481,6 +1482,7 @@ public static class SmokeTest
         r.Check(gen.HasLevel, tag + "nivel generado");
         r.Check(gen.ExitTransform != null, tag + "existe la puerta de salida");
         if (cfg.NoEntities) r.Check(cfg.monsterCount == 0 && !cfg.HasMonsterAI, tag + "sin entidades (" + cfg.layout + ")");   // v7.7.0
+        else if (cfg.layout == LayoutKind.Courtyard) r.Check(cfg.monsterCount == 0 && !cfg.HasMonsterAI, tag + "sin monstruo de NavMesh: la Ventana y los Periféricos son propios del nivel");   // v7.12.0
         else r.Check(gen.MonsterSpawns != null && gen.MonsterSpawns.Count == Mathf.Max(1, cfg.monsterCount), tag + "apariciones de monstruo = " + cfg.monsterCount);
         r.Check(gen.BatterySpots != null && gen.BatterySpots.Count == cfg.batteries, tag + "pilas colocadas = " + cfg.batteries + " (hay " + (gen.BatterySpots != null ? gen.BatterySpots.Count : 0) + ")");
         if (cfg.layout == LayoutKind.Ocean) r.Check(gen.Root.GetComponentInChildren<OceanLighthouse>(true) != null && gen.Root.GetComponentInChildren<OceanCage>(true) != null, tag + "mar: faro a lo lejos y jaula en el muelle");   // v7.3.0
@@ -1488,6 +1490,7 @@ public static class SmokeTest
         else if (cfg.layout != LayoutKind.Field) r.Check(gen.FixtureCount > 0, tag + "hay accesorios de luz");
         else r.Check(gen.Root.GetComponentInChildren<FieldExitBeacon>(true) != null, tag + "campo: la salida tiene su farol/radio (pistas sutiles)");
         if (cfg.layout == LayoutKind.Corridor) V7460Checks.Geometry(r, tag, gen);   // Nivel 7460
+        if (cfg.layout == LayoutKind.Courtyard) V7120Checks.Geometry(r, tag, gen);   // v7.12.0: Nivel 188
         if (cfg.layout == LayoutKind.OpenPillars) r.Check(gen.PillarCount > 0, tag + "hay pilares");
         if (cfg.roomPillars > 0f) r.Check(gen.PillarCount > 0, tag + "pilares empapelados en las salas abiertas: " + gen.PillarCount);
 
@@ -1675,7 +1678,7 @@ public static class SmokeTest
             }
             prev = path[i];
         }
-        if (cfg.layout != LayoutKind.Desert && cfg.layout != LayoutKind.Corridor) r.Check(pathFree, tag + "el camino BFS no choca con paredes/pilares (SphereCast r=0.34)");   // v7.7.0: el desierto tiene su propia prueba (SeedReachCheck, a pie por la arena)
+        if (cfg.layout != LayoutKind.Desert && cfg.layout != LayoutKind.Corridor && cfg.layout != LayoutKind.Courtyard) r.Check(pathFree, tag + "el camino BFS no choca con paredes/pilares (SphereCast r=0.34)");   // v7.7.0: el desierto tiene su propia prueba (SeedReachCheck, a pie por la arena)
         if (path.Count > 0)
         {
             Vector3 last = path[path.Count - 1];
@@ -1689,6 +1692,8 @@ public static class SmokeTest
         if (cfg.layout == LayoutKind.Field) standPos.y = gen.FloorHeightLocal(standPos.x, standPos.z) + 0.05f;
         DesertWorld dwS = cfg.layout == LayoutKind.Desert ? gen.Root.GetComponentInChildren<DesertWorld>(true) : null;
         if (dwS != null) { standPos = dwS.levelRoot.TransformPoint(dwS.ExitLocal); doorFloor = gen.ExitPosition; doorFloor.y = standPos.y; }   // v7.7.0: delante de la puerta de piedra
+        W188World ywS = cfg.layout == LayoutKind.Courtyard ? gen.Root.GetComponentInChildren<W188World>(true) : null;
+        if (ywS != null) { standPos = ywS.ExitDoorWorld(W188Plan.CorrIn + 0.45f); doorFloor = gen.ExitPosition; doorFloor.y = standPos.y; }   // v7.12.0: delante de la puerta de la salida (en su planta)
         bool standFree = !Physics.CheckSphere(standPos + Vector3.up * 0.9f, 0.34f);
         r.Check(standFree && Vector3.Distance(standPos, doorFloor) < 1.6f, tag + "se puede estar a <1.6 m de la puerta sin atravesar nada");
 
@@ -2618,8 +2623,8 @@ public static class SmokePlayRunner
         int thumbs = 0; for (int i = 0; i < LevelConfig.Count; i++) if (LevelThumbs.Get(i) != null) thumbs++;
         r.Check(thumbs == LevelConfig.Count, "miniaturas de nivel en Resources/UI/LevelThumbs: " + thumbs + "/" + LevelConfig.Count);
         {
-            Button c3 = null; foreach (Button bt in UnityEngine.Object.FindObjectsOfType<Button>(false)) if (bt.name == "LevelBtn_4") c3 = bt;   // v7.7.0: rejilla de 5 columnas
-            r.Check(c3 != null && c3.navigation.selectOnRight != null && c3.navigation.selectOnRight.name.Contains("Jugar este nivel") && c3.navigation.selectOnDown != null && c3.navigation.selectOnDown.name == "LevelBtn_" + Mathf.Min(9, LevelConfig.Count - 1), "navegación de la rejilla (tarjeta 4: derecha → «Jugar este nivel», abajo → nivel " + Mathf.Min(9, LevelConfig.Count - 1) + ")");   // Nivel 7460: 10 tarjetas, la 4 baja a la 9
+            Button c3 = null; foreach (Button bt in UnityEngine.Object.FindObjectsOfType<Button>(false)) if (bt.name == "LevelBtn_5") c3 = bt;   // v7.12.0: rejilla de 6 columnas
+            r.Check(c3 != null && c3.navigation.selectOnRight != null && c3.navigation.selectOnRight.name.Contains("Jugar este nivel") && c3.navigation.selectOnDown != null && c3.navigation.selectOnDown.name == "LevelBtn_" + Mathf.Min(11, LevelConfig.Count - 1), "navegación de la rejilla (tarjeta 6: derecha → «Jugar este nivel», abajo → nivel " + Mathf.Min(11, LevelConfig.Count - 1) + ")");   // Nivel 7460: 10 tarjetas, la 4 baja a la 9
             bool desc = true; for (int i = 0; i < LevelConfig.Count; i++) { ui.FocusLevel(i); if (string.IsNullOrEmpty(LevelConfig.Get(i).subtitle)) desc = false; }
             r.Check(desc, "cada nivel tiene descripción en la vista previa");
         }
@@ -3273,7 +3278,7 @@ public static class SmokePlayRunner
                 {
                     Vector3 cc = gm.generator.CellCenterWorld(gm.generator.StartCell.x, gm.generator.StartCell.y);
                     Vector3 off = cb.transform.position - cc; off.y = 0f;
-                    float camTol = cfg.layout == LayoutKind.Corridor ? cfg.cellSize * 1.1f : cfg.cellSize * 0.5f;   // Nivel 7460: la cabina va en el hueco del muro sur, justo detrás de la celda de inicio
+                    float camTol = cfg.layout == LayoutKind.Corridor || cfg.layout == LayoutKind.Courtyard ? cfg.cellSize * 1.1f : cfg.cellSize * 0.5f;   // Nivel 7460: la cabina va en el hueco del muro sur, justo detrás de la celda de inicio
                     r.Check(off.magnitude < camTol && gm.generator.PlayerStart == cb.InteriorCenter && cb.ColliderCount >= 9, eg + "la cabina está en la celda de inicio y es el punto de aparición");
                     int dirIdx = ((Mathf.RoundToInt(gm.generator.PlayerStartYaw / 90f) % 4) + 4) % 4;
                     r.Check(gm.generator.IsCellOpen(gm.generator.StartCell.x, gm.generator.StartCell.y, dirIdx), eg + "la puerta mira a la salida abierta de la celda de inicio (dir " + dirIdx + ")");
@@ -3357,6 +3362,14 @@ public static class SmokePlayRunner
                 while (d79.MoveNext()) yield return d79.Current;
                 IEnumerator dp = V770Checks.DesertPlay(r, tag, gm);
                 while (dp.MoveNext()) yield return dp.Current;
+                gm = GameManager.Instance;
+                goto OceanExit;
+            }
+            if (cfg.layout == LayoutKind.Courtyard)
+            {   // v7.12.0 Nivel 188: su recorrido termina asomándose a la ventana con sol (último nivel: victoria)
+                Census(r, "[Audio nivel " + lv + " patio]", true, false);
+                IEnumerator cp8 = V7120Checks.Play(r, tag, gm);
+                while (cp8.MoveNext()) yield return cp8.Current;
                 gm = GameManager.Instance;
                 goto OceanExit;
             }

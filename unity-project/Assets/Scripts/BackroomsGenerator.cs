@@ -49,6 +49,8 @@ public class BackroomsGenerator : MonoBehaviour
     public DesertPlan DesertPlan { get; private set; }
     public bool IsCorridor { get { return config != null && config.layout == LayoutKind.Corridor; } }   // Nivel 7460
     public CorridorPlan Corridor { get; private set; }
+    public bool IsCourtyard { get { return config != null && config.layout == LayoutKind.Courtyard; } }   // v7.12.0 Nivel 188
+    public W188Plan Courtyard { get; private set; }
     public Vector3 PlayerStart { get; private set; }
     public float PlayerStartYaw { get; private set; }
     public Vector3 MonsterSpawn { get; private set; }
@@ -166,7 +168,7 @@ public class BackroomsGenerator : MonoBehaviour
         roomCount = config.roomCount;
         roomSizeRange = config.roomSize;
 
-        FieldHeight.Reset(); FieldWrap.OtherRoot = null; DesertPlan = null; Corridor = null; FieldPlan = null; Garage = null; GaragePlan.Active = null; StartDoorRepairs = 0;
+        FieldHeight.Reset(); FieldWrap.OtherRoot = null; DesertPlan = null; Corridor = null; Courtyard = null; FieldPlan = null; Garage = null; GaragePlan.Active = null; StartDoorRepairs = 0;
         UsedSeed = useRandomSeed ? System.Environment.TickCount : seed;
         System.Random rng = new System.Random(UsedSeed);
 
@@ -396,6 +398,19 @@ public class BackroomsGenerator : MonoBehaviour
             Hotel = null;
             Corridor = CorridorPlan.Make(UsedSeed, w, h, wallsV, wallsH);
             startCell = new Vector2Int(Corridor.Col, 0);
+            ChoosePoolBlock(); ChooseHalls();
+            return;
+        }
+        // v7.12.0 Nivel 188: patio con anillo de cinco plantas; la rejilla lógica queda toda abierta (planta de 11 × 17 celdas)
+        if (config.layout == LayoutKind.Courtyard)
+        {
+            Hotel = null;
+            for (int i = 0; i <= w; i++) for (int j = 0; j < h; j++) wallsV[i, j] = i == 0 || i == w;
+            for (int i = 0; i < w; i++) for (int j = 0; j <= h; j++) wallsH[i, j] = j == 0 || j == h;
+            Courtyard = W188Plan.Make(UsedSeed);
+            float sx = W188Plan.UC(W188Plan.LiftCell.z);
+            Vector3 st = W188Plan.ToLevel(W188Plan.LiftCell.y, sx, 0f, 0.5f);
+            startCell = W188Plan.CellOf(st);
             ChoosePoolBlock(); ChooseHalls();
             return;
         }
@@ -800,6 +815,7 @@ public class BackroomsGenerator : MonoBehaviour
         if (cfg.layout == LayoutKind.Ocean) { BuildOceanGeometry(rng); return; }
         if (cfg.layout == LayoutKind.Desert) { BuildDesertGeometry(rng); return; }
         if (cfg.layout == LayoutKind.Corridor) { BuildCorridorGeometry(rng); return; }
+        if (cfg.layout == LayoutKind.Courtyard) { BuildCourtyardGeometry(rng); return; }
 
         float cs = cellSize;
         float totalW = w * cs;
@@ -1785,6 +1801,25 @@ public class BackroomsGenerator : MonoBehaviour
         FixtureCount = cw.TotalModules; LiveFixtureCount = cw.TotalModules;   // un plafón por módulo (emisivo; sin luces en tiempo real)
         exitCell = Corridor.ExitCell;
         PlayerStart = levelRoot.TransformPoint(cw.StartLocal + new Vector3(0f, 0.1f, 1.2f)); PlayerStartYaw = 0f;
+        MonsterSpawns = new List<Vector3>();
+        MonsterSpawn = PlayerStart;
+        BatterySpots = new List<Vector3>(cw.BatterySpots);
+        ExtraSpots = new List<Vector3>(cw.ExtraSpots);
+        KeySpots = new List<Vector3>(cw.KeySpots);
+        ExitTransform = cw.ExitTransform;
+        ExitPosition = cw.ExitTransform.position;
+    }
+
+    // v7.12.0 Nivel 188: todo el edificio lo construye W188World (patio, fachadas, habitaciones, pasillos y escaleras)
+    private void BuildCourtyardGeometry(System.Random rng)
+    {
+        LevelConfig cfg = config;
+        TextureLibrary.ReleaseAllExcept(new HashSet<string>());
+        WallSegmentCount = 0; PillarCount = 0;
+        W188World cw = W188World.Build(this, cfg, levelRoot, Courtyard, o => Track(o));
+        FixtureCount = cw.LampCount; LiveFixtureCount = cw.LampCount;
+        exitCell = cw.ExitCell;
+        PlayerStart = levelRoot.TransformPoint(cw.StartLocal + Quaternion.Euler(0f, cw.StartYaw, 0f) * Vector3.forward * 0.8f + new Vector3(0f, 0.1f, 0f)); PlayerStartYaw = cw.StartYaw;   // en el patio, delante del ascensor (la cabina lo sustituye por su interior)
         MonsterSpawns = new List<Vector3>();
         MonsterSpawn = PlayerStart;
         BatterySpots = new List<Vector3>(cw.BatterySpots);

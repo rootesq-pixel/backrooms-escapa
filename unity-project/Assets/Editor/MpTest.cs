@@ -756,11 +756,40 @@ public static class MpPlayRunner
             Vector3 st = cw.ExitDoorWorld(0.75f);
             Vector3 along = cw.FrameOf(cw.plan.exitRun).forward;
             hp.Teleport(st + along * 0.35f + Vector3.up * 0.1f, cw.ExitYaw);
-            yield return Wait(() => GameManager.Instance.State == GameManager.GameState.Won, 25, "victoria (anfitrión)");
-            r.Check(ExitLock.Active == null || ExitLock.Active.Unlocked, "[Pasillo MP] la salida queda abierta para los dos");
-            r.Check(GameManager.Instance.State == GameManager.GameState.Won, "[Pasillo MP] los dos en la salida del pasillo: victoria final (10 niveles)");
+            ExitLock lk9 = ExitLock.Active; bool open9 = false; float tl9 = 0f;
+            while (tl9 < 25f && !open9 && GameManager.Instance != null && GameManager.Instance.State == GameManager.GameState.Playing && gb.CurrentLevel == 9) { open9 = lk9 == null || lk9.Unlocked; yield return 0.1f; tl9 += 0.1f; }
+            open9 |= lk9 == null || lk9.Unlocked;
+            r.Check(open9, "[Pasillo MP] la salida queda abierta para los dos");
+            yield return Wait(() => GameManager.Instance == null || GameManager.Instance.State != GameManager.GameState.Playing || gb.CurrentLevel == 10, 25, "nivel superado (anfitrión, pasillo)");
+            r.Check(GameManager.Instance == null || GameManager.Instance.State == GameManager.GameState.LevelComplete || gb.CurrentLevel == 10, "[Pasillo MP] los dos en la salida del pasillo: nivel superado (sigue el Nivel 188)");
             yield return WaitMark("client_c_done", 60);
             Mark("host_c_done");
+        }
+
+        // ---- v7.12.0 Nivel 188 (El Patio de las Ventanas): mismo patio para todos, la Ventana atrapa a quien entra, salida en grupo por la ventana con sol ----
+        {
+            yield return Wait(() => WorldReady(gb, ns, 10), 240, "nivel 10 cargado (anfitrión)");
+            yield return Wait(() => ns.AllReady(), 180, "todos listos en el nivel 10");
+            W188World yw = W188World.Active;
+            r.Check(gb.CurrentLevel == 10 && ns.HashesMatch() && ns.HashMismatches == 0 && yw != null && MonsterAI.Instances.Count == 0 && ExitLock.Active != null, "[Patio MP] Nivel 188 con la misma huella en los dos equipos, sin monstruo de NavMesh y con cerradura");
+            ElevatorCabin cab10 = ElevatorCabin.Current;
+            yield return Wait(() => cab10 == null || cab10.Released, 40, "puertas del ascensor abiertas (patio)");
+            r.Check(cab10 == null || cab10.Released, "[Patio MP] llegada en ascensor como en los demás niveles");
+            r.Check(W188Events.Active != null && yw != null && yw.Figures.Count == W188Plan.EntityCount, "[Patio MP] la Ventana y los Periféricos en el anfitrión (" + (yw != null ? yw.Figures.Count : 0) + " figuras)");
+            FirstPersonController hp = GameManager.Instance.player;
+            File.WriteAllText(MpTest.Dir + "/host_court.txt", gb.Generator.UsedSeed + ";" + yw.PlanHash() + ";" + yw.plan.exitF + ";" + yw.plan.exitS + ";" + yw.plan.exitI);
+            Mark("host_level10");
+            // salida en grupo: el anfitrión llega a la puerta (AutoKeyForTests la abre) y entra en el cuarto de la ventana con sol
+            yield return WaitMark("client_y_atexit", 120);
+            hp.Teleport(yw.ExitDoorWorld(W188Plan.CorrIn + 0.45f), W188World.YawToCourt(yw.plan.exitS));
+            yield return Wait(() => ExitLock.Active == null || ExitLock.Active.Unlocked, 6, "cerradura abierta (anfitrión)");
+            yield return 1.5f;
+            hp.Teleport(yw.ExitRoomWorld(1.2f, -0.5f), W188World.YawToCourt(yw.plan.exitS));
+            yield return Wait(() => GameManager.Instance.State == GameManager.GameState.Won, 25, "victoria (anfitrión)");
+            r.Check(ExitLock.Active == null || ExitLock.Active.Unlocked, "[Patio MP] la puerta de la ventana con sol queda abierta para los dos");
+            r.Check(GameManager.Instance.State == GameManager.GameState.Won, "[Patio MP] los dos asomados a la ventana con sol: victoria final (11 niveles)");
+            yield return WaitMark("client_y_done", 60);
+            Mark("host_y_done");
         }
 
         // ---- desconexión del cliente ----
@@ -1431,11 +1460,32 @@ public static class MpPlayRunner
             yield return Wait(() => NetSession.LocalAtExit || gm.State == GameManager.GameState.Won, 6, "cliente en la salida del pasillo");
             r.Check(NetSession.LocalAtExit || gm.State == GameManager.GameState.Won, "[Pasillo MP] el cliente en la puerta de salida cuenta como en la salida");
             Mark("client_c_atexit");
-            yield return Wait(() => gm.State == GameManager.GameState.Won, 30, "victoria (cliente)");
-            r.Check(ExitLock.Active == null || ExitLock.Active.Unlocked, "[Pasillo MP] el cliente ve la salida abierta");
-            r.Check(gm.State == GameManager.GameState.Won, "[Pasillo MP] el cliente ve la victoria final");
+            yield return Wait(() => gm == null || gm.State != GameManager.GameState.Playing || gb.CurrentLevel == 10, 30, "nivel superado (cliente, pasillo)");
+            r.Check(gm == null || gm.State == GameManager.GameState.LevelComplete || gb.CurrentLevel == 10, "[Pasillo MP] el cliente pasa al Nivel 188 tras la salida del pasillo");
             Mark("client_c_done");
             yield return WaitMark("host_c_done", 60);
+        }
+
+        // ---- v7.12.0 Nivel 188 en el cliente ----
+        {
+            yield return Wait(() => WorldReady(gb, ns, 10) && gb.IsLoaded, 240, "nivel 10 cargado (cliente)");
+            yield return WaitMark("host_level10", 240);
+            gm = GameManager.Instance; FirstPersonController pc = gm.player;
+            W188World yw = W188World.Active;
+            string[] hy = File.ReadAllText(MpTest.Dir + "/host_court.txt").Split(';');
+            r.Check(yw != null && hy.Length >= 5 && gb.Generator.UsedSeed == int.Parse(hy[0]) && yw.PlanHash() == int.Parse(hy[1]) && yw.plan.exitF == int.Parse(hy[2]) && yw.plan.exitS == int.Parse(hy[3]) && yw.plan.exitI == int.Parse(hy[4]),
+                "[Patio MP] el cliente tiene el mismo patio (semilla, plano, ventana con sol en la planta " + (yw != null ? yw.plan.exitF : -1) + ")");
+            r.Check(MonsterAI.Instances.Count == 0 && W188Events.Active != null && ExitLock.Active != null, "[Patio MP] el cliente: con su Ventana y sus Periféricos (locales) y la misma cerradura");
+            r.Check(gm.healthFill != null && gm.healthFill.gameObject.activeInHierarchy, "[Patio MP] VIDA en el HUD del cliente");
+            pc.Teleport(yw.ExitRoomWorld(1.2f, 0.7f), W188World.YawToCourt(yw.plan.exitS));
+            yield return Wait(() => NetSession.LocalAtExit || gm.State == GameManager.GameState.Won, 6, "cliente en la ventana con sol");
+            r.Check(NetSession.LocalAtExit || gm.State == GameManager.GameState.Won, "[Patio MP] el cliente en el cuarto de la ventana con sol cuenta como en la salida");
+            Mark("client_y_atexit");
+            yield return Wait(() => gm.State == GameManager.GameState.Won, 40, "victoria (cliente)");
+            r.Check(ExitLock.Active == null || ExitLock.Active.Unlocked, "[Patio MP] el cliente ve la puerta abierta");
+            r.Check(gm.State == GameManager.GameState.Won, "[Patio MP] el cliente ve la victoria final");
+            Mark("client_y_done");
+            yield return WaitMark("host_y_done", 60);
         }
 
         // ---- salir, reintentar con la partida en marcha, reunirse y ver el cierre del anfitrión ----

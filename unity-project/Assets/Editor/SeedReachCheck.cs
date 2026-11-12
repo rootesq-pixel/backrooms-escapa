@@ -13,6 +13,7 @@ public static class SeedReachCheck
     public static readonly int[] Level3Seeds = { 1, 7, 42, 100, 1234, 5555, 98765, 31337, 271828, 8675309, 20261024, 777 };   // v7.5.0
     public static readonly int[] Level8Seeds = { 7110, 1, 42, 1234, 98765, 20261024, 31337, 777 };   // v7.7.0
     public static readonly int[] Level9Seeds = { 7460, 1, 42, 98765 };   // Nivel 7460
+    public static readonly int[] Level10Seeds = { 188, 3, 77, 2026 };   // v7.12.0: Nivel 188
     public static readonly int[] Level6Seeds = { 64257619, 100, 200, 300, 400, 1, 7, 42, 1234, 5555, 98765, 31337, 271828, 314159, 8675309, 20261024, 123456789, 99, 2024, 777 };
     static IEnumerator it; static double wait; static int pass, fail;
     static SeedReachCheck() { if (SessionState.GetString("seedreach", "") != "1") return; EditorApplication.update += Tick; }
@@ -344,7 +345,53 @@ public static class SeedReachCheck
                 yield return 1.5f;
             }
         }
-        if (only == "8" || only == "9") yield break;
+        if (only == "" || only == "10")
+        {   // v7.12.0 Nivel 188: andando de verdad: salir del ascensor al patio, cruzar el vestíbulo, subir la escalera SO
+            // hasta la planta de la salida, rodear el patio por el pasillo, entrar por la puerta (llave) y asomarse a la ventana con sol
+            foreach (int s10 in Level10Seeds)
+            {
+                gb.useRandomSeed = false; gb.seed = s10 - 10 * 101;
+                int lc = gb.LoadCount; gb.LoadLevel(10);
+                double t10 = EditorApplication.timeSinceStartup;
+                while (!(gb.LoadCount > lc && gb.IsLoaded && GameManager.Instance != null && W188World.Active != null) && EditorApplication.timeSinceStartup - t10 < 120) yield return 0.1f;
+                yield return 1.0f;
+                if (ElevatorCabin.Current != null) ElevatorCabin.Current.Skip();
+                double tw = EditorApplication.timeSinceStartup; while (ElevatorCabin.PlayerLocked && EditorApplication.timeSinceStartup - tw < 20) yield return 0.25f;
+                if (UIManager.Instance != null && UIManager.Instance.Current != UIManager.Screen.None) UIManager.Instance.SetScreen(UIManager.Screen.None);
+                W188Events.DisableForTests = true;
+                GameManager gm = GameManager.Instance; FirstPersonController pw = gm.player; W188World yw = W188World.Active; Transform R = yw.levelRoot;
+                string T = "[nivel 10 semilla " + gm.generator.UsedSeed + "] ";
+                Check(gm.generator.UsedSeed == s10 && gm.exit != null, T + "salida en la planta " + yw.plan.exitF + ", lado " + yw.plan.exitS + ", módulo " + yw.plan.exitI);
+                // 1) del ascensor al patio, andando
+                pw.debugInput = true; pw.debugMove = new Vector2(0f, 1f);
+                double tg = EditorApplication.timeSinceStartup; while (EditorApplication.timeSinceStartup - tg < 3.0) yield return 0.1f;
+                pw.debugMove = Vector2.zero; pw.debugInput = false; yield return 0.2f;
+                Vector3 l1 = R.InverseTransformPoint(pw.transform.position);
+                Check(W188Plan.InCourtyard(l1, -1.5f) && yw.CourtK > 0.5f, T + "se sale del ascensor andando al patio (" + l1.ToString("F1") + ")");
+                // 2) al vestíbulo y al pasillo de la planta baja
+                float[] res = new float[4];
+                IEnumerator wi = V7120Checks.Walk(pw, V7120Checks.RouteToCorridor0(yw), res, 40f, true); while (wi.MoveNext()) yield return wi.Current;
+                Vector3 l2 = R.InverseTransformPoint(pw.transform.position);
+                Check(res[0] > 0f && W188Plan.FloorOf(l2.y) == 0 && !W188Plan.InCourtyard(l2, 0f), T + "por la puerta acristalada y el vestíbulo se llega al pasillo de la planta baja (" + res[1].ToString("F0") + " m" + (res[0] > 0f ? "" : ", se queda en " + l2.ToString("F2") + " punto " + res[3]) + ")");
+                // 3) escalera SO hasta la planta de la salida
+                if (yw.plan.exitF > 0)
+                {
+                    wi = V7120Checks.Walk(pw, V7120Checks.RouteUp(yw, 0, yw.plan.exitF), res, 25f * yw.plan.exitF, true); while (wi.MoveNext()) yield return wi.Current;
+                    Vector3 l3 = R.InverseTransformPoint(pw.transform.position);
+                    Check(res[0] > 0f && W188Plan.FloorOf(l3.y) == yw.plan.exitF && Mathf.Abs(l3.y - yw.plan.exitF * W188Plan.FH) < 0.3f, T + "subiendo la escalera se llega a la planta " + yw.plan.exitF + " (y " + l3.y.ToString("F2") + (res[0] > 0f ? "" : ", se queda en " + l3.ToString("F2") + " punto " + res[3]) + ")");
+                }
+                // 4) por el pasillo hasta la puerta de la salida, se abre con la llave (AutoKeyForTests) y se entra hasta la ventana
+                Inventory.Instance.Add(ExitLock.Active.CorrectKey, 1); ExitLock.Active.ResetCooldownForTests();
+                wi = V7120Checks.Walk(pw, V7120Checks.RouteToExit(yw, pw.transform.position), res, 60f, true);
+                while (wi.MoveNext()) yield return wi.Current;
+                tg = EditorApplication.timeSinceStartup; while (gm.State == GameManager.GameState.Playing && EditorApplication.timeSinceStartup - tg < 6) yield return 0.1f;
+                Vector3 l4 = R.InverseTransformPoint(pw.transform.position);
+                Check(gm.State == GameManager.GameState.Won || gm.State == GameManager.GameState.LevelComplete, T + "rodeando el patio por el pasillo, con la llave se entra en el cuarto de la ventana con sol y se sale del nivel (" + gm.State + ", " + res[1].ToString("F0") + " m" + (gm.State == GameManager.GameState.Playing ? ", se queda en " + l4.ToString("F2") + " punto " + res[3] : "") + ")");
+                W188Events.DisableForTests = false;
+                yield return 1.5f;
+            }
+        }
+        if (only == "8" || only == "9" || only == "10") yield break;
         if (only == "5" || only == "3") yield break;
         const int lv = 6;
         Check(!BackroomsGenerator.HallEastDoor && !BackroomsGenerator.HallDoorV(new RectInt(10, 10, 5, 4), 15, 11) && BackroomsGenerator.HallDoorV(new RectInt(10, 10, 5, 4), 10, 11),
