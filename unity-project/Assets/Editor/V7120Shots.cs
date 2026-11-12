@@ -17,6 +17,16 @@ public static class V7120Shots
     static string Out { get { string o = System.Environment.GetEnvironmentVariable("V7120_OUT"); return string.IsNullOrEmpty(o) ? "/workspace/v7120/capturas" : o; } }
     static int Seed { get { int s; return int.TryParse(System.Environment.GetEnvironmentVariable("V7120_SEED"), out s) ? s : 188; } }
     static V7120Shots() { if (SessionState.GetString("smoke_phase", "") != "v7120shots") return; EditorApplication.update += Tick; }
+    // en el PC del usuario (editor de Unity con su GPU): menú Backrooms > Capturas Nivel 188 (4K). Salida: <proyecto>/Capturas188
+    [MenuItem("Backrooms/Capturas Nivel 188 (4K)")]
+    public static void ExportMenu4K()
+    {
+        System.Environment.SetEnvironmentVariable("V7120_RES", "3840x2160");
+        System.Environment.SetEnvironmentVariable("V7120_OUT", System.IO.Path.GetFullPath("Capturas188"));
+        Export();
+    }
+    static int ResW { get { string r = System.Environment.GetEnvironmentVariable("V7120_RES"); int w; return r != null && r.Contains("x") && int.TryParse(r.Split('x')[0], out w) ? w : 1920; } }
+    static int ResH { get { string r = System.Environment.GetEnvironmentVariable("V7120_RES"); int h; return r != null && r.Contains("x") && int.TryParse(r.Split('x')[1], out h) ? h : 1080; } }
     public static void Export()
     {
         Directory.CreateDirectory(Out);
@@ -32,13 +42,13 @@ public static class V7120Shots
         try { if (!routine.MoveNext()) Finish(); else if (routine.Current is float) waitUntil = EditorApplication.timeSinceStartup + (float)routine.Current; }
         catch (System.Exception e) { Debug.LogError("[V7120Shots] " + e); File.AppendAllText(Out + "/report.txt", "EXC " + e + "\n"); Finish(); }
     }
-    private static void Finish() { Time.timeScale = 1f; SessionState.SetString("smoke_phase", ""); EditorApplication.update -= Tick; EditorApplication.Exit(0); }
+    private static void Finish() { Time.timeScale = 1f; SessionState.SetString("smoke_phase", ""); EditorApplication.update -= Tick; if (Application.isBatchMode) EditorApplication.Exit(0); else { EditorApplication.isPlaying = false; EditorUtility.RevealInFinder(Out); } }
     static void Log(string s) { File.AppendAllText(Out + "/report.txt", s + "\n"); Debug.Log("[V7120Shots] " + s); }
 
     private static void Shot(string name, Vector3 eye, Vector3 at, float fov = 0f)
     {
-        int w = 1920, h = 1080;
-        RenderTexture rt = RenderTexture.GetTemporary(w, h, 24, RenderTextureFormat.ARGB32);
+        int w = ResW, h = ResH;
+        RenderTexture rt = RenderTexture.GetTemporary(w, h, 24, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Default, Application.isBatchMode ? 1 : 4);
         Camera game = Camera.main;
         Vector3 p0 = game.transform.position; Quaternion r0 = game.transform.rotation; float f0 = game.fieldOfView;
         game.transform.position = eye; game.transform.rotation = Quaternion.LookRotation(at - eye);
