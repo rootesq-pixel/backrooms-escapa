@@ -1482,6 +1482,7 @@ public static class SmokeTest
         r.Check(gen.HasLevel, tag + "nivel generado");
         r.Check(gen.ExitTransform != null, tag + "existe la puerta de salida");
         if (cfg.NoEntities) r.Check(cfg.monsterCount == 0 && !cfg.HasMonsterAI, tag + "sin entidades (" + cfg.layout + ")");   // v7.7.0
+        else if (cfg.layout == LayoutKind.Courtyard) r.Check(cfg.monsterCount == 0 && !cfg.HasMonsterAI, tag + "sin monstruo de NavMesh: la Ventana y los Periféricos son propios del nivel");   // v7.12.0
         else r.Check(gen.MonsterSpawns != null && gen.MonsterSpawns.Count == Mathf.Max(1, cfg.monsterCount), tag + "apariciones de monstruo = " + cfg.monsterCount);
         r.Check(gen.BatterySpots != null && gen.BatterySpots.Count == cfg.batteries, tag + "pilas colocadas = " + cfg.batteries + " (hay " + (gen.BatterySpots != null ? gen.BatterySpots.Count : 0) + ")");
         if (cfg.layout == LayoutKind.Ocean) r.Check(gen.Root.GetComponentInChildren<OceanLighthouse>(true) != null && gen.Root.GetComponentInChildren<OceanCage>(true) != null, tag + "mar: faro a lo lejos y jaula en el muelle");   // v7.3.0

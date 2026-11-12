@@ -194,3 +194,19 @@ El roce de la hierba, el viento, el zumbido de radio de la salida, el terreno, l
 | `Water_0–4` | pisadas en charco / agua poco profunda (Poolrooms, Talasofobia) | «water» del pack «Footsteps on different surfaces» de congusbongus (CC-BY 3.0), derivado de «Water Footsteps» de **EminYILDIRIM** (https://freesound.org/people/EminYILDIRIM/sounds/608663/, CC-BY 4.0) y «footstep-concrete.wav» de **swuing** (https://freesound.org/people/swuing/sounds/38873/, CC-BY 4.0) | CC-BY 3.0 / 4.0 (atribución: EminYILDIRIM, swuing, congusbongus) |
 
 Preparadas con `Tools/audio/prep_steps.py` (moqueta, hormigón) y `Tools/audio/prep_steps2.py` (resto): mono 22 kHz, paso alto a 45 Hz, paso bajo a 7 kHz o menos (sin siseo), cola recortada con fundido, volumen por pisada igualado (LUFS de 100 ms) al de los pasos de antes o algo menos, pico limitado. Cambios: recorte, filtrado, cambio de tono (arena), mezcla y cuerpo procedural (madera y metal). La alarma (tono de evacuación «slow whoop» NEN 2575 con timbre de bocina y sala) y el latido (lub-dub) son procedurales (código del proyecto).
+
+## v7.12.0 — Nivel 188, El Patio de las Ventanas (Assets/Resources/W188)
+
+| Archivos | Uso | Fuente | Licencia |
+|---|---|---|---|
+| `W188Facade_*` | revoco pintado de las fachadas del patio | ambientCG PaintedPlaster017 — https://ambientcg.com/a/PaintedPlaster017 | CC0 1.0 |
+| `W188Paving_*` | losas del patio | ambientCG PavingStones136 — https://ambientcg.com/a/PavingStones136 | CC0 1.0 |
+| `W188Carpet_*` | moqueta de los pasillos | ambientCG Carpet012 — https://ambientcg.com/a/Carpet012 | CC0 1.0 |
+| `W188RoomCarpet_*` | moqueta de las habitaciones | ambientCG Carpet016 — https://ambientcg.com/a/Carpet016 | CC0 1.0 |
+| `W188Wall_*` | papel pintado de los pasillos | ambientCG Wallpaper001A — https://ambientcg.com/a/Wallpaper001A | CC0 1.0 |
+| `W188Curtain_*` | tela de las cortinas | ambientCG Fabric062 — https://ambientcg.com/a/Fabric062 | CC0 1.0 |
+| `W188Concrete_*` | escaleras y techos de servicio | ambientCG Concrete034 — https://ambientcg.com/a/Concrete034 | CC0 1.0 |
+| `W188Door_*` | puertas pintadas | ambientCG PaintedWood005 — https://ambientcg.com/a/PaintedWood005 | CC0 1.0 |
+| `W188ExitView.jpg` | lo que se ve por la ventana con sol (la salida) | Poly Haven meadow_2 (HDRI, recorte en perspectiva) — https://polyhaven.com/a/meadow_2 | CC0 1.0 |
+
+Reempaquetadas con `Tools/w188/pack_textures.py` (albedo, normales y máscara Standard; 1024–2048 px). Lo que se ve por las ventanas abiertas son las miniaturas de los niveles del propio juego. El cielo nublado reutiliza `kloofendal_overcast_puresky` (Poly Haven, CC0, ya citado). Siluetas de la Ventana, Periféricos, cortinas, muebles y geometría: trabajo propio, CC0. Sonidos del nivel (golpes en el cristal, puertas lejanas, golpe grave al atraparte): sintetizados por código o reutilizados del proyecto, graves, sin crujidos de madera ni siseo.

@@ -225,14 +225,16 @@ public class W188World : MonoBehaviour
 
         PickSpots();
         // sonda de reflejos del patio (cristales y losas mojadas reflejan el cielo y las fachadas)
-        probe = new GameObject("CourtProbe").AddComponent<ReflectionProbe>();
+        // (sin gráficos —pruebas con -nographics— no se crea: renderizar la sonda con el dispositivo nulo cuelga Unity)
+        if (SystemInfo.graphicsDeviceType != GraphicsDeviceType.Null) probe = new GameObject("CourtProbe").AddComponent<ReflectionProbe>();
+        if (probe != null) {
         probe.transform.SetParent(transform, false);
         probe.transform.localPosition = new Vector3(W188Plan.Width * 0.5f, 3f, W188Plan.Depth * 0.5f);
         probe.mode = ReflectionProbeMode.Realtime; probe.refreshMode = ReflectionProbeRefreshMode.ViaScripting;
         probe.timeSlicingMode = ReflectionProbeTimeSlicingMode.NoTimeSlicing;
         probe.resolution = 128; probe.size = new Vector3(W188Plan.NX * W188Plan.M + 0.6f, 40f, W188Plan.NZ * W188Plan.M + 0.6f);
         probe.boxProjection = false; probe.importance = 1; probe.intensity = 1f; probe.clearFlags = ReflectionProbeClearFlags.Skybox;
-        probe.cullingMask = ~0; probe.farClipPlane = 120f;
+        probe.cullingMask = ~0; probe.farClipPlane = 120f; }
 
         GameManager.ExitTest = AtExit;
     }
