@@ -47,7 +47,7 @@ public class W188World : MonoBehaviour
     public readonly List<W188Door> Doors = new List<W188Door>();
     public class Curtain { public Transform left, right; public Vector3 center; public Vector3 inward; public int f, s, i; public float open; public bool busy; }
     public readonly List<Curtain> Curtains = new List<Curtain>();
-    public class Figure { public Transform root, arm, elbow, wrist, head, chest; public readonly List<Transform> fingers = new List<Transform>(); public Vector3 roomCenter, doorWorld; public int f, s, i; public float phase; }
+    public class Figure { public Rig rig; public Transform root, arm, elbow, wrist, head, chest; public readonly List<Transform> fingers = new List<Transform>(); public Vector3 roomCenter, doorWorld; public int f, s, i; public float phase; }
     public readonly List<Figure> Figures = new List<Figure>();
     public class LockedDoor { public Vector3 pos; public Vector3 outward; public int f; public bool view; }
     public readonly List<LockedDoor> Locked = new List<LockedDoor>();
@@ -741,7 +741,7 @@ public class W188World : MonoBehaviour
         root.localPosition = P(s, uc, y0, 1.05f);
         root.localRotation = Quaternion.Euler(0f, W188Plan.SideYaw(s), 0f);   // mira al patio (+z del marco)
         Rig rig = BuildFigure(root, FigureMat, true);
-        fig.arm = rig.shoulder; fig.elbow = rig.elbow; fig.wrist = rig.wrist; fig.head = rig.head; fig.chest = rig.chest; fig.fingers.AddRange(rig.fingers);
+        fig.rig = rig; fig.arm = rig.shoulder; fig.elbow = rig.elbow; fig.wrist = rig.wrist; fig.head = rig.head; fig.chest = rig.chest; fig.fingers.AddRange(rig.fingers);
         // contraluz: una luz fría y débil detrás de la figura (hacia el fondo del cuarto) recorta su silueta desde el patio
         Light rim = MakePoint(P(s, uc + 0.5f, y0 + 2.1f, 1.9f), 2.4f, 0.55f, new Color(0.55f, 0.62f, 0.75f)); rim.renderMode = LightRenderMode.ForcePixel;
         Lamps.Add(new Lamp { l = rim, f0 = f, f1 = f, always = true, baseI = rim.intensity });
@@ -753,7 +753,86 @@ public class W188World : MonoBehaviour
 
     // la Ventana (v2): figura humanoide demasiado alta y delgada, con volumen (pecho, pelvis, hombros, codos, rodillas, manos con
     // dedos), cabeza alargada y un poco ladeada. Jerarquía de brazo derecho: hombro -> codo -> muñeca -> dedos (para llamar con la mano).
-    public class Rig { public Transform shoulder, elbow, wrist, head, chest; public readonly List<Transform> fingers = new List<Transform>(); }
+    public class Rig
+    {
+        public Transform shoulder, elbow, wrist, head, chest;
+        public readonly List<Transform> fingers = new List<Transform>();
+        // v3 (malla con esqueleto): huesos con nombre, rotaciones de reposo y la raíz para orientar las poses
+        public bool skinned; public Transform root, spine, neck, hand, upper, fore;
+        public readonly List<Transform> fing2 = new List<Transform>();
+        public readonly List<Transform> all = new List<Transform>();
+        public readonly List<Quaternion> rest = new List<Quaternion>();
+    }
+    static GameObject ventanaPrefab; static bool ventanaTried;
+    public static Material FigureCloth;
+    static Transform FindDeep(Transform t, string n) { if (t.name == n) return t; for (int i = 0; i < t.childCount; i++) { Transform r = FindDeep(t.GetChild(i), n); if (r != null) return r; } return null; }
+    // la Ventana (v3): malla propia hecha en Blender (Tools/w188/ventana_build.py): humanoide de ~2,05 m, delgadísimo, brazos y cuello
+    // demasiado largos, camisón de tela con pliegues y bajo deshilachado; piel casi negra y algo brillante para que la contraluz le
+    // dibuje un borde suave. Se posa por código (sin Animator): respiración, balanceo, cabeza ladeada y la mano que llama.
+    public static Rig BuildFigure(Transform root, Material m, bool beckon)
+    {
+        if (!ventanaTried) { ventanaTried = true; ventanaPrefab = Resources.Load<GameObject>("W188/Ventana"); }
+        if (ventanaPrefab == null) return BuildFigurePrim(root, m, beckon);
+        GameObject g = Object.Instantiate(ventanaPrefab, root, false); g.name = "VentanaBody";
+        foreach (Animator a in g.GetComponentsInChildren<Animator>()) Object.Destroy(a);
+        Rig rig = new Rig { skinned = true, root = root };
+        Transform T(string n) { Transform t = FindDeep(g.transform, n); if (t != null && !rig.all.Contains(t)) { rig.all.Add(t); rig.rest.Add(t.localRotation); } return t; }
+        rig.spine = T("Spine"); rig.chest = T("Chest"); rig.neck = T("Neck"); rig.head = T("Head");
+        rig.upper = T("UpperArm.R"); rig.fore = T("Forearm.R"); rig.hand = T("Hand.R");
+        rig.shoulder = rig.upper; rig.elbow = rig.fore; rig.wrist = rig.hand;
+        for (int k = 0; k < 4; k++) { Transform a = T("Finger" + k + ".R.1"), b = T("Finger" + k + ".R.2"); if (a != null) rig.fingers.Add(a); if (b != null) rig.fing2.Add(b); }
+        Transform thumb = FindDeep(g.transform, "Thumb.R");
+        if (rig.upper == null || rig.fore == null || rig.hand == null || rig.head == null) { Object.Destroy(g); return BuildFigurePrim(root, m, beckon); }
+        // la malla de Blender mira a -Y: el pulgar va por delante de la muñeca; si queda detrás en la raíz, se gira 180°
+        if (thumb != null && root.InverseTransformDirection(thumb.position - rig.hand.position).z < 0f)
+            g.transform.localRotation = Quaternion.Euler(0f, 180f, 0f) * g.transform.localRotation;
+        // altura: cabeza (base del cráneo) a ~1,82 m
+        float hy = root.InverseTransformPoint(rig.head.position).y;
+        if (hy > 0.2f) { float k = 1.82f / hy; g.transform.localScale = Vector3.Scale(g.transform.localScale, new Vector3(k * 0.96f, k, k * 0.96f)); }
+        if (FigureCloth == null)
+        {
+            Material c = OceanGeo.PbrMat("W188/W188Curtain", new Color(0.13f, 0.12f, 0.115f), 0.8f, null); c.name = "W188_FigureCloth";
+            if (c.HasProperty("_Glossiness")) c.SetFloat("_Glossiness", 0.22f);
+            FigureCloth = c;
+        }
+        foreach (SkinnedMeshRenderer r in g.GetComponentsInChildren<SkinnedMeshRenderer>())
+        {
+            Material[] ms = r.sharedMaterials; Material[] nm = new Material[ms.Length];
+            for (int q = 0; q < ms.Length; q++) nm[q] = ms[q] != null && ms[q].name.StartsWith("Cloth") ? FigureCloth : m;
+            r.sharedMaterials = nm; r.shadowCastingMode = ShadowCastingMode.On; r.receiveShadows = true;
+            r.updateWhenOffscreen = true; r.skinnedMotionVectors = false;
+        }
+        PoseFigure(rig, beckon ? 0.3f : 0f, 0f, 0f, 0f, beckon);
+        return rig;
+    }
+    static void Aim(Transform b, Transform child, Vector3 dir) { if (b == null || child == null) return; Vector3 cur = child.position - b.position; if (cur.sqrMagnitude < 1e-8f) return; b.rotation = Quaternion.FromToRotation(cur, dir) * b.rotation; }
+    // pose procedural (cada frame): curl 0..1 = dedos doblados hacia la palma; k = vaivén del antebrazo; t = tiempo; ph = desfase
+    public static void PoseFigure(Rig r, float curl, float k, float t, float ph, bool beckon)
+    {
+        if (r == null || !r.skinned || r.root == null) return;
+        for (int i = 0; i < r.all.Count; i++) if (r.all[i] != null) r.all[i].localRotation = r.rest[i];
+        Transform R = r.root;
+        Vector3 right = R.right, fwd = R.forward, up = R.up;
+        float breath = Mathf.Sin(t * 1.1f + ph);
+        // encorvada y respirando: el pecho se inclina hacia delante, se mece apenas
+        if (r.spine != null) r.spine.rotation = Quaternion.AngleAxis(4f + 0.8f * breath, right) * Quaternion.AngleAxis(1.2f * Mathf.Sin(t * 0.43f + ph), fwd) * r.spine.rotation;
+        if (r.chest != null) r.chest.rotation = Quaternion.AngleAxis(5f + 1.2f * breath, right) * Quaternion.AngleAxis(1.5f * Mathf.Sin(t * 0.5f + ph), fwd) * r.chest.rotation;
+        if (r.neck != null) r.neck.rotation = Quaternion.AngleAxis(9f, right) * r.neck.rotation;
+        if (r.head != null) r.head.rotation = Quaternion.AngleAxis(-(11f + 8f * Mathf.Sin(t * 0.23f + ph * 2f)), fwd) * Quaternion.AngleAxis(4f + 4f * Mathf.Sin(t * 0.31f + ph), right) * r.head.rotation;
+        if (!beckon) return;
+        // brazo derecho: el codo adelantado a la altura del pecho, el antebrazo levantado y la mano que llama («ven»)
+        Aim(r.upper, r.fore, R.TransformDirection(new Vector3(0.12f, -0.42f, 0.9f).normalized));
+        Vector3 foreDir = R.TransformDirection(new Vector3(-0.2f, 0.88f, 0.34f - 0.12f * k).normalized);
+        Aim(r.fore, r.hand, foreDir);
+        Vector3 handDir = Quaternion.AngleAxis(-(15f + 30f * curl), right) * foreDir;
+        if (r.hand != null && r.fingers.Count > 1) Aim(r.hand, r.fingers[1], handDir);
+        for (int q = 0; q < r.fingers.Count; q++)
+        {
+            float c = Mathf.Clamp01(curl * 1.15f - q * 0.05f);
+            if (r.fingers[q] != null) r.fingers[q].rotation = Quaternion.AngleAxis(-(15f + 80f * c), right) * r.fingers[q].rotation;
+            if (q < r.fing2.Count && r.fing2[q] != null) r.fing2[q].rotation = Quaternion.AngleAxis(-(10f + 75f * c), right) * r.fing2[q].rotation;
+        }
+    }
     static GameObject Part(PrimitiveType t, string n, Transform parent, Vector3 pos, Vector3 scale, Material m, Vector3 euler = default(Vector3))
     {
         GameObject g = ProceduralAssets.CreatePrimitive(t, n, parent, pos, scale, m, false);
@@ -761,7 +840,7 @@ public class W188World : MonoBehaviour
         MeshRenderer r = g.GetComponent<MeshRenderer>(); if (r != null) { r.shadowCastingMode = ShadowCastingMode.On; r.receiveShadows = false; }
         return g;
     }
-    public static Rig BuildFigure(Transform root, Material m, bool beckon)
+    public static Rig BuildFigurePrim(Transform root, Material m, bool beckon)
     {
         Rig rig = new Rig();
         Transform body = new GameObject("Body").transform; body.SetParent(root, false);
