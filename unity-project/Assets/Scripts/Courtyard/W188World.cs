@@ -1160,7 +1160,7 @@ public class W188World : MonoBehaviour
             else
             {
                 Vector3Int c = plan.Rooms[r.Next(plan.Rooms.Count)];
-                ExtraSpots.Add(levelRoot.TransformPoint(P(c.y, c.z * W188Plan.M + 2.6f, c.x * W188Plan.FH + 0.1f, 1.3f)));
+                ExtraSpots.Add(levelRoot.TransformPoint(P(c.y, c.z * W188Plan.M + 2.4f, c.x * W188Plan.FH + 0.1f, 1.75f)));
             }
         }
         for (int i = 0; i < cfg.batteries; i++) BatterySpots.Add(i == 0 ? court() : corr());
