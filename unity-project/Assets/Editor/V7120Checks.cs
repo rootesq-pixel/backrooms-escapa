@@ -133,7 +133,7 @@ public static class V7120Checks
         {   // entrada andando a la escalera SO de la planta baja: cápsula del jugador (r 0,35, alto 1,8) por el hueco del tramo A
             Physics.SyncTransforms();
             int stBlk = 0; string stWho = "";
-            for (float dd = 5.0f; dd > 1.9f; dd -= 0.1f)
+            for (float dd = 5.0f; dd > 2.05f; dd -= 0.1f)
             {
                 float yy = Mathf.Clamp((4.0f - dd) / (4.0f - W188World.StLand), 0f, 1f) * W188World.StRise + 0.02f;
                 Vector3 c = gen.Root.transform.TransformPoint(W188Plan.ToLevel(W188Plan.S, -3.35f, yy, dd));
@@ -160,7 +160,10 @@ public static class V7120Checks
             Vector3 d = wp[k] - p.transform.position; float dy = d.y; d.y = 0f;
             if (d.magnitude < 0.35f && Mathf.Abs(dy) < 0.9f) { k++; continue; }
             p.transform.rotation = Quaternion.Euler(0f, Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg, 0f);
-            p.debugMove = new Vector2(0f, 1f);
+            // cerca del punto, más despacio: el bot solo corrige el rumbo en cada tick del editor (con poca CPU, cada varios frames)
+            float dist = d.magnitude;
+            p.debugSprint = sprint && dist > 3f;
+            p.debugMove = new Vector2(0f, Mathf.Clamp(dist / 1.6f, 0.3f, 1f));
             yield return 0f; t += Time.unscaledDeltaTime;
             Vector3 now = p.transform.position; float step = Vector3.Distance(Flat(now), Flat(last)); walked += step; last = now;
             if (step < 0.002f * Mathf.Max(1f, Time.timeScale)) stuckT += Time.deltaTime; else stuckT = 0f;
@@ -215,12 +218,14 @@ public static class V7120Checks
         {
             float y0 = f * W188Plan.FH;
             wp.Add(L(w, S, -3.35f, y0, 5.0f));
+            wp.Add(L(w, S, -3.35f, y0, 4.55f));                 // delante del hueco del tramo A
             wp.Add(L(w, S, -3.35f, y0, 3.9f));
             wp.Add(L(w, S, -3.35f, y0 + 1.5f, 1.1f));
             wp.Add(L(w, S, -0.7f, y0 + 1.5f, 0.9f));
             wp.Add(L(w, S, -0.7f, y0 + 1.5f, 1.9f));
             wp.Add(L(w, S, -0.7f, y0 + 3f, 4.0f));
-            wp.Add(L(w, S, -0.7f, y0 + 3f, 5.0f));
+            wp.Add(L(w, S, -0.7f, y0 + 3f, 4.6f));
+            wp.Add(L(w, S, -0.7f, y0 + 3f, 5.15f));
         }
         return wp;
     }
