@@ -124,8 +124,9 @@ public static class V7120Shots
             yield return 1.0f;
             Shot("09_la_ventana_desde_patio", Lw(w, fg.s, W188Plan.UC(fg.i) + 1.0f, Mathf.Max(eyeH, fg.f * W188Plan.FH + 1.2f), -3.0f), wc, 45f);
             Vector3 corr = w.DoorWorld(fg.f, fg.s, fg.i, W188Plan.CorrIn + 0.75f);
-            g = Go(p, corr, W188World.YawToCourt(fg.s), 2.5f); while (g.MoveNext()) yield return g.Current;   // la figura se gira hacia el jugador
-            Shot("10_la_ventana_por_la_puerta", corr + Vector3.up * eyeH, fg.roomCenter + Vector3.up * 1.2f, 65f);
+            g = Go(p, corr, W188World.YawToCourt(fg.s), 3.5f); while (g.MoveNext()) yield return g.Current;   // la figura se gira hacia el jugador
+            Vector3 eyeD = w.CellWorld(fg.f, fg.s, fg.i, 1.05f, 3.55f) + Vector3.up * (eyeH - 0.1f);   // (solo la cámara entra en el cuarto)
+            Shot("10_la_ventana_dentro_de_su_cuarto", eyeD, fg.root.position + Vector3.up * 1.2f, 62f);
         }
         // 8) pasillo de una planta alta y habitación con la cortina descorrida
         {
@@ -149,6 +150,27 @@ public static class V7120Shots
             Vector3 st = Lw(w, W188Plan.S, -3.35f, 0.1f, 5.0f);
             g = Go(p, st, 0f); while (g.MoveNext()) yield return g.Current;
             Shot("14_escalera", st + Vector3.up * eyeH, Lw(w, W188Plan.S, -3.35f, 1.6f, 1.2f), 72f);
+        }
+        // 9b) multijugador: compañeros remotos (RemotePlayer, el avatar que ven los demás jugadores) en el patio y en el pasillo
+        {
+            g = Go(p, c1, 0f); while (g.MoveNext()) yield return g.Current;
+            Vector3 fw = R.TransformDirection(Vector3.forward), rt = R.TransformDirection(Vector3.right);
+            RemotePlayer a = RemotePlayer.Create(gm.transform, 91, "Ana", StepKind.Concrete), b = RemotePlayer.Create(gm.transform, 92, "Leo", StepKind.Concrete);
+            Vector3 pa = c1 + fw * 3.4f - rt * 0.9f, pb = c1 + fw * 6.0f + rt * 1.6f;
+            float yb = Mathf.Atan2(fw.x, fw.z) * Mathf.Rad2Deg;
+            float tt = 0f;
+            while (tt < 2.5f) { a.Push(pa, yb + 180f, 0f, 0f, 0); b.Push(pb - rt * tt * 1.3f, yb - 90f, -25f, 1.3f, 0); yield return 0.05f; tt += 0.05f; }
+            Shot("16_multijugador_patio", c1 + Vector3.up * eyeH - fw * 0.5f, c1 + fw * 6f + Vector3.up * 2.4f, 70f);
+            // en el pasillo de la salida, los dos delante de la puerta de la ventana con sol
+            Vector3 dw = w.ExitDoorWorld(W188Plan.CorrIn + 0.9f);
+            Vector3 along = R.TransformDirection(W188World.LevelDir(P.exitS, 1f, 0f)), outw = R.TransformDirection(W188World.LevelDir(P.exitS, 0f, 1f));
+            Vector3 me = dw + along * 3.2f;
+            g = Go(p, me, Mathf.Atan2(-along.x, -along.z) * Mathf.Rad2Deg); while (g.MoveNext()) yield return g.Current;
+            tt = 0f;
+            float ya = Mathf.Atan2(-outw.x, -outw.z) * Mathf.Rad2Deg, yl = Mathf.Atan2(along.x, along.z) * Mathf.Rad2Deg;
+            while (tt < 2.0f) { a.Push(dw + along * 0.3f, ya, 0f, 0f, RemotePlayer.FlagFlash); b.Push(dw + along * 1.3f, yl, 0f, 0f, RemotePlayer.FlagFlash); yield return 0.05f; tt += 0.05f; }
+            Shot("17_multijugador_pasillo_salida", me + Vector3.up * eyeH, dw + Vector3.up * 1.2f - outw * 0.3f, 70f);
+            Object.Destroy(a.gameObject); Object.Destroy(b.gameObject);
         }
         // 10) un Periférico, de reojo, en el patio
         {

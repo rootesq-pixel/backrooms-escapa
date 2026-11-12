@@ -14,6 +14,7 @@ using UnityEngine.Rendering;
 public class W188World : MonoBehaviour
 {
     public static W188World Active { get; private set; }
+    public float RoomK { get; private set; }
     public BackroomsGenerator gen; public LevelConfig cfg; public W188Plan plan; public Transform levelRoot;
     System.Action<Object> track;
 
@@ -84,6 +85,7 @@ public class W188World : MonoBehaviour
     {
         Material m = ProceduralAssets.CreateMaterial(c, null, Vector2.one, smooth); m.name = "W188_" + name; track(m); return m;
     }
+    Material curtainIn;
     Material LitCurtain(string name, Color tint, Color emit)
     {
         Material m = Pbr("W188Curtain", tint, 0.6f); m.name = "W188_" + name;
@@ -126,9 +128,10 @@ public class W188World : MonoBehaviour
         mats[METAL] = Plain("Brass", new Color(0.78f, 0.62f, 0.36f), 0.72f); mats[METAL].SetFloat("_Metallic", 0.9f);
         mats[LINEN] = Pbr("W188Curtain", new Color(0.92f, 0.91f, 0.88f), 0.6f); mats[LINEN].name = "W188_Linen";
         mats[WOOD] = Pbr("W188Door", new Color(0.42f, 0.30f, 0.21f), 0.8f); mats[WOOD].name = "W188_Wood";
-        mats[DARK] = Plain("Dark", new Color(0.035f, 0.033f, 0.032f), 0.15f);
+        mats[DARK] = Pbr("W188Wall", new Color(0.30f, 0.27f, 0.25f), 0.2f); mats[DARK].name = "W188_Dark";   // papel pintado sucio y apagado: la luz roja del cuarto de la Ventana se lee
         mats[CURT_LIT] = LitCurtain("CurtainLit", new Color(0.93f, 0.86f, 0.70f), new Color(0.95f, 0.70f, 0.38f) * 0.55f);
         mats[CURT_DARK] = Pbr("W188Curtain", new Color(0.78f, 0.74f, 0.64f), 0.7f); mats[CURT_DARK].name = "W188_CurtainDark";
+        curtainIn = LitCurtain("CurtainDaylight", new Color(0.92f, 0.91f, 0.88f), new Color(0.66f, 0.67f, 0.66f) * 0.34f);   // luz de día del patio a través de la tela
         mats[CURT_COLD] = LitCurtain("CurtainCold", new Color(0.86f, 0.88f, 0.86f), new Color(0.55f, 0.62f, 0.66f) * 0.42f);
         mats[GLOW] = Plain("Backlight", new Color(0.05f, 0.02f, 0.02f), 0.1f); ProceduralAssets.SetEmission(mats[GLOW], new Color(0.30f, 0.07f, 0.04f));
         mats[CORNICE] = Pbr("W188Facade", new Color(0.82f, 0.79f, 0.74f), 1f); mats[CORNICE].name = "W188_Cornice";
@@ -354,7 +357,7 @@ public class W188World : MonoBehaviour
         for (int i = 0; i < n; i += 1)
         {
             float u = W188Plan.UC(i) - 0.55f;
-            AddCeilingLamp(G, s, f, u, W188Plan.UC(i) - 0.55f, i % 2 == 0);
+            AddCeilingLamp(G, s, f, u, W188Plan.UC(i) - 0.55f, true);   // v7.12.0: una luz por módulo (el culler deja las 8 más cercanas)
         }
         AddCeilingLamp(G, s, f, -5.15f, -5.15f, true, 2.4f);
     }
@@ -447,7 +450,7 @@ public class W188World : MonoBehaviour
                 m.AddQuad(0, a0, b0, b1, a1, nc, along, Vector3.up, 0.9f, 0.9f, 0f, 0f);
                 m.AddQuad(1, a0, b0, b1, a1, -nc, along, Vector3.up, 0.9f, 0.9f, 0f, 0f);
             }
-            GameObject go = OceanGeo.Emit(m, "Panel", t, new[] { mats[CURT_LIT], mats[LINEN] }, false, false, track);
+            GameObject go = OceanGeo.Emit(m, "Panel", t, new[] { mats[CURT_LIT], curtainIn }, false, false, track);
             if (side < 0) c.left = t; else c.right = t;
         }
         c.center = levelRoot.TransformPoint(P(s, uc, (ys + yt) * 0.5f, d));
@@ -531,7 +534,7 @@ public class W188World : MonoBehaviour
     void BuildEntityRoom(int s, int f, int i, float u0, float u1, float y0, float yc, float uc)
     {
         Box(0, GLOW, s, u0 + 0.4f, u0 + 1.4f, y0 + 0.3f, y0 + 2.1f, W188Plan.RoomEnd - 0.012f, W188Plan.RoomEnd - 0.002f, 1f);
-        Light l = MakePoint(P(s, uc - 0.4f, y0 + 1.3f, 3.4f), 3.8f, 0.8f, new Color(0.85f, 0.32f, 0.18f));
+        Light l = MakePoint(P(s, uc - 0.6f, y0 + 1.9f, 2.6f), 4.8f, 1.15f, new Color(0.85f, 0.32f, 0.18f)); l.renderMode = LightRenderMode.ForcePixel;   // si no, con 8 lámparas de pasillo por píxel queda en vértices y el cuarto se ve negro
         Lamps.Add(new Lamp { l = l, f0 = f, f1 = f, always = true, baseI = l.intensity });
         Figure fig = new Figure { f = f, s = s, i = i, phase = (f * 7 + s * 3 + i) * 0.37f };
         Transform root = new GameObject("WindowFigure").transform; root.SetParent(propRoot, false);
@@ -869,7 +872,10 @@ public class W188World : MonoBehaviour
         float target = Mathf.Clamp01((inset + 0.2f) / 1.2f);
         CourtK = Mathf.MoveTowards(CourtK, target, Time.deltaTime * 2.5f);
         int pf = W188Plan.FloorOf(lp.y); PlayerFloor = pf;
-        ApplyAmbient(CourtK);
+        // dentro de una habitación entra la luz del día por su ventana: ambiente intermedio (en el pasillo, solo lámparas)
+        float back = -inset; float roomT = back > 0.05f && back < W188Plan.RoomEnd - 0.1f ? Mathf.Lerp(0.42f, 0.18f, back / W188Plan.RoomEnd) : 0f;
+        RoomK = Mathf.MoveTowards(RoomK, roomT, Time.deltaTime * 2.5f);
+        ApplyAmbient(Mathf.Max(CourtK, RoomK));
         // grupos: la planta del jugador y las contiguas; en el patio, la baja (se ve por el vestíbulo)
         for (int f = 0; f < FloorGroups.Count; f++)
         {

@@ -523,7 +523,7 @@ public class LevelConfig
         c.gridW = 11; c.gridH = 17; c.cellSize = 3.2f; c.wallHeight = 3f;   // la rejilla es la planta baja (patio 7 × 13 módulos + anillo de 2)
         c.loopChance = 1f; c.roomCount = 0;
         c.wallStyle = SurfaceStyle.ConcreteWall; c.floorStyle = SurfaceStyle.ConcreteFloor; c.ceilingStyle = SurfaceStyle.ConcreteCeiling;
-        c.ambient = new Color(0.098f, 0.089f, 0.078f);   // dentro (pasillos y habitaciones); en el patio la sube W188World (cielo nublado)
+        c.ambient = new Color(0.135f, 0.122f, 0.104f);   // dentro (pasillos y habitaciones); en el patio la sube W188World (cielo nublado)
         c.fog = new Color(0.46f, 0.48f, 0.51f);
         c.fogDensity = 0.010f;
         c.grade = 0.3f;

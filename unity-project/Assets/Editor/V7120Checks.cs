@@ -130,6 +130,21 @@ public static class V7120Checks
         int tris = 0, rends = 0; foreach (MeshFilter mf in gen.Root.GetComponentsInChildren<MeshFilter>(true)) if (mf.sharedMesh != null) { tris += (int)(mf.sharedMesh.GetIndexCount(0) / 3); for (int sm = 1; sm < mf.sharedMesh.subMeshCount; sm++) tris += (int)(mf.sharedMesh.GetIndexCount(sm) / 3); rends++; }
         int lights = gen.Root.GetComponentsInChildren<Light>(true).Length;
         r.Info(T + "triángulos " + tris + ", mallas " + rends + ", luces " + lights);
+        {   // entrada andando a la escalera SO de la planta baja: cápsula del jugador (r 0,35, alto 1,8) por el hueco del tramo A
+            Physics.SyncTransforms();
+            int stBlk = 0; string stWho = "";
+            for (float dd = 5.0f; dd > 1.9f; dd -= 0.1f)
+            {
+                float yy = Mathf.Clamp((4.0f - dd) / (4.0f - W188World.StLand), 0f, 1f) * W188World.StRise + 0.02f;
+                Vector3 c = gen.Root.transform.TransformPoint(W188Plan.ToLevel(W188Plan.S, -3.35f, yy, dd));
+                foreach (Collider cc in Physics.OverlapCapsule(c + Vector3.up * 0.37f, c + Vector3.up * 1.45f, 0.34f, ~0, QueryTriggerInteraction.Ignore))
+                {
+                    if (cc.name == "StairRamp") continue;
+                    stBlk++; if (stWho.Length < 400) stWho += " d" + dd.ToString("F1") + ":" + cc.name + " " + cc.bounds.center.ToString("F2") + "/" + cc.bounds.size.ToString("F2");
+                }
+            }
+            r.Check(stBlk == 0, T + "la escalera SO de la planta baja deja pasar al jugador por su hueco" + (stBlk == 0 ? "" : " (choca:" + stWho + ")"));
+        }
         r.Check(tris < 1500000 && rends < 600, T + "presupuesto: " + tris + " triángulos en " + rends + " mallas");
     }
 
@@ -253,7 +268,7 @@ public static class V7120Checks
         Vector3 corr2 = w.DoorWorld(2, W188Plan.E, 5, 5.15f);
         p.Teleport(corr2, 0f); yield return 1.2f;
         float ki = w.CourtK; Color skyI = RenderSettings.ambientSkyColor; int grpI = 0; foreach (GameObject g in w.FloorGroups) if (g.activeSelf) grpI++;
-        r.Check(kc > 0.95f && ki < 0.05f && skyC.r > 0.4f && skyI.r < 0.15f, T + "[Luz] en el patio luz de cielo (ambiente " + skyC.r.ToString("F2") + "), dentro luz baja de lámparas (" + skyI.r.ToString("F2") + ")");
+        r.Check(kc > 0.95f && ki < 0.05f && skyC.r > 0.4f && skyI.r < 0.2f, T + "[Luz] en el patio luz de cielo (ambiente " + skyC.r.ToString("F2") + "), dentro luz baja de lámparas (" + skyI.r.ToString("F2") + ")");
         r.Check(grpC == 1 && grpI == 3 && w.PlayerFloor == 2 && w.FloorGroups[2].activeSelf && !w.FloorGroups[0].activeSelf, T + "[Rendimiento] en el patio se dibuja solo la planta baja por dentro; en la 2.ª, las plantas 1-3 (" + grpC + " / " + grpI + ")");
         r.Check(w.ActiveLamps >= 3 && w.ActiveLamps <= Mathf.Max(4, LevelConfig.Get(Lv).maxRealtimeLights), T + "[Rendimiento] luces encendidas: las " + w.ActiveLamps + " más cercanas de la planta");
 
