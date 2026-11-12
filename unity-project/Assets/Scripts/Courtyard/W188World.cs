@@ -184,7 +184,7 @@ public class W188World : MonoBehaviour
             g.renderQueue = (int)RenderQueue.Transparent;
         }
         GlassMat = g;
-        FigureMat = Plain("Silhouette", new Color(0.035f, 0.032f, 0.031f), 0.42f);   // negro mate con un leve brillo: la contraluz le dibuja el borde
+        FigureMat = Plain("Silhouette", new Color(0.075f, 0.066f, 0.062f), 0.55f);   // negro mate con un leve brillo: la contraluz le dibuja el borde
         ExitViewMat = EmissiveImage("W188_ExitView", Resources.Load<Texture2D>("W188/W188ExitView"), 1.25f);
     }
 
@@ -740,11 +740,16 @@ public class W188World : MonoBehaviour
         Transform root = new GameObject("WindowFigure").transform; root.SetParent(propRoot, false);
         root.localPosition = P(s, uc, y0, 1.05f);
         root.localRotation = Quaternion.Euler(0f, W188Plan.SideYaw(s), 0f);   // mira al patio (+z del marco)
-        Rig rig = BuildFigure(root, FigureMat, true);
+        Rig rig = BuildFigure(root, FigureMat, true, levelRoot.TransformPoint(P(s, W188Plan.DoorU(i), y0, W188Plan.RoomEnd)));
         fig.rig = rig; fig.arm = rig.shoulder; fig.elbow = rig.elbow; fig.wrist = rig.wrist; fig.head = rig.head; fig.chest = rig.chest; fig.fingers.AddRange(rig.fingers);
         // contraluz: una luz fría y débil detrás de la figura (hacia el fondo del cuarto) recorta su silueta desde el patio
-        Light rim = MakePoint(P(s, uc + 0.5f, y0 + 2.1f, 1.9f), 2.4f, 0.55f, new Color(0.55f, 0.62f, 0.75f)); rim.renderMode = LightRenderMode.ForcePixel;
+        Light rim = MakePoint(P(s, uc + 0.55f, y0 + 2.0f, 1.85f), 2.6f, 1.1f, new Color(0.55f, 0.62f, 0.75f)); rim.renderMode = LightRenderMode.ForcePixel;
         Lamps.Add(new Lamp { l = rim, f0 = f, f1 = f, always = true, baseI = rim.intensity });
+        // luz de día muy tenue que entra por el cristal: deja leer los pliegues del camisón y el volumen sin perder la silueta
+        Light fill = MakePoint(P(s, uc + 0.2f, y0 + 1.6f, 0.35f), 1.6f, 0.45f, new Color(0.7f, 0.74f, 0.8f)); fill.renderMode = LightRenderMode.ForcePixel; fill.shadows = LightShadows.None;
+        Lamps.Add(new Lamp { l = fill, f0 = f, f1 = f, always = true, baseI = fill.intensity });
+        Light rim2 = MakePoint(P(s, uc - 0.6f, y0 + 1.4f, 1.75f), 1.9f, 0.7f, new Color(0.62f, 0.6f, 0.66f)); rim2.renderMode = LightRenderMode.ForcePixel;
+        Lamps.Add(new Lamp { l = rim2, f0 = f, f1 = f, always = true, baseI = rim2.intensity });
         fig.root = root;
         fig.roomCenter = levelRoot.TransformPoint(P(s, uc, y0, 2.1f));
         fig.doorWorld = levelRoot.TransformPoint(P(s, W188Plan.DoorU(i), y0, W188Plan.RoomEnd + 0.07f));
@@ -769,7 +774,7 @@ public class W188World : MonoBehaviour
     // la Ventana (v3): malla propia hecha en Blender (Tools/w188/ventana_build.py): humanoide de ~2,05 m, delgadísimo, brazos y cuello
     // demasiado largos, camisón de tela con pliegues y bajo deshilachado; piel casi negra y algo brillante para que la contraluz le
     // dibuje un borde suave. Se posa por código (sin Animator): respiración, balanceo, cabeza ladeada y la mano que llama.
-    public static Rig BuildFigure(Transform root, Material m, bool beckon)
+    public static Rig BuildFigure(Transform root, Material m, bool beckon, Vector3? awayFrom = null)
     {
         if (!ventanaTried) { ventanaTried = true; ventanaPrefab = Resources.Load<GameObject>("W188/Ventana"); }
         if (ventanaPrefab == null) return BuildFigurePrim(root, m, beckon);
@@ -778,10 +783,20 @@ public class W188World : MonoBehaviour
         Rig rig = new Rig { skinned = true, root = root };
         Transform T(string n) { Transform t = FindDeep(g.transform, n); if (t != null && !rig.all.Contains(t)) { rig.all.Add(t); rig.rest.Add(t.localRotation); } return t; }
         rig.spine = T("Spine"); rig.chest = T("Chest"); rig.neck = T("Neck"); rig.head = T("Head");
-        rig.upper = T("UpperArm.R"); rig.fore = T("Forearm.R"); rig.hand = T("Hand.R");
+        // llama con la mano del lado contrario a la puerta (si no, la mano se pierde contra la hoja entornada)
+        string sd = "R";
+        Transform shR = FindDeep(g.transform, "UpperArm.R"), shL = FindDeep(g.transform, "UpperArm.L");
+        Transform thR = FindDeep(g.transform, "Thumb.R");
+        if (awayFrom.HasValue && shR != null && shL != null)
+        {
+            bool flip = thR != null && FindDeep(g.transform, "Hand.R") != null && root.InverseTransformDirection(thR.position - FindDeep(g.transform, "Hand.R").position).z < 0f;
+            float xr = root.InverseTransformPoint(shR.position).x * (flip ? -1f : 1f), xd = root.InverseTransformPoint(awayFrom.Value).x;
+            if (Mathf.Sign(xr) == Mathf.Sign(xd)) sd = "L";
+        }
+        rig.upper = T("UpperArm." + sd); rig.fore = T("Forearm." + sd); rig.hand = T("Hand." + sd);
         rig.shoulder = rig.upper; rig.elbow = rig.fore; rig.wrist = rig.hand;
-        for (int k = 0; k < 4; k++) { Transform a = T("Finger" + k + ".R.1"), b = T("Finger" + k + ".R.2"); if (a != null) rig.fingers.Add(a); if (b != null) rig.fing2.Add(b); }
-        Transform thumb = FindDeep(g.transform, "Thumb.R");
+        for (int k = 0; k < 4; k++) { Transform a = T("Finger" + k + "." + sd + ".1"), b = T("Finger" + k + "." + sd + ".2"); if (a != null) rig.fingers.Add(a); if (b != null) rig.fing2.Add(b); }
+        Transform thumb = FindDeep(g.transform, "Thumb." + sd);
         if (rig.upper == null || rig.fore == null || rig.hand == null || rig.head == null) { Object.Destroy(g); return BuildFigurePrim(root, m, beckon); }
         // la malla de Blender mira a -Y: el pulgar va por delante de la muñeca; si queda detrás en la raíz, se gira 180°
         if (thumb != null && root.InverseTransformDirection(thumb.position - rig.hand.position).z < 0f)
@@ -791,7 +806,7 @@ public class W188World : MonoBehaviour
         if (hy > 0.2f) { float k = 1.82f / hy; g.transform.localScale = Vector3.Scale(g.transform.localScale, new Vector3(k * 0.96f, k, k * 0.96f)); }
         if (FigureCloth == null)
         {
-            Material c = OceanGeo.PbrMat("W188/W188Curtain", new Color(0.13f, 0.12f, 0.115f), 0.8f, null); c.name = "W188_FigureCloth";
+            Material c = OceanGeo.PbrMat("W188/W188Curtain", new Color(0.13f, 0.12f, 0.115f), 0.8f, o => { }); c.name = "W188_FigureCloth";
             if (c.HasProperty("_Glossiness")) c.SetFloat("_Glossiness", 0.22f);
             FigureCloth = c;
         }
@@ -821,11 +836,26 @@ public class W188World : MonoBehaviour
         if (r.head != null) r.head.rotation = Quaternion.AngleAxis(-(11f + 8f * Mathf.Sin(t * 0.23f + ph * 2f)), fwd) * Quaternion.AngleAxis(4f + 4f * Mathf.Sin(t * 0.31f + ph), right) * r.head.rotation;
         if (!beckon) return;
         // brazo derecho: el codo adelantado a la altura del pecho, el antebrazo levantado y la mano que llama («ven»)
-        Aim(r.upper, r.fore, R.TransformDirection(new Vector3(0.12f, -0.42f, 0.9f).normalized));
-        Vector3 foreDir = R.TransformDirection(new Vector3(-0.2f, 0.88f, 0.34f - 0.12f * k).normalized);
+        // (sx: lado del hombro en la raíz, para abrir el codo hacia fuera sea cual sea la orientación de la malla)
+        float sx = Mathf.Sign(R.InverseTransformPoint(r.upper.position).x); if (sx == 0f) sx = 1f;
+        Aim(r.upper, r.fore, R.TransformDirection(new Vector3(0.7f * sx, -0.64f, 0.34f).normalized));   // codo abierto hacia fuera y algo adelantado
+        Vector3 foreDir = R.TransformDirection(new Vector3(0.16f * sx, 0.8f, 0.42f - 0.12f * k).normalized);   // antebrazo casi vertical: la mano junto a la cabeza, a la vista
         Aim(r.fore, r.hand, foreDir);
-        Vector3 handDir = Quaternion.AngleAxis(-(15f + 30f * curl), right) * foreDir;
+        // la palma hacia arriba/atrás y los dedos que se doblan hacia ella
+        Vector3 handDir = Quaternion.AngleAxis(-(20f + 25f * curl), right) * foreDir;
         if (r.hand != null && r.fingers.Count > 1) Aim(r.hand, r.fingers[1], handDir);
+        // giro de la muñeca: la palma de cara (ancho de la mano a lo largo de la derecha de la figura), para que se vea la mano entera
+        if (r.hand != null && r.fingers.Count >= 4 && r.fingers[0] != null && r.fingers[3] != null)
+        {
+            Vector3 hd = handDir.normalized;
+            Vector3 wcur = Vector3.ProjectOnPlane(r.fingers[3].position - r.fingers[0].position, hd), wt = Vector3.ProjectOnPlane(right, hd);
+            if (wcur.sqrMagnitude > 1e-8f && wt.sqrMagnitude > 1e-6f)
+            {
+                float ang = Vector3.SignedAngle(wcur, wt, hd);
+                if (Mathf.Abs(ang) > 90f) ang -= 180f * Mathf.Sign(ang);   // basta con que el ancho quede en ese eje (palma delante o detrás)
+                r.hand.rotation = Quaternion.AngleAxis(ang, hd) * r.hand.rotation;
+            }
+        }
         for (int q = 0; q < r.fingers.Count; q++)
         {
             float c = Mathf.Clamp01(curl * 1.15f - q * 0.05f);

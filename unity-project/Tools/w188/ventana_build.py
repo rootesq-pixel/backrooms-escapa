@@ -36,12 +36,12 @@ for s in (-1, 1):
     v("elbow"+L, 0.225*s, 0.02, 1.235, 0.03)
     v("forearm"+L, 0.235*s, 0.01, 1.06, 0.032)
     v("wrist"+L, 0.245*s, 0.0, 0.885, 0.021, 0.016)
-    v("palm"+L, 0.25*s, -0.004, 0.83, 0.033, 0.013)
-    for k, (dx, ln) in enumerate([(-0.022, 0.07), (-0.007, 0.082), (0.008, 0.078), (0.022, 0.062)]):
+    v("palm"+L, 0.25*s, -0.004, 0.83, 0.038, 0.014)
+    for k, (dx, ln) in enumerate([(-0.024, 0.088), (-0.008, 0.104), (0.008, 0.098), (0.024, 0.078)]):
         n0 = "f%d%s0" % (k, L); n1 = "f%d%s1" % (k, L); n2 = "f%d%s2" % (k, L)
-        v(n0, 0.25*s + dx*s, -0.004, 0.79, 0.0085)
-        v(n1, 0.25*s + dx*s*1.05, -0.006, 0.79 - ln*0.55, 0.0075)
-        v(n2, 0.25*s + dx*s*1.1, -0.008, 0.79 - ln, 0.006)
+        v(n0, 0.25*s + dx*s, -0.004, 0.79, 0.0105)
+        v(n1, 0.25*s + dx*s*1.05, -0.006, 0.79 - ln*0.55, 0.009)
+        v(n2, 0.25*s + dx*s*1.1, -0.008, 0.79 - ln, 0.0068)
         e("palm"+L, n0); e(n0, n1); e(n1, n2)
     v("thumb%s0" % L, 0.235*s, -0.02, 0.84, 0.01); v("thumb%s1" % L, 0.228*s, -0.045, 0.8, 0.008)
     e("wrist"+L, "thumb%s0" % L); e("thumb%s0" % L, "thumb%s1" % L)
@@ -139,6 +139,24 @@ try:
     bpy.ops.object.parent_set(type="ARMATURE_AUTO")
 except Exception as ex:
     print("auto weights fallo:", ex)
+# el camisón no sigue a los brazos: se quitan los pesos de brazo/mano en sus vértices y se renormaliza (si no, al levantar
+# la mano arrastra media prenda y sale un «ala» enorme en la silueta)
+gv = set()
+for poly in ob.data.polygons:
+    if poly.material_index == 1: gv.update(poly.vertices)
+armg = [vg.index for vg in ob.vertex_groups if any(vg.name.startswith(p) for p in ("Clavicle", "UpperArm", "Forearm", "Hand", "Finger", "Thumb"))]
+names_by_idx = {vg.index: vg.name for vg in ob.vertex_groups}
+for vi in gv:
+    vt = ob.data.vertices[vi]
+    for gi in armg:
+        try: ob.vertex_groups[names_by_idx[gi]].remove([vi])
+        except RuntimeError: pass
+    gs = [(g.group, g.weight) for g in vt.groups]
+    tot = sum(w for _, w in gs)
+    if tot < 1e-4: ob.vertex_groups["Chest"].add([vi], 1.0, "REPLACE")
+    else:
+        for gi, w in gs: ob.vertex_groups[names_by_idx[gi]].add([vi], w / tot, "REPLACE")
+print("camison", len(gv))
 empty = [vg.name for vg in ob.vertex_groups]
 print("grupos", len(empty), "vertices", len(ob.data.vertices), "caras", len(ob.data.polygons))
 bpy.ops.object.select_all(action="SELECT")

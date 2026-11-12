@@ -137,7 +137,7 @@ public static class V7120Shots
             Shot("09b_la_ventana_cerca", Lw(w, fg.s, W188Plan.UC(fg.i) + 0.3f, fg.f * W188Plan.FH + 1.6f, -1.3f), fg.root.position + Vector3.up * 1.45f, 42f);
             yield return 0.6f;
             Shot("09d_la_ventana_cerca_llamando", Lw(w, fg.s, W188Plan.UC(fg.i) - 0.25f, fg.f * W188Plan.FH + 1.45f, -0.9f), fg.root.position + Vector3.up * 1.4f, 50f);
-            Shot("09c_la_ventana_lejos", Lw(w, fg.s, W188Plan.UC(fg.i) - 2.0f, eyeH, -10f), wc, 24f);
+            Shot("09c_la_ventana_lejos", Lw(w, fg.s, W188Plan.UC(fg.i) - 1.5f, Mathf.Max(eyeH, fg.f * W188Plan.FH + 0.6f), -12f), fg.root.position + Vector3.up * 1.3f, 22f);   // como desde una ventana de enfrente, una planta más abajo
             Vector3 corr = w.DoorWorld(fg.f, fg.s, fg.i, W188Plan.CorrIn + 0.75f);
             g = Go(p, corr, W188World.YawToCourt(fg.s), 3.5f); while (g.MoveNext()) yield return g.Current;   // la figura se gira hacia el jugador
             Vector3 eyeD = w.CellWorld(fg.f, fg.s, fg.i, 1.05f, 3.55f) + Vector3.up * (eyeH - 0.1f);   // (solo la cámara entra en el cuarto)
