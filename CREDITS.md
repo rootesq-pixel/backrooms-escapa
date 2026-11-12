@@ -208,5 +208,6 @@ Preparadas con `Tools/audio/prep_steps.py` (moqueta, hormigón) y `Tools/audio/p
 | `W188Concrete_*` | escaleras y techos de servicio | ambientCG Concrete034 — https://ambientcg.com/a/Concrete034 | CC0 1.0 |
 | `W188Door_*` | puertas pintadas | ambientCG PaintedWood005 — https://ambientcg.com/a/PaintedWood005 | CC0 1.0 |
 | `W188ExitView.jpg` | lo que se ve por la ventana con sol (la salida) | Poly Haven meadow_2 (HDRI, recorte en perspectiva) — https://polyhaven.com/a/meadow_2 | CC0 1.0 |
+| `Ventana.fbx` | la Ventana: humanoide delgado con camisón (malla y esqueleto) | obra propia del proyecto, generada con Blender 4.2 por `Tools/w188/ventana_build.py` | CC0 1.0 |
 
 Reempaquetadas con `Tools/w188/pack_textures.py` (albedo, normales y máscara Standard; 1024–2048 px). Lo que se ve por las ventanas abiertas son las miniaturas de los niveles del propio juego. El cielo nublado reutiliza `kloofendal_overcast_puresky` (Poly Haven, CC0, ya citado). Siluetas de la Ventana, Periféricos, cortinas, muebles y geometría: trabajo propio, CC0. Sonidos del nivel (golpes en el cristal, puertas lejanas, golpe grave al atraparte): sintetizados por código o reutilizados del proyecto, graves, sin crujidos de madera ni siseo.
