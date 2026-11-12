@@ -147,9 +147,16 @@ public class W188Events : MonoBehaviour
         foreach (W188World.Figure f in w.Figures)
         {
             if (f.root == null) continue;
-            // brazo: señas lentas («ven»)
-            float k = Mathf.Sin(t * 2.1f + f.phase);
-            if (f.arm != null) f.arm.localRotation = Quaternion.Euler(-120f - 35f * Mathf.Max(0f, k), 0f, 18f + 10f * k);
+            // llamar con la mano («ven»): el antebrazo sube y baja un poco y los dedos se doblan hacia la palma, con pausas;
+            // la cabeza se ladea despacio y el cuerpo se mece apenas
+            float cyc = t * 1.35f + f.phase, k = Mathf.Sin(cyc * 2f);
+            float curl = Mathf.SmoothStep(0f, 1f, Mathf.Clamp01(Mathf.Sin(cyc * 3.1f) * 1.4f)) * (0.55f + 0.45f * Mathf.Max(0f, Mathf.Sin(cyc * 0.37f)));
+            if (f.arm != null) f.arm.localRotation = Quaternion.Euler(-40f - 5f * k, 0f, 14f);   // la mano queda delante del pecho, a la vista por la ventana
+            if (f.elbow != null) f.elbow.localRotation = Quaternion.Euler(-72f - 16f * curl, 0f, 0f);
+            if (f.wrist != null) f.wrist.localRotation = Quaternion.Euler(-25f - 35f * curl, 0f, 0f);
+            for (int q = 0; q < f.fingers.Count; q++) if (f.fingers[q] != null) f.fingers[q].localRotation = Quaternion.Euler(-20f - 95f * Mathf.Clamp01(curl * 1.15f - q * 0.05f), 0f, 0f);
+            if (f.head != null) f.head.localRotation = Quaternion.Euler(6f + 4f * Mathf.Sin(t * 0.31f + f.phase), 0f, 9f + 7f * Mathf.Sin(t * 0.23f + f.phase * 2f));
+            if (f.chest != null) f.chest.localRotation = Quaternion.Euler(1.5f * Mathf.Sin(t * 0.5f + f.phase), 0f, 1.2f * Mathf.Sin(t * 0.43f + f.phase));
             if (Grabbing && f == grabFig) continue;
             // si alguien está en su puerta (misma planta), se gira despacio hacia ella; si no, mira al patio
             Vector3 dd = pp - f.doorWorld; float dy = pp.y - f.doorWorld.y; dd.y = 0f;

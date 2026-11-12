@@ -20,7 +20,7 @@ public class W188World : MonoBehaviour
 
     // materiales (submallas)
     public const int FACADE = 0, PAVING = 1, CARPET = 2, RCARPET = 3, WALL = 4, CEIL = 5, FRAME = 6, CONC = 7, DOOR = 8, SKIRT = 9,
-        LAMP = 10, METAL = 11, LINEN = 12, WOOD = 13, DARK = 14, CURT_LIT = 15, CURT_DARK = 16, CURT_COLD = 17, GLOW = 18, CORNICE = 19, NMAT = 20;
+        LAMP = 10, METAL = 11, LINEN = 12, WOOD = 13, DARK = 14, CURT_LIT = 15, CURT_DARK = 16, CURT_COLD = 17, GLOW = 18, CORNICE = 19, CURT_GREEN = 20, CURT_ROSE = 21, BLIND = 22, RUG = 23, PAINT = 24, NMAT = 25;
     public Material[] mats;
     public Material GlassMat { get; private set; }
     public Material FigureMat { get; private set; }
@@ -47,7 +47,7 @@ public class W188World : MonoBehaviour
     public readonly List<W188Door> Doors = new List<W188Door>();
     public class Curtain { public Transform left, right; public Vector3 center; public Vector3 inward; public int f, s, i; public float open; public bool busy; }
     public readonly List<Curtain> Curtains = new List<Curtain>();
-    public class Figure { public Transform root, arm; public Vector3 roomCenter, doorWorld; public int f, s, i; public float phase; }
+    public class Figure { public Transform root, arm, elbow, wrist, head, chest; public readonly List<Transform> fingers = new List<Transform>(); public Vector3 roomCenter, doorWorld; public int f, s, i; public float phase; }
     public readonly List<Figure> Figures = new List<Figure>();
     public class LockedDoor { public Vector3 pos; public Vector3 outward; public int f; public bool view; }
     public readonly List<LockedDoor> Locked = new List<LockedDoor>();
@@ -86,6 +86,37 @@ public class W188World : MonoBehaviour
         Material m = ProceduralAssets.CreateMaterial(c, null, Vector2.one, smooth); m.name = "W188_" + name; track(m); return m;
     }
     Material curtainIn;
+    Material GrimeMat, PuddleMat; MeshBuilder grimeMb;
+    // manchas de suciedad: chorretones verticales bajo los alféizares (textura generada, alfa; v arriba = 1)
+    Material MakeGrime()
+    {
+        const int W = 128, H = 256; Texture2D t = new Texture2D(W, H, TextureFormat.RGBA32, true); t.wrapMode = TextureWrapMode.Clamp; track(t);
+        System.Random r = new System.Random(188); Color32[] px = new Color32[W * H];
+        float[] len = new float[W], str = new float[W];
+        float run = 0.5f, sr = 0.5f;
+        for (int x = 0; x < W; x++) { if (r.NextDouble() < 0.18) { run = 0.25f + (float)r.NextDouble() * 0.75f; sr = 0.3f + (float)r.NextDouble() * 0.7f; } len[x] = run; str[x] = sr; }
+        for (int y = 0; y < H; y++)
+            for (int x = 0; x < W; x++)
+            {
+                float v = y / (float)(H - 1), fromTop = 1f - v;
+                float edge = Mathf.Clamp01(Mathf.Min(x, W - 1 - x) / 14f);
+                float a = Mathf.Clamp01(1f - fromTop / len[x]); a = a * a * str[x] * edge;
+                a *= 0.75f + 0.25f * Mathf.PerlinNoise(x * 0.21f, y * 0.05f);
+                a = Mathf.Max(a, 0.55f * Mathf.Clamp01((v - 0.9f) / 0.1f) * edge);   // borde de arriba (bajo el alféizar), más oscuro
+                px[y * W + x] = new Color32(48, 44, 38, (byte)(a * 150f));
+            }
+        t.SetPixels32(px); t.Apply(true);
+        Material m = ProceduralAssets.CreateMaterial(Color.white, t, Vector2.one, 0.05f); m.name = "W188_Grime"; track(m);
+        if (m.HasProperty("_Mode"))
+        {
+            m.SetFloat("_Mode", 2f); m.SetOverrideTag("RenderType", "Transparent");
+            m.SetInt("_SrcBlend", (int)BlendMode.SrcAlpha); m.SetInt("_DstBlend", (int)BlendMode.OneMinusSrcAlpha); m.SetInt("_ZWrite", 0);
+            m.DisableKeyword("_ALPHATEST_ON"); m.EnableKeyword("_ALPHABLEND_ON"); m.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            m.renderQueue = (int)RenderQueue.Transparent - 10;
+        }
+        return m;
+    }
+    static int H3(int f, int s, int i, int salt) { unchecked { int h = f * 73856093 ^ s * 19349663 ^ i * 83492791 ^ salt * 2654435; h ^= h >> 13; h *= 0x5bd1e995; h ^= h >> 15; return h & 0x7fffffff; } }
     Material LitCurtain(string name, Color tint, Color emit)
     {
         Material m = Pbr("W188Curtain", tint, 0.6f); m.name = "W188_" + name;
@@ -135,6 +166,14 @@ public class W188World : MonoBehaviour
         mats[CURT_COLD] = LitCurtain("CurtainCold", new Color(0.86f, 0.88f, 0.86f), new Color(0.55f, 0.62f, 0.66f) * 0.42f);
         mats[GLOW] = Plain("Backlight", new Color(0.05f, 0.02f, 0.02f), 0.1f); ProceduralAssets.SetEmission(mats[GLOW], new Color(0.30f, 0.07f, 0.04f));
         mats[CORNICE] = Pbr("W188Facade", new Color(0.82f, 0.79f, 0.74f), 1f); mats[CORNICE].name = "W188_Cornice";
+        // v2: más variedad en las ventanas y en los cuartos
+        mats[CURT_GREEN] = Pbr("W188Curtain", new Color(0.52f, 0.56f, 0.44f), 0.7f); mats[CURT_GREEN].name = "W188_CurtainOlive";
+        mats[CURT_ROSE] = LitCurtain("CurtainRose", new Color(0.86f, 0.70f, 0.66f), new Color(0.90f, 0.55f, 0.45f) * 0.42f);
+        mats[BLIND] = Pbr("W188Door", new Color(0.86f, 0.84f, 0.78f), 0.7f); mats[BLIND].name = "W188_Blind";
+        mats[RUG] = Pbr("W188Carpet", new Color(0.72f, 0.42f, 0.34f), 1f); mats[RUG].name = "W188_Rug";
+        mats[PAINT] = Pbr("W188Door", new Color(0.88f, 0.87f, 0.83f), 0.8f); mats[PAINT].name = "W188_PaintedMetal";
+        GrimeMat = MakeGrime();
+        PuddleMat = Plain("Puddle", new Color(0.40f, 0.41f, 0.42f), 0.9f);   // agua quieta: refleja el cielo y las fachadas
 
         Material g = ProceduralAssets.CreateMaterial(new Color(0.30f, 0.34f, 0.36f, 0.16f), null, Vector2.one, 0.96f); g.name = "W188_Glass"; track(g);
         if (g.HasProperty("_Mode"))
@@ -145,8 +184,7 @@ public class W188World : MonoBehaviour
             g.renderQueue = (int)RenderQueue.Transparent;
         }
         GlassMat = g;
-        FigureMat = Plain("Silhouette", new Color(0.012f, 0.011f, 0.011f), 0.05f);
-        if (FigureMat.HasProperty("_SpecularHighlights")) { FigureMat.SetFloat("_SpecularHighlights", 0f); FigureMat.EnableKeyword("_SPECULARHIGHLIGHTS_OFF"); }
+        FigureMat = Plain("Silhouette", new Color(0.035f, 0.032f, 0.031f), 0.42f);   // negro mate con un leve brillo: la contraluz le dibuja el borde
         ExitViewMat = EmissiveImage("W188_ExitView", Resources.Load<Texture2D>("W188/W188ExitView"), 1.25f);
     }
 
@@ -187,11 +225,11 @@ public class W188World : MonoBehaviour
     // cortina con pliegues: tira ondulada en el plano d (en el marco del lado), por una o las dos caras
     static void Pleats(MeshBuilder m, int subFront, int subBack, int s, float u0, float u1, float y0, float y1, float d, float amp, int folds)
     {
-        int n = folds * 4;
+        int n = folds * 8;
         for (int k = 0; k < n; k++)
         {
             float ua = Mathf.Lerp(u0, u1, k / (float)n), ub = Mathf.Lerp(u0, u1, (k + 1) / (float)n);
-            float da = d + amp * Mathf.Sin(k * Mathf.PI * 0.5f), db = d + amp * Mathf.Sin((k + 1) * Mathf.PI * 0.5f);
+            float da = d + amp * Mathf.Sin(k * Mathf.PI * 0.25f), db = d + amp * Mathf.Sin((k + 1) * Mathf.PI * 0.25f);
             Vector3 a0 = P(s, ua, y0, da), b0 = P(s, ub, y0, db), b1 = P(s, ub, y1, db), a1 = P(s, ua, y1, da);
             Vector3 along = (b0 - a0).normalized;
             Vector3 nc = Vector3.Cross(Vector3.up, along).normalized;            // una de las dos normales horizontales
@@ -207,7 +245,7 @@ public class W188World : MonoBehaviour
         MakeMaterials();
         mb = new MeshBuilder[1 + W188Plan.Floors];
         for (int i = 0; i < mb.Length; i++) mb[i] = new MeshBuilder(NMAT);
-        glassMb = new MeshBuilder(1);
+        glassMb = new MeshBuilder(1); grimeMb = new MeshBuilder(1);
         colRoot = new GameObject("Colliders").transform; colRoot.SetParent(transform, false);
         propRoot = new GameObject("Props").transform; propRoot.SetParent(transform, false);
         rattleClip = ProceduralAudio.CreateLockRattle();
@@ -223,8 +261,11 @@ public class W188World : MonoBehaviour
         // mallas
         ExtGroup = OceanGeo.Emit(mb[0], "Facades", transform, mats, false, false, track);
         for (int f = 0; f < W188Plan.Floors; f++) FloorGroups.Add(OceanGeo.Emit(mb[1 + f], "Floor" + f, transform, mats, false, false, track));
+        foreach (var kv in floorParents) if (kv.Key >= 1 && kv.Key <= FloorGroups.Count) kv.Value.SetParent(FloorGroups[kv.Key - 1].transform, true);   // cuadros: se ocultan con su planta
         GameObject gl = OceanGeo.Emit(glassMb, "Glazing", transform, new[] { GlassMat }, false, false, track);
         gl.GetComponent<MeshRenderer>().receiveShadows = false;
+        GameObject gr = OceanGeo.Emit(grimeMb, "FacadeGrime", transform, new[] { GrimeMat }, false, false, track);
+        gr.GetComponent<MeshRenderer>().receiveShadows = false;
 
         PickSpots();
         // sonda de reflejos del patio (cristales y losas mojadas reflejan el cielo y las fachadas)
@@ -246,14 +287,14 @@ public class W188World : MonoBehaviour
     void BuildCourtyard()
     {
         float x0 = W188Plan.R, x1 = W188Plan.R + W188Plan.NX * W188Plan.M, z0 = W188Plan.R, z1 = W188Plan.R + W188Plan.NZ * W188Plan.M;
-        BoxL(0, PAVING, new Vector3(x0, -0.3f, z0), new Vector3(x1, 0f, z1), 3.2f);
+        BuildPaving(x0, x1, z0, z1);
         // suelo general de la planta baja (colisión de todo el edificio)
         ColL(new Vector3(0f, -0.3f, 0f), new Vector3(W188Plan.Width, 0f, W188Plan.Depth));
         float cx = (x0 + x1) * 0.5f;
         // rejillas de desagüe y bancos de listones a lo largo de los lados largos, dos jardineras vacías en el eje
         foreach (float z in new[] { 17.6f, 36.8f })
         {
-            BoxL(0, METAL, new Vector3(cx - 0.3f, -0.005f, z - 0.3f), new Vector3(cx + 0.3f, 0.004f, z + 0.3f), 1f);
+            float gy = PavingH(cx, z); BoxL(0, METAL, new Vector3(cx - 0.3f, gy - 0.01f, z - 0.3f), new Vector3(cx + 0.3f, gy + 0.003f, z + 0.3f), 1f);
             float[] bx = { x0 + 1.1f, x1 - 1.1f };
             foreach (float bxx in bx)
             {
@@ -267,6 +308,72 @@ public class W188World : MonoBehaviour
             BoxL(0, CONC, new Vector3(cx - 0.8f, 0f, z - 0.8f), new Vector3(cx + 0.8f, 0.55f, z + 0.8f), 1.6f);
             BoxL(0, DARK, new Vector3(cx - 0.68f, 0.55f, z - 0.68f), new Vector3(cx + 0.68f, 0.5501f, z + 0.68f), 1f);
             ColL(new Vector3(cx - 0.8f, 0f, z - 0.8f), new Vector3(cx + 0.8f, 0.6f, z + 0.8f));
+        }
+    }
+
+    // v2: losas del patio con hundimientos suaves (más hacia los desagües), charcos en lo hondo y bordillo junto a las fachadas
+    static readonly Vector3[] Dips = { new Vector3(0f, 17.6f, 2.2f), new Vector3(0f, 36.8f, 2.2f), new Vector3(-6.5f, 11.0f, 1.4f), new Vector3(7.0f, 27.0f, 1.6f), new Vector3(-5.0f, 44.0f, 1.2f), new Vector3(4.5f, 9.0f, 1.0f) };
+    public static float PavingH(float x, float z)
+    {
+        float x0 = W188Plan.R, x1 = W188Plan.R + W188Plan.NX * W188Plan.M, z0 = W188Plan.R, z1 = W188Plan.R + W188Plan.NZ * W188Plan.M, cx = (x0 + x1) * 0.5f;
+        float h = 0.010f * (Mathf.PerlinNoise(x * 0.31f + 3.1f, z * 0.31f + 7.7f) - 0.5f) + 0.006f * (Mathf.PerlinNoise(x * 1.3f, z * 1.3f) - 0.5f);
+        // cada losa (1,6 m) un pelín girada: escalones de milímetros entre losas
+        int ix = Mathf.FloorToInt((x - x0) / 1.6f), iz = Mathf.FloorToInt((z - z0) / 1.6f);
+        float rs = Mathf.Sin(ix * 12.9898f + iz * 78.233f) * 43758.5453f; rs -= Mathf.Floor(rs);
+        h += (rs - 0.5f) * 0.007f;
+        foreach (Vector3 dp in Dips) { float dx = x - (cx + dp.x), dz = z - dp.y; h -= 0.032f * Mathf.Exp(-(dx * dx + dz * dz) / (dp.z * dp.z)); }
+        float edge = Mathf.Min(Mathf.Min(x - x0, x1 - x), Mathf.Min(z - z0, z1 - z));
+        return h * Mathf.Clamp01((edge - 0.25f) / 0.6f);
+    }
+    void BuildPaving(float x0, float x1, float z0, float z1)
+    {
+        float st = 0.2f; int nx = Mathf.RoundToInt((x1 - x0) / st), nz = Mathf.RoundToInt((z1 - z0) / st);
+        var v = new List<Vector3>(); var uv = new List<Vector2>(); var tr = new List<int>();
+        for (int j = 0; j <= nz; j++) for (int i = 0; i <= nx; i++)
+            {
+                float x = x0 + i * st, z = z0 + j * st;
+                v.Add(new Vector3(x, PavingH(x, z), z)); uv.Add(new Vector2(x / 3.2f, z / 3.2f));
+            }
+        for (int j = 0; j < nz; j++) for (int i = 0; i < nx; i++)
+            {
+                int a = j * (nx + 1) + i, b = a + 1, c = a + nx + 1, d = c + 1;
+                tr.Add(a); tr.Add(c); tr.Add(b); tr.Add(b); tr.Add(c); tr.Add(d);
+            }
+        Mesh m = new Mesh { name = "W188Paving" }; m.indexFormat = IndexFormat.UInt32;
+        m.SetVertices(v); m.SetUVs(0, uv); m.SetTriangles(tr, 0); m.RecalculateNormals(); m.RecalculateTangents(); m.RecalculateBounds(); track(m);
+        GameObject g = new GameObject("CourtPaving"); g.transform.SetParent(transform, false);
+        g.AddComponent<MeshFilter>().sharedMesh = m; MeshRenderer mr = g.AddComponent<MeshRenderer>(); mr.sharedMaterial = mats[PAVING]; mr.shadowCastingMode = ShadowCastingMode.Off;
+        // base oscura por debajo (por si se ve algún borde)
+        BoxL(0, CONC, new Vector3(x0, -0.3f, z0), new Vector3(x1, -0.04f, z1), 3.2f);
+        // charcos: un disco plano que corta el hundimiento (solo se ve donde el suelo queda por debajo)
+        float cx = (x0 + x1) * 0.5f;
+        MeshBuilder pm = new MeshBuilder(1);
+        foreach (Vector3 dp in Dips)
+        {
+            Vector3 c = new Vector3(cx + dp.x, PavingH(cx + dp.x, dp.y) + 0.016f, dp.y);
+            float rad = dp.z * 1.1f;
+            int seg = 28;
+            for (int q = 0; q < seg; q++)
+            {
+                float a0 = q * Mathf.PI * 2f / seg, a1 = (q + 1) * Mathf.PI * 2f / seg;
+                Vector3 p0 = c + new Vector3(Mathf.Cos(a0), 0f, Mathf.Sin(a0)) * rad, p1 = c + new Vector3(Mathf.Cos(a1), 0f, Mathf.Sin(a1)) * rad;
+                pm.AddQuad(0, c, p1, p0, p0, Vector3.up, Vector3.right, Vector3.forward, 2f, 2f, 0f, 0f);
+            }
+        }
+        GameObject pg = OceanGeo.Emit(pm, "Puddles", transform, new[] { PuddleMat }, false, false, track);
+        pg.GetComponent<MeshRenderer>().receiveShadows = true;
+        // bordillo de hormigón al pie de las fachadas
+        BoxL(0, CONC, new Vector3(x0, -0.02f, z0), new Vector3(x1, 0.025f, z0 + 0.22f), 1.6f);
+        BoxL(0, CONC, new Vector3(x0, -0.02f, z1 - 0.22f), new Vector3(x1, 0.025f, z1), 1.6f);
+        BoxL(0, CONC, new Vector3(x0, -0.02f, z0 + 0.22f), new Vector3(x0 + 0.22f, 0.025f, z1 - 0.22f), 1.6f);
+        BoxL(0, CONC, new Vector3(x1 - 0.22f, -0.02f, z0 + 0.22f), new Vector3(x1, 0.025f, z1 - 0.22f), 1.6f);
+        // hierbajos en algunas juntas
+        System.Random r = new System.Random(plan.seed * 13 + 5);
+        for (int q = 0; q < 70; q++)
+        {
+            float x = x0 + 0.6f + (float)r.NextDouble() * (x1 - x0 - 1.2f), z = z0 + 0.6f + (float)r.NextDouble() * (z1 - z0 - 1.2f);
+            x = x0 + Mathf.Round((x - x0) / 1.6f) * 1.6f; float hh = 0.03f + (float)r.NextDouble() * 0.06f, y = PavingH(x, z);
+            BoxL(0, CURT_GREEN, new Vector3(x - 0.012f, y - 0.01f, z - 0.05f - (float)r.NextDouble() * 0.1f), new Vector3(x + 0.012f, y + hh, z + 0.05f), 1f);
         }
     }
 
@@ -327,7 +434,32 @@ public class W188World : MonoBehaviour
                 Box(0, FRAME, s, wl, wr, yt - 0.06f, yt, fd0, fd1, 1f);
                 Box(0, FRAME, s, wl, wr, ys, ys + 0.06f, fd0, fd1, 1f);
                 Box(0, FRAME, s, uc - 0.022f, uc + 0.022f, ys + 0.06f, yt - 0.06f, 0.085f, 0.115f, 1f);
-                Box(0, CORNICE, s, wl - 0.08f, wr + 0.08f, ys - 0.05f, ys, -0.06f, 0.07f, 1f);
+                // alféizar de piedra con goterón (v2) y, en algunas ventanas, jardinera o aparato de aire
+                Box(0, CORNICE, s, wl - 0.1f, wr + 0.1f, ys - 0.065f, ys + 0.005f, -0.09f, 0.07f, 1f);
+                Box(0, CORNICE, s, wl - 0.1f, wr + 0.1f, ys - 0.085f, ys - 0.065f, -0.09f, -0.06f, 1f);
+                int hv = H3(f, s, i, 7);
+                if (k == W188Plan.Kind.Closed && hv % 9 == 0)
+                {   // jardinera con plantas secas
+                    Box(0, RUG, s, wl + 0.05f, wr - 0.05f, ys + 0.005f, ys + 0.17f, -0.3f, -0.08f, 1f);
+                    for (int q = 0; q < 5; q++) { float qu = Mathf.Lerp(wl + 0.12f, wr - 0.12f, q / 4f); Box(0, CURT_GREEN, s, qu - 0.05f, qu + 0.05f, ys + 0.17f, ys + 0.27f + 0.06f * ((hv >> q) & 1), -0.25f, -0.13f, 1f); }
+                }
+                else if (k == W188Plan.Kind.Closed && hv % 13 == 1 && f > 0)
+                {   // aparato de aire acondicionado viejo bajo la ventana
+                    float au = uc + ((hv >> 4) % 2 == 0 ? -0.35f : 0.35f);
+                    Box(0, PAINT, s, au - 0.38f, au + 0.38f, ys - 0.62f, ys - 0.12f, -0.34f, -0.02f, 1f);
+                    for (int q = 0; q < 6; q++) Box(0, METAL, s, au - 0.3f, au + 0.3f, ys - 0.56f + q * 0.07f, ys - 0.545f + q * 0.07f, -0.345f, -0.335f, 1f);
+                    Box(0, METAL, s, au - 0.42f, au - 0.38f, ys - 0.64f, ys - 0.1f, -0.36f, 0f, 1f); Box(0, METAL, s, au + 0.38f, au + 0.42f, ys - 0.64f, ys - 0.1f, -0.36f, 0f, 1f);
+                }
+                // chorretones bajo el alféizar y polvo en la junta del forjado
+                if (hv % 10 < 7)
+                {
+                    float gl1 = 0.5f + (hv % 7) * 0.2f;
+                    float cU = (hv >> 3) % 3 == 0 ? wl - 0.02f : (hv >> 3) % 3 == 1 ? wr + 0.02f : uc;
+                    float wU = 0.32f + ((hv >> 6) % 4) * 0.1f, col = ((hv >> 8) % 5) * 0.2f;
+                    QuadD(grimeMb, 0, s, cU - wU, cU + wU, Mathf.Max(y0 + 0.02f, ys - 0.085f - gl1), ys - 0.085f, -0.004f, true, new Rect(col, 0f, 0.2f, 1f));
+                    if ((hv >> 11) % 2 == 0) QuadD(grimeMb, 0, s, wl - 0.1f, wr + 0.1f, Mathf.Max(y0 + 0.02f, ys - 0.085f - 0.35f), ys - 0.085f, -0.0045f, true, new Rect(((hv >> 12) % 5) * 0.2f, 0.4f, 0.2f, 0.6f));
+                }
+                QuadD(grimeMb, 0, s, u0, u1, yTop - 0.45f - 0.25f * ((hv >> 14) % 2), yTop, -0.003f, true, new Rect(((hv >> 15) % 5) * 0.2f, 0.55f, 0.2f, 0.45f));
                 // cristal (por fuera siempre; por dentro si el cuarto existe)
                 QuadD(glassMb, 0, s, wl + 0.06f, wr - 0.06f, ys + 0.06f, yt - 0.06f, 0.10f, true, new Rect(0, 0, 1, 1));
                 if (built) QuadD(glassMb, 0, s, wl + 0.06f, wr - 0.06f, ys + 0.06f, yt - 0.06f, 0.10f, false, new Rect(0, 0, 1, 1));
@@ -338,6 +470,7 @@ public class W188World : MonoBehaviour
             // --- muro del pasillo con su puerta ---
             BuildCorridorWall(G, s, f, i, k, u0, u1, y0, yc, yTop);
         }
+        if (f == 0) for (int q = 0; q < n; q++) QuadD(grimeMb, 0, s, q * W188Plan.M, (q + 1) * W188Plan.M, 0f, 0.55f + 0.2f * (H3(q, s, 0, 3) % 3), -0.0035f, true, new Rect((H3(q, s, 0, 4) % 5) * 0.2f, 0f, 0.2f, 1f));
         // --- pasillo: suelo, techo, muro exterior, zócalo y lámparas ---
         float uS = -CO;
         Box(G, CARPET, s, uS, L, y0 - 0.03f, y0, CI, CO, 2f);
@@ -389,9 +522,32 @@ public class W188World : MonoBehaviour
         {
             case W188Plan.Kind.Closed:
                 {
-                    int v = plan.variant[f, s, i];
-                    int m = (v & 1) != 0 ? ((v >> 1) == 2 ? CURT_COLD : CURT_LIT) : CURT_DARK;
-                    Pleats(mb[0], m, -1, s, wl + 0.07f, wr - 0.07f, ys + 0.07f, yt - 0.07f, 0.19f, 0.022f, 5);
+                    int v = plan.variant[f, s, i], hv = H3(f, s, i, 11);
+                    bool lit = (v & 1) != 0; int tint = v >> 1;
+                    int m = lit ? (tint == 2 ? CURT_COLD : tint == 3 ? CURT_ROSE : CURT_LIT) : (hv % 4 == 2 ? CURT_GREEN : CURT_DARK);
+                    if (!lit && hv % 4 == 3)
+                    {   // persiana de lamas, alguna torcida
+                        int nsl = 22; float hgt = (yt - ys - 0.14f) / nsl;
+                        int down = (hv >> 3) % 3 == 0 ? nsl : nsl - (hv >> 5) % 8;
+                        for (int q = 0; q < down; q++)
+                        {
+                            float yy = yt - 0.07f - (q + 1) * hgt; float tilt = (q % 7 == 3 && (hv >> 9) % 2 == 0) ? 0.03f : 0f;
+                            Box(0, BLIND, s, wl + 0.08f, wr - 0.08f, yy + hgt * 0.15f, yy + hgt * 0.85f, 0.17f + tilt, 0.185f + tilt, 1f);
+                        }
+                        Box(0, DARK, s, wl + 0.07f, wr - 0.07f, ys + 0.07f, yt - 0.07f, 0.24f, 0.25f, 1f);
+                    }
+                    else
+                    {   // cortinas: a veces una descorrida, mostrando el cuarto oscuro detrás
+                        float gap = (hv >> 2) % 5 == 0 ? 0.28f + ((hv >> 7) % 3) * 0.1f : 0f;
+                        int folds = 4 + (hv >> 4) % 3; float amp = 0.018f + ((hv >> 6) % 3) * 0.006f;
+                        if (gap > 0f)
+                        {
+                            Pleats(mb[0], m, -1, s, wl + 0.07f, uc - gap * 0.5f, ys + 0.07f, yt - 0.07f, 0.19f, amp * 1.4f, folds);
+                            Pleats(mb[0], m, -1, s, uc + gap * 0.5f + 0.1f, wr - 0.07f, ys + 0.07f, yt - 0.07f, 0.19f, amp * 1.4f, folds - 1);
+                            Box(0, DARK, s, wl + 0.07f, wr - 0.07f, ys + 0.07f, yt - 0.07f, 0.6f, 0.61f, 1f);
+                        }
+                        else Pleats(mb[0], m, -1, s, wl + 0.07f, wr - 0.07f, ys + 0.07f, yt - 0.07f, 0.19f, amp, folds);
+                    }
                     break;
                 }
             case W188Plan.Kind.Open:
@@ -439,11 +595,12 @@ public class W188World : MonoBehaviour
             t.localPosition = P(s, hu, 0f, 0f); t.localRotation = Quaternion.Euler(0f, W188Plan.SideYaw(s), 0f);
             MeshBuilder m = new MeshBuilder(2);
             // en el marco del lado, relativo al anclaje: u de 0 a -side*half
-            int nn = 16;
+            int nn = 40;
+            System.Func<int, float> fold = kk => 0.045f * (0.65f * Mathf.Sin(kk * 0.78f + side) + 0.35f * Mathf.Sin(kk * 1.9f + 0.7f * side)) * (0.6f + 0.4f * kk / nn);
             for (int k = 0; k < nn; k++)
             {
                 float ua = -side * half * k / nn, ub = -side * half * (k + 1) / nn;
-                float da = d + 0.03f * Mathf.Sin(k * Mathf.PI * 0.5f), db = d + 0.03f * Mathf.Sin((k + 1) * Mathf.PI * 0.5f);
+                float da = d + fold(k), db = d + fold(k + 1);
                 Vector3 a0 = new Vector3(ua, y0, -da), b0 = new Vector3(ub, y0, -db), b1 = new Vector3(ub, y1, -db), a1 = new Vector3(ua, y1, -da);
                 Vector3 along = (b0 - a0).normalized, nc = Vector3.Cross(Vector3.up, along).normalized;
                 if (nc.z < 0f) nc = -nc;   // en el marco del lado, +z = hacia el patio
@@ -524,11 +681,54 @@ public class W188World : MonoBehaviour
             Light l = MakePoint(P(s, a + 0.21f, y0 + 1.15f, 0.69f), 3.6f, 1.05f, new Color(1f, 0.80f, 0.52f));
             Lamps.Add(new Lamp { l = l, f0 = f, f1 = f, baseI = l.intensity });
         }
-        // armario junto a la puerta
-        Box(g, WOOD, s, a, a + 0.6f, y0, y0 + 2.0f, 3.3f, 3.98f, 1f);
-        Box(g, METAL, s, a + 0.6f, a + 0.62f, y0 + 0.95f, y0 + 1.1f, 3.5f, 3.52f, 1f);
+        // armario junto a la puerta: dos puertas con junta, tiradores y zócalo
+        Box(g, WOOD, s, a, a + 0.6f, y0 + 0.06f, y0 + 2.0f, 3.3f, 3.98f, 1f);
+        Box(g, SKIRT, s, a + 0.02f, a + 0.58f, y0, y0 + 0.06f, 3.32f, 3.96f, 1f);
+        Box(g, SKIRT, s, a + 0.6f, a + 0.605f, y0 + 0.08f, y0 + 1.98f, 3.635f, 3.645f, 1f);
+        Box(g, METAL, s, a + 0.6f, a + 0.62f, y0 + 0.95f, y0 + 1.1f, 3.56f, 3.58f, 1f);
+        Box(g, METAL, s, a + 0.6f, a + 0.62f, y0 + 0.95f, y0 + 1.1f, 3.70f, 3.72f, 1f);
+        Box(g, WOOD, s, a - 0.01f, a + 0.62f, y0 + 2.0f, y0 + 2.04f, 3.28f, 4.0f, 1f);
         Col(s, a, a + 0.6f, y0, y0 + 2.0f, 3.3f, 3.98f);
+        float b = u1 - 0.06f;
+        // alfombra gastada a los pies de la cama, con flecos
+        Box(g, RUG, s, a + 0.7f, b - 0.5f, y0, y0 + 0.012f, 1.25f, 3.0f, 1.2f);
+        for (int q = 0; q < 14; q++) { float fu = Mathf.Lerp(a + 0.74f, b - 0.54f, q / 13f); Box(g, LINEN, s, fu - 0.01f, fu + 0.01f, y0, y0 + 0.006f, 3.0f, 3.06f, 1f); }
+        // radiador de hierro bajo la ventana
+        float rw0 = uc - 0.55f, rw1 = uc + 0.55f;
+        for (int q = 0; q < 10; q++) { float ru = Mathf.Lerp(rw0, rw1, q / 9f); Box(g, PAINT, s, ru - 0.035f, ru + 0.035f, y0 + 0.14f, y0 + 0.68f, 0.3f, 0.4f, 1f); }
+        Box(g, PAINT, s, rw0 - 0.04f, rw1 + 0.04f, y0 + 0.17f, y0 + 0.2f, 0.33f, 0.37f, 1f); Box(g, PAINT, s, rw0 - 0.04f, rw1 + 0.04f, y0 + 0.62f, y0 + 0.65f, 0.33f, 0.37f, 1f);
+        Box(g, METAL, s, rw1 + 0.04f, rw1 + 0.07f, y0, y0 + 0.2f, 0.34f, 0.37f, 1f);
+        // cuadro sobre la cama (un paisaje desvaído: otra vista del prado)
+        Box(g, WOOD, s, a, a + 0.035f, y0 + 1.25f, y0 + 1.85f, 1.35f, 2.15f, 1f);
+        QuadUside(g, s, a + 0.036f, y0 + 1.3f, y0 + 1.8f, 1.4f, 2.1f);
+        // lámpara de techo con pantalla de tela
+        Box(g, METAL, s, uc - 0.01f, uc + 0.01f, yc - 0.35f, yc, 2.0f, 2.02f, 1f);
+        Box(g, LINEN, s, uc - 0.2f, uc + 0.2f, yc - 0.55f, yc - 0.35f, 1.81f, 2.21f, 1f);
+        if (k == W188Plan.Kind.Room)
+        {   // escritorio estrecho y silla contra la medianera (no en el cuarto de la salida: su paso queda libre)
+            Box(g, WOOD, s, b - 0.42f, b, y0 + 0.72f, y0 + 0.76f, 2.0f, 3.0f, 1f);
+            foreach (float ld in new[] { 2.03f, 2.97f }) Box(g, WOOD, s, b - 0.4f, b - 0.36f, y0, y0 + 0.72f, ld - 0.02f, ld + 0.02f, 1f);
+            Box(g, WOOD, s, b - 0.42f, b - 0.02f, y0 + 0.5f, y0 + 0.72f, 2.6f, 2.98f, 1f);   // cajonera
+            Col(s, b - 0.42f, b, y0, y0 + 0.76f, 2.0f, 3.0f);
+            Box(g, LINEN, s, b - 0.3f, b - 0.08f, y0 + 0.76f, y0 + 0.79f, 2.2f, 2.5f, 1f);   // papeles
+            // silla de madera, un poco girada (sin colisión)
+            float cu = b - 0.7f, cd = 2.45f;
+            Box(g, WOOD, s, cu - 0.21f, cu + 0.21f, y0 + 0.44f, y0 + 0.48f, cd - 0.21f, cd + 0.21f, 1f);
+            foreach (float lu in new[] { cu - 0.18f, cu + 0.18f }) foreach (float ld in new[] { cd - 0.18f, cd + 0.18f }) Box(g, WOOD, s, lu - 0.02f, lu + 0.02f, y0, y0 + 0.44f, ld - 0.02f, ld + 0.02f, 1f);
+            Box(g, WOOD, s, cu - 0.21f, cu - 0.18f, y0 + 0.48f, y0 + 0.92f, cd - 0.21f, cd + 0.21f, 1f);
+        }
     }
+    void QuadUside(int g, int s, float u, float yA, float yB, float dA, float dB)
+    {   // cuadro: imagen del prado en la pared u (mira a +u)
+        MeshBuilder q = new MeshBuilder(1);
+        Vector3 p0 = P(s, u, yA, dA), p1 = P(s, u, yA, dB), p2 = P(s, u, yB, dB), p3 = P(s, u, yB, dA);
+        q.AddQuadUV(0, p0, p1, p2, p3, Ud(s), Dd(s), Vector3.up, new Vector2(0.2f, 0.25f), new Vector2(0.7f, 0.25f), new Vector2(0.7f, 0.75f), new Vector2(0.2f, 0.75f));
+        if (paintingMat == null) { paintingMat = Pbr("W188Facade", Color.white, 1f); paintingMat.name = "W188_Painting"; Texture2D t = Resources.Load<Texture2D>("W188/W188ExitView"); if (t != null) paintingMat.mainTexture = t; paintingMat.color = new Color(0.62f, 0.6f, 0.55f); if (paintingMat.HasProperty("_BumpMap")) paintingMat.SetTexture("_BumpMap", null); }
+        GameObject go = OceanGeo.Emit(q, "Painting", g == 0 ? transform : FloorParent(g), new[] { paintingMat }, false, false, track);
+    }
+    Material paintingMat;
+    readonly Dictionary<int, Transform> floorParents = new Dictionary<int, Transform>();
+    Transform FloorParent(int g) { Transform t; if (!floorParents.TryGetValue(g, out t)) { t = new GameObject("FloorProps" + g).transform; t.SetParent(transform, false); floorParents[g] = t; } return t; }
 
     // la Ventana: cuarto a oscuras, contraluz rojizo junto a la puerta y una silueta que hace señas desde el cristal
     void BuildEntityRoom(int s, int f, int i, float u0, float u1, float y0, float yc, float uc)
@@ -540,27 +740,74 @@ public class W188World : MonoBehaviour
         Transform root = new GameObject("WindowFigure").transform; root.SetParent(propRoot, false);
         root.localPosition = P(s, uc, y0, 1.05f);
         root.localRotation = Quaternion.Euler(0f, W188Plan.SideYaw(s), 0f);   // mira al patio (+z del marco)
-        fig.arm = BuildSilhouette(root, FigureMat, true);
+        Rig rig = BuildFigure(root, FigureMat, true);
+        fig.arm = rig.shoulder; fig.elbow = rig.elbow; fig.wrist = rig.wrist; fig.head = rig.head; fig.chest = rig.chest; fig.fingers.AddRange(rig.fingers);
+        // contraluz: una luz fría y débil detrás de la figura (hacia el fondo del cuarto) recorta su silueta desde el patio
+        Light rim = MakePoint(P(s, uc + 0.5f, y0 + 2.1f, 1.9f), 2.4f, 0.55f, new Color(0.55f, 0.62f, 0.75f)); rim.renderMode = LightRenderMode.ForcePixel;
+        Lamps.Add(new Lamp { l = rim, f0 = f, f1 = f, always = true, baseI = rim.intensity });
         fig.root = root;
         fig.roomCenter = levelRoot.TransformPoint(P(s, uc, y0, 2.1f));
         fig.doorWorld = levelRoot.TransformPoint(P(s, W188Plan.DoorU(i), y0, W188Plan.RoomEnd + 0.07f));
         Figures.Add(fig);
     }
 
-    // silueta humana alargada (cápsulas negras mate); devuelve el pivote del brazo que saluda (si wave)
-    public static Transform BuildSilhouette(Transform root, Material m, bool wave)
+    // la Ventana (v2): figura humanoide demasiado alta y delgada, con volumen (pecho, pelvis, hombros, codos, rodillas, manos con
+    // dedos), cabeza alargada y un poco ladeada. Jerarquía de brazo derecho: hombro -> codo -> muñeca -> dedos (para llamar con la mano).
+    public class Rig { public Transform shoulder, elbow, wrist, head, chest; public readonly List<Transform> fingers = new List<Transform>(); }
+    static GameObject Part(PrimitiveType t, string n, Transform parent, Vector3 pos, Vector3 scale, Material m, Vector3 euler = default(Vector3))
     {
-        ProceduralAssets.CreatePrimitive(PrimitiveType.Capsule, "Torso", root, new Vector3(0f, 1.28f, 0f), new Vector3(0.42f, 0.42f, 0.24f), m, false);
-        ProceduralAssets.CreatePrimitive(PrimitiveType.Sphere, "Head", root, new Vector3(0f, 1.86f, 0.01f), new Vector3(0.23f, 0.28f, 0.25f), m, false);
-        ProceduralAssets.CreatePrimitive(PrimitiveType.Capsule, "Neck", root, new Vector3(0f, 1.68f, 0f), new Vector3(0.1f, 0.1f, 0.1f), m, false);
-        foreach (float sx in new[] { -0.11f, 0.11f })
-            ProceduralAssets.CreatePrimitive(PrimitiveType.Capsule, "Leg", root, new Vector3(sx, 0.47f, 0f), new Vector3(0.15f, 0.48f, 0.15f), m, false);
-        ProceduralAssets.CreatePrimitive(PrimitiveType.Capsule, "ArmL", root, new Vector3(-0.27f, 1.22f, 0f), new Vector3(0.09f, 0.36f, 0.09f), m, false);
-        Transform piv = new GameObject("ArmPivot").transform; piv.SetParent(root, false); piv.localPosition = new Vector3(0.25f, 1.55f, 0f);
-        GameObject arm = ProceduralAssets.CreatePrimitive(PrimitiveType.Capsule, "ArmR", piv, new Vector3(0f, -0.34f, 0f), new Vector3(0.09f, 0.36f, 0.09f), m, false);
-        if (wave) piv.localRotation = Quaternion.Euler(-150f, 0f, 20f);
-        return piv;
+        GameObject g = ProceduralAssets.CreatePrimitive(t, n, parent, pos, scale, m, false);
+        g.transform.localRotation = Quaternion.Euler(euler);
+        MeshRenderer r = g.GetComponent<MeshRenderer>(); if (r != null) { r.shadowCastingMode = ShadowCastingMode.On; r.receiveShadows = false; }
+        return g;
     }
+    public static Rig BuildFigure(Transform root, Material m, bool beckon)
+    {
+        Rig rig = new Rig();
+        Transform body = new GameObject("Body").transform; body.SetParent(root, false);
+        // piernas largas, rodillas marcadas, pies
+        foreach (float sx in new[] { -0.1f, 0.1f })
+        {
+            Part(PrimitiveType.Capsule, "Thigh", body, new Vector3(sx, 0.86f, 0f), new Vector3(0.15f, 0.27f, 0.15f), m, new Vector3(0f, 0f, sx * 8f));
+            Part(PrimitiveType.Sphere, "Knee", body, new Vector3(sx * 1.08f, 0.58f, 0.01f), new Vector3(0.1f, 0.11f, 0.1f), m);
+            Part(PrimitiveType.Capsule, "Shin", body, new Vector3(sx * 1.1f, 0.31f, -0.01f), new Vector3(0.11f, 0.27f, 0.11f), m);
+            Part(PrimitiveType.Capsule, "Foot", body, new Vector3(sx * 1.12f, 0.035f, 0.07f), new Vector3(0.075f, 0.1f, 0.075f), m, new Vector3(90f, 0f, 0f));
+        }
+        Part(PrimitiveType.Sphere, "Pelvis", body, new Vector3(0f, 1.12f, 0f), new Vector3(0.32f, 0.2f, 0.19f), m);
+        Transform chest = new GameObject("Chest").transform; chest.SetParent(body, false); chest.localPosition = new Vector3(0f, 1.2f, 0f); rig.chest = chest;
+        Part(PrimitiveType.Capsule, "Waist", chest, new Vector3(0f, 0.12f, 0f), new Vector3(0.22f, 0.16f, 0.15f), m);
+        Part(PrimitiveType.Sphere, "Ribs", chest, new Vector3(0f, 0.36f, 0.005f), new Vector3(0.34f, 0.36f, 0.2f), m);
+        Part(PrimitiveType.Capsule, "Shoulders", chest, new Vector3(0f, 0.52f, -0.01f), new Vector3(0.1f, 0.21f, 0.1f), m, new Vector3(0f, 0f, 90f));
+        Part(PrimitiveType.Capsule, "Neck", chest, new Vector3(0f, 0.66f, 0.01f), new Vector3(0.065f, 0.11f, 0.065f), m, new Vector3(-10f, 0f, 0f));
+        Transform head = new GameObject("Head").transform; head.SetParent(chest, false); head.localPosition = new Vector3(0f, 0.74f, 0.01f);
+        head.localRotation = Quaternion.Euler(6f, 0f, 9f); rig.head = head;
+        Part(PrimitiveType.Sphere, "Skull", head, new Vector3(0f, 0.14f, -0.005f), new Vector3(0.175f, 0.245f, 0.2f), m);
+        Part(PrimitiveType.Sphere, "Jaw", head, new Vector3(0f, 0.035f, 0.025f), new Vector3(0.105f, 0.11f, 0.12f), m);
+        // brazo izquierdo colgando, demasiado largo
+        Transform ls = new GameObject("ShoulderL").transform; ls.SetParent(chest, false); ls.localPosition = new Vector3(-0.21f, 0.52f, 0f); ls.localRotation = Quaternion.Euler(4f, 0f, -4f);
+        Part(PrimitiveType.Capsule, "UpperArmL", ls, new Vector3(0f, -0.2f, 0f), new Vector3(0.085f, 0.2f, 0.085f), m);
+        Part(PrimitiveType.Capsule, "ForearmL", ls, new Vector3(-0.01f, -0.6f, 0.03f), new Vector3(0.07f, 0.21f, 0.07f), m, new Vector3(-6f, 0f, 0f));
+        Part(PrimitiveType.Sphere, "HandL", ls, new Vector3(-0.015f, -0.88f, 0.05f), new Vector3(0.06f, 0.13f, 0.035f), m);
+        for (int q = 0; q < 4; q++) Part(PrimitiveType.Capsule, "FingerL", ls, new Vector3(-0.03f + q * 0.016f, -0.99f, 0.055f), new Vector3(0.014f, 0.055f, 0.014f), m);
+        // brazo derecho: hombro -> codo -> muñeca -> 4 dedos (llama con la mano)
+        Transform sh = new GameObject("ShoulderR").transform; sh.SetParent(chest, false); sh.localPosition = new Vector3(0.21f, 0.52f, 0f); rig.shoulder = sh;
+        Part(PrimitiveType.Capsule, "UpperArmR", sh, new Vector3(0f, -0.2f, 0f), new Vector3(0.085f, 0.2f, 0.085f), m);
+        Transform el = new GameObject("ElbowR").transform; el.SetParent(sh, false); el.localPosition = new Vector3(0f, -0.4f, 0f); rig.elbow = el;
+        Part(PrimitiveType.Sphere, "ElbowJ", el, Vector3.zero, new Vector3(0.08f, 0.08f, 0.08f), m);
+        Part(PrimitiveType.Capsule, "ForearmR", el, new Vector3(0f, -0.21f, 0f), new Vector3(0.07f, 0.21f, 0.07f), m);
+        Transform wr = new GameObject("WristR").transform; wr.SetParent(el, false); wr.localPosition = new Vector3(0f, -0.43f, 0f); rig.wrist = wr;
+        Part(PrimitiveType.Sphere, "PalmR", wr, new Vector3(0f, -0.06f, 0f), new Vector3(0.075f, 0.11f, 0.035f), m);
+        for (int q = 0; q < 4; q++)
+        {
+            Transform fp = new GameObject("FingerR" + q).transform; fp.SetParent(wr, false); fp.localPosition = new Vector3(-0.027f + q * 0.018f, -0.11f, 0f);
+            Part(PrimitiveType.Capsule, "Phal", fp, new Vector3(0f, -0.04f, 0f), new Vector3(0.015f, 0.045f + (q == 1 || q == 2 ? 0.01f : 0f), 0.015f), m);
+            rig.fingers.Add(fp);
+        }
+        if (beckon) { sh.localRotation = Quaternion.Euler(-40f, 0f, 14f); el.localRotation = Quaternion.Euler(-75f, 0f, 0f); }
+        return rig;
+    }
+    // compatibilidad: los Periféricos usan la misma figura, quieta
+    public static Transform BuildSilhouette(Transform root, Material m, bool wave) { return BuildFigure(root, m, wave).shoulder; }
 
     void BuildCorridorWall(int G, int s, int f, int i, W188Plan.Kind k, float u0, float u1, float y0, float yc, float yTop)
     {
