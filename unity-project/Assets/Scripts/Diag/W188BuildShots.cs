@@ -135,6 +135,12 @@ public class W188BuildShots : MonoBehaviour
         Vector3 cp = W188ShotPlan.Lw(w, W188Plan.E, 6.0f, 2 * W188Plan.FH + 0.1f, 5.15f);
         Vector3 along = R.TransformDirection(W188World.LevelDir(W188Plan.E, 1f, 0f));
         yield return Perf(p, mc, "pasillo_planta2", cp + Vector3.up * 1.62f, cp + Vector3.up * 1.52f + along * 10f, 70f, cp);
+        // v7.12.1: un cuarto amueblado (cama, lámparas, cortina), con el encuadre de la captura 12b
+        if (w.Curtains.Count > 0)
+        {
+            W188World.Curtain ct = w.Curtains[0];
+            yield return Perf(p, mc, "cuarto_amueblado", w.CellWorld(ct.f, ct.s, ct.i, 1.16f, 1.95f) + Vector3.up * 1.52f, w.CellWorld(ct.f, ct.s, ct.i, -0.64f, 1.5f) + Vector3.up * 0.25f, 70f, w.CellWorld(ct.f, ct.s, ct.i, 0.9f, 2.9f));
+        }
         if (w.Figures.Count > 0)
         {
             W188World.Figure fg = w.Figures[0];
