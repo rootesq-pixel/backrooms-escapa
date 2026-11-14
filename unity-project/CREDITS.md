@@ -209,5 +209,14 @@ Preparadas con `Tools/audio/prep_steps.py` (moqueta, hormigón) y `Tools/audio/p
 | `W188Door_*` | puertas pintadas | ambientCG PaintedWood005 — https://ambientcg.com/a/PaintedWood005 | CC0 1.0 |
 | `W188ExitView.jpg` | lo que se ve por la ventana con sol (la salida) | Poly Haven meadow_2 (HDRI, recorte en perspectiva) — https://polyhaven.com/a/meadow_2 | CC0 1.0 |
 | `Ventana.fbx` | la Ventana: humanoide delgado con camisón (malla y esqueleto) | obra propia del proyecto, generada con Blender 4.2 por `Tools/w188/ventana_build.py` | CC0 1.0 |
+| `W188Room.fbx` | v7.12.1: muebles de las habitaciones (cama con colcha, almohadas y cabecero tapizado, mesilla, lamparita, armario, escritorio, silla, alfombra, radiador, lámpara de techo, marco, barra de cortina) | obra propia del proyecto, generada con Blender 4.2 por `Tools/w188/room_build.py` | CC0 1.0 |
+| `W188Sheet_*` | v7.12.1: sábanas y almohadas | ambientCG Fabric036 — https://ambientcg.com/a/Fabric036 | CC0 1.0 |
+| `W188Duvet_*` | v7.12.1: colchas acolchadas | ambientCG Fabric008 — https://ambientcg.com/a/Fabric008 | CC0 1.0 |
+| `W188Uphol_*` | v7.12.1: tapizado del cabecero y de la silla | ambientCG Fabric039 — https://ambientcg.com/a/Fabric039 | CC0 1.0 |
+| `W188Shade_*` | v7.12.1: pantallas de las lámparas | ambientCG Fabric032 — https://ambientcg.com/a/Fabric032 | CC0 1.0 |
+| `W188Wood_*` | v7.12.1: muebles de nogal | ambientCG Wood066 — https://ambientcg.com/a/Wood066 | CC0 1.0 |
+| `W188WoodDark_*` | v7.12.1: marco del cuadro | ambientCG Wood051 — https://ambientcg.com/a/Wood051 | CC0 1.0 |
+| `W188Rug_*` | v7.12.1: alfombra (campo) | ambientCG Carpet008 — https://ambientcg.com/a/Carpet008 | CC0 1.0 |
+| `W188RugBorder_*` | v7.12.1: alfombra (cenefa) | ambientCG Carpet015 — https://ambientcg.com/a/Carpet015 | CC0 1.0 |
 
-Reempaquetadas con `Tools/w188/pack_textures.py` (albedo, normales y máscara Standard; 1024–2048 px). Lo que se ve por las ventanas abiertas son las miniaturas de los niveles del propio juego. El cielo nublado reutiliza `kloofendal_overcast_puresky` (Poly Haven, CC0, ya citado). Siluetas de la Ventana, Periféricos, cortinas, muebles y geometría: trabajo propio, CC0. Sonidos del nivel (golpes en el cristal, puertas lejanas, golpe grave al atraparte): sintetizados por código o reutilizados del proyecto, graves, sin crujidos de madera ni siseo.
+Reempaquetadas con `Tools/w188/pack_textures.py` y, las de los muebles (v7.12.1), con `Tools/w188/pack_room_textures.py` (albedo, normales y máscara Standard; 512–2048 px). Lo que se ve por las ventanas abiertas son las miniaturas de los niveles del propio juego. El cielo nublado reutiliza `kloofendal_overcast_puresky` (Poly Haven, CC0, ya citado). Siluetas de la Ventana, Periféricos, cortinas, muebles y geometría: trabajo propio, CC0. Sonidos del nivel (golpes en el cristal, puertas lejanas, golpe grave al atraparte): sintetizados por código o reutilizados del proyecto, graves, sin crujidos de madera ni siseo.

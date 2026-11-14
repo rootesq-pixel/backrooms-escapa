@@ -93,6 +93,13 @@ public static class W188ShotPlan
                 W188World.Curtain ct = w.Curtains[0];
                 Vector3 inside = w.CellWorld(ct.f, ct.s, ct.i, 0.9f, 2.9f);
                 g = Go(p, inside, W188World.YawToCourt(ct.s)); while (g.MoveNext()) yield return g.Current;
+                // v7.12.1: el cuarto (muebles): el mismo encuadre que la captura del usuario (junto a la silla, mirando la cama
+                // hacia la medianera), desde la puerta, la cama de cerca y la ventana con el radiador y el escritorio
+                // (CellWorld: du desde el centro de la ventana, d hacia dentro; la cama está en du -1,54..0,44 y d 1,0..2,46)
+                Shot("12b_cuarto_como_la_captura", w.CellWorld(ct.f, ct.s, ct.i, 1.16f, 1.95f) + Vector3.up * 1.52f, w.CellWorld(ct.f, ct.s, ct.i, -0.64f, 1.5f) + Vector3.up * 0.25f, 70f);
+                Shot("12c_cuarto_desde_la_puerta", w.CellWorld(ct.f, ct.s, ct.i, 1.25f, 3.75f) + Vector3.up * 1.5f, w.CellWorld(ct.f, ct.s, ct.i, -0.9f, 1.6f) + Vector3.up * 0.55f, 72f);
+                Shot("12d_cuarto_cama_cerca", w.CellWorld(ct.f, ct.s, ct.i, 0.35f, 1.05f) + Vector3.up * 1.0f, w.CellWorld(ct.f, ct.s, ct.i, -1.3f, 2.0f) + Vector3.up * 0.55f, 62f);
+                Shot("12e_cuarto_ventana", w.CellWorld(ct.f, ct.s, ct.i, -0.35f, 3.1f) + Vector3.up * 1.45f, w.CellWorld(ct.f, ct.s, ct.i, 0.15f, 0.3f) + Vector3.up * 1.15f, 70f);
                 Shot("12_habitacion_cortina", inside + Vector3.up * eyeH, ct.center, 70f);
                 ct.busy = true; yield return 1.2f;
                 Shot("13_cortina_descorrida", inside + Vector3.up * eyeH, ct.center, 70f);

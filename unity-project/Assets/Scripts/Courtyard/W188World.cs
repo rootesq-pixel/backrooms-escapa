@@ -20,7 +20,9 @@ public class W188World : MonoBehaviour
 
     // materiales (submallas)
     public const int FACADE = 0, PAVING = 1, CARPET = 2, RCARPET = 3, WALL = 4, CEIL = 5, FRAME = 6, CONC = 7, DOOR = 8, SKIRT = 9,
-        LAMP = 10, METAL = 11, LINEN = 12, WOOD = 13, DARK = 14, CURT_LIT = 15, CURT_DARK = 16, CURT_COLD = 17, GLOW = 18, CORNICE = 19, CURT_GREEN = 20, CURT_ROSE = 21, BLIND = 22, RUG = 23, PAINT = 24, NMAT = 25;
+        LAMP = 10, METAL = 11, LINEN = 12, WOOD = 13, DARK = 14, CURT_LIT = 15, CURT_DARK = 16, CURT_COLD = 17, GLOW = 18, CORNICE = 19, CURT_GREEN = 20, CURT_ROSE = 21, BLIND = 22, RUG = 23, PAINT = 24,
+        // v7.12.1: muebles modelados (W188Furniture): sábanas, colchas (3 tonos), tapizado, pantallas, nogal, cerámica, alfombra, papel
+        SHEET = 25, DUVET0 = 26, DUVET1 = 27, DUVET2 = 28, UPHOL = 29, SHADE = 30, SHADEIN = 31, FWOOD = 32, FWOOD_DK = 33, CERAMIC = 34, RUGF = 35, RUGB = 36, PAPER = 37, RADP = 38, NMAT = 39;
     public Material[] mats;
     public Material GlassMat { get; private set; }
     public Material FigureMat { get; private set; }
@@ -81,6 +83,12 @@ public class W188World : MonoBehaviour
 
     // ---------------- materiales ----------------
     Material Pbr(string n, Color tint, float occl) { Material m = OceanGeo.PbrMat("W188/" + n, tint, occl, track); m.name = "W188_" + n; return m; }
+    Material PbrT(string tex, string name, Color tint, float occl, float tile)
+    {
+        Material m = Pbr(tex, tint, occl); m.name = "W188_" + name;
+        if (m.HasProperty("_MainTex")) m.mainTextureScale = Vector2.one / tile;
+        return m;
+    }
     Material Plain(string name, Color c, float smooth)
     {
         Material m = ProceduralAssets.CreateMaterial(c, null, Vector2.one, smooth); m.name = "W188_" + name; track(m); return m;
@@ -172,6 +180,24 @@ public class W188World : MonoBehaviour
         mats[BLIND] = Pbr("W188Door", new Color(0.86f, 0.84f, 0.78f), 0.7f); mats[BLIND].name = "W188_Blind";
         mats[RUG] = Pbr("W188Carpet", new Color(0.72f, 0.42f, 0.34f), 1f); mats[RUG].name = "W188_Rug";
         mats[PAINT] = Pbr("W188Door", new Color(0.88f, 0.87f, 0.83f), 0.8f); mats[PAINT].name = "W188_PaintedMetal";
+        // v7.12.1: telas y maderas de los muebles nuevos (UV en metros; la repetición va en la escala de la textura)
+        mats[SHEET] = PbrT("W188Sheet", "Sheet", new Color(0.97f, 0.95f, 0.91f), 0.8f, 0.32f);
+        mats[DUVET0] = PbrT("W188Duvet", "DuvetRose", new Color(0.86f, 0.58f, 0.53f), 0.9f, 0.34f);
+        mats[DUVET1] = PbrT("W188Duvet", "DuvetSage", new Color(0.63f, 0.68f, 0.55f), 0.9f, 0.34f);
+        mats[DUVET2] = PbrT("W188Duvet", "DuvetSlate", new Color(0.55f, 0.61f, 0.70f), 0.9f, 0.34f);
+        mats[UPHOL] = PbrT("W188Uphol", "Upholstery", new Color(1.0f, 0.88f, 0.74f), 0.9f, 0.3f);
+        mats[SHADE] = PbrT("W188Shade", "LampShade", new Color(1.0f, 0.96f, 0.88f), 0.6f, 0.3f);
+        ProceduralAssets.SetEmission(mats[SHADE], new Color(1f, 0.80f, 0.55f) * 0.5f);
+        if (mats[SHADE].HasProperty("_EmissionMap")) mats[SHADE].SetTexture("_EmissionMap", mats[SHADE].mainTexture);
+        mats[SHADEIN] = Plain("LampShadeInside", new Color(1f, 0.92f, 0.78f), 0.1f); ProceduralAssets.SetEmission(mats[SHADEIN], new Color(1f, 0.78f, 0.50f) * 1.1f);
+        mats[FWOOD] = PbrT("W188Wood", "Walnut", new Color(0.95f, 0.9f, 0.86f), 0.9f, 0.9f);
+        mats[FWOOD_DK] = PbrT("W188WoodDark", "FrameWood", Color.white, 0.9f, 0.6f);
+        mats[FWOOD].SetFloat("_GlossMapScale", 0.55f); mats[FWOOD_DK].SetFloat("_GlossMapScale", 0.6f);   // menos brillo: no reflejar el cielo oscuro
+        mats[CERAMIC] = Plain("Ceramic", new Color(0.60f, 0.66f, 0.60f), 0.78f);
+        mats[RUGF] = PbrT("W188Rug", "RugField", new Color(0.92f, 0.62f, 0.52f), 1f, 0.85f);
+        mats[RUGB] = PbrT("W188RugBorder", "RugBorder", new Color(0.62f, 0.40f, 0.36f), 1f, 0.45f);
+        mats[PAPER] = Plain("Paper", new Color(0.90f, 0.88f, 0.82f), 0.12f);
+        mats[RADP] = Plain("RadiatorPaint", new Color(0.86f, 0.85f, 0.81f), 0.42f);   // esmalte claro (la textura de puerta es casi negra)
         GrimeMat = MakeGrime();
         PuddleMat = Plain("Puddle", new Color(0.40f, 0.41f, 0.42f), 0.9f);   // agua quieta: refleja el cielo y las fachadas
 
@@ -225,18 +251,36 @@ public class W188World : MonoBehaviour
     }
     // cortina con pliegues: tira ondulada en el plano d (en el marco del lado), por una o las dos caras
     static void Pleats(MeshBuilder m, int subFront, int subBack, int s, float u0, float u1, float y0, float y1, float d, float amp, int folds)
-    {
+    {   // v7.12.1: tira continua con normales por vértice (antes, caras planas: se veía en escalones)
         int n = folds * 8;
-        for (int k = 0; k < n; k++)
+        Vector3[] lo = new Vector3[n + 1], hi = new Vector3[n + 1];
+        for (int k = 0; k <= n; k++)
         {
-            float ua = Mathf.Lerp(u0, u1, k / (float)n), ub = Mathf.Lerp(u0, u1, (k + 1) / (float)n);
-            float da = d + amp * Mathf.Sin(k * Mathf.PI * 0.25f), db = d + amp * Mathf.Sin((k + 1) * Mathf.PI * 0.25f);
-            Vector3 a0 = P(s, ua, y0, da), b0 = P(s, ub, y0, db), b1 = P(s, ub, y1, db), a1 = P(s, ua, y1, da);
-            Vector3 along = (b0 - a0).normalized;
-            Vector3 nc = Vector3.Cross(Vector3.up, along).normalized;            // una de las dos normales horizontales
-            if (Vector3.Dot(nc, -Dd(s)) < 0f) nc = -nc;                             // la de la cara que mira al patio
-            if (subFront >= 0) m.AddQuad(subFront, a0, b0, b1, a1, nc, along, Vector3.up, 0.9f, 0.9f, 0f, 0f);
-            if (subBack >= 0) m.AddQuad(subBack, a0, b0, b1, a1, -nc, along, Vector3.up, 0.9f, 0.9f, 0f, 0f);
+            float ua = Mathf.Lerp(u0, u1, k / (float)n), da = d + amp * Mathf.Sin(k * Mathf.PI * 0.25f);
+            lo[k] = P(s, ua, y0, da); hi[k] = P(s, ua, y1, da);
+        }
+        Vector3 court = -Dd(s);
+        for (int face = 0; face < 2; face++)
+        {
+            int sub = face == 0 ? subFront : subBack; if (sub < 0) continue;
+            int o = m.verts.Count;
+            for (int k = 0; k <= n; k++)
+            {
+                Vector3 along = (lo[Mathf.Min(k + 1, n)] - lo[Mathf.Max(k - 1, 0)]).normalized;
+                Vector3 nc = Vector3.Cross(Vector3.up, along).normalized; if (Vector3.Dot(nc, court) < 0f) nc = -nc;
+                if (face == 1) nc = -nc;
+                float uu = (k / (float)n) * (u1 - u0) / 0.9f;
+                m.verts.Add(lo[k]); m.normals.Add(nc); m.tangents.Add(new Vector4(along.x, along.y, along.z, 1f)); m.uvs.Add(new Vector2(uu, 0f));
+                m.verts.Add(hi[k]); m.normals.Add(nc); m.tangents.Add(new Vector4(along.x, along.y, along.z, 1f)); m.uvs.Add(new Vector2(uu, (y1 - y0) / 0.9f));
+            }
+            List<int> tr = m.tris[sub];
+            for (int k = 0; k < n; k++)
+            {
+                int a0 = o + 2 * k, a1 = a0 + 1, b0 = a0 + 2, b1 = a0 + 3;
+                Vector3 fn = Vector3.Cross(m.verts[a1] - m.verts[a0], m.verts[b0] - m.verts[a0]);
+                if (Vector3.Dot(fn, m.normals[a0]) >= 0f) { tr.Add(a0); tr.Add(a1); tr.Add(b0); tr.Add(b0); tr.Add(a1); tr.Add(b1); }
+                else { tr.Add(a0); tr.Add(b0); tr.Add(a1); tr.Add(b0); tr.Add(b1); tr.Add(a1); }
+            }
         }
     }
 
@@ -587,7 +631,9 @@ public class W188World : MonoBehaviour
     {
         // dos paños colgados de una barra, por dentro del cuarto; se descorren escalando hacia los lados
         float y0 = ys - 0.12f, y1 = yt + 0.28f, d = 0.34f, half = (wr - wl) * 0.5f + 0.2f;
-        Box(1 + f, METAL, s, wl - 0.3f, wr + 0.3f, y1 + 0.02f, y1 + 0.045f, d - 0.012f, d + 0.012f, 1f);
+        // v7.12.1: barra de latón con remates, soportes y anillas (modelada); si falta el FBX, la barra de caja de antes
+        if (!W188Furniture.Append(mb[1 + f], "CurtainRod", W188Plan.SideMatrix(s) * Matrix4x4.Translate(new Vector3(uc, f * W188Plan.FH, 0f)) * W188Furniture.FlipD, n => n == "Brass" ? METAL : -1))
+            Box(1 + f, METAL, s, wl - 0.3f, wr + 0.3f, y1 + 0.02f, y1 + 0.045f, d - 0.012f, d + 0.012f, 1f);
         Curtain c = new Curtain { f = f, s = s, i = i };
         for (int side = -1; side <= 1; side += 2)
         {
@@ -595,25 +641,64 @@ public class W188World : MonoBehaviour
             float hu = uc + side * (half + 0.0f);           // anclaje en el extremo exterior de cada paño
             t.localPosition = P(s, hu, 0f, 0f); t.localRotation = Quaternion.Euler(0f, W188Plan.SideYaw(s), 0f);
             MeshBuilder m = new MeshBuilder(2);
-            // en el marco del lado, relativo al anclaje: u de 0 a -side*half
-            int nn = 40;
-            System.Func<int, float> fold = kk => 0.045f * (0.65f * Mathf.Sin(kk * 0.78f + side) + 0.35f * Mathf.Sin(kk * 1.9f + 0.7f * side)) * (0.6f + 0.4f * kk / nn);
-            for (int k = 0; k < nn; k++)
-            {
-                float ua = -side * half * k / nn, ub = -side * half * (k + 1) / nn;
-                float da = d + fold(k), db = d + fold(k + 1);
-                Vector3 a0 = new Vector3(ua, y0, -da), b0 = new Vector3(ub, y0, -db), b1 = new Vector3(ub, y1, -db), a1 = new Vector3(ua, y1, -da);
-                Vector3 along = (b0 - a0).normalized, nc = Vector3.Cross(Vector3.up, along).normalized;
-                if (nc.z < 0f) nc = -nc;   // en el marco del lado, +z = hacia el patio
-                m.AddQuad(0, a0, b0, b1, a1, nc, along, Vector3.up, 0.9f, 0.9f, 0f, 0f);
-                m.AddQuad(1, a0, b0, b1, a1, -nc, along, Vector3.up, 0.9f, 0.9f, 0f, 0f);
-            }
+            CurtainPanel(m, side, half, y0, y1, d, H3(f, s, i, 31 + side));
             GameObject go = OceanGeo.Emit(m, "Panel", t, new[] { mats[CURT_LIT], curtainIn }, false, false, track);
             if (side < 0) c.left = t; else c.right = t;
         }
         c.center = levelRoot.TransformPoint(P(s, uc, (ys + yt) * 0.5f, d));
         c.inward = levelRoot.TransformDirection(Dd(s));
         Curtains.Add(c);
+    }
+
+    // v7.12.1: paño de tela con pliegues suaves (rejilla con normales por vértice, sin escalones): fruncido regular y más
+    // apretado arriba (cinta de la barra), pliegues más hondos e irregulares abajo y un bajo con dobladillo que se mece apenas.
+    // En el marco del lado relativo al anclaje: x de 0 a -side*half, z = -d (+z hacia el patio). Cara 0 hacia el patio, 1 hacia el cuarto.
+    static void CurtainPanel(MeshBuilder m, int side, float half, float y0, float y1, float d, int h)
+    {
+        const int NX = 64, NY = 9; const float tile = 0.35f;
+        float folds = 6.5f + (h % 3) * 0.5f, ph0 = (h >> 3) % 7 * 0.6f;
+        Vector3[,] pos = new Vector3[NX + 1, NY + 1];
+        for (int j = 0; j <= NY; j++)
+        {
+            float yy = j / (float)NY;                         // 0 abajo, 1 arriba
+            float y = Mathf.Lerp(y0, y1, yy) + (j == 0 ? 0.0f : 0f);
+            for (int k = 0; k <= NX; k++)
+            {
+                float q = k / (float)NX;
+                float ph = q * folds * Mathf.PI * 2f + ph0;
+                float amp = Mathf.Lerp(0.052f, 0.026f, yy) * (0.78f + 0.22f * Mathf.Sin(q * 3.7f + side + ph0));
+                float fold = amp * (Mathf.Sin(ph) + 0.22f * Mathf.Sin(2f * ph + 1.3f + 2.2f * (1f - yy)));
+                float edge = Mathf.Clamp01(q / 0.04f) * Mathf.Clamp01((1f - q) / 0.04f);   // los cantos del paño quedan rectos
+                float sway = (1f - yy) * (1f - yy) * 0.018f * Mathf.Sin(q * 2.1f + ph0);      // el bajo se abre un poco
+                float x = -side * half * q;
+                pos[k, j] = new Vector3(x, y, -(d + fold * Mathf.Lerp(0.55f, 1f, edge) + sway));
+            }
+        }
+        for (int face = 0; face < 2; face++)
+        {
+            int o = m.verts.Count;
+            for (int j = 0; j <= NY; j++)
+                for (int k = 0; k <= NX; k++)
+                {
+                    Vector3 du = pos[Mathf.Min(k + 1, NX), j] - pos[Mathf.Max(k - 1, 0), j], dv = pos[k, Mathf.Min(j + 1, NY)] - pos[k, Mathf.Max(j - 1, 0)];
+                    Vector3 n = Vector3.Cross(dv, du).normalized; if (n.z < 0f) n = -n;   // +z: hacia el patio
+                    if (face == 1) n = -n;
+                    m.verts.Add(pos[k, j]); m.normals.Add(n);
+                    Vector3 tg = du.normalized * (face == 0 ? 1f : -1f); m.tangents.Add(new Vector4(tg.x, tg.y, tg.z, 1f));
+                    float arc = half * k / NX * 1.25f;                                   // la tela estirada es más ancha que el paño
+                    m.uvs.Add(new Vector2((face == 0 ? arc : -arc) / tile, (pos[k, j].y - y0) / tile));
+                }
+            List<int> tr = m.tris[face];
+            for (int j = 0; j < NY; j++)
+                for (int k = 0; k < NX; k++)
+                {
+                    int v00 = o + j * (NX + 1) + k, v10 = v00 + 1, v01 = v00 + NX + 1, v11 = v01 + 1;
+                    Vector3 fn = Vector3.Cross(m.verts[v01] - m.verts[v00], m.verts[v10] - m.verts[v00]);
+                    bool flip = Vector3.Dot(fn, m.normals[v00]) < 0f;
+                    if (!flip) { tr.Add(v00); tr.Add(v01); tr.Add(v10); tr.Add(v10); tr.Add(v01); tr.Add(v11); }
+                    else { tr.Add(v00); tr.Add(v10); tr.Add(v01); tr.Add(v10); tr.Add(v11); tr.Add(v01); }
+                }
+        }
     }
 
     void BuildRoomShell(int g, int s, int f, int i, W188Plan.Kind k, float u0, float u1, float y0, float yc, float uc, float wl, float wr, float ys, float yt)
@@ -661,6 +746,7 @@ public class W188World : MonoBehaviour
     // habitación de hotel modesta: cama, mesilla con lamparita, armario; moqueta y papel pintado
     void BuildFurniture(int g, int s, int f, int i, W188Plan.Kind k, float u0, float u1, float y0, float yc, float uc)
     {
+        if (W188Furniture.Available) { BuildFurnitureModels(g, s, f, i, k, u0, u1, y0, yc, uc); return; }
         float a = u0 + 0.06f;
         // cama (cabecero contra la medianera u0)
         Box(g, WOOD, s, a, a + 0.06f, y0, y0 + 1.05f, 1.0f, 2.45f, 1f);                       // cabecero
@@ -719,6 +805,60 @@ public class W188World : MonoBehaviour
             foreach (float lu in new[] { cu - 0.18f, cu + 0.18f }) foreach (float ld in new[] { cd - 0.18f, cd + 0.18f }) Box(g, WOOD, s, lu - 0.02f, lu + 0.02f, y0, y0 + 0.44f, ld - 0.02f, ld + 0.02f, 1f);
             Box(g, WOOD, s, cu - 0.21f, cu - 0.18f, y0 + 0.48f, y0 + 0.92f, cd - 0.21f, cd + 0.21f, 1f);
         }
+    }
+    // v7.12.1: los mismos muebles, modelados en Blender (W188Furniture, Tools/w188/room_build.py) y copiados en la malla de la
+    // planta. Colisión, luz de la lamparita y huecos de paso iguales que antes (cama, mesilla, armario y escritorio en el mismo sitio).
+    int FurnMat(string n, int duvet)
+    {
+        switch (n)
+        {
+            case "Wood": return FWOOD; case "Frame": return FWOOD_DK; case "Uphol": return UPHOL; case "Sheet": case "Pillow": return SHEET;
+            case "Duvet": return duvet; case "Brass": return METAL; case "Ceramic": return CERAMIC; case "Bulb": return LAMP;
+            case "Shade": return SHADE; case "ShadeIn": return SHADEIN; case "Paper": case "Fringe": return PAPER;
+            case "Rug": return RUGF; case "RugBorder": return RUGB; case "Paint": return RADP;
+        }
+        return -1;
+    }
+    public int FurnitureRooms { get; private set; }
+    public int FurnitureTris { get; private set; }
+    static int CountTris(MeshBuilder m) { int n = 0; foreach (List<int> t in m.tris) n += t.Count / 3; return n; }
+    void BuildFurnitureModels(int g, int s, int f, int i, W188Plan.Kind k, float u0, float u1, float y0, float yc, float uc)
+    {
+        float a = u0 + 0.06f, b = u1 - 0.06f;
+        int duvet = DUVET0 + H3(f, s, i, 21) % 3;
+        Matrix4x4 RM = W188Plan.SideMatrix(s) * Matrix4x4.Translate(new Vector3(a, y0, 0f)) * W188Furniture.FlipD;
+        System.Func<string, int> map = n => FurnMat(n, duvet);
+        // una malla por cuarto (no en la de la planta): se recorta con la cámara y las luces por píxel solo la repasan si la tocan
+        MeshBuilder fm = new MeshBuilder(NMAT);
+        foreach (string mdl in new[] { "Bed", "Nightstand", "TableLamp", "Wardrobe", "Rug", "Radiator", "CeilLamp", "PicFrame" }) W188Furniture.Append(fm, mdl, RM, map);
+        if (k == W188Plan.Kind.Room) { W188Furniture.Append(fm, "Desk", RM, map); W188Furniture.Append(fm, "Chair", RM, map); }
+        // solo las submallas con triángulos (cada una es un draw call)
+        List<int> used = new List<int>(); for (int q = 0; q < fm.tris.Length; q++) if (fm.tris[q].Count > 0) used.Add(q);
+        MeshBuilder cm = new MeshBuilder(used.Count); Material[] cmats = new Material[used.Count];
+        cm.verts.AddRange(fm.verts); cm.normals.AddRange(fm.normals); cm.tangents.AddRange(fm.tangents); cm.uvs.AddRange(fm.uvs);
+        for (int q = 0; q < used.Count; q++) { cm.tris[q].AddRange(fm.tris[used[q]]); cmats[q] = mats[used[q]]; }
+        GameObject fo = OceanGeo.Emit(cm, "Furniture", g == 0 ? transform : FloorParent(g), cmats, false, false, track);
+        fo.GetComponent<MeshRenderer>().reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
+        FurnitureRooms++; FurnitureTris += fm.tris.Length > 0 ? CountTris(fm) : 0;
+        // colisión (las mismas cajas que la versión de cajas)
+        Col(s, a, a + 1.98f, y0, y0 + 0.57f, 1.0f, 2.46f);
+        Col(s, a, a + 0.42f, y0, y0 + 0.98f, 0.45f, 0.92f);
+        Col(s, a, a + 0.6f, y0, y0 + 2.0f, 3.3f, 3.98f);
+        if (k == W188Plan.Kind.Room)
+        {
+            Col(s, b - 0.36f, b, y0, y0 + 0.76f, 0.45f, 1.25f);
+            // la lamparita: dentro de la pantalla (sin sombras: alumbra el cuarto con luz cálida)
+            // (por píxel: si no, con las lámparas del pasillo por píxel queda en vértices y en el suelo y los muebles salían
+            // manchas azul oscuro con bordes rectos —la captura del usuario—)
+            Light l = MakePoint(P(s, a + 0.21f, y0 + 0.98f, 0.69f), 4.2f, 1.15f, new Color(1f, 0.80f, 0.52f)); l.renderMode = LightRenderMode.ForcePixel;
+            Lamps.Add(new Lamp { l = l, f0 = f, f1 = f, baseI = l.intensity });
+            // rebote suave de la lamparita en el techo y las paredes (sin sombras): la cara de los muebles que no mira a la lámpara ya
+            // no queda negra
+            Light fl = MakePoint(P(s, uc, yc - 0.45f, 2.3f), 5.6f, 0.7f, new Color(1f, 0.86f, 0.68f)); fl.renderMode = LightRenderMode.ForcePixel;
+            Lamps.Add(new Lamp { l = fl, f0 = f, f1 = f, baseI = fl.intensity });
+        }
+        // cuadro sobre la cama: la imagen, metida en el marco modelado
+        QuadUside(g, s, a + 0.036f, y0 + 1.3f, y0 + 1.8f, 1.4f, 2.1f);
     }
     void QuadUside(int g, int s, float u, float yA, float yB, float dA, float dB)
     {   // cuadro: imagen del prado en la pared u (mira a +u)
@@ -1253,7 +1393,7 @@ public class W188World : MonoBehaviour
         CourtK = Mathf.MoveTowards(CourtK, target, Time.deltaTime * 2.5f);
         int pf = W188Plan.FloorOf(lp.y); PlayerFloor = pf;
         // dentro de una habitación entra la luz del día por su ventana: ambiente intermedio (en el pasillo, solo lámparas)
-        float back = -inset; float roomT = back > 0.05f && back < W188Plan.RoomEnd - 0.1f ? Mathf.Lerp(0.42f, 0.18f, back / W188Plan.RoomEnd) : 0f;
+        float back = -inset; float roomT = back > 0.05f && back < W188Plan.RoomEnd - 0.1f ? Mathf.Lerp(0.75f, 0.55f, back / W188Plan.RoomEnd) : 0f;
         RoomK = Mathf.MoveTowards(RoomK, roomT, Time.deltaTime * 2.5f);
         ApplyAmbient(Mathf.Max(CourtK, RoomK));
         // grupos: la planta del jugador y las contiguas; en el patio, la baja (se ve por el vestíbulo)

@@ -332,7 +332,7 @@ public static class V790Checks
     {
         string T = "[v7.9.0] ";
         EditMore(r, T);
-        r.Check(GameVersion.Current == "7.12.0" && NetSession.Protocol == "BackroomsEscape-MP-15", T + "versión " + GameVersion.Current + ", protocolo " + NetSession.Protocol);
+        r.Check(GameVersion.Current == "7.12.1" && NetSession.Protocol == "BackroomsEscape-MP-15", T + "versión " + GameVersion.Current + ", protocolo " + NetSession.Protocol);
         // ruidos
         string bad = ""; float worst = 0f;
         for (int k = 0; k < Level0Events.NoiseNames.Length; k++)
