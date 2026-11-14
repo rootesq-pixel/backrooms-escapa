@@ -347,6 +347,7 @@ for ob, model, mat, uv, sm in OBJS:
     bm = bmesh.new(); bm.from_mesh(me)
     bmesh.ops.transform(bm, matrix=ob.matrix_world, verts=bm.verts)
     bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=0.00005)
+    bmesh.ops.triangulate(bm, faces=bm.faces[:], quad_method='BEAUTY', ngon_method='BEAUTY')   # (para poder revisar cada triángulo)
     bm.normal_update()
     ul = bm.loops.layers.uv.active or bm.loops.layers.uv.new('UVMap')
     if uv == 'box' or not ob.data.uv_layers:
@@ -358,6 +359,11 @@ for ob, model, mat, uv, sm in OBJS:
     if sm:
         for e in bm.edges:
             if len(e.link_faces) == 2 and e.calc_face_angle(0) > math.radians(50): e.smooth = False
+        # caras cuyas normales suavizadas apuntan al lado contrario (pliegues finos, tapas pequeñas): planas, con su normal
+        for f in bm.faces:
+            if sum(f.normal.dot(v.normal) for v in f.verts) / len(f.verts) < 0.25:
+                f.smooth = False
+                for e in f.edges: e.smooth = False
     groups.setdefault((model, mat), []).append(bm)
 for ob, *_ in OBJS:
     if ob.name in bpy.data.objects: bpy.data.objects.remove(ob, do_unlink=True)
