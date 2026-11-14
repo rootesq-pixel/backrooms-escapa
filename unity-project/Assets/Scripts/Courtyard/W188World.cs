@@ -46,8 +46,8 @@ public class W188World : MonoBehaviour
     // dinámicos
     public class Lamp { public Light l; public int f0, f1; public bool always; public float baseI; public bool room; public Vector3 rc, ru, rd; }
     // v7.12.1: muebles de cada cuarto (se ocultan lejos de la cámara: tras las puertas y las cortinas no se ven)
-    readonly List<MeshRenderer> furnR = new List<MeshRenderer>(); readonly List<Vector3> furnC = new List<Vector3>();
-    const float FurnCull = 16f;
+    readonly List<MeshRenderer> furnR = new List<MeshRenderer>(); readonly List<Vector3> furnC = new List<Vector3>(); readonly List<bool> furnX = new List<bool>();
+    const float FurnCull = 16f, FurnCullFloor = 9.5f;
     public readonly List<Lamp> Lamps = new List<Lamp>();
     public readonly List<W188Door> Doors = new List<W188Door>();
     public class Curtain { public Transform left, right; public Vector3 center; public Vector3 inward; public int f, s, i; public float open; public bool busy; }
@@ -842,7 +842,7 @@ public class W188World : MonoBehaviour
         for (int q = 0; q < used.Count; q++) { cm.tris[q].AddRange(fm.tris[used[q]]); cmats[q] = mats[used[q]]; }
         GameObject fo = OceanGeo.Emit(cm, "Furniture", g == 0 ? transform : FloorParent(g), cmats, false, false, track);
         MeshRenderer fr = fo.GetComponent<MeshRenderer>(); fr.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
-        furnR.Add(fr); furnC.Add(P(s, uc, y0 + 1.2f, 2.0f));
+        furnR.Add(fr); furnC.Add(P(s, uc, y0 + 1.2f, 2.0f)); furnX.Add(g == 0);
         FurnitureRooms++; FurnitureTris += fm.tris.Length > 0 ? CountTris(fm) : 0;
         // colisión (las mismas cajas que la versión de cajas)
         Col(s, a, a + 1.98f, y0, y0 + 0.57f, 1.0f, 2.46f);
@@ -1428,7 +1428,10 @@ public class W188World : MonoBehaviour
         ActiveLamps = on2;
         for (int q = 0; q < furnR.Count; q++)
         {
-            bool vis = (furnC[q] - lp).sqrMagnitude < FurnCull * FurnCull;
+            // (los cuartos de otras plantas o lejos en la misma no se ven: puertas cerradas y cortinas corridas; el de la salida
+            // se ve desde el patio por su ventana)
+            Vector3 dq = furnC[q] - lp; float rr = furnX[q] ? FurnCull : (Mathf.Abs(dq.y) < 2.2f ? FurnCullFloor : 0f);
+            bool vis = dq.sqrMagnitude < rr * rr;
             if (furnR[q] != null && furnR[q].enabled != vis) furnR[q].enabled = vis;
         }
     }
