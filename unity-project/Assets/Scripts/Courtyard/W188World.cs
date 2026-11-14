@@ -44,10 +44,10 @@ public class W188World : MonoBehaviour
     public int LampCount { get; private set; }
 
     // dinámicos
-    public class Lamp { public Light l; public int f0, f1; public bool always; public float baseI; public bool room; public Vector3 rc; }
+    public class Lamp { public Light l; public int f0, f1; public bool always; public float baseI; public bool room; public Vector3 rc, ru, rd; }
     // v7.12.1: muebles de cada cuarto (se ocultan lejos de la cámara: tras las puertas y las cortinas no se ven)
     readonly List<MeshRenderer> furnR = new List<MeshRenderer>(); readonly List<Vector3> furnC = new List<Vector3>();
-    const float FurnCull = 16f, RoomLightR = 3.6f;
+    const float FurnCull = 16f;
     public readonly List<Lamp> Lamps = new List<Lamp>();
     public readonly List<W188Door> Doors = new List<W188Door>();
     public class Curtain { public Transform left, right; public Vector3 center; public Vector3 inward; public int f, s, i; public float open; public bool busy; }
@@ -856,11 +856,11 @@ public class W188World : MonoBehaviour
             // manchas azul oscuro con bordes rectos —la captura del usuario—)
             Light l = MakePoint(P(s, a + 0.21f, y0 + 0.98f, 0.69f), 4.2f, 1.15f, new Color(1f, 0.80f, 0.52f)); l.renderMode = LightRenderMode.ForcePixel;
             Vector3 rcw = P(s, uc, y0 + 1.4f, 2.0f);   // (en coordenadas del nivel)
-            Lamps.Add(new Lamp { l = l, f0 = f, f1 = f, baseI = l.intensity, room = true, rc = rcw });
+            Lamps.Add(new Lamp { l = l, f0 = f, f1 = f, baseI = l.intensity, room = true, rc = rcw, ru = Ud(s), rd = Dd(s) });
             // rebote suave de la lamparita en el techo y las paredes (sin sombras): la cara de los muebles que no mira a la lámpara ya
             // no queda negra
             Light fl = MakePoint(P(s, uc, yc - 0.45f, 2.3f), 4.4f, 0.9f, new Color(1f, 0.86f, 0.68f)); fl.renderMode = LightRenderMode.ForcePixel;
-            Lamps.Add(new Lamp { l = fl, f0 = f, f1 = f, baseI = fl.intensity, room = true, rc = rcw });
+            Lamps.Add(new Lamp { l = fl, f0 = f, f1 = f, baseI = fl.intensity, room = true, rc = rcw, ru = Ud(s), rd = Dd(s) });
         }
         // cuadro sobre la cama: la imagen, metida en el marco modelado
         QuadUside(g, s, a + 0.036f, y0 + 1.3f, y0 + 1.8f, 1.4f, 2.1f);
@@ -1418,7 +1418,7 @@ public class W188World : MonoBehaviour
             bool floorOk = target > 0.5f ? false : (pf >= L.f0 && pf <= L.f1);
             // v7.12.1: las luces por píxel de un cuarto, solo con la cámara dentro o en su puerta (si no, cada una es otra pasada
             // de toda la planta y en los pasillos se notaba)
-            if (floorOk && L.room && (L.rc - lp).sqrMagnitude > RoomLightR * RoomLightR) floorOk = false;
+            if (floorOk && L.room && !InRoom(L, lp)) floorOk = false;
             if (!floorOk) { if (L.l.enabled) L.l.enabled = false; continue; }
             tmpLamps.Add(L);
         }
@@ -1433,6 +1433,12 @@ public class W188World : MonoBehaviour
         }
     }
     readonly List<Lamp> tmpLamps = new List<Lamp>();
+    // la cámara está dentro de ese cuarto o en su puerta (no en el de al lado: las paredes no hacen sombra)
+    static bool InRoom(Lamp L, Vector3 lp)
+    {
+        Vector3 q = lp - L.rc; float u = Vector3.Dot(q, L.ru), d = Vector3.Dot(q, L.rd);
+        return Mathf.Abs(u) < 1.75f && d > -2.3f && d < 2.9f && Mathf.Abs(q.y) < 2.2f;
+    }
 
     public static readonly Color SkyAmb = new Color(0.56f, 0.59f, 0.64f), EqAmb = new Color(0.46f, 0.47f, 0.48f), GroundAmb = new Color(0.22f, 0.21f, 0.20f);
     void ApplyAmbient(float k)
