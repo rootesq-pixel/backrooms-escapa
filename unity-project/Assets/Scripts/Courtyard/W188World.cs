@@ -44,7 +44,10 @@ public class W188World : MonoBehaviour
     public int LampCount { get; private set; }
 
     // dinámicos
-    public class Lamp { public Light l; public int f0, f1; public bool always; public float baseI; }
+    public class Lamp { public Light l; public int f0, f1; public bool always; public float baseI; public bool room; public Vector3 rc; }
+    // v7.12.1: muebles de cada cuarto (se ocultan lejos de la cámara: tras las puertas y las cortinas no se ven)
+    readonly List<MeshRenderer> furnR = new List<MeshRenderer>(); readonly List<Vector3> furnC = new List<Vector3>();
+    const float FurnCull = 16f, RoomLightR = 3.6f;
     public readonly List<Lamp> Lamps = new List<Lamp>();
     public readonly List<W188Door> Doors = new List<W188Door>();
     public class Curtain { public Transform left, right; public Vector3 center; public Vector3 inward; public int f, s, i; public float open; public bool busy; }
@@ -838,7 +841,8 @@ public class W188World : MonoBehaviour
         cm.verts.AddRange(fm.verts); cm.normals.AddRange(fm.normals); cm.tangents.AddRange(fm.tangents); cm.uvs.AddRange(fm.uvs);
         for (int q = 0; q < used.Count; q++) { cm.tris[q].AddRange(fm.tris[used[q]]); cmats[q] = mats[used[q]]; }
         GameObject fo = OceanGeo.Emit(cm, "Furniture", g == 0 ? transform : FloorParent(g), cmats, false, false, track);
-        fo.GetComponent<MeshRenderer>().reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
+        MeshRenderer fr = fo.GetComponent<MeshRenderer>(); fr.reflectionProbeUsage = UnityEngine.Rendering.ReflectionProbeUsage.Off;
+        furnR.Add(fr); furnC.Add(P(s, uc, y0 + 1.2f, 2.0f));
         FurnitureRooms++; FurnitureTris += fm.tris.Length > 0 ? CountTris(fm) : 0;
         // colisión (las mismas cajas que la versión de cajas)
         Col(s, a, a + 1.98f, y0, y0 + 0.57f, 1.0f, 2.46f);
@@ -851,11 +855,12 @@ public class W188World : MonoBehaviour
             // (por píxel: si no, con las lámparas del pasillo por píxel queda en vértices y en el suelo y los muebles salían
             // manchas azul oscuro con bordes rectos —la captura del usuario—)
             Light l = MakePoint(P(s, a + 0.21f, y0 + 0.98f, 0.69f), 4.2f, 1.15f, new Color(1f, 0.80f, 0.52f)); l.renderMode = LightRenderMode.ForcePixel;
-            Lamps.Add(new Lamp { l = l, f0 = f, f1 = f, baseI = l.intensity });
+            Vector3 rcw = P(s, uc, y0 + 1.4f, 2.0f);   // (en coordenadas del nivel)
+            Lamps.Add(new Lamp { l = l, f0 = f, f1 = f, baseI = l.intensity, room = true, rc = rcw });
             // rebote suave de la lamparita en el techo y las paredes (sin sombras): la cara de los muebles que no mira a la lámpara ya
             // no queda negra
-            Light fl = MakePoint(P(s, uc, yc - 0.45f, 2.3f), 5.6f, 0.7f, new Color(1f, 0.86f, 0.68f)); fl.renderMode = LightRenderMode.ForcePixel;
-            Lamps.Add(new Lamp { l = fl, f0 = f, f1 = f, baseI = fl.intensity });
+            Light fl = MakePoint(P(s, uc, yc - 0.45f, 2.3f), 4.4f, 0.9f, new Color(1f, 0.86f, 0.68f)); fl.renderMode = LightRenderMode.ForcePixel;
+            Lamps.Add(new Lamp { l = fl, f0 = f, f1 = f, baseI = fl.intensity, room = true, rc = rcw });
         }
         // cuadro sobre la cama: la imagen, metida en el marco modelado
         QuadUside(g, s, a + 0.036f, y0 + 1.3f, y0 + 1.8f, 1.4f, 2.1f);
@@ -1411,6 +1416,9 @@ public class W188World : MonoBehaviour
             if (L.l == null) continue;
             if (L.always) { if (!L.l.enabled) L.l.enabled = true; continue; }
             bool floorOk = target > 0.5f ? false : (pf >= L.f0 && pf <= L.f1);
+            // v7.12.1: las luces por píxel de un cuarto, solo con la cámara dentro o en su puerta (si no, cada una es otra pasada
+            // de toda la planta y en los pasillos se notaba)
+            if (floorOk && L.room && (L.rc - lp).sqrMagnitude > RoomLightR * RoomLightR) floorOk = false;
             if (!floorOk) { if (L.l.enabled) L.l.enabled = false; continue; }
             tmpLamps.Add(L);
         }
@@ -1418,6 +1426,11 @@ public class W188World : MonoBehaviour
         int on2 = 0;
         for (int k = 0; k < tmpLamps.Count; k++) { bool e = k < budget; if (tmpLamps[k].l.enabled != e) tmpLamps[k].l.enabled = e; if (e) on2++; }
         ActiveLamps = on2;
+        for (int q = 0; q < furnR.Count; q++)
+        {
+            bool vis = (furnC[q] - lp).sqrMagnitude < FurnCull * FurnCull;
+            if (furnR[q] != null && furnR[q].enabled != vis) furnR[q].enabled = vis;
+        }
     }
     readonly List<Lamp> tmpLamps = new List<Lamp>();
 
