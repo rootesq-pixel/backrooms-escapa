@@ -30,6 +30,21 @@ public static class V7120Checks
         bool cr = credits.Contains("meadow_2") && credits.Contains("Poly Haven");
         foreach (string id in new[] { "PaintedPlaster017", "PavingStones136", "Carpet012", "Carpet016", "Wallpaper001A", "Fabric062", "Concrete034", "PaintedWood005" }) if (!credits.Contains(id)) cr = false;
         r.Check(cr, T + "CREDITS.md cita las 8 texturas ambientCG (CC0) y el HDRI meadow_2 de Poly Haven (CC0)");
+        // v7.12.1: muebles modelados de las habitaciones (Blender, room_build.py) y sus texturas (ambientCG)
+        foreach (string n in new[] { "W188Sheet", "W188Duvet", "W188Uphol", "W188Shade", "W188Wood", "W188WoodDark", "W188Rug", "W188RugBorder" })
+        {
+            Texture2D a = Resources.Load<Texture2D>("W188/" + n + "_a"), nm = Resources.Load<Texture2D>("W188/" + n + "_n"), m = Resources.Load<Texture2D>("W188/" + n + "_m");
+            r.Check(a != null && nm != null && m != null && a.width >= 512, T + "[Cuartos] texturas PBR " + n + " (albedo " + (a != null ? a.width : 0) + " px, normal, máscara)");
+        }
+        {
+            string[] need = { "Bed", "Nightstand", "TableLamp", "Wardrobe", "Desk", "Chair", "Rug", "Radiator", "CeilLamp", "PicFrame", "CurtainRod" };
+            int ok = 0, tris = 0; string miss = "";
+            foreach (string mdl in need) { int t = W188Furniture.TriCount(mdl); tris += t; if (W188Furniture.Has(mdl) && t > 20 && t < 16000) ok++; else miss += " " + mdl + "(" + t + ")"; }
+            r.Check(ok == need.Length && tris < 30000, T + "[Cuartos] muebles modelados en Blender (Resources/" + W188Furniture.Resource + "): " + ok + "/" + need.Length + ", " + tris + " triángulos por cuarto" + miss);
+            bool cr2 = credits.Contains("room_build.py");
+            foreach (string id in new[] { "Fabric036", "Fabric008", "Fabric039", "Fabric032", "Wood066", "Wood051", "Carpet008", "Carpet015" }) if (!credits.Contains(id)) cr2 = false;
+            r.Check(cr2, T + "[Cuartos] CREDITS.md cita los muebles propios (room_build.py) y las 8 texturas ambientCG nuevas (CC0)");
+        }
 
         // plano por semilla: determinista, una salida en plantas 2-4, 4 ventanas de la Ventana, 9 abiertas, 36 habitaciones, 5 llaves
         bool det = true, differ = false, counts = true, keys = true, sep = true; string ex = "";
@@ -73,6 +88,7 @@ public static class V7120Checks
         if (w == null) return;
         W188Plan P = w.plan;
         r.Check(w.FloorGroups.Count == W188Plan.Floors && w.ExtGroup != null && w.ColliderCount > 800, T + "5 plantas de interiores + fachadas; " + w.ColliderCount + " cajas de colisión");
+        r.Check(w.FurnitureRooms == P.Count(W188Plan.Kind.Room) + P.Count(W188Plan.Kind.Exit), T + "[Cuartos] muebles modelados en " + w.FurnitureRooms + " cuartos (habitaciones y la de la salida)");
         r.Check(w.Curtains.Count == P.Count(W188Plan.Kind.Room) && w.Figures.Count == W188Plan.EntityCount && w.Doors.Count == P.Count(W188Plan.Kind.Room) && w.Locked.Count == P.Count(W188Plan.Kind.Closed) + P.Count(W188Plan.Kind.Open),
             T + w.Curtains.Count + " cortinas, " + w.Doors.Count + " puertas que se abren, " + w.Locked.Count + " cerradas, " + w.Figures.Count + " siluetas de la Ventana");
         r.Check(gen.KeySpots.Count == ExitLock.KeyCount && gen.FixtureCount > 100, T + "5 llaves; " + gen.FixtureCount + " luces (se encienden las 8 más cercanas de tu planta)");
