@@ -230,12 +230,25 @@ public class FieldWorld : MonoBehaviour
             Vector2 sz = FieldPlan.TemplateSize[h.template];
             Quaternion rot = Quaternion.Euler(0f, h.rot * 90f, 0f);
             // apoyo: el suelo de la casa a la altura de la esquina más alta; zócalo hasta la más baja
+            // v7.12.2: también el umbral y 0,8 m delante de la puerta. Si el terreno allí está más alto que las
+            // esquinas, la casa se eleva: si no, la ladera tapa el hueco y no se puede entrar de pie.
             float hi = -99f, lo = 99f;
             for (int c = 0; c < 4; c++)
             {
                 Vector3 corner = rot * new Vector3((c & 1) == 0 ? -sz.x * 0.5f : sz.x * 0.5f, 0f, (c & 2) == 0 ? -sz.y * 0.5f : sz.y * 0.5f);
                 float y = FieldHeight.H(h.pos.x + corner.x, h.pos.y + corner.z);
                 hi = Mathf.Max(hi, y); lo = Mathf.Min(lo, y);
+            }
+            if (h.enterable)
+            {
+                float dx0 = DoorX(h.template);
+                for (float zOff = -0.2f; zOff <= 0.85f; zOff += 0.2f)
+                    for (float xOff = -HouseDoorW * 0.5f; xOff <= HouseDoorW * 0.5f + 0.01f; xOff += 0.25f)
+                    {
+                        Vector3 p = rot * new Vector3(dx0 + xOff, 0f, sz.y * 0.5f + zOff);
+                        float y = FieldHeight.H(h.pos.x + p.x, h.pos.y + p.z);
+                        hi = Mathf.Max(hi, y); lo = Mathf.Min(lo, y);
+                    }
             }
             Vector3 pos = new Vector3(h.pos.x, hi + 0.02f, h.pos.y);
             GameObject go = new GameObject("House_" + k++ + (h.enterable ? "_abierta" : "_cerrada"));
@@ -254,17 +267,28 @@ public class FieldWorld : MonoBehaviour
                 new Vector3(sz.x + 0.1f, plinth, sz.y + 0.1f), trim, true);
             pl.GetComponent<Renderer>().sharedMaterial = plinthM;
             // escalones delante de la puerta si queda alta
+            // v7.12.2: ya no hay tope de 5 peldaños (con más de 1 m de desnivel cada uno superaba los 0,30 m
+            // que puede subir el CharacterController y la puerta quedaba inalcanzable). Peldaños de 18 cm
+            // hasta salvar todo el desnivel.
             if (h.enterable)
             {
-                Vector3 doorOut = go.transform.TransformPoint(new Vector3(DoorX(h.template), 0f, sz.y * 0.5f + 0.45f));
-                float gy = FieldHeight.H(doorOut.x, doorOut.z);
-                float rise = pos.y + 0.15f - gy;
-                int steps = Mathf.Clamp(Mathf.CeilToInt(rise / 0.2f), 0, 5);
+                float dx = DoorX(h.template);
+                float floorY = pos.y + 0.15f;
+                float gMin = floorY;
+                for (float zOff = 0.25f; zOff <= 2.6f; zOff += 0.25f)
+                    for (float xOff = -HouseDoorW * 0.45f; xOff <= HouseDoorW * 0.45f + 0.01f; xOff += 0.3f)
+                    {
+                        Vector3 p = rot * new Vector3(dx + xOff, 0f, sz.y * 0.5f + zOff);
+                        gMin = Mathf.Min(gMin, FieldHeight.H(h.pos.x + p.x, h.pos.y + p.z));
+                    }
+                float rise = floorY - gMin;
+                const float maxStep = 0.18f;   // el CharacterController sube como mucho 0,30 m (stepOffset)
+                int steps = rise > 0.10f ? Mathf.CeilToInt(rise / maxStep) : 0;
                 for (int s = 0; s < steps; s++)
                 {
                     float top = 0.15f - (s * rise / steps);
                     GameObject st = ProceduralAssets.CreatePrimitive(PrimitiveType.Cube, "Step" + s, go.transform,
-                        new Vector3(DoorX(h.template), top - 0.5f, sz.y * 0.5f + 0.2f + s * 0.32f), new Vector3(HouseDoorW + 0.6f, 1f, 0.34f), trim, true);   // v7.4.0: escalera de 1,7 m (antes 1,4 m)
+                        new Vector3(dx, top - 0.5f, sz.y * 0.5f + 0.2f + s * 0.32f), new Vector3(HouseDoorW + 0.6f, 1f, 0.34f), trim, true);
                     st.GetComponent<Renderer>().sharedMaterial = plinthM;
                 }
             }

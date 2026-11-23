@@ -87,9 +87,9 @@ public static class HouseEntryProbe
         pw.Teleport(outW, Mathf.Atan2(fwdIn.x, fwdIn.z) * Mathf.Rad2Deg);
         for (int i = 0; i < 20; i++) yield return null;
         yield return new WaitForSeconds(0.3f);
-        // hacia dentro: hasta 1,6 m pasada la puerta (o 5 s)
+        // hacia dentro: hasta 1,6 m pasada la puerta (o 8 s; v7.12.2: más tiempo si hay muchos peldaños)
         float t0 = Time.time; pw.debugMove = new Vector2(0f, 1f);
-        while (Time.time - t0 < 5f)
+        while (Time.time - t0 < 8f)
         {
             if (pw.IsCrouching) r.neverCrouched = false;
             r.minHeight = Mathf.Min(r.minHeight, cc.height);
