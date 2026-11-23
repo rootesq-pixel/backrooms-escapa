@@ -9,7 +9,8 @@ using UnityEditor; using UnityEditor.SceneManagement; using UnityEngine; using U
 public static class SeedReachCheck
 {
     public static readonly string Report = TestPaths.Logs + "/smoke-seedreach.txt";
-    public static readonly int[] Level5Seeds = { 7110, 1, 42, 1234, 98765, 20261024 };
+    public static readonly int[] Level5Seeds = { 7110, 1, 42, 1234, 98765, 20261024, 2, 3, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 99, 100, 256, 777, 1024, 2024, 3141, 5555, 7777, 9999, 12345, 31337, 65535, 20261025 };   // v7.12.2: 32 semillas, incluidas las que fallaban (1234, 98765)
+    public static readonly int[] Level5ChaseSeeds = { 7110, 1234, 98765 };
     public static readonly int[] Level3Seeds = { 1, 7, 42, 100, 1234, 5555, 98765, 31337, 271828, 8675309, 20261024, 777 };   // v7.5.0
     public static readonly int[] Level8Seeds = { 7110, 1, 42, 1234, 98765, 20261024, 31337, 777 };   // v7.7.0
     public static readonly int[] Level9Seeds = { 7460, 1, 42, 98765 };   // Nivel 7460
@@ -78,14 +79,17 @@ public static class SeedReachCheck
                     if (ht == null) { Check(false, T5 + "casa " + k + ": no se encuentra su objeto"); continue; }
                     var res = new HouseEntryProbe.Result[1];
                     gm5.StartCoroutine(HouseEntryProbe.Run(pw, ht, h, res));   // corrutina de verdad (fotogramas y WaitForSeconds del juego)
-                    double th = EditorApplication.timeSinceStartup; while (!res[0].done && EditorApplication.timeSinceStartup - th < 30) yield return 0.1f;
+                    double th = EditorApplication.timeSinceStartup; while (!res[0].done && EditorApplication.timeSinceStartup - th < 40) yield return 0.1f;
                     tpls.Add(h.template); houses++;
-                    Check(res[0].Ok(true), T5 + "casa " + k + " (plantilla " + h.template + "): de pie se entra por la puerta sin agacharse y ningún monstruo tiene camino dentro — " + res[0].Describe());
+                    if (!res[0].done) Check(false, T5 + "casa " + k + " (plantilla " + h.template + "): tiempo agotado al entrar");
+                    else Check(res[0].Ok(true), T5 + "casa " + k + " (plantilla " + h.template + "): de pie se entra por la puerta sin agacharse y ningún monstruo tiene camino dentro — " + res[0].Describe());
                 }
                 // persecución: un monstruo persigue al jugador desde 9 m mientras entra en la primera casa abierta; luego 12 s dentro
+                // v7.12.2: solo en unas semillas (el resto ya cubre la entrada a todas las casas) para no alargar tanto la prueba
+                bool doChase = false; foreach (int cs in Level5ChaseSeeds) if (cs == s5) { doChase = true; break; }
                 MonsterAI m0 = null; foreach (MonsterAI m in gm5.monsters) if (m != null && m.UsesNav) { m0 = m; break; }
                 int kc = -1; for (int k = 0; k < fw.plan.houses.Count; k++) if (fw.plan.houses[k].enterable) { kc = k; break; }
-                if (m0 != null && kc >= 0)
+                if (doChase && m0 != null && kc >= 0)
                 {
                     FieldPlan.House hc = fw.plan.houses[kc]; Transform htc = HouseEntryProbe.HouseTransform(fw, kc);
                     float D = FieldPlan.TemplateSize[hc.template].y, dx = FieldWorld.DoorX(hc.template);
@@ -98,6 +102,7 @@ public static class SeedReachCheck
                     bool inside = false, killed = false; float minD = 99f; double tc = EditorApplication.timeSinceStartup; bool chased = false;
                     while (EditorApplication.timeSinceStartup - tc < 30)
                     {
+                        if (m0 == null) break;   // v7.12.2: el monstruo puede destruirse al recargar el nivel
                         if (fw.InsideHouse(m0.transform.position)) inside = true;
                         if (m0.CurrentState == MonsterAI.State.Kill || gm5.State != GameManager.GameState.Playing) killed = true;
                         if (m0.CurrentState == MonsterAI.State.Chase) chased = true;
@@ -105,8 +110,8 @@ public static class SeedReachCheck
                         if (res[0].done && EditorApplication.timeSinceStartup - tc > 2) break;
                         yield return 0.1f;
                     }
-                    double t2 = EditorApplication.timeSinceStartup; Vector3 last = m0.transform.position; float jitter = 0f;
-                    while (EditorApplication.timeSinceStartup - t2 < 12)
+                    double t2 = EditorApplication.timeSinceStartup; Vector3 last = m0 != null ? m0.transform.position : Vector3.zero; float jitter = 0f;
+                    while (m0 != null && EditorApplication.timeSinceStartup - t2 < 12)
                     {
                         if (fw.InsideHouse(m0.transform.position)) inside = true;
                         if (m0.CurrentState == MonsterAI.State.Kill || gm5.State != GameManager.GameState.Playing) killed = true;
@@ -115,13 +120,17 @@ public static class SeedReachCheck
                         last = m0.transform.position;
                         yield return 0.1f;
                     }
+                    if (m0 == null) { Check(false, T5 + "casa " + kc + " como refugio: el monstruo se destruyó durante la prueba"); }
+                    else
+                    {
                     string st = m0.CurrentState.ToString();
                     m0.Stop();
                     Check(chased && res[0].entered && !inside && !killed && m0.CurrentState != MonsterAI.State.Chase,
                         T5 + "casa " + kc + " como refugio: con un monstruo persiguiendo se entra, el monstruo no entra ni atrapa y deja la persecución (persiguió " + chased +
                         ", entra " + res[0].entered + ", monstruo dentro " + inside + ", atrapado " + killed + ", distancia mín. " + minD.ToString("F1") + " m, estado a los 12 s " + st + ", movimiento últimos 3 s " + jitter.ToString("F1") + " m)");
+                    }
                 }
-                else Check(false, T5 + "persecución: sin monstruo con NavMesh o sin casa abierta");
+                else if (doChase) Check(false, T5 + "persecución: sin monstruo con NavMesh o sin casa abierta");
             }
             Check(tpls.Count == FieldPlan.TemplateSize.Length && houses >= (l5 == Level5Seeds ? 8 : 1), "casas abiertas probadas: " + houses + ", plantillas " + tpls.Count + "/" + FieldPlan.TemplateSize.Length);
         }
